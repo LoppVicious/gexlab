@@ -35,6 +35,8 @@ def _get(url: str, timeout: int = 25) -> str:
 
 
 def _ny(dt_utc: datetime) -> datetime:
+    """Hora UTC (con o sin zona) -> hora de Nueva York sin zona."""
+    dt_utc = dt_utc.replace(tzinfo=timezone.utc) if dt_utc.tzinfo is None else dt_utc.astimezone(timezone.utc)
     return (dt_utc + g._ny_offset(dt_utc)).replace(tzinfo=None)
 
 
@@ -130,7 +132,7 @@ def forexfactory() -> list[dict]:
             dt = datetime.fromisoformat(e["date"])
         except (KeyError, ValueError):
             continue
-        ny = _ny(dt.astimezone(timezone.utc).replace(tzinfo=None))
+        ny = _ny(dt)
         nm = name[0]
         if nm in ("IPC", "IPP", "Empleo (NFP)", "PCE", "Ventas minoristas", "JOLTS"):
             nm = f"{nm} ({_ref_month(ny, 2 if nm == 'JOLTS' else 1)})"
@@ -193,6 +195,11 @@ def publicables() -> list[dict]:
 
 
 if __name__ == "__main__":
+    import sys
+    if "--census" in sys.argv:
+        t = _get("https://www.census.gov/economic-indicators/calendar-listview.html")
+        rows = [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", r)).strip() for r in re.findall(r"<tr[^>]*>(.*?)</tr>", t, re.S)]
+        print(len(rows)); print("\n".join(rows[:25]))
     evs, res = actualizar()
     print(res)
     for e in evs[:60]:

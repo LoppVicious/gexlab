@@ -45,6 +45,27 @@ DEFAULT_VISTA = {"dte": "45", "range": "5", "pos": "standard", "combo": "0", "se
 _t0 = time.time()
 _errores: list[str] = []
 
+# subidas en paralelo: cada escritura en R2 tarda ~1 s desde GitHub, el calculo sigue mientras tanto
+from concurrent.futures import ThreadPoolExecutor  # noqa: E402
+import gzip as _gzip  # noqa: E402
+_pool = ThreadPoolExecutor(max_workers=8)
+_subidas: list = []
+
+
+def subir(st, key: str, obj) -> int:
+    data = _gzip.compress(almacen.dumps(obj), compresslevel=6)
+    _subidas.append((key, _pool.submit(st.put, key, data, "application/json; charset=utf-8", True)))
+    return len(data)
+
+
+def esperar_subidas() -> None:
+    for key, f in _subidas:
+        try:
+            f.result()
+        except Exception as e:  # noqa: BLE001
+            err(f"subida {key}", e)
+    _subidas.clear()
+
 
 def log(msg: str) -> None:
     print(f"[{time.time() - _t0:6.1f}s] {msg}", flush=True)
@@ -202,7 +223,7 @@ def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
                 g.compute(sym, max_dte=45, window_pct=5.0)  # historial, flujo y copia de la cadena
             paq = paquete(sym)
             escribir_fixtures(paq)
-            n = almacen.put_json(st, f"pub/t/{sym}/paquete.json", paq)
+            n = subir(st, f"pub/t/{sym}/paquete.json", paq)
             ok.append(sym)
             log(f"{sym}: paquete {n / 1e6:.2f} MB en {time.time() - t:.1f} s")
         except Exception as e:  # noqa: BLE001
@@ -215,13 +236,13 @@ def fase_listas(st, listas: dict) -> None:
     for lid, syms in listas.items():
         syms = [s for s in syms if s]
         try:
-            almacen.put_json(st, f"pub/l/{lid}/compass.json", g.compass(syms))
+            subir(st, f"pub/l/{lid}/compass.json", g.compass(syms))
         except Exception as e:  # noqa: BLE001
             err(f"compass {lid}", e)
         for dte in DTES:
             for mode in VAL_MODES:
                 try:
-                    almacen.put_json(st, f"pub/l/{lid}/validacion_{dte}_{mode}.json", g.validation(syms, dte, mode))
+                    subir(st, f"pub/l/{lid}/validacion_{dte}_{mode}.json", g.validation(syms, dte, mode))
                 except Exception as e:  # noqa: BLE001
                     err(f"validacion {lid} {dte} {mode}", e)
     log(f"listas: Compass y Validacion de {len(listas)} listas")
@@ -231,12 +252,12 @@ def fase_macro(st) -> None:
     import macro
     for key, fn in (("vix", macro.vix_curve), ("cot", macro.cot), ("resumen", macro.summary)):
         try:
-            almacen.put_json(st, f"pub/{key}.json", fn())
+            subir(st, f"pub/{key}.json", fn())
         except Exception as e:  # noqa: BLE001
             err(key, e)
     for m in macro.COT_MARKETS:
         try:
-            almacen.put_json(st, f"pub/cot_hist/{m[0]}.json", macro.cot_history(m[0]))
+            subir(st, f"pub/cot_hist/{m[0]}.json", macro.cot_history(m[0]))
         except Exception as e:  # noqa: BLE001
             err(f"cot {m[0]}", e)
     log("macro: curva VIX, COT y Resumen")
@@ -257,10 +278,10 @@ def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
                         combine=v["combo"] == "1", positioning=v["pos"])
             try:
                 if kn not in hechas:
-                    almacen.put_json(st, f"pub/t/{sym}/niveles/{kn}.json", g.compute(sym, **args))
+                    subir(st, f"pub/t/{sym}/niveles/{kn}.json", g.compute(sym, **args))
                     hechas.add(kn); n += 1
                 if km not in hechas:
-                    almacen.put_json(st, f"pub/t/{sym}/mapa/{km}.json", g.heatmap(sym, which=v["sess"], **args))
+                    subir(st, f"pub/t/{sym}/mapa/{km}.json", g.heatmap(sym, which=v["sess"], **args))
                     hechas.add(km); n += 1
             except Exception as e:  # noqa: BLE001
                 err(f"{sym} vista {km}", e)
@@ -270,7 +291,7 @@ def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
             rows = g.scan(syms, _dte_arg(dte))
             at = g.now_ny().strftime("%Y-%m-%d %H:%M")
             for lid, ls in listas.items():
-                almacen.put_json(st, f"pub/l/{lid}/escaner_{dte}.json",
+                subir(st, f"pub/l/{lid}/escaner_{dte}.json",
                                  {"rows": [r for r in rows if r.get("symbol") in ls], "computed_at": at})
         except Exception as e:  # noqa: BLE001
             err(f"escaner {dte}", e)
@@ -287,15 +308,15 @@ def publicar_generales(st) -> None:
     stt = recolector.read_state()
     stt["instalado"] = True
     stt["nube"] = True
-    almacen.put_json(st, "pub/recolector.json", stt)
+    subir(st, "pub/recolector.json", stt)
     # directorio de simbolos para el buscador (una vez al dia)
     meta = almacen.get_json(st, "pub/simbolos_meta.json", {}) or {}
     hoy = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     if meta.get("fecha") != hoy:
         try:
             syms = g.load_symbols()
-            almacen.put_json(st, "pub/simbolos.json", [[s, n] for s, n in syms])
-            almacen.put_json(st, "pub/simbolos_meta.json", {"fecha": hoy, "n": len(syms)})
+            subir(st, "pub/simbolos.json", [[s, n] for s, n in syms])
+            subir(st, "pub/simbolos_meta.json", {"fecha": hoy, "n": len(syms)})
         except Exception as e:  # noqa: BLE001
             err("simbolos", e)
 
@@ -329,10 +350,12 @@ def ciclo() -> int:
     fase_macro(st)
     fase_vistas(st, [s for s in syms if s in ok], cfg["vistas"], cfg["listas"])
     publicar_generales(st)
+    esperar_subidas()
     guardar_estado(st, copia=hubo_cierre)
-    almacen.put_json(st, "pub/motor.json", {
+    subir(st, "pub/motor.json", {
         "ultimo_ciclo": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "segundos": round(time.time() - _t0, 1),
         "tickers": ok, "errores": _errores[-20:]})
+    esperar_subidas()
     log(f"ciclo terminado: {len(ok)}/{len(syms)} tickers, {len(_errores)} errores")
     return 0 if ok else 1
 
@@ -362,10 +385,11 @@ def tickers(args: list[str]) -> int:
             args_ = dict(max_dte=_dte_arg(v["dte"]), window_pct=_rango_arg(v["range"]),
                          combine=v["combo"] == "1", positioning=v["pos"])
             try:
-                almacen.put_json(st, f"pub/t/{sym}/niveles/{clave_niveles(v)}.json", g.compute(sym, **args_))
-                almacen.put_json(st, f"pub/t/{sym}/mapa/{clave_mapa(v)}.json", g.heatmap(sym, which=v["sess"], **args_))
+                subir(st, f"pub/t/{sym}/niveles/{clave_niveles(v)}.json", g.compute(sym, **args_))
+                subir(st, f"pub/t/{sym}/mapa/{clave_mapa(v)}.json", g.heatmap(sym, which=v["sess"], **args_))
             except Exception as e:  # noqa: BLE001
                 err(f"{sym} vista", e)
+    esperar_subidas()
     log(f"puntual: {len(fase_vistas_ticker)}/{len(syms)} tickers")
     return 0 if ok else 1
 

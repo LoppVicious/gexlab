@@ -8,10 +8,44 @@
 <title>GEX Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="sg.css">
+<script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
 </head>
 <body>
+<div class="app">
+<aside class="side" id="side" aria-label="Navegación">
+  <div class="brand"><svg width="24" height="24" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="2" y="11" width="3" height="8" rx="1" fill="var(--neg)"/><rect x="7" y="11" width="3" height="5" rx="1" fill="var(--neg)"/>
+      <rect x="12" y="6" width="3" height="5" rx="1" fill="var(--pos)"/><rect x="17" y="3" width="3" height="8" rx="1" fill="var(--pos)"/>
+      <line x1="1" y1="11" x2="21" y2="11" stroke="var(--accent)" stroke-width="1.2"/></svg><span>GEX Lab</span></div>
+  <nav>
+    <div class="sec">Mercado</div>
+      <button class="item" id="navSummary" data-title="Resumen" title="Resumen"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z"/></svg><span class="lbl">Resumen</span></button>
+    <div class="sec">Señales</div>
+      <button class="item" id="navTrace" data-title="TRACE" title="TRACE"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M3 8h14M3 12.5h14" opacity=".55"/><path d="M6 14l2.5-3 2 1.5L14 7"/></svg><span class="lbl">TRACE</span></button>
+      <button class="item" id="navHub" data-title="Equity Hub" title="Equity Hub"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V9M8 16V5M12 16v-6M16 16V7"/></svg><span class="lbl">Equity Hub</span></button>
+    <div class="sec">Volatilidad</div>
+      <button class="item" id="navVol" data-title="Panel de volatilidad" title="Panel de volatilidad"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Panel de volatilidad</span></button>
+      <button class="item" id="navVix" data-title="Curva VIX" title="Curva VIX"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">Curva VIX</span></button>
+    <div class="sec">Consola</div>
+      <button class="item" id="navScan" data-title="Escáner" title="Escáner"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg><span class="lbl">Escáner</span></button>
+      <button class="item" id="navCompass" data-title="Compass" title="Compass"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z"/></svg><span class="lbl">Compass</span></button>
+      <button class="item" id="navValid" data-title="Validación" title="Validación"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg><span class="lbl">Validación</span></button>
+    <div class="sec">Posicionamiento</div>
+      <button class="item" id="navCot" data-title="COT" title="COT"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V4M4 16h12"/><path d="M7 12l3-3 2 2 4-5"/></svg><span class="lbl">COT</span></button>
+  </nav>
+  <div class="foot-side">
+    <button class="item" id="themeBtn" title="Cambiar entre tema oscuro y claro"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg><span class="lbl" id="themeLbl">Tema claro</span></button>
+    <button class="item" id="usersNav" title="Gestionar usuarios" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3"/><path d="M2.5 16c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M13.5 4.2a3 3 0 0 1 0 5.6M15.5 11.8c1.3.6 2.1 2 2.4 4.2"/></svg><span class="lbl">Usuarios</span></button>
+    <button class="item" id="sideMin" title="Plegar la barra lateral"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 5 7.5 10l5 5"/></svg><span class="lbl">Plegar</span></button>
+    <div class="who" id="whoBox" hidden><span class="av" id="whoAv"></span><span class="nm" id="whoName"></span></div>
+    <button class="item" id="logoutNav" title="Cerrar sesión" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 6.5 15.5 10 12 13.5M15.5 10H8"/></svg><span class="lbl">Salir</span></button>
+  </div>
+</aside>
+<div class="side-back" id="sideBack"></div>
+<div class="main">
 <header class="bar">
   <div class="brand" aria-label="GEX Lab">
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
@@ -24,6 +58,10 @@
     <span>GEX Lab</span>
   </div>
 
+  <button class="iconbtn burger" id="burger" aria-label="Abrir el menú" aria-controls="side">
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </button>
+  <div class="pagetitle" id="pageTitle"></div>
   <div class="modes" role="tablist" aria-label="Sección">
     <button role="tab" id="modeSummary" aria-selected="false">Resumen</button>
     <button role="tab" id="modeAnalysis" aria-selected="true">Análisis</button>
@@ -193,7 +231,7 @@
       <p class="chart-caption" id="caption"></p>
       <button class="ghost" id="reportBtn" title="Imagen con los niveles, el gráfico por strike y el mapa">Informe</button>
       <button class="ghost" id="copyBtn" title="Copia la imagen del gráfico al portapapeles para pegarla con Ctrl+V">Copiar</button>
-      <button class="ghost" id="exportBtn">Exportar PNG</button>
+      <button class="ghost" id="exportBtn" title="Descargar la imagen del gráfico">PNG</button>
     </div>
     <div class="chart" id="chart" role="img" aria-label="Exposición gamma por strike">
       <div class="placeholder" id="placeholder">Escribe un ticker y pulsa Cargar.</div>
@@ -225,7 +263,18 @@
     <button class="ghost" id="scanBtn">Actualizar escáner</button>
   </div>
   <div class="compasswrap" id="compassWrap" hidden>
-    <div class="compass" id="compass" role="img" aria-label="Compass de volatilidad"></div>
+    <div class="cgrid">
+      <div class="compass" id="compass" role="img" aria-label="Compass de volatilidad"></div>
+      <aside class="cside" id="cside" aria-label="Tickers del Compass">
+        <div class="cside-top">
+          <input id="cFind" placeholder="Buscar ticker" spellcheck="false" autocomplete="off" aria-label="Buscar ticker en el Compass">
+          <button class="linkbtn" id="cShowAll">Mostrar todos</button>
+          <button class="linkbtn" id="cHideAll">Ocultar todos</button>
+        </div>
+        <div class="cside-list"><table class="scan ctab"><thead><tr><th class="x"></th><th class="l">Ticker</th><th title="IV a 30 días">IV 30d</th><th title="Risk reversal rank (eje X)">X</th><th title="IV rank (eje Y)">Y</th></tr></thead><tbody id="cBody"></tbody></table></div>
+        <p class="cside-foot" id="cCount"></p>
+      </aside>
+    </div>
     <div class="tip" id="ctip" hidden></div>
     <p class="scan-note" id="compassNote"></p>
   </div>
@@ -288,6 +337,25 @@
     <section class="scard link" id="sumCot" data-go="cot"></section>
   </div>
   <p class="scan-note">Índices con vencimientos de hasta 45 días y convención estándar de dealers. Haz clic en una tarjeta para abrir su detalle.</p>
+</main>
+
+<main class="macro" id="volView" hidden>
+  <div class="vhead">
+    <div class="vtitle"><span class="vsym" id="vSym">—</span><span class="vname" id="vName"></span><span class="vspot" id="vSpot"></span></div>
+    <div class="tabs" role="tablist" aria-label="Vista de volatilidad" id="volTabs">
+      <button role="tab" data-v="matrix" aria-selected="false">Matriz por strike fijo</button>
+      <button role="tab" data-v="term" aria-selected="true">Estructura temporal</button>
+      <button role="tab" data-v="skew" aria-selected="false">Skew</button>
+    </div>
+    <span class="scan-status" id="volStatus"></span>
+  </div>
+  <div class="vpanel">
+    <div class="vctl" id="volCtl"></div>
+    <div class="vchart" id="volChart" role="img" aria-label="Volatilidad implícita"></div>
+    <div class="vmatrix" id="volMatrix" hidden></div>
+    <div class="tip" id="volTip" hidden></div>
+  </div>
+  <p class="scan-note" id="volNote"></p>
 </main>
 
 <main class="macro" id="vixView" hidden>
@@ -355,10 +423,13 @@
 <footer class="foot">
   Datos diferidos de CBOE (~15 min). El open interest es el del cierre anterior. Signo de dealer según la convención estándar: largos de calls, cortos de puts. El Volatility Trigger (Hedge Wall en acciones) es una aproximación propia, no el nivel de SpotGamma.
 </footer>
+</div>
+</div>
 
 <div class="toasts" id="toasts" aria-live="assertive"></div>
 <script src="me.js"></script>
 <script src="nube.js"></script>
 <script src="app.js"></script>
+<script src="vol.js"></script>
 </body>
 </html>

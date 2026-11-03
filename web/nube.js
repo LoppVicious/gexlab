@@ -177,6 +177,19 @@
       case "/api/cot": return pub("cot.json", s, "COT");
       case "/api/cot_history": return pub(`cot_hist/${encodeURIComponent(q.get("key") || "ES")}.json`, s, "COT");
       case "/api/summary": return pub("resumen.json", s, "Resumen");
+      case "/api/eventos": return pub("eventos.json", s, "Calendario");
+      case "/api/vol": {
+        const sym = normalize(q.get("symbol"));
+        if (!sym) return json(400, { error: "Ticker no valido" });
+        const url = `/api/pub/t/${encodeURIComponent(sym)}/vol.json`;
+        let r = await realFetch(url, { signal: s });
+        if (r.status === 404) {
+          await paquete(sym, s, true);
+          for (let i = 0; i < 4 && r.status === 404; i++) { await sleep(i ? 3000 : 0, s); r = await realFetch(url, { signal: s }); }
+        }
+        if (r.ok && viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
+        return r;
+      }
       case "/api/collector": return pub("recolector.json", s, "Recolector");
       default: return realFetch(input, init);
     }
@@ -315,12 +328,5 @@
     back.querySelector("#admUser").focus();
   }
 
-  document.addEventListener("DOMContentLoaded", () => {
-    const box = document.getElementById("userBox"), out = document.getElementById("logoutBtn");
-    if (!box || !out) return;
-    const b = document.createElement("button");
-    b.className = "linkbtn"; b.id = "usersBtn"; b.textContent = "Usuarios"; b.title = "Gestionar usuarios";
-    b.addEventListener("click", openAdmin);
-    box.insertBefore(b, out);
-  });
+  window.gexOpenAdmin = openAdmin;
 })();

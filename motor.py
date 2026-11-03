@@ -289,6 +289,11 @@ def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
             paq = paquete(sym)
             escribir_fixtures(paq)
             n = subir(st, f"pub/t/{sym}/paquete.json", paq)
+            try:  # panel de volatilidad (y su historia diaria)
+                import volatilidad
+                subir(st, f"pub/t/{sym}/vol.json", volatilidad.vol_data(sym, save=sym in syms))
+            except Exception as e:  # noqa: BLE001
+                err(f"{sym} volatilidad", e)
             ok.append(sym)
             log(f"{sym}: paquete {n / 1e6:.2f} MB en {time.time() - t:.1f} s")
         except Exception as e:  # noqa: BLE001
@@ -325,6 +330,16 @@ def fase_macro(st) -> None:
             subir(st, f"pub/cot_hist/{m[0]}.json", macro.cot_history(m[0]))
         except Exception as e:  # noqa: BLE001
             err(f"cot {m[0]}", e)
+    try:  # calendario macro: como mucho cada 6 h
+        import eventos
+        st_ev = g.read_json(eventos.STATE, {}) or {}
+        last = st_ev.get("actualizado")
+        if not last or (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)).total_seconds() > 6 * 3600:
+            evs, res = eventos.actualizar()
+            log(f"calendario: {len(evs)} eventos ({', '.join(f'{k} {v}' for k, v in res.items())})")
+        subir(st, "pub/eventos.json", eventos.publicables())
+    except Exception as e:  # noqa: BLE001
+        err("calendario", e)
     log("macro: curva VIX, COT y Resumen")
 
 

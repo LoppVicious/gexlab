@@ -1,13 +1,26 @@
 "use strict";
 
 /* ============================================================ estado */
-const C = {
-  ink: "#0c111a", surface: "#121823", grid: "#1d2532", axis: "#2a3445",
-  text: "#e6e9ef", muted: "#8a93a3", faint: "#5d6676",
-  neg: "#d9775f", pos: "#4b8fd6", negFront: "#f3c0b1", posFront: "#a8cbf0", put: "#49c27f", amber: "#e3b341", call: "#e05d57",
+// paletas del tema oscuro (por defecto) y claro; C se actualiza al cambiar de tema y se redibuja todo
+const THEMES = {
+  dark: {
+    ink: "#0f0f12", surface: "#16161a", grid: "#232329", axis: "#34343d",
+    text: "#f1f1f4", muted: "#a3a3ae", faint: "#6c6c78",
+    neg: "#ff2f7c", pos: "#9461ff", negFront: "#ff9cc0", posFront: "#c9b0ff", put: "#22c58b", amber: "#f2b632", call: "#ff5a5f",
+    accent: "#1fc8a6", hi: "#ffffff", candle: "#f2f2f5", spotline: "#d4d4dc",
+    heat0: [15, 15, 18], heatNeg: [255, 40, 120], heatPos: [146, 76, 255],
+  },
+  light: {
+    ink: "#f4f5f7", surface: "#ffffff", grid: "#eceef2", axis: "#d5d9e0",
+    text: "#1b1f27", muted: "#5d6573", faint: "#959cab",
+    neg: "#e5336f", pos: "#7c5cf0", negFront: "#f4a3c0", posFront: "#c3b5f7", put: "#13a874", amber: "#c98a00", call: "#e04848",
+    accent: "#1fa98f", hi: "#000000", candle: "#1b1f27", spotline: "#4a5160",
+    heat0: [252, 252, 253], heatNeg: [229, 51, 111], heatPos: [124, 92, 240],
+  },
 };
-const MONO = "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
-const SANS = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
+const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);
+const MONO = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
+const SANS = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 // preferencias: en el servidor publicado son de cada usuario (llegan en me.js y se guardan en /api/prefs);
 // en el PC, en el navegador
@@ -266,7 +279,7 @@ function renderStrike(d, W, H, exp = false) {
     const y = Math.min(yOf(from), yOf(to)), h = Math.max(0.8, Math.abs(yOf(to) - yOf(from)));
     return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${rx}" fill="${fill}"/>`;
   };
-  s += `<rect id="hl" x="0" y="${top}" width="${band}" height="${bottom - top}" fill="#ffffff" fill-opacity="0.04" visibility="hidden"/>`;
+  s += `<rect id="hl" x="0" y="${top}" width="${band}" height="${bottom - top}" fill="${C.hi}" fill-opacity="0.04" visibility="hidden"/>`;
   for (let i = 0; i < n; i++) {
     const x = xOf(d.strikes[i]) - bw / 2;
     if (mode === "split") {
@@ -370,9 +383,9 @@ function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
   // leyenda
   const lg = legendSVG(legend || [], py + h / 2, fs, px, px + w, left, right);
   return `
-  <line x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" stroke="#c9ced8" stroke-width="1.3" stroke-dasharray="2 4"/>
-  <line x1="${x}" y1="${bottom + fs + 12}" x2="${x}" y2="${py}" stroke="#c9ced8" stroke-width="1.3" stroke-dasharray="2 4"/>
-  <rect x="${px}" y="${py}" width="${w}" height="${h}" rx="8" fill="${C.surface}" stroke="#c9ced8" stroke-width="1.3"/>
+  <line x1="${x}" y1="${top}" x2="${x}" y2="${bottom}" stroke="${C.spotline}" stroke-width="1.3" stroke-dasharray="2 4"/>
+  <line x1="${x}" y1="${bottom + fs + 12}" x2="${x}" y2="${py}" stroke="${C.spotline}" stroke-width="1.3" stroke-dasharray="2 4"/>
+  <rect x="${px}" y="${py}" width="${w}" height="${h}" rx="8" fill="${C.surface}" stroke="${C.spotline}" stroke-width="1.3"/>
   <text x="${px + w / 2}" y="${py + h / 2 + fs * 0.36}" text-anchor="middle" font-family="${MONO}" font-size="${fs}" fill="${C.text}">${esc(label)}</text>${lg}`;
 }
 
@@ -437,9 +450,9 @@ function emBand(d, xOf, top, bottom, small, left, right) {
   const lx = (x1 + x2) / 2;
   const fitsInside = x2 - x1 > lw + 12;
   return `
-  <rect x="${x1}" y="${top}" width="${x2 - x1}" height="${bottom - top}" fill="#ffffff" fill-opacity="0.035"/>
-  <line x1="${x1}" x2="${x1}" y1="${top}" y2="${bottom}" stroke="#ffffff" stroke-opacity="0.16" stroke-dasharray="1 3"/>
-  <line x1="${x2}" x2="${x2}" y1="${top}" y2="${bottom}" stroke="#ffffff" stroke-opacity="0.16" stroke-dasharray="1 3"/>
+  <rect x="${x1}" y="${top}" width="${x2 - x1}" height="${bottom - top}" fill="${C.hi}" fill-opacity="0.035"/>
+  <line x1="${x1}" x2="${x1}" y1="${top}" y2="${bottom}" stroke="${C.hi}" stroke-opacity="0.16" stroke-dasharray="1 3"/>
+  <line x1="${x2}" x2="${x2}" y1="${top}" y2="${bottom}" stroke="${C.hi}" stroke-opacity="0.16" stroke-dasharray="1 3"/>
   ${fitsInside ? `<text x="${lx}" y="${bottom - 12}" text-anchor="middle" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${esc(label)}</text>` : ""}`;
 }
 
@@ -461,13 +474,12 @@ function frame(W, H, inner, d, exp, title) {
 
 /* ============================================================ mapa (estilo TRACE) */
 function heatColor(v, vmax) {
-  // zona muerta cerca de cero (fondo oscuro) y transicion suave hacia el color pleno
+  // zona muerta cerca de cero (color de fondo) y transicion suave hacia el color pleno: magenta negativa, violeta positiva
   const t = Math.max(-1, Math.min(1, v / vmax));
   const x = Math.max(0, (Math.abs(t) - 0.06) / 0.94);
   const a = Math.pow(x, 0.8);
-  const base = [16, 21, 31];
-  const mid = t >= 0 ? [52, 64, 150] : [140, 38, 62];
-  const tgt = t >= 0 ? [104, 128, 255] : [240, 70, 105];
+  const base = C.heat0, tgt = t >= 0 ? C.heatPos : C.heatNeg;
+  const mid = base.map((c, i) => Math.round(c + (tgt[i] - c) * 0.42));
   const lerp = (p, q, k) => p.map((c, i) => Math.round(c + (q[i] - c) * k));
   return a < 0.5 ? lerp(base, mid, a * 2) : lerp(mid, tgt, (a - 0.5) * 2);
 }
@@ -598,8 +610,8 @@ function renderMap(d, hm, W, H, exp = false) {
 
   // precio
   const sy = yOf(hm.spot);
-  s += `<line x1="${heatL}" x2="${heatR}" y1="${sy}" y2="${sy}" stroke="#c9ced8" stroke-opacity="0.5" stroke-dasharray="2 4"/>`;
-  s += `<rect x="${heatL - axisW + 6}" y="${sy - small * 0.85 - 3}" width="${axisW - 10}" height="${small + 7}" rx="4" fill="#c9ced8"/>`;
+  s += `<line x1="${heatL}" x2="${heatR}" y1="${sy}" y2="${sy}" stroke="${C.spotline}" stroke-opacity="0.5" stroke-dasharray="2 4"/>`;
+  s += `<rect x="${heatL - axisW + 6}" y="${sy - small * 0.85 - 3}" width="${axisW - 10}" height="${small + 7}" rx="4" fill="${C.spotline}"/>`;
   s += `<text x="${heatL - 10}" y="${sy + small * 0.35}" text-anchor="end" font-family="${MONO}" font-size="${small}" font-weight="500" fill="${C.ink}">${fmtSpot(hm.spot)}</text>`;
   if (hm.candles && hm.candles.length) {
     const slot = (heatR - heatL) * 5 / (m1 - m0);
@@ -609,15 +621,15 @@ function renderMap(d, hm, W, H, exp = false) {
       const x = xOf(t) + slot / 2;
       const up = c >= o;
       const yT = yOf(Math.max(o, c)), yB = yOf(Math.min(o, c));
-      cs += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yOf(h).toFixed(1)}" y2="${yOf(l).toFixed(1)}" stroke="#f2f4f8" stroke-width="1"/>`;
-      cs += `<rect x="${(x - cw / 2).toFixed(1)}" y="${yT.toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(1, yB - yT).toFixed(1)}" fill="${up ? "#f2f4f8" : "#0b0f16"}" stroke="#f2f4f8" stroke-width="0.9"/>`;
+      cs += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yOf(h).toFixed(1)}" y2="${yOf(l).toFixed(1)}" stroke="${C.candle}" stroke-width="1"/>`;
+      cs += `<rect x="${(x - cw / 2).toFixed(1)}" y="${yT.toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(1, yB - yT).toFixed(1)}" fill="${up ? C.candle : C.ink}" stroke="${C.candle}" stroke-width="0.9"/>`;
     }
     s += `<g clip-path="url(#heatclip${exp ? "e" : "s"})">${cs}</g>`;
     s += `<clipPath id="heatclip${exp ? "e" : "s"}"><rect x="${heatL}" y="${top}" width="${heatR - heatL}" height="${bottom - top}"/></clipPath>`;
   }
   if (hm.live) {
     const nx = xOf(hm.now);
-    if (nx > heatL && nx < heatR) s += `<line x1="${nx}" x2="${nx}" y1="${top}" y2="${bottom}" stroke="#f2f4f8" stroke-opacity="0.35"/>`;
+    if (nx > heatL && nx < heatR) s += `<line x1="${nx}" x2="${nx}" y1="${top}" y2="${bottom}" stroke="${C.candle}" stroke-opacity="0.35"/>`;
   }
 
   // barra de color
@@ -632,7 +644,7 @@ function renderMap(d, hm, W, H, exp = false) {
   if (!narrow) s += `<text transform="translate(${cbL + cbBar + 6 + cbNum + small * 0.4},${(top + bottom) / 2}) rotate(90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${state.mapMode === "total" ? "GEX total por 1%" : "Gamma por strike, por 1%"}</text>`;
 
   // marca de agua
-  if (!narrow) s += `<text x="${heatL + 10}" y="${bottom - 10}" font-family="${MONO}" font-size="${small}" fill="#ffffff" fill-opacity="0.35">GEX Lab, ${esc(d.symbol)}, ${ddmm(hm.session)}</text>`;
+  if (!narrow) s += `<text x="${heatL + 10}" y="${bottom - 10}" font-family="${MONO}" font-size="${small}" fill="${C.hi}" fill-opacity="0.35">GEX Lab, ${esc(d.symbol)}, ${ddmm(hm.session)}</text>`;
 
   if (!exp) state.geo = { kind: "map", left: heatL, right: heatR, top, bottom, barsL, barsR, pLo, pHi, m0, m1, lastX };
   return frame(W, H, s, d, exp, `Mapa de gamma ${ddmm(hm.session)}`);
@@ -834,6 +846,7 @@ async function load(refresh = false, silent = false) {
   }
   state.symbol = sym; store.set("symbol", sym);
   markQuick();
+  if (state.mode === "vol" && typeof loadVol === "function") { loadVol(refresh); return; }
   if (state.ctrl) state.ctrl.abort();
   state.ctrl = new AbortController();
 
@@ -972,6 +985,7 @@ function markQuick() {
 
 function setView(v) {
   state.view = v; store.set("view", v);
+  syncNav();
   $("tabStrike").setAttribute("aria-selected", String(v === "strike"));
   $("tabProfile").setAttribute("aria-selected", String(v === "profile"));
   $("tabMap").setAttribute("aria-selected", String(v === "map"));
@@ -1312,9 +1326,12 @@ async function loadCollector() {
 
 function setMode(m) {
   state.mode = m; store.set("mode", m);
+  syncNav();
   const macro = m === "vix" || m === "cot" || m === "summary";
-  document.body.classList.toggle("scan", m === "scanner" || macro);
+  document.body.classList.toggle("scan", m === "scanner" || macro || m === "vol");
   document.body.classList.toggle("macro-mode", macro);
+  document.body.classList.toggle("vol-mode", m === "vol");
+  $("volView").hidden = m !== "vol";
   $("scanner").hidden = m !== "scanner";
   $("vixView").hidden = m !== "vix";
   $("cotView").hidden = m !== "cot";
@@ -1328,6 +1345,7 @@ function setMode(m) {
   if (m === "summary") { if (sm.data) { renderSummary(); setStatus("", sumStatus()); } if (!sm.data || Date.now() - sm.at > 300000) loadSummary(); return; }
   if (m === "vix") { if (vx.data) { renderVix(); setStatus("", vixStatus()); } if (!vx.data || Date.now() - vx.at > 300000) loadVix(); return; }
   if (m === "cot") { if (cot.data) { renderCot(); setStatus("", cotStatus()); } if (!cot.data || Date.now() - cot.at > 300000) loadCot(); return; }
+  if (m === "vol") { if (typeof showVol === "function") showVol(); return; }
   if (state.data) setStatus("", `Datos ${nyWhen(state.data.quote_time || state.data.computed_at)}`);
   if (m === "scanner") {
     loadCollector();
@@ -1423,10 +1441,35 @@ function renderScan() {
 }
 
 /* ============================================================ compass */
-const cmp = { data: null, key: "", ctrl: null, geo: null };
+const cmp = { data: null, key: "", ctrl: null, geo: null, find: "" };
+// tickers ocultos en el Compass (preferencia de cada usuario). Sin preferencia y con muchos tickers, se ven los 25 primeros
+const CMP_DEFAULT_MAX = 25;
+function cmpHidden() {
+  try { const v = JSON.parse(store.get("cmpHidden", "null")); if (Array.isArray(v)) return new Set(v); } catch { /* */ }
+  const rows = (cmp.data && cmp.data.rows) || [];
+  return new Set(rows.length > CMP_DEFAULT_MAX ? rows.slice(CMP_DEFAULT_MAX).map((r) => r.symbol) : []);
+}
+function setCmpHidden(set) { store.set("cmpHidden", JSON.stringify([...set])); renderCompass(); }
+function renderCside() {
+  const d = cmp.data; if (!d) return;
+  const hid = cmpHidden(), q = cmp.find.trim().toUpperCase();
+  const rows = d.rows.filter((r) => !q || r.symbol.includes(q) || (r.name || "").toUpperCase().includes(q));
+  const eye = (on) => `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${on
+    ? '<path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z"/><circle cx="10" cy="10" r="2.4"/>'
+    : '<path d="M3 3l14 14M8.3 5.1A8.6 8.6 0 0 1 10 4.5c5 0 8 5.5 8 5.5a14 14 0 0 1-2.6 3.2M5.2 6.6A14 14 0 0 0 2 10s3 5.5 8 5.5c1.1 0 2.1-.3 3-.7"/>'}</svg>`;
+  $("cBody").innerHTML = rows.map((r) => {
+    const on = !hid.has(r.symbol), bad = r.error || r.x == null || r.y == null;
+    return `<tr class="${on ? "" : "off"}${bad ? " bad" : ""}" data-s="${esc(r.symbol)}"><td class="x"><button class="eye" aria-pressed="${on}" title="${on ? "Ocultar" : "Mostrar"} ${esc(r.symbol)}">${eye(on)}</button></td>
+      <td class="l"><span class="tk">${esc(r.symbol)}</span></td><td>${r.iv30 != null ? fmtNum(r.iv30 * 100, 1) + "%" : "—"}</td>
+      <td>${r.x != null ? fmtNum(r.x, 0) : "—"}</td><td>${r.y != null ? fmtNum(r.y, 0) : "—"}</td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="l na">Sin coincidencias</td></tr>`;
+  const vis = d.rows.filter((r) => !hid.has(r.symbol) && !r.error && r.x != null).length;
+  $("cCount").textContent = `${vis} de ${d.rows.length} tickers visibles`;
+}
 
 function setScanView(v) {
   state.scanView = v; store.set("scanView", v);
+  syncNav();
   $("svTable").setAttribute("aria-selected", String(v === "table"));
   $("svCompass").setAttribute("aria-selected", String(v === "compass"));
   $("svValid").setAttribute("aria-selected", String(v === "valid"));
@@ -1489,8 +1532,8 @@ function renderCompass() {
   const mx = xOf(50), my = yOf(50);
   const f = 12.5;
   let s = `<defs><linearGradient id="cmpbg" x1="0" x2="1" y1="0" y2="0">
-      <stop offset="0" stop-color="${C.put}" stop-opacity="0.16"/><stop offset="0.5" stop-color="${C.surface}" stop-opacity="0"/>
-      <stop offset="1" stop-color="${C.call}" stop-opacity="0.16"/></linearGradient></defs>
+      <stop offset="0" stop-color="${C.accent}" stop-opacity="0.34"/><stop offset="0.5" stop-color="${C.pos}" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="${C.neg}" stop-opacity="0.34"/></linearGradient></defs>
     <rect x="${L}" y="${T}" width="${R - L}" height="${B - T}" fill="url(#cmpbg)" rx="6"/>
     <line x1="${L}" x2="${R}" y1="${my}" y2="${my}" stroke="${C.muted}" stroke-opacity="0.6"/>
     <line x1="${mx}" x2="${mx}" y1="${T}" y2="${B}" stroke="${C.muted}" stroke-opacity="0.6"/>`;
@@ -1510,7 +1553,9 @@ function renderCompass() {
     (kind === "half" ? `<path d="M${cx} ${H - 21} A5 5 0 0 0 ${cx} ${H - 11} Z" fill="#8b7cf0"/>` : "") +
     `<text x="${cx + 11}" y="${H - 12}" font-family="${SANS}" font-size="12" fill="${C.muted}">${label}</text>`;
   s += lg(L, "Los dos ejes con su propia historia", "full") + lg(L + 250, "IV rank con su historia, RR provisional", "half") + lg(L + 520, "Provisional (frente a la lista)", "empty");
-  const pts = d.rows.filter((r) => !r.error && r.x != null && r.y != null);
+  const hid = cmpHidden();
+  const pts = d.rows.filter((r) => !r.error && r.x != null && r.y != null && !hid.has(r.symbol));
+  renderCside();
   const placed = [];
   cmp.geo = [];
   for (const r of pts) {
@@ -1570,7 +1615,28 @@ function compassTip(e) {
   tip.style.left = tx + "px"; tip.style.top = ty + "px";
 }
 
+function bindCompassSide() {
+  $("cFind").addEventListener("input", (e) => { cmp.find = e.target.value; renderCside(); });
+  $("cBody").addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-s]"); if (!tr) return;
+    const h = cmpHidden(), s = tr.dataset.s;
+    if (h.has(s)) h.delete(s); else h.add(s);
+    setCmpHidden(h);
+  });
+  $("cShowAll").addEventListener("click", () => {
+    const h = cmpHidden(); const q = cmp.find.trim().toUpperCase();
+    (cmp.data ? cmp.data.rows : []).forEach((r) => { if (!q || r.symbol.includes(q)) h.delete(r.symbol); });
+    setCmpHidden(h);
+  });
+  $("cHideAll").addEventListener("click", () => {
+    const h = cmpHidden(); const q = cmp.find.trim().toUpperCase();
+    (cmp.data ? cmp.data.rows : []).forEach((r) => { if (!q || r.symbol.includes(q)) h.add(r.symbol); });
+    setCmpHidden(h);
+  });
+}
+
 function bindScanner() {
+  bindCompassSide();
   $("svTable").addEventListener("click", () => setScanView("table"));
   $("svCompass").addEventListener("click", () => setScanView("compass"));
   $("svValid").addEventListener("click", () => setScanView("valid"));
@@ -2297,8 +2363,76 @@ function glossaryHide() {
   if (card) { card.classList.remove("on"); card.hidden = true; }
 }
 
+/* ============================================================ barra lateral y tema */
+const NAV = {
+  navSummary: { t: "Resumen", go: () => setMode("summary") },
+  navTrace: { t: "TRACE", go: () => { setMode("analysis"); if (state.view !== "map") setView("map"); } },
+  navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView("strike"); } },
+  navVol: { t: "Panel de volatilidad", go: () => setMode("vol") },
+  navVix: { t: "Curva VIX", go: () => setMode("vix") },
+  navScan: { t: "Escáner", go: () => { setMode("scanner"); setScanView("table"); } },
+  navCompass: { t: "Compass", go: () => { setMode("scanner"); setScanView("compass"); } },
+  navValid: { t: "Validación", go: () => { setMode("scanner"); setScanView("valid"); } },
+  navCot: { t: "COT", go: () => setMode("cot") },
+};
+function currentNav() {
+  const m = state.mode;
+  if (m === "summary") return "navSummary";
+  if (m === "analysis") return state.view === "map" ? "navTrace" : "navHub";
+  if (m === "vol") return "navVol";
+  if (m === "vix") return "navVix";
+  if (m === "cot") return "navCot";
+  if (m === "scanner") return state.scanView === "compass" ? "navCompass" : state.scanView === "valid" ? "navValid" : "navScan";
+  return "navHub";
+}
+function syncNav() {
+  const id = currentNav();
+  for (const k of Object.keys(NAV)) { const b = $(k); if (b) { if (k === id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); } }
+  const b = $(id), pt = $("pageTitle");
+  if (pt && b) { pt.innerHTML = b.querySelector("svg").outerHTML + `<span>${esc(NAV[id].t)}</span>`; document.title = `${NAV[id].t} · GEX Lab`; }
+}
+function applyTheme(t) {
+  t = t === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem("gexlab.theme", t); } catch { /* sin almacenamiento */ }
+  Object.assign(C, THEMES[t]);
+  const lbl = $("themeLbl"); if (lbl) lbl.textContent = t === "dark" ? "Tema claro" : "Tema oscuro";
+  const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute("content", C.ink);
+  state.heatImg = null;
+  redrawAll();
+}
+function redrawAll() {
+  if (state.mode === "analysis") draw();
+  else if (state.mode === "scanner" && state.scanView === "compass" && typeof renderCompass === "function") renderCompass();
+  else if (state.mode === "vix" && vx.data) renderVix();
+  else if (state.mode === "cot" && cot.data) renderCotChart();
+  else if (state.mode === "summary" && sm.data) renderSummary();
+  else if (state.mode === "vol" && typeof renderVol === "function") renderVol();
+}
+function shellInit() {
+  for (const [id, n] of Object.entries(NAV)) {
+    const b = $(id); if (!b) continue;
+    b.addEventListener("click", () => { document.body.classList.remove("side-open"); n.go(); });
+  }
+  $("themeBtn").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+  $("themeLbl").textContent = document.documentElement.dataset.theme === "light" ? "Tema oscuro" : "Tema claro";
+  const setMin = (on) => { document.body.classList.toggle("side-min", on); try { localStorage.setItem("gexlab.sidemin", on ? "1" : "0"); } catch { /* */ } };
+  try { setMin(localStorage.getItem("gexlab.sidemin") === "1"); } catch { /* */ }
+  $("sideMin").addEventListener("click", () => { setMin(!document.body.classList.contains("side-min")); setTimeout(redrawAll, 220); });
+  $("burger").addEventListener("click", () => document.body.classList.add("side-open"));
+  $("sideBack").addEventListener("click", () => document.body.classList.remove("side-open"));
+  if (ME) {
+    $("whoBox").hidden = false; $("whoName").textContent = ME.user; $("whoAv").textContent = (ME.user || "?").slice(0, 1);
+    $("logoutNav").hidden = false;
+    $("logoutNav").addEventListener("click", () => $("logoutBtn").click());
+    if (ME.admin && window.gexOpenAdmin) { $("usersNav").hidden = false; $("usersNav").addEventListener("click", () => window.gexOpenAdmin()); }
+  }
+  syncNav();
+}
+
 /* ============================================================ arranque */
 async function init() {
+  shellInit();
   glossaryInit();
   if (ME) {
     $("userBox").hidden = false;
@@ -2347,6 +2481,7 @@ async function init() {
     if (state.mode === "summary") return loadSummary(true);
     if (state.mode === "vix") return loadVix(true);
     if (state.mode === "cot") return loadCot(true);
+    if (state.mode === "vol") return loadVol(true);
     if (state.mode !== "scanner") return load(true);
     if (state.scanView === "compass") loadCompass(true); else if (state.scanView === "valid") loadValidation(); else runScan();
   });
@@ -2376,6 +2511,7 @@ async function init() {
     if (state.mode === "vix") renderVix();
     if (state.mode === "cot") renderCotChart();
     if (state.mode === "summary") renderSummary();
+    if (state.mode === "vol" && typeof renderVol === "function") renderVol();
   }, 80); });
   // curva VIX y COT abiertas: se refrescan solas cada 5 min (el servidor solo descarga si hay datos nuevos)
   setInterval(() => {
@@ -2383,6 +2519,6 @@ async function init() {
     if (state.mode === "vix") loadVix(); else if (state.mode === "cot") loadCot(); else if (state.mode === "summary") loadSummary();
   }, 5 * 60 * 1000);
   setView(state.view);
-  if (state.mode === "scanner") { load(); setMode("scanner"); } else if (state.mode === "vix" || state.mode === "cot" || state.mode === "summary") { setMode(state.mode); } else { setMode("analysis"); }
+  if (state.mode === "scanner") { load(); setMode("scanner"); } else if (["vix", "cot", "summary", "vol"].includes(state.mode)) { setMode(state.mode); } else { setMode("analysis"); }
 }
 init();

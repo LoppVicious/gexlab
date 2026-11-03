@@ -191,6 +191,24 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Error interno: {e}"})
+        if url.path == "/api/vol":
+            try:
+                import volatilidad
+                return self._json(200, volatilidad.vol_data(q.get("symbol", "SPX")))
+            except (LookupError, ValueError, ConnectionError) as e:
+                return self._json(400, {"error": str(e)})
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                return self._json(500, {"error": f"Error interno: {e}"})
+        if url.path == "/api/eventos":
+            try:
+                import eventos
+                st = gex_engine.read_json(eventos.STATE, {}) or {}
+                if not st.get("eventos") or q.get("refresh") == "1":
+                    eventos.actualizar()
+                return self._json(200, {"eventos": eventos.publicables()})
+            except Exception as e:  # noqa: BLE001
+                return self._json(200, {"eventos": [], "error": str(e)})
         if url.path in ("/api/vix", "/api/cot", "/api/cot_history", "/api/summary"):
             try:
                 import macro

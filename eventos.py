@@ -76,7 +76,7 @@ def bea() -> list[dict]:
             continue
         summ = s.group(1).replace("\\,", ",").replace("\r\n ", "").replace("\n ", "")
         dt = _ny(datetime.strptime(d.group(1), "%Y%m%dT%H%M%S"))
-        if summ.startswith("Gross Domestic Product"):
+        if summ.startswith(("Gross Domestic Product", "GDP")):
             kind = "avance" if "Advance" in summ else "2.ª est." if "Second" in summ else "3.ª est." if "Third" in summ else ""
             out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"PIB {kind}".strip(), "imp": 2})
         elif summ.startswith("Personal Income and Outlays"):

@@ -501,6 +501,9 @@ def risk_free() -> float:
             return _rate["r"]
         _rate["t"] = time.time()
         if os.environ.get("GEX_FIXTURE_DIR"):
+            fx = read_json(os.path.join(os.environ["GEX_FIXTURE_DIR"], "rate.json"))  # tipo que uso el motor
+            if fx and fx.get("r"):
+                _rate.update(r=float(fx["r"]), src=fx.get("src"), **{"yield": fx.get("yield")})
             return _rate["r"]
         try:
             d = float(((fetch_quote("IRX", ttl=3600) or {}).get("data") or {}).get("current_price") or 0) / 1000
@@ -541,12 +544,17 @@ def fetch_chain(symbol: str, force: bool = False) -> dict:
         return hit[1]
 
     fixture_dir = os.environ.get("GEX_FIXTURE_DIR")
-    if fixture_dir:  # modo de prueba sin red
+    if fixture_dir:  # sin red: pruebas, o el motor del navegador con el paquete del ticker
+        mpath = os.path.join(fixture_dir, f"{symbol}.min.json")
         path = os.path.join(fixture_dir, f"{symbol}.json")
-        if not os.path.exists(path):
+        if os.path.exists(mpath):
+            with open(mpath, encoding="utf-8") as f:
+                raw = {"_min": json.load(f)}
+        elif os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                raw = json.load(f)
+        else:
             raise LookupError(f"No hay datos de opciones para {symbol}")
-        with open(path, encoding="utf-8") as f:
-            raw = json.load(f)
     else:
         candidates = [f"_{symbol}"] if symbol in INDEX_SYMBOLS else [symbol, f"_{symbol}"]
         raw = None
@@ -579,7 +587,36 @@ def bs_gamma(S, K, T, iv, r=None, q=0.0):
     return np.exp(-q * T) * _norm_pdf(d1) / (S * iv * sqT)
 
 
+_MIN_ROUND = {"K": 3, "oi": 0, "vol": 0, "iv": 6, "iv_raw": 6, "delta": 6, "bid": 4, "ask": 4, "last": 4}
+
+
+def chain_to_min(ch: dict) -> dict:
+    """Cadena ya interpretada en formato compacto (columnas, vencimientos indexados). Es el paquete que usan el
+    motor en la nube y el motor del navegador: los dos calculan sobre exactamente los mismos numeros."""
+    exps, eidx = np.unique(ch["exp"], return_inverse=True)
+    d = {k: ch[k] for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30")}
+    d["exps"] = [str(x) for x in exps]
+    d["e"] = eidx.astype(int).tolist()
+    d["call"] = ch["call"].astype(int).tolist()
+    for k, nd in _MIN_ROUND.items():
+        v = np.round(ch[k], nd)
+        d[k] = v.astype(int).tolist() if nd == 0 else v.tolist()
+    return d
+
+
+def chain_from_min(d: dict) -> dict:
+    exps = np.array(d["exps"], dtype="datetime64[m]")
+    ch = {k: d.get(k) for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30")}
+    ch["exp"] = exps[np.array(d["e"], dtype=int)] if d["e"] else np.array([], dtype="datetime64[m]")
+    ch["call"] = np.array(d["call"], dtype=bool)
+    for k in _MIN_ROUND:
+        ch[k] = np.array(d[k], dtype=float)
+    return ch
+
+
 def parse_chain(raw: dict) -> dict:
+    if "_min" in raw:  # paquete compacto (motor en la nube y navegador)
+        return chain_from_min(raw["_min"])
     data = raw["data"]
     opts = data["options"]
     n = len(opts)
@@ -1025,12 +1062,38 @@ def _flow_read(path: str) -> dict:
     return h
 
 
+def _flow_pre(symbol: str, cc: dict) -> dict | None:
+    fx = os.environ.get("GEX_FIXTURE_DIR")
+    if not fx:
+        return None
+    d = read_json(os.path.join(fx, f"flowpos_{symbol.replace('.', '_')}.json"))
+    if not d or len(d.get("pos", [])) != cc["K"].size:
+        return None
+    return {"pos": np.array(d["pos"], dtype=float), "info": d.get("info") or {}}
+
+
+def flow_positions_all(symbol: str, ch: dict) -> dict:
+    """Posiciones por flujo de todos los contratos de la cadena (para el paquete del navegador)."""
+    sign = np.where(ch["call"], 1.0, -1.0)
+    m = np.ones(ch["K"].size, dtype=bool)
+    pos, info = flow_positions(symbol, ch, m, sign * ch["oi"])
+    return {"pos": np.round(pos, 2).tolist(), "info": {k: info[k] for k in ("days", "first", "kappa", "gaps") if k in info}}
+
+
 def flow_positions(symbol: str, cc: dict, m: np.ndarray, std_pos: np.ndarray):
     """Posicion estimada de los dealers por contrato.
     Parte de la convencion estandar en el primer dia guardado y la corrige cada noche: el cambio de OI
     de cada contrato se atribuye al lado de la ultima operacion del dia anterior (si el cliente compro,
     los dealers quedan cortos de esas opciones, sea call o put). Se anade el FLOW_KAPPA del volumen de hoy.
     La posicion se limita a +/- OI."""
+    pre = _flow_pre(symbol, cc)
+    if pre is not None:  # posiciones ya calculadas por el motor (navegador): mismo resultado sin el historico
+        pos = pre["pos"][m]
+        std_sign = np.sign(std_pos)
+        info = dict(pre["info"])
+        info["changed"] = int((np.sign(pos) != std_sign).sum())
+        info["share_flipped"] = float(np.abs(pos - std_pos).sum() / max(np.abs(std_pos).sum(), 1e-9))
+        return pos, info
     h = _flow_read(os.path.join(HIST_DIR, f"flow_{symbol.replace('.', '_')}.json.gz"))
     days = sorted(h)
     info = {"days": len(days), "first": days[0] if days else None, "kappa": FLOW_KAPPA, "changed": 0, "gaps": 0}

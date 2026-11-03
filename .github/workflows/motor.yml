@@ -1,0 +1,56 @@
+name: Motor
+on:
+  workflow_dispatch:
+    inputs:
+      modo:
+        description: "ciclo (todo) o ticker (calculo puntual)"
+        type: choice
+        options: [ciclo, ticker]
+        default: ciclo
+      tickers:
+        description: "Tickers separados por espacios (solo modo ticker)"
+        type: string
+        default: ""
+concurrency:
+  group: motor-${{ inputs.modo }}
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  motor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HAS_R2: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-nube.txt
+      - run: pip install -q -r requirements-nube.txt
+      - name: Almacen provisional (hasta configurar Cloudflare R2)
+        if: env.HAS_R2 != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: almacen
+          key: motor-almacen-${{ github.run_id }}
+          restore-keys: motor-almacen-
+      - name: Ejecutar motor
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          MODO: ${{ inputs.modo }}
+          TICKERS: ${{ inputs.tickers }}
+        run: |
+          if [ -n "$R2_ACCESS_KEY_ID" ]; then export GEX_ALMACEN=r2; else export GEX_ALMACEN=local:./almacen; fi
+          if [ "$MODO" = "ticker" ]; then python motor.py ticker $TICKERS; else python motor.py ciclo; fi
+      - name: Guardar almacen provisional
+        if: always() && env.HAS_R2 != 'true' && inputs.modo == 'ciclo'
+        uses: actions/cache/save@v4
+        with:
+          path: almacen
+          key: motor-almacen-${{ github.run_id }}

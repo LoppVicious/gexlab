@@ -177,6 +177,7 @@ async function fromR2(req, env, key) {
   const h = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-cache", ETag: o.httpEtag, ...SEC_HEADERS });
   if (!("body" in o) || !o.body) return new Response(null, { status: 304, headers: h });
   if (o.httpMetadata && o.httpMetadata.contentEncoding === "gzip") h.set("Content-Encoding", "gzip");
+  if (o.uploaded) h.set("X-Edad", String(Math.max(0, Math.round((Date.now() - o.uploaded.getTime()) / 1000))));
   return new Response(o.body, { headers: h, encodeBody: "manual" });
 }
 

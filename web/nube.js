@@ -61,6 +61,38 @@
     if (signal) signal.addEventListener("abort", () => { clearTimeout(t); rej(new DOMException("Aborted", "AbortError")); }, { once: true });
   });
 
+  // datos viejos: los tickers de alguna lista se renuevan en cada ciclo; los demas solo cuando alguien los mira.
+  // Si lo publicado es antiguo se ensena igualmente y se pide a la nube una version nueva en segundo plano.
+  function viejo(edadS) {
+    if (edadS == null || isNaN(edadS)) return false;
+    const f = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    const o = Object.fromEntries(f.formatToParts(new Date()).map((x) => [x.type, x.value]));
+    const min = parseInt(o.hour, 10) * 60 + parseInt(o.minute, 10);
+    const sesion = !["Sat", "Sun"].includes(o.weekday) && min >= 9 * 60 && min <= 16 * 60 + 45;
+    return sesion ? edadS > 25 * 60 : edadS > 12 * 3600;
+  }
+  const renovando = {};
+  async function renovar(sym) {
+    if (renovando[sym]) return;
+    renovando[sym] = true;
+    try {
+      const antes = paqMem[sym] && paqMem[sym].data.generado;
+      const pr = await realFetch("/api/pedir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbols: [sym] }) });
+      if (!pr.ok) return;
+      for (let i = 0; i < 16; i++) {          // hasta 4 min
+        await sleep(15000);
+        const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/paquete.json`);
+        if (!r.ok) continue;
+        const data = await r.json();
+        if (data.generado === antes) continue;
+        paqMem[sym] = { data, at: Date.now() };
+        // si sigue en pantalla, se recarga en silencio con los datos nuevos
+        try { if (typeof state !== "undefined" && state.symbol === sym && state.mode === "analysis" && typeof load === "function") load(false, true); } catch { /* */ }
+        return;
+      }
+    } finally { renovando[sym] = false; }
+  }
+
   async function paquete(sym, signal, fresh) {
     const hit = paqMem[sym];
     if (hit && !fresh && Date.now() - hit.at < 60000) return hit.data;
@@ -71,6 +103,7 @@
       if (r.ok) {
         const data = await r.json();
         paqMem[sym] = { data, at: Date.now() };
+        if (viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
         return data;
       }
       if (r.status !== 404) throw new Error((await r.json().catch(() => ({}))).error || "No se pudieron leer los datos");
@@ -95,7 +128,10 @@
     if (!spot && !refresh) {
       const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (kind === "heat" ? `_${v.sess}` : "");
       const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/${kind === "heat" ? "mapa" : "niveles"}/${key}.json`, { signal });
-      if (r.ok) return r;
+      if (r.ok) {
+        if (viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
+        return r;
+      }
     }
     const paqs = [await paquete(sym, signal, refresh)];
     if (v.combo === "1") paqs.push(await paquete(PROXY[sym], signal, refresh));

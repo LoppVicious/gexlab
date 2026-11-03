@@ -11,3 +11,7 @@ node_modules/
 salida/
 estado/
 fx/
+nube/dist/
+nube/wrangler.toml
+nube/.wrangler/
+nube/reloj/.wrangler/

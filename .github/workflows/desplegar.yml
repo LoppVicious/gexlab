@@ -1,0 +1,28 @@
+name: Desplegar
+on:
+  push:
+    branches: [main]
+    paths: ["web/**", "nube/**", "gex_engine.py", ".github/workflows/desplegar.yml"]
+  workflow_dispatch:
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm install -g wrangler@4 --silent
+      - name: Desplegar en Cloudflare
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+          GEX_SETUP_CODE: ${{ secrets.GEX_SETUP_CODE }}
+        run: bash nube/desplegar.sh

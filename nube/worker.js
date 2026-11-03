@@ -15,7 +15,7 @@ const HEX64 = /^[0-9a-f]{64}$/;
 const DEFAULT_WATCH = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA"];
 const MAX_WATCH = 40;
 const REPO = "LoppVicious/gexlab";
-const PUBLIC = new Set(["/login", "/login.html", "/setup", "/setup.html", "/favicon.ico", "/api/sal", "/api/login", "/api/setup", "/api/setup/estado"]);
+const PUBLIC = new Set(["/login", "/login.html", "/setup", "/setup.html", "/favicon.ico", "/favicon.svg", "/favicon-32.png", "/apple-touch-icon.png", "/api/sal", "/api/login", "/api/setup", "/api/setup/estado"]);
 const POPULAR = new Set(`SPX NDX RUT VIX XSP SPY QQQ IWM DIA TLT GLD SLV USO HYG XLF XLE XLK SMH SOXL TQQQ ARKK
 AAPL MSFT NVDA AMZN GOOGL GOOG META TSLA AVGO AMD NFLX ORCL CRM ADBE INTC MU QCOM TSM ASML PLTR
 COIN MSTR HOOD SHOP UBER ABNB SNOW PYPL SQ BA DIS JPM BAC GS MS WFC C V MA BRK.B XOM CVX
@@ -137,7 +137,7 @@ async function syncConfig(env) {
     listas[r.lid] = syms;
     let p = {};
     try { p = JSON.parse(r.prefs || "{}"); } catch { /* sin preferencias */ }
-    const v = { dte: p.dte || "45", range: p.range || "5", pos: p.pos || "standard", combo: p.combo || "0", sess: "auto" };
+    const v = { dte: p.dte || "45", range: p.range || "auto", pos: p.pos || "standard", combo: p.combo || "0", sess: "auto" };
     const k = JSON.stringify(v);
     if (!seen.has(k)) { seen.add(k); vistas.push(v); }
   }

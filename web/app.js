@@ -51,10 +51,12 @@ if (ME) {
   document.addEventListener("visibilitychange", () => { if (ME && ME.nube && !document.hidden) window.fetch("/api/sesion").catch(() => {}); });
 }
 
+// valores por defecto nuevos (rango Auto y actualizacion automatica): se aplican una vez a todos
+if (store.get("defs", "0") !== "2") { store.set("range", "auto"); store.set("autoOn", "1"); store.set("defs", "2"); }
 const state = {
   symbol: store.get("symbol", "SPX"),
   dte: store.get("dte", "45"),
-  range: store.get("range", "5"),
+  range: store.get("range", "auto"),
   view: store.get("view", "impact"),
   hubView: store.get("hubView", "impact"),
   bars: store.get("bars", "net"),
@@ -214,10 +216,42 @@ function tagsSVG(pt, titleH, bottom, fs) {
 }
 
 /* ============================================================ gráfico por strike */
-function renderStrike(d, W, H, exp = false) {
+// Agrupa strikes contiguos cuando hay demasiados para el ancho disponible (NDX: un strike cada 5 puntos).
+// Cada grupo suma sus strikes y se centra en un multiplo redondo; devuelve {k, step, arrays}
+const BUCKET_MULT = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500];
+function bucketStrikes(ks, arrs, step, maxN) {
+  if (!ks.length || !step || ks.length <= maxN) return { k: 1, step, ks: ks.slice(), arrs: arrs.map((a) => (a ? a.slice() : null)) };
+  const span = (ks[ks.length - 1] - ks[0]) / step + 1;
+  const k = BUCKET_MULT.find((m) => span / m <= maxN) || BUCKET_MULT[BUCKET_MULT.length - 1];
+  const bs = k * step, idx = new Map(), out = [];
+  ks.forEach((v, i) => {
+    const c = Math.round(Math.round(v / bs) * bs * 1e4) / 1e4;
+    if (!idx.has(c)) { idx.set(c, out.length); out.push(c); }
+  });
+  const res = arrs.map((a) => { const r = new Array(out.length).fill(0); if (a) ks.forEach((v, i) => { r[idx.get(Math.round(Math.round(v / bs) * bs * 1e4) / 1e4)] += a[i] || 0; }); return a ? r : null; });
+  // grupos vacios intermedios: la rejilla queda regular
+  const full = [], fullA = res.map((r) => (r ? [] : null));
+  for (let c = out[0]; c <= out[out.length - 1] + bs / 2; c = Math.round((c + bs) * 1e4) / 1e4) {
+    const j = idx.get(c);
+    full.push(c);
+    res.forEach((r, a) => { if (r) fullA[a].push(j == null ? 0 : r[j]); });
+  }
+  return { k, step: bs, ks: full, arrs: fullA };
+}
+function bucketData(d, maxN) {
+  const keys = ["net", "calls", "puts", "front", "vanna", "charm"];
+  const b = bucketStrikes(d.strikes, keys.map((x) => d[x] || null), d.step, maxN);
+  if (b.k === 1) return d;
+  const o = { ...d, strikes: b.ks, step: b.step, bucket: b.k, bucketStep: d.step };
+  keys.forEach((x, i) => { if (b.arrs[i]) o[x] = b.arrs[i]; });
+  return o;
+}
+
+function renderStrike(d0, W, H, exp = false) {
   const fs = exp ? 15 : 12.5, small = exp ? 13 : 11;
-  const n = d.strikes.length, step = d.step, s0 = d.strikes[0];
   const left = exp ? 92 : 64, right = W - (exp ? 40 : 16);
+  const d = bucketData(d0, Math.max(30, Math.floor((right - left) / (exp ? 7 : 6))));
+  const n = d.strikes.length, step = d.step, s0 = d.strikes[0];
   const band = (right - left) / n;
   const xOf = (v) => left + ((v - s0) / step + 0.5) * band;
 
@@ -307,7 +341,7 @@ function renderStrike(d, W, H, exp = false) {
   s += spotSVG(d, xOf(d.spot), top - 8, bottom, fs, left, right, W, H, exp, legendItems(d));
   s += watermark(d, left, bottom, small, exp);
 
-  state.geo = exp ? state.geo : { kind: "strike", left, right, band, top, bottom, n, xOf };
+  state.geo = exp ? state.geo : { kind: "strike", left, right, band, top, bottom, n, xOf, data: d };
   return frame(W, H, s, d, exp, { gamma: "Exposición gamma por strike", vanna: "Flujo por vanna (IV −1 pt)", charm: "Flujo por charm (1 día)" }[greek]);
 }
 
@@ -552,16 +586,16 @@ function renderMap(d, hm, W, H, exp = false) {
   // barras del propio mapa (cubren todo su rango de precios); si no vienen, las del analisis
   // modo "por strike": la misma medida que el color del mapa (gamma en cada strike) a la hora actual o de la
   // ultima vela; modo "total": GEX neta por strike al precio actual
+  // en los dos modos: GEX neta de cada strike al precio actual, por 1% (la misma medida que el mapa y que gexbot).
+  // No se usa la gamma "en el strike" a la hora de la ultima vela: al cierre el 0DTE a punto de vencer la dispara
   const ks = [], vs = [];
-  const byStrike = state.mapMode !== "total" && hm.strike_bars && hm.strike_bars.k.length;
-  if (byStrike) hm.strike_bars.k.forEach((k, i) => { if (k >= pLo && k <= pHi) { ks.push(k); vs.push(hm.strike_bars.v[i]); } });
-  else {
-    const src = hm.strikes && hm.net ? hm : d;
-    src.strikes.forEach((k, i) => { if (k >= pLo && k <= pHi) { ks.push(k); vs.push(src.net[i]); } });
-  }
+  const src = hm.strikes && hm.net ? hm : d, sp1 = (hm.spot || d.spot) / 100;
+  src.strikes.forEach((k, i) => { if (k >= pLo && k <= pHi) { ks.push(k); vs.push(src.net[i] * sp1); } });
+  const sideB = bucketStrikes(ks, [vs], hm.step || d.step, Math.max(20, Math.floor((bottom - top) / 4)));
+  ks.length = 0; vs.length = 0; ks.push(...sideB.ks); vs.push(...sideB.arrs[0]);
   const bmax = Math.max(1, ...vs.map(Math.abs));
   const cx = (barsL + barsR) / 2, half = (barsR - barsL) / 2 - 4;
-  const bh = Math.max(1.5, Math.min(10, ((bottom - top) / Math.max(1, (pHi - pLo) / (hm.step || d.step))) * 0.7));
+  const bh = Math.max(1.5, Math.min(10, ((bottom - top) / Math.max(1, (pHi - pLo) / sideB.step)) * 0.7));
   if (!narrow) s += `<line x1="${cx}" x2="${cx}" y1="${top}" y2="${bottom}" stroke="${C.axis}"/>`;
   if (!narrow) ks.forEach((k, i) => {
     const v = vs[i]; if (!v) return;
@@ -571,7 +605,7 @@ function renderMap(d, hm, W, H, exp = false) {
   if (!narrow) {
     s += `<text x="${cx - half}" y="${bottom + small + 10}" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(-bmax)}</text>`;
     s += `<text x="${cx + half}" y="${bottom + small + 10}" text-anchor="end" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(bmax)}</text>`;
-    s += `<text x="${cx}" y="${bottom + small + 10}" text-anchor="middle" font-family="${SANS}" font-size="${small}" fill="${C.faint}">${byStrike ? `Gamma ${nyHHMM(hm.session + " " + hm.strike_bars.time)}` : "GEX por strike"}</text>`;
+    s += `<text x="${cx}" y="${bottom + small + 10}" text-anchor="middle" font-family="${SANS}" font-size="${small}" fill="${C.faint}">GEX por strike, 1%</text>`;
   }
 
   // mapa
@@ -970,16 +1004,18 @@ function checkCrossings(prev, d) {
   }
 }
 
-function setAuto(on) {
+function setAuto(on, quiet = false) {
   state.auto = on;
+  store.set("autoOn", on ? "1" : "0");
   $("autoToggle").setAttribute("aria-checked", String(on));
   clearInterval(state.autoTimer);
   if (on) {
-    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
     state.autoTimer = setInterval(() => {
       if (state.mode === "scanner") { if (state.scanView === "table") runScan(); else if (state.scanView === "compass") loadCompass(true); }
       else load(false, true);
     }, 5 * 60 * 1000);
+    if (quiet) return;
+    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
     toast("Actualización automática activada", "Recalcula cada 5 minutos y avisa cuando el precio cruce un nivel.");
   }
 }
@@ -1021,15 +1057,16 @@ function onMove(e) {
 
   let html;
   if (g.kind === "strike") {
-    const i = Math.floor((x - g.left) / g.band);
+    const i = Math.floor((x - g.left) / g.band), b = g.data || d;
     if (i < 0 || i >= g.n) return hideTip();
     const hl = svg.querySelector("#hl");
     hl.setAttribute("x", g.left + i * g.band); hl.setAttribute("visibility", "visible");
-    html = `<div class="t">Strike ${fmtLevel(d.strikes[i])}</div>
-      <div class="r">Neta <b>${fmtBig(d.net[i], true)}</b></div>
-      <div class="r">Calls <b>${fmtBig(d.calls[i], true)}</b></div>
-      <div class="r">Puts <b>${fmtBig(d.puts[i], true)}</b></div>
-      <div class="r">Vence ${ddmm(d.front_expiry)} <b>${fmtBig(d.front[i], true)}</b></div>`;
+    const k = b.strikes[i], h = b.bucket ? (b.step - b.bucketStep) / 2 : 0;
+    html = `<div class="t">${b.bucket ? `Strikes ${fmtLevel(k - h)}–${fmtLevel(k + h)}` : `Strike ${fmtLevel(k)}`}</div>
+      <div class="r">Neta <b>${fmtBig(b.net[i], true)}</b></div>
+      <div class="r">Calls <b>${fmtBig(b.calls[i], true)}</b></div>
+      <div class="r">Puts <b>${fmtBig(b.puts[i], true)}</b></div>
+      <div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`;
   } else if (g.kind === "impact" && typeof impactTip === "function") {
     html = impactTip(d, g, x, svg);
     if (!html) return hideTip();
@@ -1180,52 +1217,118 @@ async function exportReport() {
       state.heat = hm; state.heatKey = heatParams(); state.heatImg = null;
     } catch (e) { setStatus("err", "No se pudo calcular el mapa para el informe"); return; }
   }
-  const W = 2000, headH = 330, chartH = 680, mapH = 900, H = headH + chartH + mapH + 20;
+  // Informe con la misma estetica que la web: tarjetas sobre el fondo, cabecera con precio, regimen y niveles
+  // (con su cambio frente a la sesion anterior), Impacto calls y puts con la ficha, barras por strike y TRACE
+  const W = 2000, G = 24, headH = 400, impH = 760, chartH = 700, mapH = 920, footH = 70;
+  const yImp = headH + G, yStrike = yImp + impH + G, yMap = yStrike + chartH + G, H = yMap + mapH + footH;
+  const cardW = 600, impW = W - cardW - G;
   const geo = state.geo, greek = state.greek, mapMode = state.mapMode;
   state.greek = "gamma"; state.heatImg = null;
-  const strikeSvg = renderStrike(d, W, chartH, true).replace("<svg ", `<svg x="0" y="${headH}" `);
-  const mapSvg = renderMap(d, state.heat, W, mapH, true).replace("<svg ", `<svg x="0" y="${headH + chartH + 20}" `);
+  const impSvg = typeof renderImpact === "function" ? renderImpact(d, impW, impH, true).replace("<svg ", `<svg x="0" y="${yImp}" `) : "";
+  const strikeSvg = renderStrike(d, W, chartH, true).replace("<svg ", `<svg x="0" y="${yStrike}" `);
+  const mapSvg = renderMap(d, state.heat, W, mapH, true).replace("<svg ", `<svg x="0" y="${yMap}" `);
   state.greek = greek; state.mapMode = mapMode; state.geo = geo; state.heatImg = null;
 
-  const L = d.levels, t = d.totals, em = move1(d);
+  const L = d.levels, t = d.totals, em = move1(d), hb = d.hub || {};
   const dte = { "0": "0DTE", "7": "≤ 7 días", "45": "≤ 45 días", all: "todos los vencimientos" }[state.dte];
   const neg = d.regime === "negative";
-  const rows = levelItems(d);
-  if (L.abs_gamma != null && !rows.some((r) => r.v === L.abs_gamma)) rows.push({ key: "abs", name: "Gamma absoluta", v: L.abs_gamma, c: C.muted });
-  rows.sort((a, b) => b.v - a.v);
-  let s = `<rect width="${W}" height="${H}" fill="${C.ink}"/><rect x="0" y="0" width="${W}" height="${headH - 10}" rx="22" fill="${C.surface}"/>`;
-  s += `<text x="70" y="78" font-family="${SANS}" font-size="44" font-weight="600" fill="${C.text}">${esc(d.symbol)}</text>`;
-  s += `<text x="70" y="120" font-family="${SANS}" font-size="22" fill="${C.muted}">${esc(d.name || "")}${d.combo ? ` + ${d.combo.proxy}` : ""}, ${dte}, ${ddmm(d.session)}/${(d.session || "").slice(0, 4)}</text>`;
-  s += `<text x="70" y="196" font-family="${SANS}" font-size="64" font-weight="500" fill="${C.text}">${fmtSpot(d.spot)}</text>`;
+  const T = (x, y, str, o = {}) => `<text x="${x}" y="${y}" text-anchor="${o.a || "start"}" font-family="${SANS}" font-size="${o.fs || 22}" font-weight="${o.w || 400}" fill="${o.c || C.text}">${str}</text>`;
+  const card = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="${C.surface}" stroke="${C.axis}" stroke-opacity="0.6"/>`;
+  let s = `<rect width="${W}" height="${H}" fill="${C.ink}"/>` + card(0, 0, W, headH);
+
+  // --- cabecera: identidad, precio y regimen
+  const date = (d.session || (d.computed_at || "").slice(0, 10)).split("-").reverse().join("/");
+  s += T(56, 74, esc(d.symbol), { fs: 46, w: 700 });
+  s += T(56 + textW(d.symbol, 46) * 1.05 + 20, 74, `${esc(d.name || "")}${d.combo ? ` + ${esc(d.combo.proxy)}` : ""}`, { fs: 22, c: C.muted });
+  s += T(56, 112, `${dte} · ${date} · ${state.pos === "flow" ? "dealers según el flujo" : "convención estándar"}`, { fs: 19, c: C.faint });
+  s += T(56, 200, fmtSpot(d.spot), { fs: 76, w: 600 });
   const chg = d.chg_pct;
-  if (chg != null && !d.spot_manual) s += `<text x="70" y="236" font-family="${SANS}" font-size="24" fill="${chg >= 0 ? C.put : C.call}">${fmtPct(chg)}</text>`;
-  s += `<text x="70" y="286" font-family="${SANS}" font-size="24" font-weight="600" fill="${neg ? C.neg : C.pos}">${neg ? "Gamma negativa" : "Gamma positiva"}</text>`;
-  s += `<text x="290" y="286" font-family="${SANS}" font-size="22" fill="${C.muted}">${neg ? "la cobertura de los dealers tiende a amplificar los movimientos" : "la cobertura de los dealers tiende a frenar los movimientos"}</text>`;
-  // niveles
+  if (chg != null && !d.spot_manual) s += T(56 + textW(fmtSpot(d.spot), 76) * 1.02 + 22, 200, fmtPct(chg), { fs: 28, w: 500, c: chg >= 0 ? C.put : C.call });
+  s += `<rect x="56" y="232" width="${textW(neg ? "Gamma negativa" : "Gamma positiva", 20) + 34}" height="38" rx="19" fill="${neg ? C.neg : C.pos}" fill-opacity="0.16"/>`;
+  s += `<circle cx="74" cy="251" r="5" fill="${neg ? C.neg : C.pos}"/>` + T(86, 258, neg ? "Gamma negativa" : "Gamma positiva", { fs: 20, w: 600, c: neg ? C.neg : C.pos });
+  const reading = neg ? "Por debajo del flip: la cobertura de los dealers tiende a amplificar los movimientos."
+    : "Por encima del flip: la cobertura de los dealers tiende a frenar los movimientos.";
+  s += T(56, 312, reading, { fs: 20, c: C.muted });
+  // GEX neta con la barra calls/puts
+  const cA = Math.abs(t.call_per_pct || 0), pA = Math.abs(t.put_per_pct || 0), tot = cA + pA || 1;
+  s += T(56, 356, "GEX neta por 1%", { fs: 19, c: C.muted }) + T(600, 356, fmtBig(t.net_per_pct, true), { a: "end", fs: 24, w: 600 });
+  s += `<rect x="56" y="370" width="${544 * cA / tot - 2}" height="8" rx="4" fill="${C.pos}"/><rect x="${56 + 544 * cA / tot + 2}" y="370" width="${544 * pA / tot - 2}" height="8" rx="4" fill="${C.neg}"/>`;
+
+  // --- niveles con distancia y cambio frente a la sesion anterior
+  const rows = levelItems(d);
+  if (L.abs_gamma != null && !rows.some((r) => r.v === L.abs_gamma)) rows.push({ key: "abs_gamma", name: "Gamma absoluta", v: L.abs_gamma, c: C.muted });
+  rows.push({ key: "spot", name: "Spot", v: d.spot, c: C.text, spot: true });
+  rows.sort((a, b) => b.v - a.v);
+  const lx = 700, ly0 = 64, lh = Math.min(50, (headH - 90) / Math.max(1, rows.length));
+  s += T(lx, 40, "NIVELES", { fs: 16, w: 600, c: C.faint });
   rows.forEach((r, i) => {
-    const y = 74 + i * 46, x = 900;
-    s += `<circle cx="${x}" cy="${y - 8}" r="8" fill="none" stroke="${r.c}" stroke-width="3"/>`;
-    s += `<text x="${x + 24}" y="${y}" font-family="${SANS}" font-size="24" fill="${C.muted}">${r.name}</text>`;
-    s += `<text x="${x + 330}" y="${y}" text-anchor="end" font-family="${SANS}" font-size="26" font-weight="500" fill="${C.text}">${fmtLevel(r.v)}</text>`;
-    s += `<text x="${x + 440}" y="${y}" text-anchor="end" font-family="${SANS}" font-size="20" fill="${C.faint}">${fmtPct((r.v / d.spot - 1) * 100)}</text>`;
+    const y = ly0 + 18 + i * lh;
+    s += r.spot ? `<circle cx="${lx + 8}" cy="${y - 7}" r="8" fill="${C.text}"/>` : `<circle cx="${lx + 8}" cy="${y - 7}" r="8" fill="none" stroke="${r.c}" stroke-width="3"/>`;
+    s += T(lx + 30, y, r.name, { fs: 22, c: r.spot ? C.text : C.muted, w: r.spot ? 600 : 400 });
+    s += T(lx + 400, y, r.spot ? fmtSpot(r.v) : fmtLevel(r.v), { a: "end", fs: 24, w: 600 });
+    if (!r.spot) s += T(lx + 500, y, fmtPct((r.v / d.spot - 1) * 100), { a: "end", fs: 18, c: C.faint });
+    const p = d.prev;
+    if (!r.spot && p && r.key in p && p[r.key] != null) {
+      const was = p[r.key], same = Math.abs(was - r.v) < 1e-9, up = r.v > was;
+      s += same ? T(lx + 530, y, `igual que el ${ddmm(p.date)}`, { fs: 17, c: C.faint })
+        : T(lx + 530, y, `${ddmm(p.date)}: ${fmtLevel(was)}`, { fs: 17, c: C.faint }) +
+          T(lx + 530 + textW(`${ddmm(p.date)}: ${fmtLevel(was)}`, 17) + 10, y, `${up ? "▲" : "▼"} ${fmtLevel(Math.abs(r.v - was))}`, { fs: 17, w: 600, c: up ? C.put : C.call });
+    }
   });
-  // cifras
+
+  // --- cifras clave
+  const m5 = d.moves && d.moves.d5;
   const facts = [
-    ["GEX neta por 1%", fmtBig(t.net_per_pct, true)],
-    [`Rango 1σ ${rangeLabel(em)}`, em ? `±${fmtNum(em.pct, 2)}%` : "—"],
-    ["Vanna (IV −1 pt)", `${t.vanna_flow >= 0 ? "+" : "−"}${fmtBig(Math.abs(t.vanna_flow), true)}`],
-    [charmLabel(d).replace("Charm, ", "Charm (") + ")", `${t.charm_flow >= 0 ? "+" : "−"}${fmtBig(Math.abs(t.charm_flow), true)}`],
+    [`Rango 1σ, ${rangeLabel(em)}`, em ? `±${fmtNum(em.pct, 2)}%` : "—", em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}` : ""],
+    ["Rango 1σ, 5 sesiones", m5 ? `±${fmtNum(m5.pct, 2)}%` : "—", m5 ? `${fmtSpot(m5.lo)} – ${fmtSpot(m5.hi)}` : ""],
+    ["Vanna (IV −1 pt)", `${t.vanna_flow >= 0 ? "+" : "−"}${fmtBig(Math.abs(t.vanna_flow), true)}`, ""],
+    [charmLabel(d), `${t.charm_flow >= 0 ? "+" : "−"}${fmtBig(Math.abs(t.charm_flow), true)}`, ""],
+    ["Zero gamma (perfil)", L.zero_gamma != null ? fmtLevel(L.zero_gamma) : "—", ""],
   ];
-  facts.forEach(([k, v], i) => {
-    const y = 74 + i * 58;
-    s += `<text x="1500" y="${y}" font-family="${SANS}" font-size="22" fill="${C.muted}">${k}</text>`;
-    s += `<text x="1930" y="${y}" text-anchor="end" font-family="${SANS}" font-size="28" font-weight="500" fill="${C.text}">${v}</text>`;
+  const fx = 1480, fr = W - 56;
+  s += T(fx, 40, "CIFRAS", { fs: 16, w: 600, c: C.faint });
+  facts.forEach(([k, v, sub], i) => {
+    const y = 84 + i * 62;
+    s += T(fx, y, k, { fs: 20, c: C.muted }) + T(fr, y, v, { a: "end", fs: 26, w: 600 });
+    if (sub) s += T(fr, y + 22, sub, { a: "end", fs: 16, c: C.faint });
   });
-  s += `<text x="1930" y="${headH - 34}" text-anchor="end" font-family="${MONO}" font-size="16" fill="${C.faint}">GEX Lab, datos CBOE diferidos, OI del cierre anterior</text>`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}${strikeSvg}${mapSvg}</svg>`;
+
+  // --- ficha (como en el Equity Hub)
+  const cr = ((typeof hub !== "undefined" && hub.cmp) || (cmp.data && cmp.data.rows) || []).find((r) => r.symbol === d.symbol);
+  const pc = (v) => (v == null ? "—" : fmtNum(v * 100, 1) + "%");
+  const exd = (iso) => (iso ? `${ddmm(iso)}/${iso.slice(2, 4)}` : "—");
+  const vp = (v, edge) => (v != null ? fmtLevel(v) : edge && hb.range ? (edge === "up" ? `> ${fmtSpot(hb.range[1])}` : `< ${fmtSpot(hb.range[0])}`) : "—");
+  const ficha = [
+    ["Cierre anterior", fmtSpot(d.prev_close)],
+    ["IV rank", cr && cr.y != null ? fmtNum(cr.y, 0) + "%" : "—"],
+    ["IV 30 días", pc(hb.iv30)],
+    ["Vol. realizada 20 días", pc(hb.rv20)],
+    ["Punto de baja volatilidad", vp(hb.low_vol_point, hb.low_vol_edge)],
+    ["Punto de alta volatilidad", vp(hb.high_vol_point, hb.high_vol_edge)],
+    ["Gamma de calls (1%)", fmtBig(t.call_per_pct, true)],
+    ["Gamma de puts (1%)", fmtBig(t.put_per_pct, true)],
+    ["Venc. con más gamma", exd(hb.top_gamma_exp)],
+    ["Venc. con más delta", exd(hb.top_delta_exp)],
+    ["Volumen calls / puts", `${hb.call_vol != null ? fmtBig(hb.call_vol) : "—"} / ${hb.put_vol != null ? fmtBig(hb.put_vol) : "—"}`],
+    ["Ratio put/call (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—"],
+  ];
+  const cx0 = impW + G;
+  s += card(cx0, yImp, cardW, impH) + T(cx0 + 36, yImp + 52, "FICHA", { fs: 16, w: 600, c: C.faint });
+  const rh = (impH - 100) / ficha.length;
+  ficha.forEach(([k, v], i) => {
+    const y = yImp + 100 + i * rh;
+    s += T(cx0 + 36, y, k, { fs: 21, c: C.muted }) + T(cx0 + cardW - 36, y, v, { a: "end", fs: 22, w: 600 });
+    if (i < ficha.length - 1) s += `<line x1="${cx0 + 36}" x2="${cx0 + cardW - 36}" y1="${y + rh / 2 - 6}" y2="${y + rh / 2 - 6}" stroke="${C.grid}"/>`;
+  });
+
+  // --- pie
+  s += T(56, H - 28, "GEX Lab · datos de CBOE diferidos (~15 min) · open interest del cierre anterior · no es asesoramiento financiero", { fs: 17, c: C.faint });
+  s += T(W - 56, H - 28, `Generado ${new Date().toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })}`, { a: "end", fs: 17, c: C.faint });
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}${impSvg}${strikeSvg}${mapSvg}</svg>`;
   svgToPng(svg, W, H, `Informe_${d.symbol}_${d.session || ""}.png`, 1.25);
   setStatus("", `Informe de ${d.symbol} generado`);
-  if (state.view === "map") draw();
+  draw();
 }
 
 /* ============================================================ buscador */
@@ -1549,7 +1652,9 @@ async function loadCompass(force = false) {
 function renderCompass() {
   const el = $("compass"), d = cmp.data;
   if (!d) return;
+  renderCside(); // primero la lista: al llenarse cambia la altura de la fila y, con ella, la del grafico
   const W = Math.max(360, el.clientWidth), H = Math.max(420, el.clientHeight);
+  cmp.size = `${W}x${H}`;
   const pad = { l: 64, r: 64, t: 40, b: 56 };
   const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
   const xOf = (v) => L + ((5 + v * 0.9) / 100) * (R - L), yOf = (v) => B - ((6 + v * 0.88) / 100) * (B - T);
@@ -1579,7 +1684,6 @@ function renderCompass() {
   s += lg(L, "Los dos ejes con su propia historia", "full") + lg(L + 250, "IV rank con su historia, RR provisional", "half") + lg(L + 520, "Provisional (frente a la lista)", "empty");
   const hid = cmpHidden();
   const pts = d.rows.filter((r) => !r.error && r.x != null && r.y != null && !hid.has(r.symbol));
-  renderCside();
   const placed = [];
   cmp.geo = [];
   for (const r of pts) {
@@ -1640,6 +1744,18 @@ function compassTip(e) {
 }
 
 function bindCompassSide() {
+  // el grafico se dibuja a la medida exacta del recuadro: si el recuadro cambia, se vuelve a dibujar
+  if (window.ResizeObserver) {
+    let raf = 0;
+    new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const el = $("compass");
+        if (!cmp.data || !el.offsetParent) return;
+        if (cmp.size !== `${Math.max(360, el.clientWidth)}x${Math.max(420, el.clientHeight)}`) renderCompass();
+      });
+    }).observe($("compass"));
+  }
   $("cFind").addEventListener("input", (e) => { cmp.find = e.target.value; renderCside(); });
   $("cBody").addEventListener("click", (e) => {
     const tr = e.target.closest("tr[data-s]"); if (!tr) return;
@@ -2494,6 +2610,7 @@ async function init() {
   $("chips").addEventListener("click", (e) => { const b = e.target.closest("button[data-k]"); if (b) clearChip(b.dataset.k); });
   $("spotInput").addEventListener("input", renderChips);
   $("autoToggle").addEventListener("click", () => setAuto(!state.auto));
+  if (store.get("autoOn", "1") === "1") setAuto(true, true);
   $("reportBtn").addEventListener("click", exportReport);
   bindScanner();
   bindSeg("rangeSeg", "range", () => { $("rangeInput").value = ""; syncRange(); load(); });

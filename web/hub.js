@@ -34,8 +34,11 @@ function renderImpact(d, W, H, exp = false) {
   // eje izquierdo: lineas, siempre con el cero
   const ys = Y.concat(Wk || []);
   // barras por strike dentro del rango (se necesitan antes para reservar sitio a cada lado del cero)
-  const ks = [], vs = [];
-  d.strikes.forEach((k, i) => { if (k >= x0 && k <= x1) { ks.push(k); vs.push(d.net[i]); } });
+  const ks0 = [], vs0 = [];
+  d.strikes.forEach((k, i) => { if (k >= x0 && k <= x1) { ks0.push(k); vs0.push(d.net[i]); } });
+  // con muchos strikes (NDX) se agrupan para que cada barra tenga unos pixeles de ancho
+  const bk = bucketStrikes(ks0, [vs0], d.step || 1, Math.max(30, Math.floor((R - L) / 6)));
+  const ks = bk.ks, vs = bk.arrs[0];
   const mp = Math.max(0, ...vs), mn = Math.max(0, ...vs.map((v) => -v));
   let lo = Math.min(0, ...ys), hi = Math.max(0, ...ys);
   const pad = (hi - lo) * 0.08 || 1;
@@ -70,7 +73,7 @@ function renderImpact(d, W, H, exp = false) {
   s += `<text transform="translate(${W - (exp ? 30 : narrow ? 6 : 10)},${(T + B) / 2}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma neta por strike (barras)</text>`;
 
   // barras
-  const step = d.step || (ks.length > 1 ? ks[1] - ks[0] : 1);
+  const step = bk.step || (ks.length > 1 ? ks[1] - ks[0] : 1);
   const bw = Math.max(1.5, Math.min(exp ? 22 : 14, ((R - L) / ((x1 - x0) / step)) * 0.62));
   let bars = "";
   ks.forEach((kk, i) => {

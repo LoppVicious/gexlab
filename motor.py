@@ -40,7 +40,7 @@ COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
 DTES = ["0", "7", "45", "all"]
 VAL_MODES = ["standard", "flow"]
-DEFAULT_VISTA = {"dte": "45", "range": "5", "pos": "standard", "combo": "0", "sess": "auto"}
+DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto"}
 
 _t0 = time.time()
 _errores: list[str] = []

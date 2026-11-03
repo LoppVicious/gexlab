@@ -75,6 +75,15 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
         sel &= (bid > 0) | (ch.get("oi", np.ones_like(K)) > 0)
     exps = sorted(set(E[sel].tolist()))
     exps = [np.datetime64(x, "m") for x in exps]
+    # un solo vencimiento por dia: NDX, RUT o SPX tienen el mensual AM (NDX) y el PM (NDXP) el mismo dia;
+    # se queda el que tiene mas strikes cotizados
+    by_day: dict = {}
+    for x in exps:
+        n = int((sel & (E == x)).sum())
+        dd = str(x)[:10]
+        if dd not in by_day or n > by_day[dd][1]:
+            by_day[dd] = (x, n)
+    exps = sorted(v[0] for v in by_day.values())
     dtes = [_dte(x, now64) for x in exps]
     out = []
     for i in _pick_expiries(exps, dtes) if exps else []:
@@ -89,7 +98,8 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
         k, iv, d = k[keep], iv[keep], d[keep]
         if k.size < 5:
             continue
-        out.append({"exp": str(exps[i])[:10], "dte": round(dtes[i], 3), "K": np.round(k, 3).tolist(),
+        days = int((exps[i].astype("datetime64[D]") - now64.astype("datetime64[D]")).astype(int))
+        out.append({"exp": str(exps[i])[:10], "dte": round(dtes[i], 3), "days": max(days, 0), "K": np.round(k, 3).tolist(),
                     "iv": np.round(iv, 5).tolist(), "delta": np.round(d, 4).tolist()})
     return out
 
@@ -228,7 +238,7 @@ def matrix(smiles: list[dict], prev: list[dict], spot: float, n_strikes: int = 1
     for sm in smiles[:10]:
         cur = dict(zip(sm["K"], sm["iv"]))
         pv = pmap.get(sm["exp"], {})
-        rows.append({"exp": sm["exp"], "dte": sm["dte"],
+        rows.append({"exp": sm["exp"], "dte": sm["dte"], "days": sm.get("days"),
                      "iv": [cur.get(k) for k in ks],
                      "chg": [round(cur[k] - pv[k], 5) if k in cur and k in pv else None for k in ks]})
     return {"strikes": ks, "rows": rows}

@@ -16,6 +16,12 @@ const vol = {
 };
 const volH = () => (vol.hor === "1m" ? 32 : 100);   // horizonte en dias
 const inH = (x) => x.dte <= volH();
+// dias naturales hasta el vencimiento (sin decimales)
+function volDays(x) {
+  if (x.days != null) return x.days;
+  const t = new Date(); const today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+  return Math.max(0, Math.round((Date.parse(x.exp + "T00:00:00Z") - today) / 86400000));
+}
 function horSeg() {
   return `<div class="seg boxed" role="radiogroup" id="volHorSeg" aria-label="Horizonte"><button role="radio" data-v="1m" aria-checked="${vol.hor === "1m"}">1 mes</button><button role="radio" data-v="3m" aria-checked="${vol.hor === "3m"}">3 meses</button></div>`;
 }
@@ -271,7 +277,7 @@ function renderMatrix() {
   };
   const spotIdx = m.strikes.reduce((bi, k, i) => (Math.abs(k - vol.data.spot) < Math.abs(m.strikes[bi] - vol.data.spot) ? i : bi), 0);
   return `<table class="scan vmat"><thead><tr><th class="l">Vencimiento</th>${m.strikes.map((k, i) => `<th class="${i === spotIdx ? "atm" : ""}">${fmtNum(k, k < 100 ? 1 : 0)}</th>`).join("")}</tr></thead>
-    <tbody>${m.rows.filter(inH).map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b><span class="ds">${fmtNum(r.dte, r.dte < 2 ? 1 : 0)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
+    <tbody>${m.rows.filter(inH).map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b><span class="ds">${volDays(r)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 /* ------------------------------------------------------------ controles y pintado */
@@ -285,7 +291,7 @@ function volControls() {
   if (vol.tab === "skew") {
     const ex = d.smiles.filter(inH).map((s) => {
       const k = vol.sel.indexOf(s.exp);
-      return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${VOLC[k % VOLC.length]}"` : ""}>${volDate(s.exp)}<small>${fmtNum(s.dte, s.dte < 2 ? 1 : 0)}d</small></button>`;
+      return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${VOLC[k % VOLC.length]}"` : ""}>${volDate(s.exp)}<small>${volDays(s)}d</small></button>`;
     }).join("");
     return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volAxisSeg"><button role="radio" data-v="strike" aria-checked="${vol.axis === "strike"}">Strike</button><button role="radio" data-v="delta" aria-checked="${vol.axis === "delta"}">Delta</button></div>
       ${hasPrev ? chip("d1", "Sesión anterior (discontinua)", sh.d1, C.muted) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}</div>
@@ -333,7 +339,7 @@ function volTip(e) {
     const prev = (k) => { const q = vol.data.prev && vol.data.prev[k]; const t = q && q.term.find((z) => z.exp === p.exp); return t ? t.atm : null; };
     const ev = (vol.events || []).filter((z) => z.date === p.exp);
     html = `<div class="t">Vencimiento ${volDate(p.exp)}</div>
-      <div class="r">Días al vencimiento <b>${fmtNum(p.dte, 2)}</b></div>
+      <div class="r">Días al vencimiento <b>${volDays(p)}</b></div>
       ${b ? `<div class="r">Percentil 10 <b>${pct(b[0], 2)}</b></div><div class="r">Percentil 90 <b>${pct(b[1], 2)}</b></div>` : ""}
       <div class="r">Hoy <b style="color:${C.accent}">${pct(p.atm, 2)}</b></div>
       ${p.fwd != null ? `<div class="r">IV forward <b>${pct(p.fwd, 2)}</b></div>` : ""}

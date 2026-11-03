@@ -757,7 +757,7 @@ def expected_move(ch: dict, spot: float, now: datetime) -> dict | None:
 
 
 MOVE_SESSIONS = (1, 5)
-AUTO_SIGMAS = 3.0  # rango automatico: 3 desviaciones tipicas de la proxima sesion (o de lo que queda de hoy)
+AUTO_SIGMAS = 2.0  # rango automatico: 2 desviaciones tipicas (95%) de la proxima sesion (o de lo que queda de hoy)
 
 
 def auto_window(moves: dict | None) -> float:
@@ -1217,7 +1217,7 @@ def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.
 
 def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             spot_override: float | None = None, force: bool = False, combine: bool = False,
-            positioning: str = "standard") -> dict:
+            positioning: str = "standard", level_window: float | None = None) -> dict:
     raw = fetch_chain(symbol, force=force)
     ch = parse_chain(raw)
     save_chain_snapshot(normalize(symbol), ch)
@@ -1336,41 +1336,48 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         prof[a:a + chunk] = gm.sum(axis=1)
         prof_week[a:a + chunk] = gm[:, WEEK].sum(axis=1)
 
-    # --- gamma flip: cruce por cero mas cercano al spot
-    flip_exact = None
+    # --- zero gamma (convencion SpotGamma): precio en el que la GEX total recalculada cruza cero, el mas cercano
+    zero_gamma = None
     sc = np.where(np.sign(prof[:-1]) * np.sign(prof[1:]) < 0)[0]
     if sc.size:
         cands = [xs[i] - prof[i] * (xs[i + 1] - xs[i]) / (prof[i + 1] - prof[i]) for i in sc]
-        flip_exact = float(min(cands, key=lambda v: abs(v - spot)))
+        zero_gamma = float(min(cands, key=lambda v: abs(v - spot)))
+
+    # --- niveles por strike (convencion de gexbot), dentro del rango de niveles elegido
+    lw = level_window if level_window is not None else window_pct
+    lv = (wgrid >= spot * (1 - lw / 100) - 1e-9) & (wgrid <= spot * (1 + lw / 100) + 1e-9)
+    if lv.sum() < 3:
+        lv = vis
+    lk, ln, lc, lp = wgrid[lv], wnet[lv], wcalls[lv], wputs[lv]
+
+    # Gamma Flip: la frontera de signo de la GEX neta por strike, el punto que deja la menor gamma "mal colocada"
+    # (positiva por debajo o negativa por encima). Si todas las barras tienen el mismo signo, el zero gamma del perfil.
+    flip_exact = None
+    if (ln > 0).any() and (ln < 0).any() and lk.size >= 2:
+        pos_c, neg_c = np.cumsum(np.maximum(ln, 0)), np.cumsum(np.maximum(-ln, 0)[::-1])[::-1]
+        cost = pos_c[:-1] + neg_c[1:]                       # frontera entre lk[i] y lk[i+1]
+        mids = (lk[:-1] + lk[1:]) / 2
+        best = np.where(cost <= cost.min() * (1 + 1e-9) + 1e-9)[0]
+        flip_exact = float(mids[best[np.argmin(np.abs(mids[best] - spot))]])
+    elif zero_gamma is not None:
+        flip_exact = zero_gamma
     flip = _nice_round(flip_exact, step) if flip_exact else None
 
-    # --- walls
-    # Call Wall: strike con mayor GEX neta positiva por encima del spot.
-    # Put Wall: strike con mayor GEX neta negativa por debajo del spot.
-    # Si un lado no tiene barras de ese signo, se usa la gamma de calls / puts sola.
-    up, dn = wgrid > spot, wgrid < spot
-
-    def _pick(mask, primary, fallback, best):
-        for arr in (primary, fallback):
-            vals = np.where(mask, arr, 0.0)
-            v = best(vals)
-            if (vals[v] > 0) if best is np.argmax else (vals[v] < 0):
-                return float(wgrid[v])
-        return None
-
-    call_wall = _pick(up, wnet, wcalls, np.argmax) or _pick(np.ones_like(up), wcalls, wcalls, np.argmax)
-    put_wall = _pick(dn, wnet, wputs, np.argmin) or _pick(np.ones_like(dn), wputs, wputs, np.argmin)
-    abs_g = float(wgrid[np.argmax(np.abs(wcalls) + np.abs(wputs))])
+    # Call Wall y Put Wall: la mayor GEX neta positiva y la mayor negativa del rango, esten por encima o por debajo
+    # del precio (como gexbot). Si no hay barras de ese signo, la mayor gamma de calls o de puts.
+    call_wall = float(lk[np.argmax(ln)]) if (ln > 0).any() else (float(lk[np.argmax(lc)]) if (lc > 0).any() else None)
+    put_wall = float(lk[np.argmin(ln)]) if (ln < 0).any() else (float(lk[np.argmin(lp)]) if (lp < 0).any() else None)
+    abs_g = float(lk[np.argmax(np.abs(lc) + np.abs(lp))])
 
     # --- volatility trigger (aproximacion propia): el strike mas alto con gamma neta negativa
     # significativa (>= 25% del maximo absoluto) por debajo del gamma flip, es decir, la ultima
     # concentracion de gamma negativa antes de entrar en la zona positiva
     vt = None
-    peak = np.abs(wnet).max()
+    peak = np.abs(ln).max() if ln.size else 0
     if peak > 0 and flip_exact is not None:
-        cand = np.where((wgrid <= flip_exact) & (wnet < 0) & (np.abs(wnet) >= 0.25 * peak))[0]
+        cand = np.where((lk <= flip_exact) & (ln < 0) & (np.abs(ln) >= 0.25 * peak))[0]
         if cand.size:
-            vt = float(wgrid[cand.max()])
+            vt = float(lk[cand.max()])
 
     net_total = float(gex.sum())
     res = {
@@ -1397,7 +1404,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "profile": {"x": xs.tolist(), "y": prof.tolist(), "week": prof_week.tolist(), "week_exp": str(week_exp)},
         "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, step, window_pct),
         "levels": {"call_wall": call_wall, "put_wall": put_wall, "flip": flip,
-                   "flip_exact": flip_exact, "vt": vt, "abs_gamma": abs_g},
+                   "flip_exact": flip_exact, "vt": vt, "abs_gamma": abs_g, "zero_gamma": zero_gamma,
+                   "window": lw},
         "totals": {
             "net_per_dollar": net_total,
             "net_per_pct": net_total * spot * 0.01,
@@ -1622,7 +1630,7 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
 
     # las barras del panel lateral deben cubrir todo el rango de precios del mapa (que se amplia con las velas)
     cover = max(window_pct, (spot / lo - 1) * 100, (hi / spot - 1) * 100) + 0.1
-    lev = compute(symbol, max_dte=max_dte, window_pct=cover, spot_override=spot_override,
+    lev = compute(symbol, max_dte=max_dte, window_pct=cover, spot_override=spot_override, level_window=window_pct,
                   combine=combine, positioning=positioning)
     res = {
         "symbol": symbol, "spot": spot, "session": day, "kind": kind, "approx": approx,

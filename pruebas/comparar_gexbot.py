@@ -19,12 +19,12 @@ def gexbot_levels(strikes, net):
             best, bk = cost, (k[i - 1] + k[i]) / 2
     return {"flip": bk, "call_wall": cw, "put_wall": pw, "major": major}
 
-for dte, w in ((0, 3.0), (98, 4.0)):
+for dte, w in ((0, 3.0), (0, "auto"), (98, 4.0), (98, 5.0)):
     r = g.compute("SPX", max_dte=dte, window_pct=w)
     L = r["levels"]
     per1 = np.array(r["net"]) * r["spot"] * 0.01
     print(f"\nSPX dte<={dte} spot {r['spot']:.2f} front {r['front_expiry']} contratos {r['meta']['contracts']} venc {r['meta']['expirations']}")
-    print(f"  GEX Lab : flip {L['flip']} (exacto {L['flip_exact']}) call wall {L['call_wall']} put wall {L['put_wall']} VT {L['vt']}")
+    print(f"  GEX Lab : flip {L["flip"]} (zero gamma {L["zero_gamma"]}) rango ±{L["window"]} call wall {L['call_wall']} put wall {L['put_wall']} VT {L['vt']}")
     gb = gexbot_levels(r["strikes"], r["net"])
     print(f"  estilo gexbot: flip {gb['flip']} call wall {gb['call_wall']} put wall {gb['put_wall']} major {gb['major']}")
     for k in (7475, 7500, 7510, 7520, 7550, 7560, 7565, 7570, 7580, 7590, 7600, 7625, 7640, 7650, 7700):

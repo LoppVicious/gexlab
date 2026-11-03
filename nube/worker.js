@@ -292,8 +292,10 @@ async function api(req, env, url, me) {
       const d = { symbols: syms.slice(0, MAX_WATCH), updated: stamp().slice(0, 10) };
       await env.DB.prepare("INSERT INTO listas (usuario, json) VALUES (?, ?) ON CONFLICT(usuario) DO UPDATE SET json = excluded.json").bind(me.user, JSON.stringify(d)).run();
       const nuevos = await syncConfig(env);
-      if (nuevos.length) await pedir(env, nuevos);
-      return json(200, { ...d, nuevos });
+      // tickers nuevos en la lista: un ciclo completo del motor (paquete, escaner, Compass y Validacion de la lista).
+      // Si ya hay uno en marcha, GitHub deja este en cola y empieza al terminar
+      const ciclo = nuevos.length ? await dispatch(env, { modo: "ciclo" }) : false;
+      return json(200, { ...d, nuevos, ciclo });
     }
     const r = await env.DB.prepare("SELECT json FROM listas WHERE usuario = ?").bind(me.user).first();
     let d = { symbols: DEFAULT_WATCH };

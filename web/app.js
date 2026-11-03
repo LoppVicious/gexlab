@@ -786,6 +786,8 @@ function paintSide(d) {
   $("meta").innerHTML = `
     <dt>Contratos</dt><dd>${fmtNum(m.contracts)}</dd>
     <dt>Vencimientos</dt><dd>${m.expirations}</dd>
+    ${d.levels.zero_gamma ? `<dt title="Precio en el que la GEX total recalculada cruzaría cero (convención SpotGamma)">Zero gamma (perfil)</dt><dd>${fmtLevel(d.levels.zero_gamma)}</dd>` : ""}
+    ${d.levels.window ? `<dt title="Rango en el que se buscan Call Wall, Put Wall, Flip y Vol Trigger">Niveles en</dt><dd>±${fmtNum(d.levels.window, d.levels.window < 1 ? 2 : 1)}%</dd>` : ""}
     <dt>Comparado con</dt><dd>${d.prev ? ddmm(d.prev.date) : "sin histórico aún"}</dd>
     ${d.combo ? `<dt>Combinado</dt><dd>+ ${d.combo.proxy} (×${fmtNum(d.combo.ratio, 2)})</dd>` : ""}
     <dt>Dealers</dt><dd class="flowinfo">${d.positioning === "flow"
@@ -1383,9 +1385,19 @@ async function runScan() {
     const r = await fetch(`/api/scan?dte=${state.dte}&symbols=${encodeURIComponent(list.join(","))}`, { signal: scanState.ctrl.signal });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Error en el escáner");
-    scanState.rows = d.rows;
+    // en la nube el escaner es el del ultimo ciclo: los tickers recien anadidos aparecen como pendientes y se
+    // vuelve a consultar cada 15 s hasta que el motor los incluye (1-2 min)
+    const have = new Set(d.rows.map((x) => x.symbol));
+    const missing = list.filter((s) => !have.has(s));
+    scanState.rows = d.rows.concat(missing.map((s) => ({ symbol: s, loading: true })));
     const ok = d.rows.filter((x) => !x.error).length;
-    $("scanStatus").textContent = `${ok} de ${d.rows.length} tickers, calculado ${nyWhen(d.computed_at)}`;
+    $("scanStatus").textContent = missing.length && ME && ME.nube
+      ? `Calculando ${missing.join(", ")} en la nube (1–2 min)…`
+      : `${ok} de ${d.rows.length} tickers, calculado ${nyWhen(d.computed_at)}`;
+    clearTimeout(scanState.retry);
+    if (missing.length && ME && ME.nube && (scanState.tries = (scanState.tries || 0) + 1) <= 20) {
+      scanState.retry = setTimeout(() => { if (state.mode === "scanner") runScan(); }, 15000);
+    } else if (!missing.length) scanState.tries = 0;
   } catch (e) {
     if (e.name === "AbortError") return;
     $("scanStatus").textContent = e.message === "Failed to fetch" ? "El servidor local no responde" : e.message;
@@ -1674,7 +1686,7 @@ function bindScanner() {
     const v = $("addInput").value.trim().toUpperCase().replace(/[-/]/g, ".");
     if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(v)) return;
     const w = watchlist();
-    if (!w.includes(v)) { w.push(v); saveWatch(w); }
+    if (!w.includes(v)) { w.push(v); saveWatch(w); scanState.tries = 0; }
     $("addInput").value = "";
     if (state.scanView === "compass") loadCompass(true); else runScan();
   });
@@ -2255,15 +2267,15 @@ const GLOSSARY = {
   call_wall: { t: "Call Wall", c: C.call,
     what: "El strike con más gamma neta positiva por encima del precio: la mayor concentración de calls, una vez descontadas las puts del mismo strike.",
     use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls.",
-    calc: "Mayor barra positiva de GEX neta (calls − puts) por encima del precio, dentro de ±10%." },
+    calc: "Mayor barra positiva de GEX neta (calls − puts) dentro del rango elegido, esté por encima o por debajo del precio (misma definición que gexbot)." },
   put_wall: { t: "Put Wall", c: C.put,
     what: "El strike con más gamma neta negativa por debajo del precio: la mayor concentración de puts, una vez descontadas las calls del mismo strike.",
     use: "Soporte y suelo del rango esperado; muchas coberturas se cierran ahí y eso suele frenar las caídas. Si se pierde con claridad, ese apoyo desaparece y la caída puede acelerarse: es una señal de alerta, no solo un nivel técnico roto.",
-    calc: "Mayor barra negativa de GEX neta (calls − puts) por debajo del precio, dentro de ±10%." },
+    calc: "Mayor barra negativa de GEX neta (calls − puts) dentro del rango elegido, esté por encima o por debajo del precio (misma definición que gexbot)." },
   flip: { t: "Gamma Flip (Zero Gamma)", c: C.amber,
     what: "El precio en el que la gamma total de los dealers pasa de positiva a negativa. No es un soporte ni una resistencia: marca el régimen.",
     use: "Por encima, los dealers compran caídas y venden subidas: menos volatilidad y vuelta a la media. Por debajo hacen lo contrario y amplifican los movimientos. Muy cerca del flip (a menos de un 0,5%) no se espera un efecto claro en ningún sentido.",
-    calc: "Cruce por cero del perfil: la GEX total recalculada en cada precio hipotético; se toma el más cercano al precio actual." },
+    calc: "Frontera de signo de la GEX neta por strike dentro del rango elegido: el precio que deja la menor gamma positiva por debajo y negativa por encima (como gexbot). El zero gamma de SpotGamma, el cruce por cero de la GEX total recalculada en cada precio, se muestra aparte en los datos del panel." },
   vt: { t: "Volatility Trigger", c: C.amber,
     what: "El último soporte importante por encima del Put Wall, en el borde bajista del Gamma Flip.",
     use: "Por debajo, la cobertura de los dealers deja de sostener el precio y empieza a acompañarlo: la volatilidad realizada suele expandirse. Si solo vigilas un nivel, que sea este. Por encima, entorno más estable.",
@@ -2275,7 +2287,7 @@ const GLOSSARY = {
   abs: { t: "Gamma absoluta", c: C.muted,
     what: "El strike con más gamma total, sumando la de calls y la de puts sin signo. Es donde más contratos sensibles al precio hay.",
     use: "Actúa como imán: con gamma positiva el precio tiende a quedarse pegado a él (pin), sobre todo cerca del vencimiento. También es soporte o resistencia fuerte. Suele estar cerca del flip, no en los extremos del rango. Si no aparece, es porque coincide con el Call Wall o el Put Wall.",
-    calc: "Strike con mayor |gamma de calls| + |gamma de puts| en la ventana de ±10%." },
+    calc: "Strike con mayor |gamma de calls| + |gamma de puts| dentro del rango elegido." },
   spot: { t: "Precio", c: C.text,
     what: "El precio del subyacente con el que se calculan los niveles.",
     use: "Con el mercado cerrado es el último cierre. En el pre-market de SPX, NDX, RUT y DJX se estima con su ETF, y en Ajustes puedes fijar un spot manual (por ejemplo, el implícito por futuros).",

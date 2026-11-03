@@ -25,7 +25,8 @@ TERM_GRID = [1, 2, 3, 5, 7, 10, 14, 21, 30, 45, 60, 90, 120, 180, 270, 365]
 TENORS = [7, 14, 30, 60, 90, 180]
 DELTAS = [-0.05, -0.10, -0.15, -0.20, -0.25, -0.35, -0.45, 0.45, 0.35, 0.25, 0.20, 0.15, 0.10, 0.05]
 MIN_BAND_DAYS = 15        # sesiones minimas para dibujar percentiles
-MAX_SMILES = 14           # vencimientos con smile completo
+MAX_SMILES = 30           # vencimientos con smile completo
+HORIZON_DAYS = 100        # horizonte del panel: un trimestre
 DAY_MIN = 24 * 60.0
 
 
@@ -41,17 +42,17 @@ def _dte(exp: np.datetime64, now64: np.datetime64) -> float:
 
 
 def _pick_expiries(exps: list, dtes: list[float]) -> list[int]:
-    """Los proximos vencimientos (semanales incluidos) y despues uno por mes hasta un ano."""
-    out = list(range(min(8, len(exps))))
-    seen_months = set()
-    for i in range(len(exps)):
-        if i in out or dtes[i] > 400:
-            continue
-        m = str(exps[i])[:7]
-        if m not in seen_months:
-            seen_months.add(m)
+    """Horizonte de un trimestre: todos los vencimientos de las dos proximas semanas, los viernes hasta 45 dias
+    y los mensuales (tercer viernes) hasta ~100 dias."""
+    out = []
+    for i, (e, d) in enumerate(zip(exps, dtes)):
+        day = e.astype("datetime64[D]")
+        wd = (int(day.astype(int)) + 3) % 7
+        dom = int(str(day)[8:10])
+        friday, monthly = wd == 4, wd == 4 and 15 <= dom <= 21
+        if d <= 14 or (friday and d <= 45) or (monthly and d <= HORIZON_DAYS):
             out.append(i)
-    return sorted(out)[:MAX_SMILES]
+    return out[:MAX_SMILES]
 
 
 def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:

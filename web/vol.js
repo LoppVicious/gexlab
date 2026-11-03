@@ -12,7 +12,13 @@ const vol = {
   sel: [],                                   // vencimientos elegidos en el skew
   show: JSON.parse(store.get("volShow", '{"fwd":true,"d1":true,"w1":false,"band":true,"ev":true}')),
   mshow: store.get("volMat", "iv"),
+  hor: store.get("volHor", "3m"),
 };
+const volH = () => (vol.hor === "1m" ? 32 : 100);   // horizonte en dias
+const inH = (x) => x.dte <= volH();
+function horSeg() {
+  return `<div class="seg boxed" role="radiogroup" id="volHorSeg" aria-label="Horizonte"><button role="radio" data-v="1m" aria-checked="${vol.hor === "1m"}">1 mes</button><button role="radio" data-v="3m" aria-checked="${vol.hor === "3m"}">3 meses</button></div>`;
+}
 const VOLC = ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"];
 const pct = (v, d = 1) => v == null ? "—" : fmtNum(v * 100, d) + "%";
 const volDate = (iso) => { const d = new Date(iso + "T12:00:00"); return `${d.getDate()} ${MESES[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? " " + String(d.getFullYear()).slice(2) : ""}`; };
@@ -96,7 +102,7 @@ function bandAt(d, dte) {
 
 function renderTerm(W, H) {
   const d = vol.data, sh = vol.show;
-  const pts = d.term || [];
+  const pts = (d.term || []).filter(inH);
   if (pts.length < 2) return `<div class="placeholder">Sin vencimientos suficientes para la estructura temporal.</div>`;
   const narrow = W < 640, fs = narrow ? 10.5 : 11.5;
   const evs = sh.ev ? (vol.events || []).filter((e) => e.imp >= 2) : [];
@@ -106,7 +112,8 @@ function renderTerm(W, H) {
   // escala de tiempo comprimida (raiz) para que los vencimientos cercanos no se amontonen
   const f = (t) => Math.sqrt(Math.max(0, (t - t0) / 86400000));
   const xOf = (iso) => L + (f(new Date(iso + "T12:00:00").getTime()) / f(t1)) * (R - L);
-  const prevT = (k) => (d.prev && d.prev[k] && d.prev[k].term) || [];
+  const lastExp0 = pts[pts.length - 1].exp;
+  const prevT = (k) => ((d.prev && d.prev[k] && d.prev[k].term) || []).filter((p) => p.exp <= lastExp0);
   const series = [pts.map((p) => p.atm)];
   if (sh.fwd) series.push(pts.map((p) => p.fwd));
   if (sh.d1) series.push(prevT("1d").map((p) => p.atm));
@@ -264,7 +271,7 @@ function renderMatrix() {
   };
   const spotIdx = m.strikes.reduce((bi, k, i) => (Math.abs(k - vol.data.spot) < Math.abs(m.strikes[bi] - vol.data.spot) ? i : bi), 0);
   return `<table class="scan vmat"><thead><tr><th class="l">Vencimiento</th>${m.strikes.map((k, i) => `<th class="${i === spotIdx ? "atm" : ""}">${fmtNum(k, k < 100 ? 1 : 0)}</th>`).join("")}</tr></thead>
-    <tbody>${m.rows.map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b><span class="ds">${fmtNum(r.dte, r.dte < 2 ? 1 : 0)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
+    <tbody>${m.rows.filter(inH).map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b><span class="ds">${fmtNum(r.dte, r.dte < 2 ? 1 : 0)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 /* ------------------------------------------------------------ controles y pintado */
@@ -273,18 +280,18 @@ function volControls() {
   const hasPrev = d.prev && d.prev["1d"], hasW = d.prev && d.prev["1w"];
   const bandOk = d.bands && d.bands.days >= 15;
   if (vol.tab === "term") {
-    return `<div class="vrow">${chip("atm", "Hoy", true, C.accent)}${chip("fwd", "IV forward", sh.fwd, C.accent)}${hasPrev ? chip("d1", `Sesión anterior (${ddmm(d.prev["1d"].date)})`, sh.d1, C.muted) : ""}${hasW ? chip("w1", `Hace una semana (${ddmm(d.prev["1w"].date)})`, sh.w1, C.faint) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}${chip("ev", "Eventos", sh.ev, C.axis)}</div>`;
+    return `<div class="vrow">${horSeg()}${chip("atm", "Hoy", true, C.accent)}${chip("fwd", "IV forward", sh.fwd, C.accent)}${hasPrev ? chip("d1", `Sesión anterior (${ddmm(d.prev["1d"].date)})`, sh.d1, C.muted) : ""}${hasW ? chip("w1", `Hace una semana (${ddmm(d.prev["1w"].date)})`, sh.w1, C.faint) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}${chip("ev", "Eventos", sh.ev, C.axis)}</div>`;
   }
   if (vol.tab === "skew") {
-    const ex = d.smiles.map((s) => {
+    const ex = d.smiles.filter(inH).map((s) => {
       const k = vol.sel.indexOf(s.exp);
       return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${VOLC[k % VOLC.length]}"` : ""}>${volDate(s.exp)}<small>${fmtNum(s.dte, s.dte < 2 ? 1 : 0)}d</small></button>`;
     }).join("");
-    return `<div class="vrow"><div class="seg boxed" role="radiogroup" id="volAxisSeg"><button role="radio" data-v="strike" aria-checked="${vol.axis === "strike"}">Strike</button><button role="radio" data-v="delta" aria-checked="${vol.axis === "delta"}">Delta</button></div>
+    return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volAxisSeg"><button role="radio" data-v="strike" aria-checked="${vol.axis === "strike"}">Strike</button><button role="radio" data-v="delta" aria-checked="${vol.axis === "delta"}">Delta</button></div>
       ${hasPrev ? chip("d1", "Sesión anterior (discontinua)", sh.d1, C.muted) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}</div>
       <div class="vrow vexps" aria-label="Vencimientos (hasta 5)">${ex}</div>`;
   }
-  return `<div class="vrow"><div class="seg boxed" role="radiogroup" id="volMatSeg"><button role="radio" data-v="iv" aria-checked="${vol.mshow === "iv"}">IV (%)</button><button role="radio" data-v="chg" aria-checked="${vol.mshow === "chg"}">Cambio diario (pts)</button></div>
+  return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volMatSeg"><button role="radio" data-v="iv" aria-checked="${vol.mshow === "iv"}">IV (%)</button><button role="radio" data-v="chg" aria-checked="${vol.mshow === "chg"}">Cambio diario (pts)</button></div>
     <span class="vleg"><i class="up"></i>Sube frente a la sesión anterior <i class="dn"></i>Baja</span></div>`;
 }
 
@@ -369,6 +376,13 @@ function bindVol() {
     }
     const ax = e.target.closest("#volAxisSeg button");
     if (ax) { vol.axis = ax.dataset.v; store.set("volAxis", vol.axis); renderVol(); return; }
+    const hz = e.target.closest("#volHorSeg button");
+    if (hz) {
+      vol.hor = hz.dataset.v; store.set("volHor", vol.hor);
+      vol.sel = vol.sel.filter((x) => { const sm = vol.data.smiles.find((q) => q.exp === x); return sm && inH(sm); });
+      if (!vol.sel.length) vol.sel = defaultSkew(vol.data);
+      renderVol(); return;
+    }
     const mt = e.target.closest("#volMatSeg button");
     if (mt) { vol.mshow = mt.dataset.v; store.set("volMat", vol.mshow); renderVol(); }
   });

@@ -1247,9 +1247,8 @@ async function exportReport() {
   if (chg != null && !d.spot_manual) s += T(56 + textW(fmtSpot(d.spot), 76) * 1.02 + 22, 200, fmtPct(chg), { fs: 28, w: 500, c: chg >= 0 ? C.put : C.call });
   s += `<rect x="56" y="232" width="${textW(neg ? "Gamma negativa" : "Gamma positiva", 20) + 34}" height="38" rx="19" fill="${neg ? C.neg : C.pos}" fill-opacity="0.16"/>`;
   s += `<circle cx="74" cy="251" r="5" fill="${neg ? C.neg : C.pos}"/>` + T(86, 258, neg ? "Gamma negativa" : "Gamma positiva", { fs: 20, w: 600, c: neg ? C.neg : C.pos });
-  const reading = neg ? "Por debajo del flip: la cobertura de los dealers tiende a amplificar los movimientos."
-    : "Por encima del flip: la cobertura de los dealers tiende a frenar los movimientos.";
-  s += T(56, 312, reading, { fs: 20, c: C.muted });
+  s += T(56, 300, neg ? "Por debajo del flip: la cobertura de los dealers" : "Por encima del flip: la cobertura de los dealers", { fs: 20, c: C.muted });
+  s += T(56, 326, neg ? "tiende a amplificar los movimientos." : "tiende a frenar los movimientos.", { fs: 20, c: C.muted });
   // GEX neta con la barra calls/puts
   const cA = Math.abs(t.call_per_pct || 0), pA = Math.abs(t.put_per_pct || 0), tot = cA + pA || 1;
   s += T(56, 356, "GEX neta por 1%", { fs: 19, c: C.muted }) + T(600, 356, fmtBig(t.net_per_pct, true), { a: "end", fs: 24, w: 600 });

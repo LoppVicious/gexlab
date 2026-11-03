@@ -255,6 +255,14 @@ def paquete(sym: str) -> dict:
         if q:
             files[f"fx/quote_{proxy}.json"] = q
     files["fx/rate.json"] = g.rate_info()
+    # ultimos cierres (volatilidad realizada de la ficha del Equity Hub)
+    for hs in (sym, proxy):
+        if not hs:
+            continue
+        hd = g.fetch_aux("historical", hs, ttl=6 * 3600)
+        if hd and hd.get("data"):
+            files[f"fx/historical_{hs}.json"] = {"data": hd["data"][-30:]}
+            break
     h = g.read_json(os.path.join(g.HIST_DIR, f"{sym.replace('.', '_')}.json"))
     if h:
         files[f"hist/{sym.replace('.', '_')}.json"] = h
@@ -334,7 +342,9 @@ def fase_macro(st) -> None:
         import eventos
         st_ev = g.read_json(eventos.STATE, {}) or {}
         last = st_ev.get("actualizado")
-        if not last or (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)).total_seconds() > 6 * 3600:
+        fred_nueva = bool(os.environ.get("FRED_API_KEY")) and not isinstance((st_ev.get("fuentes") or {}).get("fred"), int) or \
+            (os.environ.get("FRED_API_KEY") and (st_ev.get("fuentes") or {}).get("fred") == 0)
+        if fred_nueva or not last or (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)).total_seconds() > 6 * 3600:
             evs, res = eventos.actualizar()
             log(f"calendario: {len(evs)} eventos ({', '.join(f'{k} {v}' for k, v in res.items())})")
         subir(st, "pub/eventos.json", eventos.publicables())

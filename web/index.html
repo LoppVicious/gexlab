@@ -176,6 +176,8 @@
       <div class="split-foot"><span id="callPct"></span><span id="putPct"></span></div>
     </div>
 
+    <section class="hubcard" id="hubCard" hidden></section>
+
     <div class="facts" id="facts" hidden>
       <div class="fact">
         <span class="fl" id="emLabel" data-g="range1s">Rango 1σ, 1 sesión</span>
@@ -199,12 +201,14 @@
       </div>
     </div>
 
+    <section class="hubwatch" id="hubWatch" hidden></section>
     <dl class="meta" id="meta"></dl>
   </aside>
 
   <section class="chartwrap">
     <div class="chart-head">
       <div class="tabs" role="tablist" aria-label="Vista">
+        <button role="tab" id="tabImpact" aria-selected="false" title="Gamma total, gamma del próximo vencimiento y gamma por strike">Impacto calls y puts</button>
         <button role="tab" id="tabStrike" aria-selected="true">Por strike</button>
         <button role="tab" id="tabProfile" aria-selected="false">Perfil</button>
         <button role="tab" id="tabMap" aria-selected="false">Mapa</button>
@@ -430,6 +434,7 @@
 <script src="me.js"></script>
 <script src="nube.js"></script>
 <script src="app.js"></script>
+<script src="hub.js"></script>
 <script src="vol.js"></script>
 </body>
 </html>

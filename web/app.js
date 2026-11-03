@@ -55,7 +55,8 @@ const state = {
   symbol: store.get("symbol", "SPX"),
   dte: store.get("dte", "45"),
   range: store.get("range", "5"),
-  view: store.get("view", "strike"),
+  view: store.get("view", "impact"),
+  hubView: store.get("hubView", "impact"),
   bars: store.get("bars", "net"),
   mode: store.get("mode", "analysis"),
   regimeFilter: "all",
@@ -712,11 +713,13 @@ function draw() {
     el.setAttribute("aria-label", "Mapa de gamma por precio y hora");
     return;
   }
-  el.innerHTML = state.view === "profile" ? renderProfile(d, W, H) : renderStrike(d, W, H);
+  el.innerHTML = state.view === "impact" && typeof renderImpact === "function" ? renderImpact(d, W, H)
+    : state.view === "profile" ? renderProfile(d, W, H) : renderStrike(d, W, H);
   el.setAttribute("aria-label", state.view === "profile" ? "Perfil de gamma" : "Exposición gamma por strike");
 }
 
 function paintSide(d) {
+  if (typeof paintHub === "function") paintHub(d);
   $("hSym").textContent = d.symbol;
   $("hName").textContent = d.name || "";
   pushRecent(d.symbol, d.name);
@@ -985,16 +988,20 @@ function markQuick() {
 
 function setView(v) {
   state.view = v; store.set("view", v);
+  if (v !== "map") { state.hubView = v; store.set("hubView", v); }
   syncNav();
+  $("tabImpact").setAttribute("aria-selected", String(v === "impact"));
   $("tabStrike").setAttribute("aria-selected", String(v === "strike"));
+  document.body.classList.toggle("view-map", v === "map");
   $("tabProfile").setAttribute("aria-selected", String(v === "profile"));
   $("tabMap").setAttribute("aria-selected", String(v === "map"));
   $("barsSeg").hidden = v !== "strike" || state.greek !== "gamma";
   $("greekSeg").hidden = v !== "strike";
-  $("levelsToggle").hidden = v !== "map";
+  $("levelsToggle").hidden = v !== "map" && v !== "impact";
   $("mapSeg").hidden = v !== "map";
   $("sessSeg").hidden = v !== "map";
-  $("caption").textContent = v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente" : "";
+  $("caption").textContent = v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente"
+    : v === "impact" ? "Líneas: gamma total y del próximo vencimiento si el precio estuviera en cada nivel. Barras: gamma neta en cada strike" : "";
   mapCaption();
   $("tip").hidden = true;
   draw();
@@ -1021,6 +1028,9 @@ function onMove(e) {
       <div class="r">Calls <b>${fmtBig(d.calls[i], true)}</b></div>
       <div class="r">Puts <b>${fmtBig(d.puts[i], true)}</b></div>
       <div class="r">Vence ${ddmm(d.front_expiry)} <b>${fmtBig(d.front[i], true)}</b></div>`;
+  } else if (g.kind === "impact" && typeof impactTip === "function") {
+    html = impactTip(d, g, x, svg);
+    if (!html) return hideTip();
   } else {
     const X = d.profile.x, Y = d.profile.y;
     const v = g.x0 + ((x - g.left) / (g.right - g.left)) * (g.x1 - g.x0);
@@ -1331,6 +1341,7 @@ function setMode(m) {
   document.body.classList.toggle("scan", m === "scanner" || macro || m === "vol");
   document.body.classList.toggle("macro-mode", macro);
   document.body.classList.toggle("vol-mode", m === "vol");
+  document.body.classList.toggle("ana-mode", m === "analysis");
   $("volView").hidden = m !== "vol";
   $("scanner").hidden = m !== "scanner";
   $("vixView").hidden = m !== "vix";
@@ -2232,6 +2243,14 @@ function bindSummary() {
 
 /* ============================================================ glosario flotante */
 const GLOSSARY = {
+  lowvol: { t: "Punto de baja volatilidad", c: C.put,
+    what: "El nivel de precio en el que la gamma total de los dealers sería máxima (el pico de la línea de gamma total).",
+    use: "Cerca de este precio la cobertura de los dealers frena más los movimientos: es donde se espera menos volatilidad realizada y donde el precio tiende a quedarse.",
+    calc: "Máximo de la gamma total recalculada en cada precio hipotético del rango; si el máximo está en el borde del rango, se indica fuera de rango." },
+  highvol: { t: "Punto de alta volatilidad", c: C.amber,
+    what: "El nivel de precio en el que la gamma total sería más negativa (el valle de la línea de gamma total).",
+    use: "Cerca de este precio la cobertura de los dealers amplifica los movimientos: es la zona donde se espera más volatilidad realizada.",
+    calc: "Mínimo de la gamma total recalculada en cada precio hipotético del rango; si está en el borde del rango, se indica fuera de rango." },
   call_wall: { t: "Call Wall", c: C.call,
     what: "El strike con más gamma neta positiva por encima del precio: la mayor concentración de calls, una vez descontadas las puts del mismo strike.",
     use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls.",
@@ -2367,7 +2386,7 @@ function glossaryHide() {
 const NAV = {
   navSummary: { t: "Resumen", go: () => setMode("summary") },
   navTrace: { t: "TRACE", go: () => { setMode("analysis"); if (state.view !== "map") setView("map"); } },
-  navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView("strike"); } },
+  navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView(state.hubView || "impact"); } },
   navVol: { t: "Panel de volatilidad", go: () => setMode("vol") },
   navVix: { t: "Curva VIX", go: () => setMode("vix") },
   navScan: { t: "Escáner", go: () => { setMode("scanner"); setScanView("table"); } },
@@ -2485,6 +2504,7 @@ async function init() {
     if (state.mode !== "scanner") return load(true);
     if (state.scanView === "compass") loadCompass(true); else if (state.scanView === "valid") loadValidation(); else runScan();
   });
+  $("tabImpact").addEventListener("click", () => setView("impact"));
   $("tabStrike").addEventListener("click", () => setView("strike"));
   $("tabProfile").addEventListener("click", () => setView("profile"));
   $("tabMap").addEventListener("click", () => setView("map"));

@@ -223,3 +223,31 @@ table.ctab tr.bad td { opacity: .55; }
 tr.off .eye { color: var(--faint); }
 .cside-foot { margin: 0; padding: 8px 12px; font-size: 12px; color: var(--faint); border-top: 1px solid var(--line-soft); }
 @media (max-width: 1100px) { .cgrid { grid-template-columns: 1fr; } .cside-list { max-height: 360px; } }
+
+/* ---------------------------------------------------------------- Equity Hub: grafico a la izquierda, ficha a la derecha */
+body.ana-mode:not(.view-map) .stage { grid-template-columns: minmax(0, 1fr) 330px; }
+body.ana-mode:not(.view-map) .ladder { order: 2; border-right: 0; border-left: 1px solid var(--line-soft); }
+body.ana-mode:not(.view-map) .chartwrap { order: 1; }
+body.view-map #hubCard, body.view-map #hubWatch { display: none; }
+body.ana-mode:not(.view-map) #tabMap { display: none; }
+body.view-map .chart-head .tabs { display: none; }
+.hubcard, .hubwatch { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.htitle { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+.hrow { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; padding: 4px 0; font-size: 13px; }
+.hrow span { color: var(--muted); }
+.hrow b { font-weight: 600; text-align: right; }
+.hrow em { grid-column: 1 / -1; font-style: normal; font-size: 11px; color: var(--faint); text-align: right; margin-top: -2px; }
+table.hwl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.hwl th { text-align: right; color: var(--faint); font-weight: 500; font-size: 11px; padding: 4px 6px; border-bottom: 1px solid var(--line-soft); }
+table.hwl th.l, table.hwl td.l { text-align: left; }
+table.hwl td { text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--line-soft); }
+table.hwl tbody tr { cursor: pointer; }
+table.hwl tbody tr:hover td { background: var(--hover); }
+table.hwl tr.on td { color: var(--accent); }
+table.hwl td.l { font-weight: 600; }
+table.hwl td.up { color: var(--put); } table.hwl td.dn { color: var(--call); }
+.hempty { color: var(--faint); font-size: 12.5px; margin: 0; }
+@media (max-width: 900px) {
+  body.ana-mode:not(.view-map) .stage { grid-template-columns: 1fr; }
+  body.ana-mode:not(.view-map) .ladder { border-left: 0; border-top: 1px solid var(--line-soft); }
+}

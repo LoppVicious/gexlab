@@ -1172,6 +1172,39 @@ def combine_with_proxy(symbol: str, ch: dict, force: bool = False):
     return cc, {"proxy": proxy, "ratio": r, "contracts": int((ech["oi"] > 0).sum())}
 
 
+def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.ndarray, prof: np.ndarray, step: float) -> dict:
+    """Ficha del Equity Hub: puntos de baja y alta volatilidad (maximo y minimo de la gamma total si el precio
+    estuviera en cada nivel), open interest y volumen de calls y puts, vencimientos con mas gamma y mas delta,
+    IV a 30 dias y volatilidad realizada a 20 dias. Con todos los vencimientos vivos, sin el filtro del grafico."""
+    out = {}
+    if prof.size:
+        i_lo, i_hi = int(np.argmax(prof)), int(np.argmin(prof))
+        edge = lambda i: i <= 1 or i >= prof.size - 2  # noqa: E731  (en el borde: el extremo esta fuera del rango calculado)
+        out["low_vol_point"] = _nice_round(float(xs[i_lo]), step) if prof[i_lo] > 0 and not edge(i_lo) else None
+        out["high_vol_point"] = _nice_round(float(xs[i_hi]), step) if prof[i_hi] < 0 and not edge(i_hi) else None
+    alive = ch["exp"] > now
+    C, OI, V = ch["call"], ch["oi"], ch["vol"]
+    c_oi, p_oi = float(OI[alive & C].sum()), float(OI[alive & ~C].sum())
+    out.update(call_oi=c_oi, put_oi=p_oi, pc_oi=(p_oi / c_oi) if c_oi > 0 else None,
+               call_vol=float(V[alive & C].sum()), put_vol=float(V[alive & ~C].sum()))
+    m = alive & (OI > 0) & (ch["iv"] > 0.01)
+    if m.any():
+        E = ch["exp"][m]
+        W_, T_ = variance_to_expiry(ch["iv"][m], E, quote_time(now_ny()), quote_time(now_ny()))
+        gm = np.abs(gamma_w(spot, ch["K"][m], W_, T_) * OI[m] * 100.0 * spot * spot * 0.01)
+        dl = np.abs(ch["delta"][m] * OI[m] * 100.0 * spot)
+        eu, inv = np.unique(E.astype("datetime64[D]"), return_inverse=True)
+        g_by, d_by = np.bincount(inv, gm, eu.size), np.bincount(inv, dl, eu.size)
+        out["top_gamma_exp"] = str(eu[int(np.argmax(g_by))])
+        out["top_delta_exp"] = str(eu[int(np.argmax(d_by))]) if d_by.any() else None
+    out["iv30"] = ch.get("iv30") or None
+    try:
+        out["rv20"] = _realized_vol(symbol)
+    except Exception:  # noqa: BLE001
+        out["rv20"] = None
+    return out
+
+
 def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             spot_override: float | None = None, force: bool = False, combine: bool = False,
             positioning: str = "standard") -> dict:
@@ -1278,10 +1311,13 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     span = max(window_pct * 2.0, 8.0) / 100
     xs = np.linspace(spot * (1 - span), spot * (1 + span), 161)
     prof = np.empty(xs.size)
+    prof_front = np.empty(xs.size)  # solo el vencimiento mas proximo (linea "proximo vencimiento" del Equity Hub)
     chunk = 20
     for a in range(0, xs.size, chunk):
         S = xs[a:a + chunk, None]
-        prof[a:a + chunk] = (pos * gamma_w(S, K, W, TT) * 100.0 * S).sum(axis=1)
+        gm = pos * gamma_w(S, K, W, TT) * 100.0 * S
+        prof[a:a + chunk] = gm.sum(axis=1)
+        prof_front[a:a + chunk] = gm[:, FRONT].sum(axis=1)
 
     # --- gamma flip: cruce por cero mas cercano al spot
     flip_exact = None
@@ -1341,7 +1377,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "expected_move": expected_move(ch, spot, now_dt),
         "moves": implied_moves(ch, spot, now_dt),
         "is_index": normalize(symbol) in INDEX_LIKE,
-        "profile": {"x": xs.tolist(), "y": prof.tolist()},
+        "profile": {"x": xs.tolist(), "y": prof.tolist(), "front": prof_front.tolist()},
+        "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, step),
         "levels": {"call_wall": call_wall, "put_wall": put_wall, "flip": flip,
                    "flip_exact": flip_exact, "vt": vt, "abs_gamma": abs_g},
         "totals": {

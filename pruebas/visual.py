@@ -16,6 +16,7 @@ async def shot(pg, name):
 async def cargar(pg, sym):
     await pg.fill("#symbol", sym)
     await pg.press("#symbol", "Enter")
+    await pg.keyboard.press("Escape"); await pg.evaluate("() => { const u = document.getElementById('suggest'); if (u) u.hidden = true; document.activeElement.blur(); }")
     await pg.wait_for_function("() => typeof state !== 'undefined' && state.data && state.data.symbol === '%s'" % sym, timeout=180000)
 
 

@@ -157,6 +157,12 @@ function hubFetchExtras() {
   });
 }
 
+function volPt(v, edge, range, none) {
+  if (v != null) return fmtLevel(v);
+  if (edge && range) return edge === "up" ? `por encima de ${fmtSpot(range[1])}` : `por debajo de ${fmtSpot(range[0])}`;
+  return none;
+}
+
 function hubRow(label, value, sub, g) {
   return `<div class="hrow"><span${g ? ` data-g="${g}"` : ""}>${label}</span><b>${value}</b>${sub ? `<em>${sub}</em>` : ""}</div>`;
 }
@@ -176,8 +182,8 @@ function paintHub(d) {
     ${hubRow("IV 30 días", p(hb.iv30))}
     ${hubRow("Vol. realizada 20 días", p(hb.rv20))}
     ${hubRow("Movimiento implícito", m1 ? "±" + fmtSpot(d.spot * m1.pct / 100) : "—", m1 ? "±" + fmtNum(m1.pct, 2) + "%" : "", "range1s")}
-    ${hubRow("Punto de baja volatilidad", hb.low_vol_point != null ? fmtLevel(hb.low_vol_point) : "fuera de rango", "", "lowvol")}
-    ${hubRow("Punto de alta volatilidad", hb.high_vol_point != null ? fmtLevel(hb.high_vol_point) : "fuera de rango", "", "highvol")}
+    ${hubRow("Punto de baja volatilidad", volPt(hb.low_vol_point, hb.low_vol_edge, hb.range, "no hay gamma positiva en el rango"), hb.low_vol_edge ? "amplía el rango para verlo" : "", "lowvol")}
+    ${hubRow("Punto de alta volatilidad", volPt(hb.high_vol_point, hb.high_vol_edge, hb.range, "no hay gamma negativa en el rango"), hb.high_vol_edge ? "amplía el rango para verlo" : "", "highvol")}
     ${hubRow("Gamma de calls", fmtBig(d.totals.call_per_pct, true), "por 1%")}
     ${hubRow("Gamma de puts", fmtBig(d.totals.put_per_pct, true), "por 1%")}
     ${hubRow("Venc. con más gamma", ex(hb.top_gamma_exp))}

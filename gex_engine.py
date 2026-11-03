@@ -1187,6 +1187,11 @@ def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.
         edge = lambda i: i <= 1 or i >= pw.size - 2  # noqa: E731  (en el borde: el extremo esta fuera del rango)
         out["low_vol_point"] = _nice_round(float(xw[i_lo]), step) if pw[i_lo] > 0 and not edge(i_lo) else None
         out["high_vol_point"] = _nice_round(float(xw[i_hi]), step) if pw[i_hi] < 0 and not edge(i_hi) else None
+        # si el extremo cae en el borde, se indica hacia donde queda (la curva sigue subiendo o bajando fuera del rango)
+        side = lambda i: "up" if i >= pw.size - 2 else "down"  # noqa: E731
+        out["low_vol_edge"] = side(i_lo) if pw[i_lo] > 0 and edge(i_lo) else None
+        out["high_vol_edge"] = side(i_hi) if pw[i_hi] < 0 and edge(i_hi) else None
+        out["range"] = [float(xw[0]), float(xw[-1])]
     alive = ch["exp"] > now
     C, OI, V = ch["call"], ch["oi"], ch["vol"]
     c_oi, p_oi = float(OI[alive & C].sum()), float(OI[alive & ~C].sum())

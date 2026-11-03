@@ -1,0 +1,22 @@
+name: Prueba visual
+on:
+  workflow_dispatch:
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements.txt playwright && python -m playwright install --with-deps chromium
+      - run: |
+          python server.py --server > server.log 2>&1 &
+          sleep 5
+          python pruebas/visual.py || true
+          tail -30 server.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visual
+          path: salida_visual/

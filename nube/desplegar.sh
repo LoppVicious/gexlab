@@ -50,4 +50,6 @@ printf '%s' "$GEX_SETUP_CODE" | $W secret put GEX_SETUP_CODE >/dev/null
 printf '%s' "$GH_DISPATCH_TOKEN" | $W secret put GH_DISPATCH_TOKEN >/dev/null
 echo "    secretos al dia; reloj cada 15 min en horario de mercado"
 # la app se llamaba "gexlab": se borra el Worker antiguo para que su reloj no lance el motor dos veces
-$W delete --name gexlab --force >/dev/null 2>&1 && echo "    Worker antiguo eliminado" || true
+if $W deployments list --name gexlab >/dev/null 2>&1; then
+  $W delete --name gexlab --force 2>&1 | grep -Ei "delet|error|success" || true
+fi

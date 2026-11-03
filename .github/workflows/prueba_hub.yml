@@ -15,6 +15,7 @@ jobs:
       - run: pip install -q numpy certifi
       - shell: python
         run: |
+          import sys, os; sys.path.insert(0, os.getcwd())
           import numpy as np, gex_engine as g
           for sym, dte, w in (("TSLA", 7, 8.0), ("TSLA", 45, 8.0), ("SPX", 45, 5.0), ("SPX", 0, "auto"), ("NVDA", None, 8.0)):
               r = g.compute(sym, max_dte=dte, window_pct=w)

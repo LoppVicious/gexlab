@@ -361,7 +361,7 @@ def tickers(args: list[str]) -> int:
                 almacen.put_json(st, f"pub/t/{sym}/mapa/{clave_mapa(v)}.json", g.heatmap(sym, which=v["sess"], **args_))
             except Exception as e:  # noqa: BLE001
                 err(f"{sym} vista", e)
-    log(f"puntual: {len(ok)}/{len(syms)} tickers")
+    log(f"puntual: {len(fase_vistas_ticker)}/{len(syms)} tickers")
     return 0 if ok else 1
 
 

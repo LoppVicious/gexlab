@@ -1,0 +1,17 @@
+name: Comprobar web
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  comprobar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Respuestas basicas de la web publicada
+        run: |
+          B=https://gexlab.guillemgirona.workers.dev
+          for p in / /login.html /setup.html /api/setup/estado /me.js /app.js /api/pub/vix.json "/api/sal?usuario=prueba"; do
+            printf '%-26s ' "$p"; curl -s -o /tmp/b -w '%{http_code} %{redirect_url} ' "$B$p"; head -c 90 /tmp/b | tr '\n' ' '; echo
+          done
+          curl -sI $B/login.html | grep -iE "strict-transport|x-frame|x-robots|content-type"

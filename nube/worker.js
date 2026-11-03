@@ -1,4 +1,4 @@
-// GEX Lab en Cloudflare Pages: web privada + API.
+// GEX Lab en Cloudflare Workers: web privada + API + reloj del motor.
 // Enlaces (wrangler.toml): DB (D1), R2 (bucket gexlab), ASSETS (archivos de la web).
 // Secretos: GEX_SETUP_CODE (alta del administrador), GH_DISPATCH_TOKEN (lanzar el motor en GitHub).
 //
@@ -362,7 +362,32 @@ async function publicApi(req, env, url) {
   return json(404, { error: "no encontrado" });
 }
 
+// ------------------------------------------------------------------ reloj del motor
+// Dias de mercado (hora de Nueva York): 07:45-17:15 cada 15 min y 18:00, 20:00 (reintentos del cierre);
+// sabado a las 10:00 un ciclo para dejar el estado al dia.
+function nyParts(d) {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const o = Object.fromEntries(f.formatToParts(d).map((p) => [p.type, p.value]));
+  return { wd: o.weekday, min: parseInt(o.hour, 10) * 60 + parseInt(o.minute, 10) };
+}
+
+function toca(d) {
+  const { wd, min } = nyParts(d);
+  const weekday = ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd);
+  if (weekday && min >= 7 * 60 + 45 && min <= 17 * 60 + 15) return true;
+  if (weekday && (min === 18 * 60 || min === 20 * 60)) return true;
+  if (wd === "Sat" && min === 10 * 60) return true;
+  return false;
+}
+
+
 export default {
+  async scheduled(event, env, ctx) {
+    const d = new Date(event.scheduledTime);
+    d.setUTCSeconds(0, 0);
+    if (toca(d)) ctx.waitUntil(dispatch(env, { modo: "ciclo" }));
+  },
+
   async fetch(req, env) {
     const url = new URL(req.url);
     const p = url.pathname;

@@ -1201,6 +1201,7 @@ function svgToPng(svg, W, H, filename, scale = 1.5) {
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }, "image/png");
   };
+  img.onerror = () => { URL.revokeObjectURL(url); setStatus("err", "No se pudo generar la imagen"); console.error("svgToPng: la imagen SVG no se pudo cargar"); };
   img.src = url;
 }
 

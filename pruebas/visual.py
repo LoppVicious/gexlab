@@ -38,9 +38,15 @@ async def main():
         await pg.click("#tabStrike"); await shot(pg, "4_strike_ndx")
         log.append("rango auto: " + await pg.inner_text("#rangeAuto"))
         # informe
-        async with pg.expect_download(timeout=180000) as dl:
-            await pg.click("#reportBtn")
-        await (await dl.value).save_as(f"{OUT}/5_informe.png")
+        try:
+            async with pg.expect_download(timeout=120000) as dl:
+                await pg.click("#reportBtn")
+            await (await dl.value).save_as(f"{OUT}/5_informe.png")
+        except Exception as e:  # noqa: BLE001
+            log.append(f"informe: {e}")
+            # el SVG del informe, para ver por que no carga como imagen
+            svg = await pg.evaluate("""() => new Promise((res) => { const o = window.svgToPng; window.svgToPng = (svg) => { window.svgToPng = o; res(svg); }; exportReport(); })""")
+            open(f"{OUT}/informe.svg", "w").write(svg)
         # volatilidad NDX
         await pg.click("#navVol"); await pg.wait_for_timeout(15000); await shot(pg, "6_vol_ndx")
         # Compass: tamano antes y despues de ocultar

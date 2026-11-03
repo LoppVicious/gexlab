@@ -1,6 +1,8 @@
 name: Prueba visual
 on:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   visual:
     runs-on: ubuntu-latest
@@ -15,8 +17,10 @@ jobs:
           python server.py --server > server.log 2>&1 &
           sleep 5
           python pruebas/visual.py || true
-          tail -30 server.log
-      - uses: actions/upload-artifact@v4
-        with:
-          name: visual
-          path: salida_visual/
+      - name: Resultados en la rama temporal prueba-visual
+        run: |
+          cd salida_visual
+          git init -q -b prueba-visual
+          git config user.name "gexlab"; git config user.email "gexlab@users.noreply.github.com"
+          git add -A && git commit -qm "capturas"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}" prueba-visual

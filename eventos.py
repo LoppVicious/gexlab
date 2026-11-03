@@ -23,6 +23,7 @@ import gex_engine as g
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/130.0 Safari/537.36")
 STATE = os.path.join(g.CACHE_DIR, "eventos.json")
+VERSION = 2  # al cambiar las fuentes, se fuerza una actualizacion en el siguiente ciclo
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 MONTHS = {m: i + 1 for i, m in enumerate(["January", "February", "March", "April", "May", "June", "July",
                                            "August", "September", "October", "November", "December"])}
@@ -140,27 +141,29 @@ def forexfactory() -> list[dict]:
     return out
 
 
-FRED_RELEASES = {"Consumer Price Index": ("IPC", 3, 1), "Employment Situation": ("Empleo (NFP)", 3, 1),
-                 "Producer Price Index": ("IPP", 2, 1), "Job Openings and Labor Turnover Survey": ("JOLTS", 2, 2),
-                 "University of Michigan: Consumer Sentiment": ("Michigan", 1, None)}
+# id de cada publicacion en FRED: (etiqueta, importancia, meses de retraso del dato)
+FRED_RELEASES = {10: ("IPC", 3, 1), 50: ("Empleo (NFP)", 3, 1), 46: ("IPP", 2, 1), 192: ("JOLTS", 2, 2),
+                 91: ("Michigan", 1, None), 180: ("Peticiones de desempleo", 1, None)}
 
 
 def fred() -> list[dict]:
+    """Fechas de publicacion (pasadas recientes y futuras programadas) de cada indicador, una consulta por indicador."""
     key = os.environ.get("FRED_API_KEY")
     if not key:
         return []
     today = datetime.now(timezone.utc).date()
-    url = ("https://api.stlouisfed.org/fred/releases/dates?file_type=json&include_release_dates_with_no_data=true"
-           f"&limit=1000&sort_order=asc&realtime_start={today - timedelta(days=31)}&realtime_end={today + timedelta(days=370)}&api_key={key}")
-    data = json.loads(_get(url))
     out = []
-    for r in data.get("release_dates", []):
-        hit = FRED_RELEASES.get(r.get("release_name"))
-        if not hit:
-            continue
-        d = datetime.strptime(r["date"], "%Y-%m-%d")
-        nm = hit[0] if hit[2] is None else f"{hit[0]} ({_ref_month(d, hit[2])})"
-        out.append({"date": r["date"], "time": "08:30" if hit[0] != "Michigan" else "10:00", "name": nm, "imp": hit[1]})
+    for rid, (name, imp, lag) in FRED_RELEASES.items():
+        url = ("https://api.stlouisfed.org/fred/release/dates?file_type=json&include_release_dates_with_no_data=true"
+               f"&sort_order=asc&limit=200&realtime_start={today - timedelta(days=31)}&realtime_end=9999-12-31"
+               f"&release_id={rid}&api_key={key}")
+        data = json.loads(_get(url))
+        for r in data.get("release_dates", []):
+            d = datetime.strptime(r["date"], "%Y-%m-%d")
+            if d.date() > today + timedelta(days=400):
+                continue
+            nm = name if lag is None else f"{name} ({_ref_month(d, lag)})"
+            out.append({"date": r["date"], "time": "10:00" if name in ("Michigan", "JOLTS") else "08:30", "name": nm, "imp": imp})
     return out
 
 
@@ -185,7 +188,8 @@ def actualizar() -> tuple[list[dict], dict]:
     lo = (datetime.now(timezone.utc) - timedelta(days=45)).strftime("%Y-%m-%d")
     hi = (datetime.now(timezone.utc) + timedelta(days=400)).strftime("%Y-%m-%d")
     evs = sorted((e for e in known.values() if lo <= e["date"] <= hi), key=lambda e: (e["date"], e["time"], -e["imp"]))
-    g.write_json(STATE, {"eventos": evs, "fuentes": res, "actualizado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
+    g.write_json(STATE, {"eventos": evs, "fuentes": res, "version": VERSION,
+                         "actualizado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
     return evs, res
 
 

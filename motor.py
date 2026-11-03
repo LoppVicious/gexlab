@@ -342,8 +342,8 @@ def fase_macro(st) -> None:
         import eventos
         st_ev = g.read_json(eventos.STATE, {}) or {}
         last = st_ev.get("actualizado")
-        fred_nueva = bool(os.environ.get("FRED_API_KEY")) and not isinstance((st_ev.get("fuentes") or {}).get("fred"), int) or \
-            (os.environ.get("FRED_API_KEY") and (st_ev.get("fuentes") or {}).get("fred") == 0)
+        fred_nueva = st_ev.get("version") != eventos.VERSION or (
+            bool(os.environ.get("FRED_API_KEY")) and not (st_ev.get("fuentes") or {}).get("fred"))
         if fred_nueva or not last or (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)).total_seconds() > 6 * 3600:
             evs, res = eventos.actualizar()
             log(f"calendario: {len(evs)} eventos ({', '.join(f'{k} {v}' for k, v in res.items())})")

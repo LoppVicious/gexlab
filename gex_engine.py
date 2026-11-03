@@ -757,7 +757,7 @@ def expected_move(ch: dict, spot: float, now: datetime) -> dict | None:
 
 
 MOVE_SESSIONS = (1, 5)
-AUTO_SIGMAS = 2.0  # rango automatico: 2 desviaciones tipicas (95%) de la proxima sesion (o de lo que queda de hoy)
+AUTO_SIGMAS = 1.0  # rango automatico: 1 desviacion tipica (~68%) de la proxima sesion (o de lo que queda de hoy)
 
 
 def auto_window(moves: dict | None) -> float:
@@ -766,7 +766,7 @@ def auto_window(moves: dict | None) -> float:
     pct = d1.get("pct")
     if not pct:
         return 3.0
-    return float(min(10.0, max(0.6, round(AUTO_SIGMAS * pct, 2))))
+    return float(min(10.0, max(0.4, round(AUTO_SIGMAS * pct, 2))))
 
 
 def resolve_window(window_pct, ch: dict, spot: float, now: datetime) -> tuple[float, bool]:

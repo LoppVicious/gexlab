@@ -21,3 +21,5 @@ CREATE TABLE IF NOT EXISTS prefs (usuario TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS listas (usuario TEXT PRIMARY KEY, json TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS fallos (clave TEXT PRIMARY KEY, n INTEGER NOT NULL, hasta INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS pedidos (simbolo TEXT PRIMARY KEY, t INTEGER NOT NULL);
+-- sesiones cerradas por un inicio de sesion en otro dispositivo (para avisar al expulsado); se purgan a los 30 dias
+CREATE TABLE IF NOT EXISTS sesiones_cerradas (h TEXT PRIMARY KEY, motivo TEXT NOT NULL, t INTEGER NOT NULL);

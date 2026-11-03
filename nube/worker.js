@@ -85,7 +85,9 @@ async function sessionOf(req, env) {
   const r = await env.DB.prepare(
     "SELECT u.usuario, u.rol, u.lid FROM sesiones s JOIN usuarios u ON u.usuario = s.usuario WHERE s.h = ? AND s.exp > ? AND u.inactivo = 0",
   ).bind(h, nowS()).first();
-  return r ? { user: r.usuario, admin: r.rol === "admin", lid: r.lid, h } : null;
+  if (r) return { user: r.usuario, admin: r.rol === "admin", lid: r.lid, h };
+  const c = await env.DB.prepare("SELECT motivo FROM sesiones_cerradas WHERE h = ?").bind(h).first();
+  return c ? { closed: c.motivo } : null;
 }
 
 async function blocked(env, key) {
@@ -104,6 +106,10 @@ async function fail(env, key) {
 }
 
 async function newSession(env, user, req) {
+  // un solo dispositivo por cuenta: el nuevo inicio de sesion cierra los anteriores
+  await env.DB.prepare("INSERT OR REPLACE INTO sesiones_cerradas (h, motivo, t) SELECT h, 'otro', ? FROM sesiones WHERE usuario = ?").bind(nowS(), user).run();
+  await env.DB.prepare("DELETE FROM sesiones WHERE usuario = ?").bind(user).run();
+  await env.DB.prepare("DELETE FROM sesiones_cerradas WHERE t < ?").bind(nowS() - 30 * 86400).run();
   const tok = randHex(32);
   await env.DB.prepare("INSERT INTO sesiones (h, usuario, exp, creada, ip) VALUES (?, ?, ?, ?, ?)")
     .bind(await sha256(tok), user, nowS() + SESSION_DAYS * 86400, stamp(), ip(req)).run();
@@ -415,11 +421,15 @@ export default {
         if (p.startsWith("/login") && (await countUsers(env)) === 0) return redirect("/setup");
         return env.ASSETS.fetch(req);
       }
-      const me = await sessionOf(req, env);
+      const ses = await sessionOf(req, env);
+      const me = ses && !ses.closed ? ses : null;
       if (!me) {
-        if (p.startsWith("/api/")) return json(401, { error: "Sesión caducada: vuelve a iniciar sesión", login: true });
-        return redirect((await countUsers(env)) === 0 ? "/setup" : "/login");
+        const otro = ses && ses.closed === "otro";
+        const msg = otro ? "Se ha iniciado sesión con tu cuenta en otro dispositivo" : "Sesión caducada: vuelve a iniciar sesión";
+        if (p.startsWith("/api/")) return json(401, { error: msg, login: true, motivo: otro ? "otro" : "caducada" });
+        return redirect((await countUsers(env)) === 0 ? "/setup" : otro ? "/login?motivo=otro" : "/login");
       }
+      if (p === "/api/sesion") return json(200, { ok: true });
       if (p === "/me.js") {
         const r = await env.DB.prepare("SELECT json FROM prefs WHERE usuario = ?").bind(me.user).first();
         let prefs = {};

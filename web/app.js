@@ -29,7 +29,13 @@ const store = ME ? {
 // sesion caducada: cualquier 401 de la API lleva al inicio de sesion
 if (ME) {
   const _fetch = window.fetch.bind(window);
-  window.fetch = (...a) => _fetch(...a).then((r) => { if (r.status === 401) location.replace("/login.html"); return r; });
+  window.fetch = (...a) => _fetch(...a).then((r) => {
+    if (r.status === 401) r.clone().json().catch(() => ({})).then((d) => location.replace(d.motivo === "otro" ? "/login?motivo=otro" : "/login.html"));
+    return r;
+  });
+  // un solo dispositivo por cuenta: si otro dispositivo entra con este usuario, este se entera en menos de un minuto
+  if (ME.nube) setInterval(() => { if (!document.hidden) window.fetch("/api/sesion").catch(() => {}); }, 45000);
+  document.addEventListener("visibilitychange", () => { if (ME && ME.nube && !document.hidden) window.fetch("/api/sesion").catch(() => {}); });
 }
 
 const state = {

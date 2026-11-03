@@ -86,6 +86,8 @@
       document.getElementById("pw").select();
     }
   });
+  if (new URLSearchParams(location.search).get("motivo") === "otro")
+    err.textContent = "Se ha iniciado sesión con tu cuenta en otro dispositivo. Solo puede haber uno abierto a la vez.";
   document.getElementById("user").focus();
 </script>
 </body>

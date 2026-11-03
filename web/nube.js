@@ -129,8 +129,9 @@
       const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (kind === "heat" ? `_${v.sess}` : "");
       const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/${kind === "heat" ? "mapa" : "niveles"}/${key}.json`, { signal });
       if (r.ok) {
-        if (viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
-        return r;
+        // una vista precalculada antigua no se usa: se recalcula aqui con el paquete (y se pide renovarlo)
+        if (!viejo(parseInt(r.headers.get("X-Edad"), 10))) return r;
+        renovar(sym);
       }
     }
     const paqs = [await paquete(sym, signal, refresh)];

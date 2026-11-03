@@ -353,12 +353,27 @@ def fase_macro(st) -> None:
     log("macro: curva VIX, COT y Resumen")
 
 
+def _borrar_vistas_viejas(st, sym: str, hechas: set) -> int:
+    """Vistas precalculadas que ya nadie usa: si se quedan, la web las serviria con datos de otro ciclo."""
+    n = 0
+    try:
+        for kind in ("niveles", "mapa"):
+            pre = f"pub/t/{sym}/{kind}/"
+            for key in st.list(pre):
+                if key[len(pre):].removesuffix(".json") not in hechas:
+                    st.delete(key)
+                    n += 1
+    except Exception as e:  # noqa: BLE001
+        err(f"{sym} limpieza de vistas", e)
+    return n
+
+
 def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
     """Con los paquetes ya escritos: el motor trabaja sin red, igual que en el navegador."""
     prev_fx = os.environ.get("GEX_FIXTURE_DIR")
     os.environ["GEX_FIXTURE_DIR"] = FX
     g._cache.clear(); g._aux_cache.clear(); g._heat_cache.clear(); g._rate["t"] = 0.0
-    n = 0
+    n = n_borradas = 0
     for sym in syms:
         hechas = set()
         for v0 in vistas:
@@ -375,7 +390,8 @@ def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
                     hechas.add(km); n += 1
             except Exception as e:  # noqa: BLE001
                 err(f"{sym} vista {km}", e)
-    log(f"vistas: {n} calculadas")
+        n_borradas += _borrar_vistas_viejas(st, sym, hechas)
+    log(f"vistas: {n} calculadas, {n_borradas} antiguas borradas")
     for dte in DTES:
         try:
             rows = g.scan(syms, _dte_arg(dte))

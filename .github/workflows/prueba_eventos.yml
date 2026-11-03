@@ -1,0 +1,23 @@
+name: Prueba calendario
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+          for u in "https://www.bls.gov/schedule/news_release/bls.ics" \
+                   "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm" \
+                   "https://www.bea.gov/news/schedule/ics/online-calendar-subscription.ics" \
+                   "https://nfs.faireconomy.media/ff_calendar_thisweek.json" \
+                   "https://nfs.faireconomy.media/ff_calendar_nextweek.json" \
+                   "https://www.census.gov/economic-indicators/calendar-listview.html"; do
+            code=$(curl -s -A "$UA" -H "Accept-Language: en-US" -o /tmp/o -w '%{http_code}' -L --max-time 20 "$u"); echo "$code $(wc -c </tmp/o) $u"
+            head -c 300 /tmp/o | tr '\n\r' '  '; echo; echo
+          done
+          curl -s -A "$UA" -L "https://www.bls.gov/schedule/news_release/bls.ics" | grep -E "^SUMMARY|^DTSTART" | head -30
+          curl -s -A "$UA" -L "https://www.bea.gov/news/schedule/ics/online-calendar-subscription.ics" | grep -E "^SUMMARY|^DTSTART" | head -20

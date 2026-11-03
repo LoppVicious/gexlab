@@ -310,6 +310,17 @@ async function api(req, env, url, me) {
     if (!/^[a-z_0-9]+\.json$/.test(f)) return json(400, { error: "Ruta no valida" });
     return fromR2(req, env, `pub/l/${me.lid}/${f}`);
   }
+  if (p === "/api/admin/importar" && req.method === "POST") {
+    // historial del PC (history.tar.gz): lo mezcla el motor en su siguiente ciclo
+    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    const buf = await req.arrayBuffer();
+    const b = new Uint8Array(buf);
+    if (b.length < 20 || b[0] !== 0x1f || b[1] !== 0x8b) return json(400, { error: "El archivo no es un .tar.gz" });
+    if (b.length > 50 * 1024 * 1024) return json(400, { error: "Archivo demasiado grande (máximo 50 MB)" });
+    await env.R2.put("importar/historial.tar.gz", buf, { httpMetadata: { contentType: "application/gzip" } });
+    const lanzado = await dispatch(env, { modo: "ciclo" });
+    return json(200, { ok: true, bytes: b.length, lanzado });
+  }
   if (p === "/api/admin/usuarios") {
     if (!me.admin) return json(403, { error: "Solo el administrador" });
     return admin(req, env, me);

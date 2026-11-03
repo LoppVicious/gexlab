@@ -209,7 +209,11 @@
         <div><label for="admPw">Contraseña (mín. 10)</label><input id="admPw" type="password" autocomplete="new-password" minlength="10" required></div>
         <button class="btn" id="admGo" type="submit">Crear</button>
       </form>
-      <p class="msg" id="admMsg" role="status"></p></div>`;
+      <p class="msg" id="admMsg" role="status"></p>
+      <h2 style="margin-top:18px">Historial del PC</h2>
+      <p class="sub">Sube el archivo <code>historial_para_nube.tar.gz</code> para añadir el historial que guardó el recolector del PC. Se mezcla con el de la nube en el siguiente ciclo del motor (1–2 min); lo que ya existe en la nube no se pierde.</p>
+      <form id="impForm" style="grid-template-columns:1fr auto"><input id="impFile" type="file" accept=".gz,.tgz,application/gzip" required><button class="btn" id="impGo" type="submit">Subir</button></form>
+      <p class="msg" id="impMsg" role="status"></p></div>`;
     document.body.appendChild(back);
     const close = () => back.remove();
     back.addEventListener("click", (e) => { if (e.target === back) close(); });
@@ -258,6 +262,18 @@
         msg(`Usuario ${u} creado. Pásale su usuario y contraseña en persona.`);
         refresh();
       } catch (x) { msg(x.message, true); } finally { go.disabled = false; }
+    });
+    back.querySelector("#impForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const f = back.querySelector("#impFile").files[0], m = back.querySelector("#impMsg"), go = back.querySelector("#impGo");
+      if (!f) return;
+      go.disabled = true; m.className = "msg"; m.textContent = "Subiendo…";
+      try {
+        const r = await realFetch("/api/admin/importar", { method: "POST", headers: { "Content-Type": "application/gzip" }, body: f });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || "No se pudo subir");
+        m.textContent = `Subido (${(d.bytes / 1e6).toFixed(1)} MB). ${d.lanzado ? "El motor lo mezclará en 1–2 minutos." : "Se mezclará en el próximo ciclo del motor."}`;
+      } catch (x) { m.className = "msg err"; m.textContent = x.message; } finally { go.disabled = false; }
     });
     refresh();
     back.querySelector("#admUser").focus();

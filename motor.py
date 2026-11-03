@@ -148,6 +148,71 @@ def guardar_estado(st, copia: bool) -> None:
             st.delete(k)
 
 
+# ---------------------------------------------------------------- importacion del historial del PC
+IMPORT_KEY = "importar/historial.tar.gz"
+
+
+def _merge_json(a: dict, b: dict, prefer_a_suffix: str | None = None) -> dict:
+    """Une dos diccionarios por clave. Gana b (la nube, mas reciente) salvo en las claves que acaban en
+    prefer_a_suffix (fotos ex ante: vale la primera que se hizo, la del PC)."""
+    out = dict(a)
+    for k, v in b.items():
+        if prefer_a_suffix and k.endswith(prefer_a_suffix) and k in a:
+            continue
+        out[k] = v
+    return out
+
+
+def importar(st) -> None:
+    """Mezcla en el estado el historial que el administrador sube desde la web (carpeta history del PC)."""
+    b = st.get(IMPORT_KEY)
+    if not b:
+        return
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    n = 0
+    with tarfile.open(fileobj=io.BytesIO(b), mode="r:gz") as tf:
+        for m in tf.getmembers():
+            parts = m.name.replace("\\", "/").split("/")
+            if not m.isfile() or ".." in parts or m.name.startswith("/") or parts[0] != "history":
+                continue
+            tf.extract(m, tmp, filter="data")
+    src = os.path.join(tmp, "history")
+    for dirpath, _, files in os.walk(src):
+        for fn in files:
+            rel = os.path.relpath(os.path.join(dirpath, fn), src)
+            if fn.endswith(".log") or fn.endswith(".tmp"):
+                continue
+            pc_path, cl_path = os.path.join(dirpath, fn), os.path.join(g.HIST_DIR, rel)
+            try:
+                if rel.startswith("chains" + os.sep):
+                    if not os.path.exists(cl_path):  # copia de la cadena: si la nube ya tiene ese dia, vale la suya
+                        os.makedirs(os.path.dirname(cl_path), exist_ok=True)
+                        shutil.copy2(pc_path, cl_path)
+                        n += 1
+                    continue
+                pc = g.read_json(pc_path) or {}
+                cl = g.read_json(cl_path) or {}
+                if fn == "recolector_state.json":
+                    out = dict(pc)
+                    out.update({k: v for k, v in cl.items() if v})
+                    for k in ("apertura", "intradia", "cierre"):  # la recogida mas reciente de cada tipo
+                        out[k] = max(x for x in (pc.get(k), cl.get(k)) if x) if (pc.get(k) or cl.get(k)) else None
+                    if not cl.get("ultima_recogida") and pc.get("ultima_recogida"):
+                        out["ultima_recogida"] = pc["ultima_recogida"]
+                elif fn == "universo.json":
+                    out = {k: max(x for x in (pc.get(k), cl.get(k)) if x) for k in set(pc) | set(cl)}
+                else:  # niveles, flujo y volatilidad: union por sesion
+                    out = _merge_json(pc, cl, prefer_a_suffix="|a")
+                g.write_json(cl_path, out)
+                n += 1
+            except Exception as e:  # noqa: BLE001
+                err(f"importar {rel}", e)
+    shutil.rmtree(tmp, ignore_errors=True)
+    st.delete(IMPORT_KEY)
+    log(f"importacion: {n} archivos del historial del PC mezclados")
+
+
 # ---------------------------------------------------------------- configuracion (la escribe la API)
 def leer_config(st) -> dict:
     c = almacen.get_json(st, "config/config.json", {}) or {}
@@ -325,6 +390,7 @@ def publicar_generales(st) -> None:
 def ciclo() -> int:
     st = almacen.abrir()
     restaurar_estado(st)
+    importar(st)
     cfg = leer_config(st)
     syms = cfg["universo"]
     g.load_symbols()  # nombres de los tickers

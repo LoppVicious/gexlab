@@ -44,7 +44,8 @@ rm -rf dist && mkdir -p dist
 cp -r ../web/. dist/
 cp pages/login.html pages/setup.html dist/
 cp ../gex_engine.py dist/
-$W deploy 2>&1 | grep -Ei "https://|error|warn|subdomain" || true
+if ! OUT=$($W deploy 2>&1); then echo "$OUT" | grep -Ei "error|subdomain|https://" ; exit 1; fi
+echo "$OUT" | grep -Ei "https://" || true
 printf '%s' "$GEX_SETUP_CODE" | $W secret put GEX_SETUP_CODE >/dev/null
 printf '%s' "$GH_DISPATCH_TOKEN" | $W secret put GH_DISPATCH_TOKEN >/dev/null
 echo "    secretos al dia; reloj cada 15 min en horario de mercado"

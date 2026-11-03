@@ -31,7 +31,6 @@ jobs:
           cache-dependency-path: requirements-nube.txt
       - run: pip install -q -r requirements-nube.txt
       - name: Almacen provisional (hasta configurar Cloudflare R2)
-        if: env.HAS_R2 != 'true'
         uses: actions/cache/restore@v4
         with:
           path: almacen

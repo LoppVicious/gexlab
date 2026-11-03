@@ -94,6 +94,11 @@ def _rango_arg(r: str):
 # ---------------------------------------------------------------- estado
 def restaurar_estado(st) -> None:
     b = st.get(ESTADO_KEY)
+    prov = os.path.join(ROOT, "almacen", *ESTADO_KEY.split("/"))
+    if not b and os.path.exists(prov):  # paso del almacen provisional (cache de GitHub) a R2
+        with open(prov, "rb") as f:
+            b = f.read()
+        log("estado: se recupera del almacen provisional")
     if not b:
         log("estado: no hay estado previo, se empieza de cero")
         return

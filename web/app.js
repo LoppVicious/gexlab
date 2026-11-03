@@ -1290,7 +1290,7 @@ async function exportReport() {
   s += T(fx, 40, "CIFRAS", { fs: 16, w: 600, c: C.faint });
   facts.forEach(([k, v, sub], i) => {
     const y = 84 + i * 62;
-    s += T(fx, y, k, { fs: 20, c: C.muted }) + T(fr, y, v, { a: "end", fs: 26, w: 600 });
+    s += T(fx, y, esc(k), { fs: 20, c: C.muted }) + T(fr, y, esc(v), { a: "end", fs: 26, w: 600 });
     if (sub) s += T(fr, y + 22, sub, { a: "end", fs: 16, c: C.faint });
   });
 
@@ -1298,7 +1298,7 @@ async function exportReport() {
   const cr = ((typeof hub !== "undefined" && hub.cmp) || (cmp.data && cmp.data.rows) || []).find((r) => r.symbol === d.symbol);
   const pc = (v) => (v == null ? "—" : fmtNum(v * 100, 1) + "%");
   const exd = (iso) => (iso ? `${ddmm(iso)}/${iso.slice(2, 4)}` : "—");
-  const vp = (v, edge) => (v != null ? fmtLevel(v) : edge && hb.range ? (edge === "up" ? `> ${fmtSpot(hb.range[1])}` : `< ${fmtSpot(hb.range[0])}`) : "—");
+  const vp = (v, edge) => (v != null ? fmtLevel(v) : edge && hb.range ? (edge === "up" ? `por encima de ${fmtSpot(hb.range[1])}` : `por debajo de ${fmtSpot(hb.range[0])}`) : "—");
   const ficha = [
     ["Cierre anterior", fmtSpot(d.prev_close)],
     ["IV rank", cr && cr.y != null ? fmtNum(cr.y, 0) + "%" : "—"],
@@ -1318,7 +1318,7 @@ async function exportReport() {
   const rh = (impH - 100) / ficha.length;
   ficha.forEach(([k, v], i) => {
     const y = yImp + 100 + i * rh;
-    s += T(cx0 + 36, y, k, { fs: 21, c: C.muted }) + T(cx0 + cardW - 36, y, v, { a: "end", fs: 22, w: 600 });
+    s += T(cx0 + 36, y, esc(k), { fs: 21, c: C.muted }) + T(cx0 + cardW - 36, y, esc(v), { a: "end", fs: 22, w: 600 });
     if (i < ficha.length - 1) s += `<line x1="${cx0 + 36}" x2="${cx0 + cardW - 36}" y1="${y + rh / 2 - 6}" y2="${y + rh / 2 - 6}" stroke="${C.grid}"/>`;
   });
 

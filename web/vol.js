@@ -163,7 +163,9 @@ function renderTerm(W, H) {
     const x = xOf(p.exp), lab = volDate(p.exp), w = textW(lab, fs);
     if (x - lx < w + 10) continue;
     lx = x;
-    s += txt(x, B + fs + 8, lab, { a: "middle", fs });
+    // la ultima fecha no se sale por la derecha
+    const cx = Math.min(x, W - 6 - w / 2);
+    s += txt(cx, B + fs + 8, lab, { a: "middle", fs });
   }
   s += txt(R, B + fs * 2 + 14, "Vencimiento", { a: "end", fs, c: C.faint });
   s += `<text transform="translate(${narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Volatilidad implícita</text>`;

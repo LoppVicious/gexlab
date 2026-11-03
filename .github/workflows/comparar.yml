@@ -1,0 +1,14 @@
+name: Comparar con gexbot
+on:
+  workflow_dispatch:
+jobs:
+  comparar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements.txt
+      - run: python pruebas/comparar_vencimientos.py

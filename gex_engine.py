@@ -1172,16 +1172,21 @@ def combine_with_proxy(symbol: str, ch: dict, force: bool = False):
     return cc, {"proxy": proxy, "ratio": r, "contracts": int((ech["oi"] > 0).sum())}
 
 
-def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.ndarray, prof: np.ndarray, step: float) -> dict:
+def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.ndarray, prof: np.ndarray, step: float,
+                 window_pct: float = 5.0) -> dict:
     """Ficha del Equity Hub: puntos de baja y alta volatilidad (maximo y minimo de la gamma total si el precio
     estuviera en cada nivel), open interest y volumen de calls y puts, vencimientos con mas gamma y mas delta,
     IV a 30 dias y volatilidad realizada a 20 dias. Con todos los vencimientos vivos, sin el filtro del grafico."""
     out = {}
-    if prof.size:
-        i_lo, i_hi = int(np.argmax(prof)), int(np.argmin(prof))
-        edge = lambda i: i <= 1 or i >= prof.size - 2  # noqa: E731  (en el borde: el extremo esta fuera del rango calculado)
-        out["low_vol_point"] = _nice_round(float(xs[i_lo]), step) if prof[i_lo] > 0 and not edge(i_lo) else None
-        out["high_vol_point"] = _nice_round(float(xs[i_hi]), step) if prof[i_hi] < 0 and not edge(i_hi) else None
+    # solo dentro del rango visible: fuera de el la curva la forman pocos contratos lejanos y el extremo no significa nada
+    inw = np.abs(xs / spot - 1) <= window_pct / 100 + 1e-9
+    xw, pw = xs[inw], prof[inw]
+    out["low_vol_point"] = out["high_vol_point"] = None
+    if pw.size >= 5:
+        i_lo, i_hi = int(np.argmax(pw)), int(np.argmin(pw))
+        edge = lambda i: i <= 1 or i >= pw.size - 2  # noqa: E731  (en el borde: el extremo esta fuera del rango)
+        out["low_vol_point"] = _nice_round(float(xw[i_lo]), step) if pw[i_lo] > 0 and not edge(i_lo) else None
+        out["high_vol_point"] = _nice_round(float(xw[i_hi]), step) if pw[i_hi] < 0 and not edge(i_hi) else None
     alive = ch["exp"] > now
     C, OI, V = ch["call"], ch["oi"], ch["vol"]
     c_oi, p_oi = float(OI[alive & C].sum()), float(OI[alive & ~C].sum())
@@ -1310,14 +1315,21 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     # --- perfil: GEX total en spots hipoteticos
     span = max(window_pct * 2.0, 8.0) / 100
     xs = np.linspace(spot * (1 - span), spot * (1 + span), 161)
+    # vencimiento semanal para la linea del Equity Hub: el primer viernes con contratos en el filtro (en acciones,
+    # los vencimientos diarios de lunes a jueves tienen poco open interest); si no hay viernes en 8 dias, el mas proximo
+    exp_days = np.unique(EXP.astype("datetime64[D]"))
+    today_d = now.astype("datetime64[D]")
+    fridays = [e for e in exp_days if (int(e.astype(int)) + 3) % 7 == 4 and (e - today_d).astype(int) <= 8]
+    week_exp = fridays[0] if fridays else exp_days.min()
+    WEEK = EXP.astype("datetime64[D]") == week_exp
     prof = np.empty(xs.size)
-    prof_front = np.empty(xs.size)  # solo el vencimiento mas proximo (linea "proximo vencimiento" del Equity Hub)
+    prof_week = np.empty(xs.size)
     chunk = 20
     for a in range(0, xs.size, chunk):
         S = xs[a:a + chunk, None]
         gm = pos * gamma_w(S, K, W, TT) * 100.0 * S
         prof[a:a + chunk] = gm.sum(axis=1)
-        prof_front[a:a + chunk] = gm[:, FRONT].sum(axis=1)
+        prof_week[a:a + chunk] = gm[:, WEEK].sum(axis=1)
 
     # --- gamma flip: cruce por cero mas cercano al spot
     flip_exact = None
@@ -1377,8 +1389,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "expected_move": expected_move(ch, spot, now_dt),
         "moves": implied_moves(ch, spot, now_dt),
         "is_index": normalize(symbol) in INDEX_LIKE,
-        "profile": {"x": xs.tolist(), "y": prof.tolist(), "front": prof_front.tolist()},
-        "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, step),
+        "profile": {"x": xs.tolist(), "y": prof.tolist(), "week": prof_week.tolist(), "week_exp": str(week_exp)},
+        "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, step, window_pct),
         "levels": {"call_wall": call_wall, "put_wall": put_wall, "flip": flip,
                    "flip_exact": flip_exact, "vt": vt, "abs_gamma": abs_g},
         "totals": {

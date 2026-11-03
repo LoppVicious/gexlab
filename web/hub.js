@@ -9,90 +9,104 @@ const hub = { scan: null, scanAt: 0, cmp: null, cmpAt: 0, busy: false };
 const HUB_LAST = "#5b9dff";
 
 /* ------------------------------------------------------------ grafico */
-function renderImpact(d, W, H) {
+function impactRange(d) {
+  // el rango elegido (±%), centrado en el spot: el mismo que ves en los controles
+  const w = ((d.meta && d.meta.window_pct) || 5) / 100;
+  return [d.spot * (1 - w), d.spot * (1 + w)];
+}
+
+function renderImpact(d, W, H, exp = false) {
   const P = d.profile;
   if (!P || !P.x || !P.x.length) return `<div class="placeholder">Sin perfil de gamma.</div>`;
-  const narrow = W < 640, fs = narrow ? 10.5 : 11.5;
-  const L = narrow ? 50 : 64, R = W - (narrow ? 46 : 64), B = H - 44;
-  // filas: leyenda (1 o 2) y una fila por etiqueta de punto de volatilidad / cierre
+  const narrow = !exp && W < 640, fs = exp ? 15 : narrow ? 10.5 : 11.5;
+  const titleH = exp ? 62 : 0;
+  const L = exp ? 104 : narrow ? 50 : 64, R = W - (exp ? 104 : narrow ? 46 : 64), B = H - (exp ? 70 : 44);
+  const [x0, x1] = impactRange(d);
+  const idx = P.x.map((x, i) => i).filter((i) => P.x[i] >= x0 - 1e-9 && P.x[i] <= x1 + 1e-9);
+  if (idx.length < 3) return `<div class="placeholder">Sin perfil de gamma en este rango.</div>`;
+  const X = idx.map((i) => P.x[i]), Y = idx.map((i) => P.y[i]), Wk = P.week ? idx.map((i) => P.week[i]) : null;
+  const hb = d.hub || {};
+  const labs = [[hb.low_vol_point, C.put, "Baja volatilidad"], [hb.high_vol_point, C.amber, "Alta volatilidad"], [d.prev_close, HUB_LAST, "Cierre anterior"]]
+    .filter(([v]) => v != null && v >= x0 && v <= x1);
   const legRows = narrow ? 3 : 1;
-  const nLab = [d.hub && d.hub.low_vol_point, d.hub && d.hub.high_vol_point, d.prev_close].filter((v) => v != null).length;
-  const T = 12 + legRows * (fs + 8) + nLab * (fs + 8) + 8;
-  const x0 = P.x[0], x1 = P.x[P.x.length - 1];
+  const T = titleH + 12 + legRows * (fs + 8) + labs.length * (fs + 8) + 10;
   const xOf = (v) => L + ((v - x0) / (x1 - x0)) * (R - L);
-  // curvas (eje izquierdo)
-  const ys = P.y.concat(P.front || []);
+  // eje izquierdo: lineas, siempre con el cero
+  const ys = Y.concat(Wk || []);
   const lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), pad = (hi - lo) * 0.08 || 1;
-  const yt = niceTicks(lo - (lo < 0 ? pad : 0), hi + pad, 6);
+  const yt = niceTicks(lo - (lo < 0 ? pad : 0), hi + (hi > 0 ? pad : 0), 6);
   const yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
-  // barras por strike (eje derecho, misma posicion del cero)
+  const y0 = yOf(0);
+  // barras por strike (eje derecho): mismo cero; la mas alta llega como mucho al 88% del espacio de su lado
   const ks = [], vs = [];
   d.strikes.forEach((k, i) => { if (k >= x0 && k <= x1) { ks.push(k); vs.push(d.net[i]); } });
-  const bmax = Math.max(1, ...vs.map(Math.abs));
-  const zf = (0 - yt.lo) / (yt.hi - yt.lo);               // fraccion de altura del cero
-  const bUp = (B - T) * (1 - zf), bDn = (B - T) * zf;
-  const bOf = (v) => (v >= 0 ? (v / bmax) * bUp : (v / bmax) * bDn);
-  const y0 = yOf(0);
-  let s = "";
+  const mp = Math.max(0, ...vs), mn = Math.max(0, ...vs.map((v) => -v));
+  const up = y0 - T, dn = B - y0;
+  const kf = Math.min(mp > 0 ? (0.88 * up) / mp : Infinity, mn > 0 ? (0.88 * dn) / mn : Infinity);
+  const k = isFinite(kf) ? kf : 1;
+  const bY = (v) => y0 - v * k;
+  let s = `<defs><clipPath id="impclip${exp ? "e" : ""}"><rect x="${L}" y="${T}" width="${R - L}" height="${B - T}"/></clipPath></defs>`;
   for (const v of yt.ticks) {
     const y = yOf(v);
     s += `<line x1="${L}" x2="${R}" y1="${y}" y2="${y}" stroke="${C.grid}" stroke-dasharray="2 4"/>` + txt(L - 8, y + 4, fmtAxis(v), { a: "end", fs, c: C.muted });
   }
-  // eje derecho: barras
-  [1, 0.5].forEach((f) => {
-    if (bUp > 20) s += txt(R + 8, y0 - bUp * f + 4, fmtAxis(bmax * f), { fs, c: C.faint });
-    if (bDn > 20) s += txt(R + 8, y0 + bDn * f + 4, fmtAxis(-bmax * f), { fs, c: C.faint });
-  });
-  const xt = niceTicks(x0, x1, narrow ? 4 : Math.max(5, Math.floor((R - L) / 95)));
+  // ticks del eje derecho en valores redondos de las barras
+  const bm = Math.max(mp, mn);
+  if (bm > 0) {
+    const st = niceStep(bm, 3);
+    for (let v = st; v * k <= up + 0.5; v += st) s += txt(R + 8, bY(v) + 4, fmtAxis(v), { fs, c: C.faint });
+    for (let v = st; v * k <= dn + 0.5; v += st) s += txt(R + 8, bY(-v) + 4, fmtAxis(-v), { fs, c: C.faint });
+    s += txt(R + 8, y0 + 4, "0", { fs, c: C.faint });
+  }
+  const xt = niceTicks(x0, x1, exp ? 12 : narrow ? 4 : Math.max(5, Math.floor((R - L) / 95)));
   for (const v of xt.ticks) if (v >= x0 && v <= x1) s += txt(xOf(v), B + fs + 9, fmtSpot(v), { a: "middle", fs, c: C.muted });
-  s += txt((L + R) / 2, H - 6, "Strike", { a: "middle", fs, c: C.faint });
-  s += `<text transform="translate(${narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma total ($ por $1, línea)</text>`;
-  s += `<text transform="translate(${W - (narrow ? 6 : 10)},${(T + B) / 2}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma por strike (barras)</text>`;
+  s += txt((L + R) / 2, H - (exp ? 18 : 6), "Strike", { a: "middle", fs, c: C.faint });
+  s += `<text transform="translate(${exp ? 30 : narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma total ($ por $1, líneas)</text>`;
+  s += `<text transform="translate(${W - (exp ? 30 : narrow ? 6 : 10)},${(T + B) / 2}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma neta por strike (barras)</text>`;
 
   // barras
   const step = d.step || (ks.length > 1 ? ks[1] - ks[0] : 1);
-  const bw = Math.max(1.5, Math.min(14, ((R - L) / ((x1 - x0) / step)) * 0.62));
-  ks.forEach((k, i) => {
-    const h = bOf(vs[i]), x = xOf(k);
+  const bw = Math.max(1.5, Math.min(exp ? 22 : 14, ((R - L) / ((x1 - x0) / step)) * 0.62));
+  let bars = "";
+  ks.forEach((kk, i) => {
+    const h = vs[i] * k, x = xOf(kk);
     if (Math.abs(h) < 0.4) return;
-    s += `<rect x="${(x - bw / 2).toFixed(1)}" y="${(h >= 0 ? y0 - h : y0).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.abs(h).toFixed(1)}" rx="1" fill="${C.pos}" fill-opacity="0.55"/>`;
+    bars += `<rect x="${(x - bw / 2).toFixed(1)}" y="${(h >= 0 ? y0 - h : y0).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.abs(h).toFixed(1)}" rx="1" fill="${C.pos}" fill-opacity="0.55"/>`;
   });
+  s += `<g clip-path="url(#impclip${exp ? "e" : ""})">${bars}</g>`;
   s += `<line x1="${L}" x2="${R}" y1="${y0}" y2="${y0}" stroke="${C.axis}" stroke-dasharray="2 3"/>`;
 
-  // puntos de volatilidad, cierre anterior y spot
-  const hb = d.hub || {};
-  const vline = (v, col, label, row) => {
-    if (v == null || v < x0 || v > x1) return "";
-    const x = xOf(v), y = T - 8 - row * (fs + 8);
-    return `<line x1="${x}" x2="${x}" y1="${T - 4}" y2="${B}" stroke="${col}" stroke-width="1.6"/>` +
-      `<text x="${x + 5}" y="${y}" font-family="${SANS}" font-size="${fs}" font-weight="600" fill="${col}">${label}</text>`;
-  };
-  let row = 0;
-  for (const [v, col, lab] of [[hb.low_vol_point, C.put, "Baja volatilidad"], [hb.high_vol_point, C.amber, "Alta volatilidad"], [d.prev_close, HUB_LAST, "Cierre anterior"]]) {
-    if (v == null) continue;
-    s += vline(v, col, `${lab} ${lab === "Cierre anterior" ? fmtSpot(v) : fmtLevel(v)}`, row++);
-  }
+  // puntos de volatilidad y cierre anterior (con su etiqueta en filas sobre el grafico)
+  labs.forEach(([v, col, lab], row) => {
+    const x = xOf(v), y = T - 10 - row * (fs + 8);
+    const t = `${lab} ${lab === "Cierre anterior" ? fmtSpot(v) : fmtLevel(v)}`;
+    const tx = Math.min(x + 5, R - textW(t, fs) - 2);
+    s += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${B}" stroke="${col}" stroke-width="1.6"/>` +
+      `<text x="${tx}" y="${y}" font-family="${SANS}" font-size="${fs}" font-weight="600" fill="${col}">${t}</text>`;
+  });
   const sx = xOf(d.spot);
-  if (d.spot >= x0 && d.spot <= x1) s += `<line x1="${sx}" x2="${sx}" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-dasharray="1 3" stroke-opacity=".8"/>`;
+  s += `<line x1="${sx}" x2="${sx}" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-dasharray="1 3" stroke-opacity=".8"/>`;
+  s += txt(sx + 4, B - 6, `Spot ${fmtSpot(d.spot)}`, { fs: fs - 0.5, c: C.muted });
   // niveles clave (opcionales)
   if (state.showLevels) {
     let lastLx = -99;
-    for (const it of levelItems(d).sort((a, b) => a.v - b.v)) {
+    for (const it of levelItems(d).sort((a, c) => a.v - c.v)) {
       if (it.v < x0 || it.v > x1) continue;
-      const x = xOf(it.v);
-      const room = x - lastLx >= fs + 3;
+      const x = xOf(it.v), room = x - lastLx >= fs + 3;
       if (room) lastLx = x;
       s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${it.c}" stroke-dasharray="4 4" stroke-opacity=".75"/>` +
-        (room ? `<text transform="translate(${x - 4},${B - 6}) rotate(-90)" font-family="${SANS}" font-size="${fs - 0.5}" fill="${it.c}">${it.tag} ${fmtLevel(it.v)}</text>` : "");
+        (room ? `<text transform="translate(${x - 4},${B - 22}) rotate(-90)" font-family="${SANS}" font-size="${fs - 0.5}" fill="${it.c}">${it.tag} ${fmtLevel(it.v)}</text>` : "");
     }
   }
-  // curvas
-  const path = (Y) => Y.map((v, i) => `${i ? "L" : "M"}${xOf(P.x[i]).toFixed(1)},${yOf(v).toFixed(1)}`).join("");
-  if (P.front) s += `<path d="${path(P.front)}" fill="none" stroke="${C.neg}" stroke-width="2"/>`;
-  s += `<path d="${path(P.y)}" fill="none" stroke="${C.pos}" stroke-width="2.4"/>`;
+  // lineas
+  const path = (A) => A.map((v, i) => `${i ? "L" : "M"}${xOf(X[i]).toFixed(1)},${yOf(v).toFixed(1)}`).join("");
+  const wkLab = `Vencimiento ${ddmm(P.week_exp || d.front_expiry)}`;
+  s += `<g clip-path="url(#impclip${exp ? "e" : ""})">`;
+  if (Wk) s += `<path d="${path(Wk)}" fill="none" stroke="${C.neg}" stroke-width="2"/>`;
+  s += `<path d="${path(Y)}" fill="none" stroke="${C.pos}" stroke-width="2.4"/></g>`;
   // leyenda
-  const leg = [["Gamma total (línea)", C.pos], [`Próximo vencimiento, ${ddmm(d.front_expiry)} (línea)`, C.neg], ["Gamma neta por strike (barras)", C.pos, "bar"]];
-  let lx = L, ly = 16;
+  const leg = [["Gamma total, todos los vencimientos del filtro", C.pos], [wkLab, C.neg], ["Gamma neta por strike", C.pos, "bar"]];
+  let lx = L, ly = titleH + 16;
   for (const [lab, c, kind] of leg) {
     const w = textW(lab, fs) + 30;
     if (lx + w > R && lx > L) { lx = L; ly += fs + 8; }
@@ -100,17 +114,17 @@ function renderImpact(d, W, H) {
     s += txt(lx + 22, ly + 2, lab, { fs, c: C.muted });
     lx += w;
   }
-  s += `<g id="cross" visibility="hidden"><line id="crossL" y1="${T}" y2="${B}" stroke="${C.muted}" stroke-dasharray="2 3"/><circle id="crossC" r="4" fill="${C.pos}"/><circle id="crossF" r="3.5" fill="${C.neg}"/></g>`;
-  s += watermark(d, L, B, fs, false);
-  state.geo = { kind: "impact", left: L, right: R, top: T, bottom: B, xOf, yOf, x0, x1, ks, vs };
-  return frame(W, H, s, d, false, "Impacto calls y puts");
+  if (!exp) s += `<g id="cross" visibility="hidden"><line id="crossL" y1="${T}" y2="${B}" stroke="${C.muted}" stroke-dasharray="2 3"/><circle id="crossC" r="4" fill="${C.pos}"/><circle id="crossF" r="3.5" fill="${C.neg}"/></g>`;
+  s += watermark(d, L, B, fs, exp);
+  if (!exp) state.geo = { kind: "impact", left: L, right: R, top: T, bottom: B, xOf, yOf, x0, x1, ks, vs, X, Y, Wk, wkLab };
+  return frame(W, H, s, d, exp, "Impacto calls y puts");
 }
 
 function impactTip(d, g, x, svg) {
-  const X = d.profile.x, Y = d.profile.y, F = d.profile.front;
+  const X = g.X, Y = g.Y, F = g.Wk;
   const v = g.x0 + ((x - g.left) / (g.right - g.left)) * (g.x1 - g.x0);
-  let j = X.findIndex((xx) => xx >= v); if (j <= 0) j = 1;
-  const t = (v - X[j - 1]) / (X[j] - X[j - 1]);
+  let j = X.findIndex((xx) => xx >= v); if (j <= 0) j = 1; if (j >= X.length) j = X.length - 1;
+  const t = Math.max(0, Math.min(1, (v - X[j - 1]) / (X[j] - X[j - 1])));
   const yv = Y[j - 1] + t * (Y[j] - Y[j - 1]);
   const fv = F ? F[j - 1] + t * (F[j] - F[j - 1]) : null;
   let bi = -1, bd = Infinity;
@@ -120,11 +134,10 @@ function impactTip(d, g, x, svg) {
   svg.querySelector("#crossL").setAttribute("x1", x); svg.querySelector("#crossL").setAttribute("x2", x);
   svg.querySelector("#crossC").setAttribute("cx", x); svg.querySelector("#crossC").setAttribute("cy", g.yOf(yv));
   if (fv != null) { svg.querySelector("#crossF").setAttribute("cx", x); svg.querySelector("#crossF").setAttribute("cy", g.yOf(fv)); }
-  return `<div class="t">Strike ${fmtSpot(bi >= 0 ? g.ks[bi] : v)}</div>
-    <div class="r"><span style="color:${C.pos}">Gamma total (línea)</span><b>${fmtBig(yv, true)}</b></div>
-    ${fv != null ? `<div class="r"><span style="color:${C.neg}">Próximo vencimiento</span><b>${fmtBig(fv, true)}</b></div>` : ""}
-    ${bi >= 0 ? `<div class="r">Gamma neta en ${fmtLevel(g.ks[bi])} (barra)<b>${fmtBig(g.vs[bi], true)}</b></div>` : ""}
-    <div class="r">Distancia al spot <b>${fmtPct((v / d.spot - 1) * 100)}</b></div>`;
+  return `<div class="t">Precio ${fmtSpot(v)} <span style="color:var(--faint);font-weight:400">(${fmtPct((v / d.spot - 1) * 100)})</span></div>
+    <div class="r"><span style="color:${C.pos}">Gamma total</span><b>${fmtBig(yv, true)}</b></div>
+    ${fv != null ? `<div class="r"><span style="color:${C.neg}">${g.wkLab}</span><b>${fmtBig(fv, true)}</b></div>` : ""}
+    ${bi >= 0 ? `<div class="r">Barra del strike ${fmtLevel(g.ks[bi])}<b>${fmtBig(g.vs[bi], true)}</b></div>` : ""}`;
 }
 
 /* ------------------------------------------------------------ ficha y lista */

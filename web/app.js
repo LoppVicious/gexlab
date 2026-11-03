@@ -1001,7 +1001,7 @@ function setView(v) {
   $("mapSeg").hidden = v !== "map";
   $("sessSeg").hidden = v !== "map";
   $("caption").textContent = v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente"
-    : v === "impact" ? "Líneas: gamma total y del próximo vencimiento si el precio estuviera en cada nivel. Barras: gamma neta en cada strike" : "";
+    : v === "impact" ? "Líneas: gamma total de los vencimientos del filtro y del próximo vencimiento semanal si el precio estuviera en cada nivel. Barras: gamma neta de cada strike al precio actual" : "";
   mapCaption();
   $("tip").hidden = true;
   draw();
@@ -1099,6 +1099,7 @@ function chartPngBlob() {
   const W = 2000, H = isMap ? 1000 : 680, scale = 1.5;
   const geo = state.geo;
   const svg = isMap ? renderMap(d, state.heat, W, H, true)
+    : state.view === "impact" ? renderImpact(d, W, H, true)
     : state.view === "profile" ? renderProfile(d, W, H, true) : renderStrike(d, W, H, true);
   state.geo = geo;
   return new Promise((resolve, reject) => {
@@ -1125,7 +1126,7 @@ async function exportPNG() {
   const b = await chartPngBlob();
   const a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = `GEX_${d.symbol}_${(d.computed_at || "").slice(0, 10)}_${{ profile: "perfil", map: "mapa" }[state.view] || "strikes"}.png`;
+  a.download = `GEX_${d.symbol}_${(d.computed_at || "").slice(0, 10)}_${{ profile: "perfil", map: "mapa", impact: "impacto" }[state.view] || "strikes"}.png`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
@@ -2246,11 +2247,11 @@ const GLOSSARY = {
   lowvol: { t: "Punto de baja volatilidad", c: C.put,
     what: "El nivel de precio en el que la gamma total de los dealers sería máxima (el pico de la línea de gamma total).",
     use: "Cerca de este precio la cobertura de los dealers frena más los movimientos: es donde se espera menos volatilidad realizada y donde el precio tiende a quedarse.",
-    calc: "Máximo de la gamma total recalculada en cada precio hipotético del rango; si el máximo está en el borde del rango, se indica fuera de rango." },
+    calc: "Máximo de la gamma total recalculada en cada precio hipotético dentro del rango elegido (±%). Si el máximo cae en el borde del rango, se indica fuera de rango: amplía el rango para verlo." },
   highvol: { t: "Punto de alta volatilidad", c: C.amber,
     what: "El nivel de precio en el que la gamma total sería más negativa (el valle de la línea de gamma total).",
     use: "Cerca de este precio la cobertura de los dealers amplifica los movimientos: es la zona donde se espera más volatilidad realizada.",
-    calc: "Mínimo de la gamma total recalculada en cada precio hipotético del rango; si está en el borde del rango, se indica fuera de rango." },
+    calc: "Mínimo de la gamma total recalculada en cada precio hipotético dentro del rango elegido (±%). Si cae en el borde del rango, se indica fuera de rango: amplía el rango para verlo." },
   call_wall: { t: "Call Wall", c: C.call,
     what: "El strike con más gamma neta positiva por encima del precio: la mayor concentración de calls, una vez descontadas las puts del mismo strike.",
     use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls.",

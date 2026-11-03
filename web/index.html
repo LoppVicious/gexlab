@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0c111a">
+<title>GEX Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand" aria-label="GEX Lab">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="2" y="11" width="3" height="8" rx="1" fill="#d9775f"/>
+      <rect x="7" y="11" width="3" height="5" rx="1" fill="#d9775f"/>
+      <rect x="12" y="6" width="3" height="5" rx="1" fill="#4b8fd6"/>
+      <rect x="17" y="3" width="3" height="8" rx="1" fill="#4b8fd6"/>
+      <line x1="1" y1="11" x2="21" y2="11" stroke="#8a93a3" stroke-width="1"/>
+    </svg>
+    <span>GEX Lab</span>
+  </div>
+
+  <div class="modes" role="tablist" aria-label="Sección">
+    <button role="tab" id="modeSummary" aria-selected="false">Resumen</button>
+    <button role="tab" id="modeAnalysis" aria-selected="true">Análisis</button>
+    <button role="tab" id="modeScanner" aria-selected="false">Escáner</button>
+    <button role="tab" id="modeVix" aria-selected="false">Curva VIX</button>
+    <button role="tab" id="modeCot" aria-selected="false">COT</button>
+  </div>
+
+  <form class="ticker" id="tickerForm" autocomplete="off">
+    <label for="symbol" class="sr">Ticker</label>
+    <input id="symbol" name="symbol" value="SPX" spellcheck="false" maxlength="40" role="combobox" aria-autocomplete="list" aria-controls="suggest" aria-expanded="false" placeholder="Ticker o empresa" title="Pulsa / para escribir un ticker">
+    <button type="submit" class="go">Cargar</button>
+    <ul class="suggest" id="suggest" role="listbox" aria-label="Sugerencias" hidden></ul>
+  </form>
+
+  <nav class="quick" id="quick" aria-label="Tickers rápidos">
+    <button data-s="SPX">SPX</button><button data-s="NDX">NDX</button><button data-s="RUT">RUT</button>
+    <button data-s="SPY">SPY</button><button data-s="QQQ">QQQ</button><button data-s="IWM">IWM</button>
+  </nav>
+
+  <div class="statusbox">
+    <div class="status" id="status" aria-live="polite"></div>
+    <button class="iconbtn" id="refreshBtn" title="Volver a descargar los datos de CBOE" aria-label="Actualizar datos">
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <span class="userbox" id="userBox" hidden><span id="userName"></span><button class="linkbtn" id="logoutBtn" title="Cerrar sesión">Salir</button></span>
+    <button class="switch" id="autoToggle" role="switch" aria-checked="false" title="Recalcula cada 5 minutos y avisa cuando el precio cruza un nivel">
+      <span class="track"><span class="knob"></span></span><span class="sw-label">Auto</span>
+    </button>
+  </div>
+</header>
+
+<section class="controls" aria-label="Ajustes">
+  <div class="ctl">
+    <span class="cap" id="capDte">Vencimientos</span>
+    <div class="seg boxed" role="radiogroup" aria-labelledby="capDte" id="dteSeg">
+      <button role="radio" data-v="0">0DTE</button>
+      <button role="radio" data-v="7">7 días</button>
+      <button role="radio" data-v="45">45 días</button>
+      <button role="radio" data-v="all">Todos</button>
+    </div>
+  </div>
+  <div class="ctl only-analysis">
+    <span class="cap" id="capRange">Rango</span>
+    <div class="rangebox">
+      <div class="seg boxed" role="radiogroup" aria-labelledby="capRange" id="rangeSeg">
+        <button role="radio" data-v="auto" id="rangeAuto" title="Se adapta a la volatilidad: 3 desviaciones típicas de la próxima sesión (o de lo que queda de hoy). Útil con 0DTE">Auto</button>
+        <button role="radio" data-v="3">±3%</button>
+        <button role="radio" data-v="5">±5%</button>
+        <button role="radio" data-v="8">±8%</button>
+      </div>
+      <label class="rangein" title="Rango manual: escribe el % y pulsa Enter (0,3 a 30)">±<input id="rangeInput" inputmode="decimal" placeholder="otro" maxlength="5" aria-label="Rango manual en %">%</label>
+    </div>
+  </div>
+  <div class="ctl only-analysis model">
+    <span class="cap">Modelo</span>
+    <div class="modelrow">
+      <button class="setbtn" id="settingsBtn" aria-expanded="false" aria-controls="settingsPanel">
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 12h3M8 12h6M9 2.5v3M5 10.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6.5" cy="12" r="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        Ajustes
+      </button>
+      <div class="chips" id="chips"><span class="chip-default" id="chipDefault">Convención estándar</span></div>
+    </div>
+
+    <div class="panel" id="settingsPanel" role="dialog" aria-label="Ajustes del modelo" hidden>
+      <div class="prow">
+        <div class="ptext">
+          <div class="ptitle">Posición de los dealers</div>
+          <p>Estándar: largos de calls y cortos de puts. Flujo: estimada con el cambio de open interest y el lado de las operaciones de cada día (beta).</p>
+        </div>
+        <div class="seg boxed" role="radiogroup" aria-label="Posición de los dealers" id="posSeg">
+          <button role="radio" data-v="standard">Estándar</button>
+          <button role="radio" data-v="flow">Flujo</button>
+        </div>
+      </div>
+      <div class="prow" id="comboRow">
+        <div class="ptext">
+          <div class="ptitle" id="comboTitle">Sumar el ETF</div>
+          <p id="comboHelp">Añade las opciones del ETF al índice, convertidas a sus unidades, como los niveles combo.</p>
+        </div>
+        <button class="switch" id="comboToggle" role="switch" aria-checked="false" aria-labelledby="comboTitle">
+          <span class="track"><span class="knob"></span></span>
+        </button>
+      </div>
+      <div class="prow">
+        <div class="ptext">
+          <div class="ptitle"><label for="spotInput">Spot manual</label></div>
+          <p>Recalcula los niveles con otro precio, por ejemplo el implícito por futuros. Vacío para usar el de mercado.</p>
+        </div>
+        <input id="spotInput" class="spotin" inputmode="decimal" placeholder="mercado">
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="stage">
+  <aside class="ladder" aria-label="Niveles">
+    <div class="headline">
+      <div class="sym" id="hSym">—</div>
+      <div class="cname" id="hName"></div>
+      <div class="price" id="hSpot">—</div>
+      <div class="chg" id="hChg"></div>
+    </div>
+    <p class="regime" id="regime"></p>
+
+    <ol class="levels" id="levels"></ol>
+
+    <div class="split" id="split" hidden>
+      <div class="split-head"><span data-g="gex1">GEX neta por 1%</span><strong id="netPct">—</strong></div>
+      <div class="split-prev" id="netPrev"></div>
+      <div class="split-bar"><i class="c" id="splitC"></i><i class="p" id="splitP"></i></div>
+      <div class="split-foot"><span id="callPct"></span><span id="putPct"></span></div>
+    </div>
+
+    <div class="facts" id="facts" hidden>
+      <div class="fact">
+        <span class="fl" id="emLabel" data-g="range1s">Rango 1σ, 1 sesión</span>
+        <strong id="emVal">—</strong>
+        <span class="fs" id="emRange"></span>
+      </div>
+      <div class="fact">
+        <span class="fl" data-g="vanna">Vanna, si la IV cae 1 pt</span>
+        <strong id="vannaVal">—</strong>
+        <span class="fs" id="vannaSub"></span>
+      </div>
+      <div class="fact">
+        <span class="fl" data-g="charm" id="charmLabel">Charm, por un día</span>
+        <strong id="charmVal">—</strong>
+        <span class="fs" id="charmSub"></span>
+      </div>
+      <div class="fact">
+        <span class="fl" id="frontLabel" data-g="front">Próximo vencimiento</span>
+        <strong id="frontVal">—</strong>
+        <span class="fs">de la gamma total del filtro</span>
+      </div>
+    </div>
+
+    <dl class="meta" id="meta"></dl>
+  </aside>
+
+  <section class="chartwrap">
+    <div class="chart-head">
+      <div class="tabs" role="tablist" aria-label="Vista">
+        <button role="tab" id="tabStrike" aria-selected="true">Por strike</button>
+        <button role="tab" id="tabProfile" aria-selected="false">Perfil</button>
+        <button role="tab" id="tabMap" aria-selected="false">Mapa</button>
+      </div>
+      <div class="seg compact" role="radiogroup" aria-label="Griega" id="greekSeg">
+        <button role="radio" data-v="gamma" title="Exposición gamma">Gamma</button>
+        <button role="radio" data-v="vanna" title="Compras o ventas de cobertura si la volatilidad implícita cae 1 punto">Vanna</button>
+        <button role="radio" data-v="charm" title="Compras o ventas de cobertura por el paso de un día">Charm</button>
+      </div>
+      <div class="seg compact" role="radiogroup" aria-label="Barras" id="barsSeg">
+        <button role="radio" data-v="net" title="GEX neta por strike">Neta</button>
+        <button role="radio" data-v="split" title="Calls hacia arriba, puts hacia abajo">Calls y puts</button>
+        <button role="radio" data-v="expiry" title="Separa el vencimiento más próximo del resto">Vencimiento</button>
+      </div>
+      <div class="seg compact" role="radiogroup" aria-label="Color del mapa" id="mapSeg" hidden>
+        <button role="radio" data-v="strike" title="Gamma concentrada en cada strike, como TRACE">Por strike</button>
+        <button role="radio" data-v="total" title="GEX total del mercado si el precio estuviera en ese nivel">Total</button>
+      </div>
+      <div class="seg compact" role="radiogroup" aria-label="Sesión del mapa" id="sessSeg" hidden>
+        <button role="radio" data-v="last" title="Repite la última sesión con sus velas">Última sesión</button>
+        <button role="radio" data-v="next" title="Proyección de la siguiente sesión">Próxima</button>
+      </div>
+      <button class="toggle" id="levelsToggle" aria-pressed="true" hidden>Niveles</button>
+      <p class="chart-caption" id="caption"></p>
+      <button class="ghost" id="reportBtn" title="Imagen con los niveles, el gráfico por strike y el mapa">Informe</button>
+      <button class="ghost" id="copyBtn" title="Copia la imagen del gráfico al portapapeles para pegarla con Ctrl+V">Copiar</button>
+      <button class="ghost" id="exportBtn">Exportar PNG</button>
+    </div>
+    <div class="chart" id="chart" role="img" aria-label="Exposición gamma por strike">
+      <div class="placeholder" id="placeholder">Escribe un ticker y pulsa Cargar.</div>
+    </div>
+    <div class="tip" id="tip" hidden></div>
+  </section>
+</main>
+
+<main class="scanner" id="scanner" hidden>
+  <div class="scan-bar">
+    <form class="addbox" id="addForm" autocomplete="off">
+      <label for="addInput" class="sr">Añadir ticker</label>
+      <input id="addInput" placeholder="Añadir ticker" spellcheck="false" maxlength="10">
+      <button type="submit" class="ghost">Añadir</button>
+    </form>
+    <div class="modes small" role="tablist" aria-label="Vista del escáner">
+      <button role="tab" id="svTable" aria-selected="true">Tabla</button>
+      <button role="tab" id="svCompass" aria-selected="false">Compass</button>
+      <button role="tab" id="svValid" aria-selected="false">Validación</button>
+    </div>
+    <div class="seg only-table" role="radiogroup" aria-label="Filtro de régimen" id="regimeSeg">
+      <button role="radio" data-v="all">Todos</button>
+      <button role="radio" data-v="negative">Gamma negativa</button>
+      <button role="radio" data-v="positive">Gamma positiva</button>
+    </div>
+    <div class="spacer"></div>
+    <span class="collector" id="collector"></span>
+    <span class="scan-status" id="scanStatus"></span>
+    <button class="ghost" id="scanBtn">Actualizar escáner</button>
+  </div>
+  <div class="compasswrap" id="compassWrap" hidden>
+    <div class="compass" id="compass" role="img" aria-label="Compass de volatilidad"></div>
+    <div class="tip" id="ctip" hidden></div>
+    <p class="scan-note" id="compassNote"></p>
+  </div>
+  <div class="validwrap" id="validWrap" hidden>
+    <div class="validbar">
+      <span class="cap" id="capValid">Posición de los dealers</span>
+      <div class="seg boxed" role="radiogroup" aria-labelledby="capValid" id="validModeSeg">
+        <button role="radio" data-v="standard">Estándar</button>
+        <button role="radio" data-v="flow">Flujo</button>
+      </div>
+    </div>
+    <div class="tablewrap">
+      <table class="scan" id="validTable">
+        <thead><tr>
+          <th class="l">Ticker</th>
+          <th title="Sesiones con niveles guardados y precio disponible">Sesiones</th>
+          <th title="Rango medio (máximo − mínimo) en sesiones con GEX neta positiva">Rango, gamma +</th>
+          <th title="Rango medio en sesiones con GEX neta negativa">Rango, gamma −</th>
+          <th title="Sesiones en que el máximo no superó el Call Wall">Call Wall respetado</th>
+          <th title="Sesiones en que el mínimo no perforó el Put Wall">Put Wall respetado</th>
+          <th title="Sesiones en que el cierre quedó dentro del rango de 1 desviación típica de 1 sesión (68,3% en teoría)">Dentro del rango 1σ</th>
+        </tr></thead>
+        <tbody id="validBody"></tbody>
+      </table>
+    </div>
+    <p class="scan-note">Cada sesión se evalúa solo con niveles conocidos antes de que empezara: los calculados antes de la apertura (el recolector los guarda en la hora y cuarto previa a la apertura de Wall Street, de 14:30 a 15:45 en España) o, si no los hay, los del cierre de la sesión anterior. Se comparan con el máximo, el mínimo y el cierre reales. Con pocas sesiones los porcentajes no son significativos.</p>
+  </div>
+  <div class="tablewrap" id="tableWrap">
+    <table class="scan" id="scanTable">
+      <thead><tr>
+        <th data-k="symbol" class="l">Ticker</th>
+        <th data-k="spot">Precio</th>
+        <th data-k="chg">Var.</th>
+        <th data-k="regime" class="l">Régimen</th>
+        <th data-k="flip_dist" title="Gamma Flip y distancia desde el precio">Gamma Flip</th>
+        <th data-k="call_dist" title="Call Wall y distancia desde el precio">Call Wall</th>
+        <th data-k="put_dist" title="Put Wall y distancia desde el precio">Put Wall</th>
+        <th data-k="net_per_pct" title="GEX neta por cada 1% de movimiento">GEX 1%</th>
+        <th data-k="em_pct" title="Rango de 1 desviación típica (68,3%) para la próxima sesión, implícito en las opciones">Rango 1σ</th>
+        <th data-k="front_share" title="Parte de la gamma que vence en el próximo vencimiento">Próx. venc.</th>
+        <th class="x"><span class="sr">Quitar</span></th>
+      </tr></thead>
+      <tbody id="scanBody"></tbody>
+    </table>
+  </div>
+  <p class="scan-note only-table" id="tableNote">Haz clic en una fila para abrir el análisis completo. Las flechas indican cambios respecto a la sesión anterior guardada.</p>
+</main>
+
+<main class="macro" id="sumView" hidden>
+  <div class="sumhead">
+    <div>
+      <h1 class="sumtitle">Resumen de mercado</h1>
+      <p class="sumsub" id="sumSub"></p>
+    </div>
+    <p class="sumsess" id="sumSess"></p>
+  </div>
+  <div class="sumgrid" id="sumIdx"></div>
+  <div class="sumgrid two">
+    <section class="scard link" id="sumVix" data-go="vix"></section>
+    <section class="scard link" id="sumCot" data-go="cot"></section>
+  </div>
+  <p class="scan-note">Índices con vencimientos de hasta 45 días y convención estándar de dealers. Haz clic en una tarjeta para abrir su detalle.</p>
+</main>
+
+<main class="macro" id="vixView" hidden>
+  <aside class="mside" aria-label="Resumen de la curva">
+    <div class="mhead">
+      <div class="sym">Futuros del VIX</div>
+      <div class="mstate" id="vxState">—</div>
+      <div class="msub" id="vxSub"></div>
+    </div>
+    <p class="regime" id="vxRead"></p>
+    <div class="facts" id="vxFacts"></div>
+    <p class="mnote"><b>Contango:</b> los vencimientos lejanos cotizan por encima de los cercanos; lo normal con el mercado tranquilo. <b>Backwardation:</b> los cercanos cotizan más caros; se paga por protección inmediata y suele coincidir con caídas.</p>
+  </aside>
+  <section class="mcharts">
+    <div class="mchart-head">
+      <span class="mtitle">Estructura temporal</span>
+      <p class="chart-caption" id="vxCap"></p>
+    </div>
+    <div class="mchart" id="vxCurve" role="img" aria-label="Curva de futuros del VIX"></div>
+    <div class="mchart-head">
+      <span class="mtitle">Contango del M2 sobre el M1, último año</span>
+      <p class="chart-caption">Verde, contango; rojo, backwardation; gris, plano (menos del 0,5%). La línea es el VIX al cierre.</p>
+    </div>
+    <div class="mchart short" id="vxHist" role="img" aria-label="Historia del contango"></div>
+    <div class="tip" id="vxTip" hidden></div>
+  </section>
+</main>
+
+<main class="macro cot" id="cotView" hidden>
+  <div class="scan-bar">
+    <span class="cotdate" id="cotDate"></span>
+    <div class="ctl inline">
+      <span class="cap" id="capCotWin">Índice COT</span>
+      <div class="seg boxed" role="radiogroup" aria-labelledby="capCotWin" id="cotWinSeg">
+        <button role="radio" data-v="3y" title="Posición de la neta actual dentro de su rango de 3 años">3 años</button>
+        <button role="radio" data-v="1y" title="Posición de la neta actual dentro de su rango de 1 año">1 año</button>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <span class="scan-status" id="cotStatus"></span>
+  </div>
+  <div class="tablewrap">
+    <table class="scan cottable" id="cotTable">
+      <thead>
+        <tr class="grp"><th class="l" rowspan="2">Mercado</th><th rowspan="2" title="Contratos abiertos y cambio semanal">Open interest</th>
+          <th colspan="2" class="gh"><span data-g="asset_mgr">Gestoras</span></th>
+          <th colspan="2" class="gh"><span data-g="lev_money">Fondos apalancados</span></th>
+          <th colspan="2" class="gh"><span data-g="dealer">Dealers</span></th></tr>
+        <tr class="sub"><th>Neta (Δ semana)</th><th class="l"><span data-g="cot_index">Índice</span></th><th>Neta (Δ semana)</th><th class="l"><span data-g="cot_index">Índice</span></th><th>Neta (Δ semana)</th><th class="l"><span data-g="cot_index">Índice</span></th></tr>
+      </thead>
+      <tbody id="cotBody"></tbody>
+    </table>
+  </div>
+  <div class="cotdetail" id="cotDetail" hidden>
+    <div class="mchart-head">
+      <span class="mtitle" id="cotTitle"></span>
+      <p class="chart-caption" id="cotCap"></p>
+    </div>
+    <div class="mchart" id="cotChart" role="img" aria-label="Historia del posicionamiento"></div>
+    <div class="tip" id="cotTip" hidden></div>
+  </div>
+  <p class="scan-note">Informe Traders in Financial Futures de la CFTC, solo futuros. Posiciones a cierre del martes, publicadas el viernes a las 15:30 ET (21:30 en Barcelona; 20:30 en las semanas en que los cambios de hora de Europa y EE. UU. no coinciden). Neta = largos − cortos, en contratos. El índice sitúa la neta actual dentro de su rango (0 = la más corta del periodo, 100 = la más larga); por encima de 90 o por debajo de 10 se marca como extremo. En los bonos, los fondos apalancados están cortos de forma estructural por el basis trade (compran el bono al contado y venden el futuro) y las gestoras largas: compara cada grupo con su propio rango, no el signo. Haz clic en un mercado para ver su historia.</p>
+</main>
+
+<footer class="foot">
+  Datos diferidos de CBOE (~15 min). El open interest es el del cierre anterior. Signo de dealer según la convención estándar: largos de calls, cortos de puts. El Volatility Trigger (Hedge Wall en acciones) es una aproximación propia, no el nivel de SpotGamma.
+</footer>
+
+<div class="toasts" id="toasts" aria-live="assertive"></div>
+<script src="me.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

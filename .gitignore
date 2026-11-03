@@ -1,0 +1,13 @@
+# datos: nunca en el repositorio (es publico)
+history/
+cache/
+data/
+watchlist.json
+servidor/servidor.txt
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+salida/
+estado/
+fx/

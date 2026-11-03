@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0c111a">
+<title>GEX Lab · Acceso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink: #0c111a; --surface: #121823; --line: #222b39; --text: #e6e9ef; --muted: #8a93a3; --faint: #5d6676; --call: #e05d57; --focus: #7fb0ff; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--ink); color: var(--text); font: 15px/1.45 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; align-items: center; justify-content: center; padding: 16px; -webkit-font-smoothing: antialiased;
+  }
+  .card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 30px 28px 26px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin-bottom: 6px; }
+  .sub { color: var(--faint); font-size: 13px; margin: 0 0 24px; }
+  label { display: block; color: var(--muted); font-size: 12.5px; margin: 0 0 6px 2px; }
+  input {
+    width: 100%; background: var(--ink); border: 1px solid var(--line); border-radius: 10px; color: var(--text);
+    font: inherit; padding: 11px 13px; margin-bottom: 16px; outline: none;
+  }
+  input:focus { border-color: #33415a; }
+  button {
+    width: 100%; margin-top: 4px; border: 0; border-radius: 10px; padding: 11px 14px; font: inherit; font-weight: 500;
+    background: #26344a; color: var(--text); cursor: pointer;
+  }
+  button:hover { background: #2e3f59; }
+  button:disabled { opacity: .55; cursor: default; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .err { min-height: 20px; color: var(--call); font-size: 13px; margin: 12px 2px 0; }
+  .foot { color: var(--faint); font-size: 12px; text-align: center; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main class="card">
+  <div class="brand">
+    <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="2" y="11" width="3" height="8" rx="1" fill="#d9775f"/><rect x="7" y="11" width="3" height="5" rx="1" fill="#d9775f"/>
+      <rect x="12" y="6" width="3" height="5" rx="1" fill="#4b8fd6"/><rect x="17" y="3" width="3" height="8" rx="1" fill="#4b8fd6"/>
+      <line x1="1" y1="11" x2="21" y2="11" stroke="#8a93a3" stroke-width="1"/>
+    </svg>
+    GEX Lab
+  </div>
+  <p class="sub">Acceso privado</p>
+  <form id="f" autocomplete="on">
+    <label for="user">Usuario</label>
+    <input id="user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="pw">Contraseña</label>
+    <input id="pw" name="password" type="password" autocomplete="current-password" required>
+    <button id="go" type="submit">Entrar</button>
+    <p class="err" id="err" role="alert"></p>
+  </form>
+  <p class="foot">Las cuentas las crea el administrador.</p>
+</main>
+<script>
+  "use strict";
+  const f = document.getElementById("f"), err = document.getElementById("err"), go = document.getElementById("go");
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    err.textContent = ""; go.disabled = true; go.textContent = "Entrando…";
+    try {
+      const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: document.getElementById("user").value, password: document.getElementById("pw").value }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "No se pudo iniciar sesión");
+      location.replace("/");
+    } catch (x) {
+      err.textContent = x.message === "Failed to fetch" ? "El servidor no responde." : x.message;
+      go.disabled = false; go.textContent = "Entrar";
+      document.getElementById("pw").select();
+    }
+  });
+  document.getElementById("user").focus();
+</script>
+</body>
+</html>

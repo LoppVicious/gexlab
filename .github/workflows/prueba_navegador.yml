@@ -1,0 +1,22 @@
+name: Prueba motor en navegador
+on:
+  workflow_dispatch:
+jobs:
+  prueba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements.txt
+      - name: Motor nativo con datos reales
+        run: python pruebas/preparar.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Mismo motor en WebAssembly (Pyodide)
+        run: |
+          npm install --silent pyodide@0.27.7
+          node pruebas/navegador.mjs

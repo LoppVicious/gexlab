@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Despliegue en Cloudflare (lo ejecuta GitHub Actions). Idempotente.
-# Un solo Worker "gexlab": web (archivos estaticos), API, y reloj del motor (cron).
+# Un solo Worker "dashboard": web (archivos estaticos), API, y reloj del motor (cron).
 # Variables: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GH_DISPATCH_TOKEN, GEX_SETUP_CODE
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -13,7 +13,7 @@ if [ -z "$DBID" ]; then $W d1 create gexlab >/dev/null; DBID=$(dbid); fi
 [ -n "$DBID" ] || { echo "No se pudo crear la base de datos"; exit 1; }
 
 cat > wrangler.toml <<TOML
-name = "gexlab"
+name = "dashboard"
 main = "worker.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
@@ -49,3 +49,5 @@ echo "$OUT" | grep -Ei "https://" || true
 printf '%s' "$GEX_SETUP_CODE" | $W secret put GEX_SETUP_CODE >/dev/null
 printf '%s' "$GH_DISPATCH_TOKEN" | $W secret put GH_DISPATCH_TOKEN >/dev/null
 echo "    secretos al dia; reloj cada 15 min en horario de mercado"
+# la app se llamaba "gexlab": se borra el Worker antiguo para que su reloj no lance el motor dos veces
+$W delete --name gexlab --force >/dev/null 2>&1 && echo "    Worker antiguo eliminado" || true

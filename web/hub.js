@@ -33,17 +33,22 @@ function renderImpact(d, W, H, exp = false) {
   const xOf = (v) => L + ((v - x0) / (x1 - x0)) * (R - L);
   // eje izquierdo: lineas, siempre con el cero
   const ys = Y.concat(Wk || []);
-  const lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), pad = (hi - lo) * 0.08 || 1;
+  // barras por strike dentro del rango (se necesitan antes para reservar sitio a cada lado del cero)
+  const ks = [], vs = [];
+  d.strikes.forEach((k, i) => { if (k >= x0 && k <= x1) { ks.push(k); vs.push(d.net[i]); } });
+  const mp = Math.max(0, ...vs), mn = Math.max(0, ...vs.map((v) => -v));
+  let lo = Math.min(0, ...ys), hi = Math.max(0, ...ys);
+  const pad = (hi - lo) * 0.08 || 1;
+  // si las lineas no tienen parte positiva (o negativa) pero hay barras de ese signo, deja espacio para ellas
+  if (mp > 0 && hi <= 0) hi = (hi - lo) * 0.3 || 1;
+  if (mn > 0 && lo >= 0) lo = -((hi - lo) * 0.3 || 1);
   const yt = niceTicks(lo - (lo < 0 ? pad : 0), hi + (hi > 0 ? pad : 0), 6);
   const yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
   const y0 = yOf(0);
   // barras por strike (eje derecho): mismo cero; la mas alta llega como mucho al 88% del espacio de su lado
-  const ks = [], vs = [];
-  d.strikes.forEach((k, i) => { if (k >= x0 && k <= x1) { ks.push(k); vs.push(d.net[i]); } });
-  const mp = Math.max(0, ...vs), mn = Math.max(0, ...vs.map((v) => -v));
   const up = y0 - T, dn = B - y0;
   const kf = Math.min(mp > 0 ? (0.88 * up) / mp : Infinity, mn > 0 ? (0.88 * dn) / mn : Infinity);
-  const k = isFinite(kf) ? kf : 1;
+  const k = isFinite(kf) && kf > 0 ? kf : 1;
   const bY = (v) => y0 - v * k;
   let s = `<defs><clipPath id="impclip${exp ? "e" : ""}"><rect x="${L}" y="${T}" width="${R - L}" height="${B - T}"/></clipPath></defs>`;
   for (const v of yt.ticks) {
@@ -52,10 +57,10 @@ function renderImpact(d, W, H, exp = false) {
   }
   // ticks del eje derecho en valores redondos de las barras
   const bm = Math.max(mp, mn);
-  if (bm > 0) {
-    const st = niceStep(bm, 3);
-    for (let v = st; v * k <= up + 0.5; v += st) s += txt(R + 8, bY(v) + 4, fmtAxis(v), { fs, c: C.faint });
-    for (let v = st; v * k <= dn + 0.5; v += st) s += txt(R + 8, bY(-v) + 4, fmtAxis(-v), { fs, c: C.faint });
+  const st = bm > 0 ? niceStep(bm, 3) : 0;
+  if (st > 0 && isFinite(st)) {
+    for (let v = st; v * k <= up + 0.5 && v <= bm * 4; v += st) s += txt(R + 8, bY(v) + 4, fmtAxis(v), { fs, c: C.faint });
+    for (let v = st; v * k <= dn + 0.5 && v <= bm * 4; v += st) s += txt(R + 8, bY(-v) + 4, fmtAxis(-v), { fs, c: C.faint });
     s += txt(R + 8, y0 + 4, "0", { fs, c: C.faint });
   }
   const xt = niceTicks(x0, x1, exp ? 12 : narrow ? 4 : Math.max(5, Math.floor((R - L) / 95)));

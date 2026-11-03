@@ -8,15 +8,20 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - run: |
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-          for u in "https://fred.stlouisfed.org/releases/calendar?y=2026&m=12" "https://www.bls.gov/schedule/2026/12_sched.htm" "https://www.bls.gov/cpi/" ; do
-            code=$(curl -s -A "$UA" -H "Accept-Language: en-US,en;q=0.9" -H "Accept: text/html" -o /tmp/o -w '%{http_code}' -L --max-time 20 "$u"); echo "$code $(wc -c </tmp/o) $u"
-          done
-          curl -s -A "$UA" -L "https://fred.stlouisfed.org/releases/calendar?y=2026&m=12" > /tmp/f.html
-          python3 - <<'PY'
-          import re
-          t=open('/tmp/f.html',encoding='utf-8',errors='replace').read()
-          i=t.find('Consumer Price Index'); print(t[max(0,i-1500):i+300] if i>=0 else 'sin CPI')
-          print(sorted(set(re.findall(r'releases/(\d+)"[^>]*>([^<]{3,80})<', t)))[:60])
-          PY
+      - name: Fuentes
+        shell: python
+        run: |
+          import re, urllib.request
+          UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
+          def get(u):
+              try:
+                  r = urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.9", "Accept": "text/html"}), timeout=20)
+                  return r.status, r.read().decode("utf-8", "replace")
+              except Exception as e:
+                  return str(e)[:80], ""
+          for u in ["https://fred.stlouisfed.org/releases/calendar?y=2026&m=12", "https://www.bls.gov/schedule/2026/12_sched.htm"]:
+              c, t = get(u); print(c, len(t), u)
+          c, t = get("https://fred.stlouisfed.org/releases/calendar?y=2026&m=12")
+          i = t.find("Consumer Price Index")
+          print(t[max(0, i - 1200):i + 300] if i >= 0 else "sin CPI")
+          print(sorted(set(re.findall(r'release\?rid=(\d+)[^>]*>([^<]{3,80})<', t)))[:80])

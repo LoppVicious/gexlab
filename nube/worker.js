@@ -15,7 +15,7 @@ const HEX64 = /^[0-9a-f]{64}$/;
 const DEFAULT_WATCH = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM", "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA"];
 const MAX_WATCH = 40;
 const REPO = "LoppVicious/gexlab";
-const PUBLIC = new Set(["/login.html", "/setup.html", "/favicon.ico", "/api/sal", "/api/login", "/api/setup", "/api/setup/estado"]);
+const PUBLIC = new Set(["/login", "/login.html", "/setup", "/setup.html", "/favicon.ico", "/api/sal", "/api/login", "/api/setup", "/api/setup/estado"]);
 const POPULAR = new Set(`SPX NDX RUT VIX XSP SPY QQQ IWM DIA TLT GLD SLV USO HYG XLF XLE XLK SMH SOXL TQQQ ARKK
 AAPL MSFT NVDA AMZN GOOGL GOOG META TSLA AVGO AMD NFLX ORCL CRM ADBE INTC MU QCOM TSM ASML PLTR
 COIN MSTR HOOD SHOP UBER ABNB SNOW PYPL SQ BA DIS JPM BAC GS MS WFC C V MA BRK.B XOM CVX
@@ -398,14 +398,15 @@ export default {
       }
       if (PUBLIC.has(p)) {
         if (p.startsWith("/api/")) return await publicApi(req, env, url);
-        if (p === "/setup.html" && (await countUsers(env)) > 0) return redirect("/login.html");
-        if (p === "/login.html" && (await countUsers(env)) === 0) return redirect("/setup.html");
+        // las paginas se sirven sin ".html" (/login, /setup)
+        if (p.startsWith("/setup") && (await countUsers(env)) > 0) return redirect("/login");
+        if (p.startsWith("/login") && (await countUsers(env)) === 0) return redirect("/setup");
         return env.ASSETS.fetch(req);
       }
       const me = await sessionOf(req, env);
       if (!me) {
         if (p.startsWith("/api/")) return json(401, { error: "Sesión caducada: vuelve a iniciar sesión", login: true });
-        return redirect((await countUsers(env)) === 0 ? "/setup.html" : "/login.html");
+        return redirect((await countUsers(env)) === 0 ? "/setup" : "/login");
       }
       if (p === "/me.js") {
         const r = await env.DB.prepare("SELECT json FROM prefs WHERE usuario = ?").bind(me.user).first();

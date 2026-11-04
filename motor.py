@@ -93,11 +93,12 @@ def vista_canon(v: dict, symbol: str) -> dict:
     combo = "1" if str(v.get("combo", "0")) in ("1", "true", "True") and symbol in g.INDEX_PROXY else "0"
     pos = "flow" if v.get("pos") == "flow" and combo == "0" else "standard"
     sess = v.get("sess") if v.get("sess") in ("auto", "last", "next") else "auto"
-    return {"dte": dte, "range": rango_canon(v.get("range", "5")), "pos": pos, "combo": combo, "sess": sess}
+    model = "spotgamma" if v.get("model") == "spotgamma" else "gexbot"
+    return {"dte": dte, "range": rango_canon(v.get("range", "5")), "pos": pos, "combo": combo, "sess": sess, "model": model}
 
 
 def clave_niveles(v: dict) -> str:
-    return f"{v['dte']}_{v['range']}_{v['pos']}_{v['combo']}"
+    return f"{v['dte']}_{v['range']}_{v['pos']}_{v['combo']}" + ("_sg" if v.get("model") == "spotgamma" else "")
 
 
 def clave_mapa(v: dict) -> str:
@@ -380,7 +381,7 @@ def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
             v = vista_canon(v0, sym)
             kn, km = clave_niveles(v), clave_mapa(v)
             args = dict(max_dte=_dte_arg(v["dte"]), window_pct=_rango_arg(v["range"]),
-                        combine=v["combo"] == "1", positioning=v["pos"])
+                        combine=v["combo"] == "1", positioning=v["pos"], model=v["model"])
             try:
                 if kn not in hechas:
                     subir(st, f"pub/t/{sym}/niveles/{kn}.json", g.compute(sym, **args))
@@ -490,7 +491,7 @@ def tickers(args: list[str]) -> int:
         for v0 in cfg["vistas"]:
             v = vista_canon(v0, sym)
             args_ = dict(max_dte=_dte_arg(v["dte"]), window_pct=_rango_arg(v["range"]),
-                         combine=v["combo"] == "1", positioning=v["pos"])
+                         combine=v["combo"] == "1", positioning=v["pos"], model=v["model"])
             try:
                 subir(st, f"pub/t/{sym}/niveles/{clave_niveles(v)}.json", g.compute(sym, **args_))
                 subir(st, f"pub/t/{sym}/mapa/{clave_mapa(v)}.json", g.heatmap(sym, which=v["sess"], **args_))

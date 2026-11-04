@@ -137,7 +137,8 @@ async function syncConfig(env) {
     listas[r.lid] = syms;
     let p = {};
     try { p = JSON.parse(r.prefs || "{}"); } catch { /* sin preferencias */ }
-    const v = { dte: p.dte || "45", range: p.range || "auto", pos: p.pos || "standard", combo: p.combo || "0", sess: "auto" };
+    const v = { dte: p.dte || "45", range: p.range || "auto", pos: p.pos || "standard", combo: p.combo || "0", sess: "auto",
+      model: p.model === "spotgamma" ? "spotgamma" : "gexbot" };
     const k = JSON.stringify(v);
     if (!seen.has(k)) { seen.add(k); vistas.push(v); }
   }

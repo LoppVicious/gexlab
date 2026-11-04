@@ -132,6 +132,16 @@
     <div class="panel" id="settingsPanel" role="dialog" aria-label="Ajustes del modelo" hidden>
       <div class="prow">
         <div class="ptext">
+          <div class="ptitle">Motor de cálculo</div>
+          <p>gexbot: muros por GEX neta y flip por el cambio de signo de las barras por strike. SpotGamma: Call Wall de calls por encima del precio, Put Wall de puts por debajo, flip donde la gamma total recalculada cruza cero, con tiempo natural y dividendo implícito.</p>
+        </div>
+        <div class="seg boxed" role="radiogroup" aria-label="Motor de cálculo" id="modelSeg">
+          <button role="radio" data-v="gexbot">gexbot</button>
+          <button role="radio" data-v="spotgamma">SpotGamma</button>
+        </div>
+      </div>
+      <div class="prow">
+        <div class="ptext">
           <div class="ptitle">Posición de los dealers</div>
           <p>Estándar: largos de calls y cortos de puts. Flujo: estimada con el cambio de open interest y el lado de las operaciones de cada día (beta).</p>
         </div>

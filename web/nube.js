@@ -30,7 +30,8 @@
     const pos = q.get("pos") === "flow" && combo === "0" ? "flow" : "standard";
     const s = q.get("session");
     const sess = ["auto", "last", "next"].includes(s) ? s : "auto";
-    return { dte, range: rango(q.get("range")), pos, combo, sess };
+    const model = q.get("model") === "spotgamma" ? "spotgamma" : "gexbot";
+    return { dte, range: rango(q.get("range")), pos, combo, sess, model };
   }
 
   // ------------------------------------------------------------ motor del navegador
@@ -126,7 +127,7 @@
     const spot = q.get("spot");
     const refresh = q.get("refresh") === "1";
     if (!spot && !refresh) {
-      const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (kind === "heat" ? `_${v.sess}` : "");
+      const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (v.model === "spotgamma" ? "_sg" : "") + (kind === "heat" ? `_${v.sess}` : "");
       const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/${kind === "heat" ? "mapa" : "niveles"}/${key}.json`, { signal });
       if (r.ok) {
         // una vista precalculada antigua no se usa: se recalcula aqui con el paquete (y se pide renovarlo)
@@ -138,7 +139,7 @@
     if (v.combo === "1") paqs.push(await paquete(PROXY[sym], signal, refresh));
     const args = {
       symbol: sym, max_dte: v.dte === "all" ? null : parseInt(v.dte, 10), window_pct: v.range === "auto" ? "auto" : parseFloat(v.range),
-      spot_override: spot ? parseFloat(spot) : null, combine: v.combo === "1", positioning: v.pos,
+      spot_override: spot ? parseFloat(spot) : null, combine: v.combo === "1", positioning: v.pos, model: v.model,
     };
     if (kind === "heat") args.which = v.sess;
     if (!warmed) status("Preparando el cálculo en el navegador (solo la primera vez)…");

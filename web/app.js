@@ -67,6 +67,7 @@ const state = {
   mapSess: "auto",
   greek: store.get("greek", "gamma"),
   pos: store.get("pos", "standard"),
+  model: store.get("model", "gexbot"),
   validMode: "standard",
   watch: null,
   combo: store.get("combo", "0") === "1",
@@ -690,6 +691,7 @@ function extraParams() {
   const o = {};
   if (state.combo && COMBO[state.symbol]) o.combine = "1";
   if (state.pos === "flow") o.pos = "flow";
+  if (state.model === "spotgamma") o.model = "spotgamma";
   return o;
 }
 
@@ -951,6 +953,7 @@ function syncCombo() {
 /* etiquetas con los ajustes del modelo que no están en su valor por defecto */
 function renderChips() {
   const chips = [];
+  if (state.model === "spotgamma") chips.push({ k: "model", t: "Motor: SpotGamma" });
   if (state.pos === "flow") chips.push({ k: "pos", t: "Dealers: flujo" });
   if (state.combo && COMBO[state.symbol]) chips.push({ k: "combo", t: `+ ${COMBO[state.symbol]}` });
   const sp = $("spotInput").value.trim();
@@ -960,12 +963,13 @@ function renderChips() {
   }
   $("chips").innerHTML = chips.length
     ? chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Quitar" aria-label="Quitar ${esc(c.t)}">×</button></span>`).join("")
-    : `<span class="chip-default">Convención estándar</span>`;
+    : `<span class="chip-default">Motor gexbot, convención estándar</span>`;
 }
 
 function clearChip(k) {
   if (k === "pos") { state.pos = "standard"; store.set("pos", "standard"); $("posSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "standard"))); }
   if (k === "combo") { state.combo = false; store.set("combo", "0"); }
+  if (k === "model") { state.model = "gexbot"; store.set("model", "gexbot"); $("modelSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "gexbot"))); }
   if (k === "spot") $("spotInput").value = "";
   syncCombo();
   load();
@@ -2639,6 +2643,7 @@ async function init() {
   bindSeg("barsSeg", "bars", () => draw());
   bindSeg("greekSeg", "greek", () => { $("barsSeg").hidden = state.view !== "strike" || state.greek !== "gamma"; draw(); });
   bindSeg("posSeg", "pos", () => { renderChips(); load(); });
+  bindSeg("modelSeg", "model", () => { state.heat = null; renderChips(); load(); });
   $("comboToggle").addEventListener("click", () => { state.combo = !state.combo; store.set("combo", state.combo ? "1" : "0"); syncCombo(); load(); });
   $("settingsBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleSettings(); });
   $("settingsPanel").addEventListener("click", (e) => e.stopPropagation());

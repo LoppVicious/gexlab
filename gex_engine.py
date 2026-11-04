@@ -166,12 +166,87 @@ def vanna_charm_w(S, K, w, T, r=None):
     return vanna, charm
 
 
-def gamma_w(S, K, w, T, r=None):
-    """Gamma Black-Scholes a partir de la varianza total w = sigma^2 * T. S puede ser columna (N,1)."""
+def gamma_w(S, K, w, T, r=None, q=0.0):
+    """Gamma Black-Scholes a partir de la varianza total w = sigma^2 * T, con rendimiento por dividendo q
+    (0 en el motor gexbot). S puede ser columna (N,1); q puede ir por contrato."""
     r = risk_free() if r is None else r
     sw = np.sqrt(w)
-    d1 = (np.log(S / K) + r * T + 0.5 * w) / sw
-    return _norm_pdf(d1) / (S * sw)
+    d1 = (np.log(S / K) + (r - q) * T + 0.5 * w) / sw
+    g = _norm_pdf(d1) / (S * sw)
+    return g * np.exp(-q * T) if np.any(q) else g
+
+
+# ---------------------------------------------------------------- motores de calculo
+MODELS = ("gexbot", "spotgamma")
+SG_MIN_T = 1.0 / (365 * 24)   # motor SpotGamma: tiempo natural con un minimo de una hora (como el script)
+SG_SPAN = 0.15                # motor SpotGamma: el zero gamma se busca en +-15% del precio
+
+
+def implied_dividends(ch: dict, spot: float, q_dt: datetime) -> dict:
+    """Rendimiento por dividendo implicito de cada vencimiento por paridad put-call con precios reales de
+    mercado: F = K + e^(rT)(C - P) en los strikes cerca del dinero y q = r - ln(F/S)/T (incluye el coste del
+    prestamo en acciones). Los vencimientos de menos de 3 dias dan un q ruidoso: toman el del primer
+    vencimiento fiable. Devuelve {"by_exp": {exp: q}, "ref": q del plazo ~1 mes, "n": vencimientos medidos}."""
+    r = risk_free()
+    q64 = np.datetime64(q_dt.replace(second=0, microsecond=0))
+    K, C, E, bid, ask = ch["K"], ch["call"], ch["exp"], ch.get("bid"), ch.get("ask")
+    if bid is None or ask is None or spot <= 0:
+        return {"by_exp": {}, "ref": None, "n": 0}
+    ok = (bid > 0) & (ask >= bid) & (np.abs(K / spot - 1) < 0.03) & (E > q64)
+    out, Ts = {}, {}
+    for ex in np.unique(E[ok]):
+        T = float((ex - q64).astype("timedelta64[m]").astype(float)) / YEAR_MIN
+        if T < 3 / 365:
+            continue
+        sel = ok & (E == ex)
+        mids = {}
+        for k, c, b, a in zip(K[sel], C[sel], bid[sel], ask[sel]):
+            if (a - b) > 0.25 * a + 0.1:   # horquilla demasiado ancha: precio poco fiable
+                continue
+            mids.setdefault(float(k), {})["C" if c else "P"] = (b + a) / 2
+        fw = [k + math.exp(r * T) * (v["C"] - v["P"]) for k, v in mids.items() if "C" in v and "P" in v]
+        if len(fw) < 2:
+            continue
+        F = float(np.median(fw))
+        if F <= 0:
+            continue
+        qv = r - math.log(F / spot) / T
+        if -0.05 <= qv <= 0.15:
+            out[str(ex)] = qv
+            Ts[str(ex)] = T
+    ref = None
+    if out:
+        ref = min(out.items(), key=lambda kv: abs(Ts[kv[0]] - 30 / 365))[1]
+    return {"by_exp": out, "ref": ref, "n": len(out)}
+
+
+def q_per_contract(div: dict, exp: np.ndarray) -> np.ndarray:
+    """q de cada contrato: el de su vencimiento; si no se pudo medir, el del vencimiento medido mas cercano."""
+    by = div.get("by_exp") or {}
+    if not by:
+        return np.zeros(exp.size)
+    keys = np.array(sorted(by), dtype="datetime64[m]")
+    vals = np.array([by[str(k)] for k in keys])
+    eu, inv = np.unique(exp, return_inverse=True)
+    qu = np.empty(eu.size)
+    for i, e in enumerate(eu):
+        j = int(np.argmin(np.abs((keys - e).astype("timedelta64[m]").astype(float))))
+        qu[i] = vals[j]
+    return qu[inv]
+
+
+def model_inputs(model: str, iv: np.ndarray, iv_raw: np.ndarray | None, exp: np.ndarray, q_dt: datetime,
+                 t: datetime, div: dict | None = None):
+    """Varianza total, tiempo y dividendo de cada contrato segun el motor.
+    gexbot: IV de la opcion fuera de dinero del strike, varianza consumida solo en horas de mercado, sin dividendo.
+    spotgamma: IV del propio contrato, tiempo natural (minimo 1 hora) y dividendo implicito por paridad."""
+    if model != "spotgamma":
+        W, T = variance_to_expiry(iv, exp, q_dt, t)
+        return W, T, 0.0
+    t64 = np.datetime64(t.replace(second=0, microsecond=0))
+    T = np.maximum((exp - t64).astype("timedelta64[m]").astype(float) / YEAR_MIN, SG_MIN_T)
+    sig = np.where(iv_raw > 0.01, iv_raw, iv) if iv_raw is not None else iv
+    return sig * sig * T, T, q_per_contract(div or {}, exp)
 
 
 # ---------------------------------------------------------------- descarga
@@ -1255,7 +1330,8 @@ def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.
 
 def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             spot_override: float | None = None, force: bool = False, combine: bool = False,
-            positioning: str = "standard", level_window: float | None = None) -> dict:
+            positioning: str = "standard", level_window: float | None = None, model: str = "gexbot") -> dict:
+    model = model if model in MODELS else "gexbot"
     raw = fetch_chain(symbol, force=force)
     ch = parse_chain(raw)
     save_chain_snapshot(normalize(symbol), ch)
@@ -1298,7 +1374,10 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
 
     K, C, OI, IV = cc["K"][m], cc["call"][m], cc["oi"][m], cc["iv"][m]
     EXP = cc["exp"][m]
-    W, TT = variance_to_expiry(IV, EXP, q_dt, q_dt)
+    ivr = cc.get("iv_raw")
+    IVR = ivr[m] if ivr is not None and len(ivr) == len(cc["K"]) else None
+    div = implied_dividends(ch, spot_mkt, q_dt) if model == "spotgamma" else None
+    W, TT, QD = model_inputs(model, IV, IVR, EXP, q_dt, q_dt, div)
     front_exp = EXP.min()
     FRONT = EXP == front_exp
     sign = np.where(C, 1.0, -1.0)
@@ -1310,7 +1389,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     flow_info = None
     if positioning == "flow" and not combine:
         pos, flow_info = flow_positions(normalize(symbol), cc, m, sign * OI)
-    g = gamma_w(spot, K, W, TT)
+    g = gamma_w(spot, K, W, TT, q=QD)
     gex = pos * g * 100.0 * spot
     va, chm = vanna_charm_w(spot, K, W, TT)
     vex = pos * va * 0.01 * 100.0 * spot          # cambio de delta ($) de los dealers si la IV sube 1 punto
@@ -1370,7 +1449,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     chunk = 20
     for a in range(0, xs.size, chunk):
         S = xs[a:a + chunk, None]
-        gm = pos * gamma_w(S, K, W, TT) * 100.0 * S
+        gm = pos * gamma_w(S, K, W, TT, q=QD) * 100.0 * S
         prof[a:a + chunk] = gm.sum(axis=1)
         prof_week[a:a + chunk] = gm[:, WEEK].sum(axis=1)
 
@@ -1380,6 +1459,26 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     if sc.size:
         cands = [xs[i] - prof[i] * (xs[i + 1] - xs[i]) / (prof[i + 1] - prof[i]) for i in sc]
         zero_gamma = float(min(cands, key=lambda v: abs(v - spot)))
+    if model == "spotgamma":
+        # como el script de referencia: el cruce se busca en +-15% del precio (rejilla de 121 puntos), pero se
+        # elige el mas cercano al spot, no el primero empezando por abajo; se afina con biseccion
+        def tot(Sv):
+            return float((pos * gamma_w(Sv, K, W, TT, q=QD)).sum())
+        xg = np.linspace(spot * (1 - SG_SPAN), spot * (1 + SG_SPAN), 121)
+        yg = np.array([tot(x) for x in xg])
+        cr = np.where(np.sign(yg[:-1]) * np.sign(yg[1:]) < 0)[0]
+        zero_gamma = None
+        if cr.size:
+            i = int(min(cr, key=lambda j: abs((xg[j] + xg[j + 1]) / 2 - spot)))
+            a, b, fa = xg[i], xg[i + 1], yg[i]
+            for _ in range(40):
+                mid = (a + b) / 2
+                fm = tot(mid)
+                if np.sign(fm) == np.sign(fa):
+                    a, fa = mid, fm
+                else:
+                    b = mid
+            zero_gamma = float((a + b) / 2)
 
     # --- niveles por strike (convencion de gexbot), dentro del rango de niveles elegido
     lw = level_window if level_window is not None else window_pct
@@ -1391,7 +1490,9 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     # Gamma Flip: la frontera de signo de la GEX neta por strike, el punto que deja la menor gamma "mal colocada"
     # (positiva por debajo o negativa por encima). Si todas las barras tienen el mismo signo, el zero gamma del perfil.
     flip_exact = None
-    if (ln > 0).any() and (ln < 0).any() and lk.size >= 2:
+    if model == "spotgamma":
+        flip_exact = zero_gamma   # SpotGamma: el flip es el zero gamma del perfil
+    elif (ln > 0).any() and (ln < 0).any() and lk.size >= 2:
         pos_c, neg_c = np.cumsum(np.maximum(ln, 0)), np.cumsum(np.maximum(-ln, 0)[::-1])[::-1]
         cost = pos_c[:-1] + neg_c[1:]                       # frontera entre lk[i] y lk[i+1]
         mids = (lk[:-1] + lk[1:]) / 2
@@ -1403,8 +1504,15 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
 
     # Call Wall y Put Wall: la mayor GEX neta positiva y la mayor negativa del rango, esten por encima o por debajo
     # del precio (como gexbot). Si no hay barras de ese signo, la mayor gamma de calls o de puts.
-    call_wall = float(lk[np.argmax(ln)]) if (ln > 0).any() else (float(lk[np.argmax(lc)]) if (lc > 0).any() else None)
-    put_wall = float(lk[np.argmin(ln)]) if (ln < 0).any() else (float(lk[np.argmin(lp)]) if (lp < 0).any() else None)
+    if model == "spotgamma":
+        # SpotGamma: Call Wall = strike con mas GEX de calls por encima del precio; Put Wall = strike con mas GEX
+        # de puts (la mas negativa) por debajo. Se buscan en toda la rejilla de niveles (+-10% o el rango, si es mayor)
+        up, dn = wgrid > spot, wgrid < spot
+        call_wall = float(wgrid[up][np.argmax(wcalls[up])]) if up.any() and (wcalls[up] > 0).any() else None
+        put_wall = float(wgrid[dn][np.argmin(wputs[dn])]) if dn.any() and (wputs[dn] < 0).any() else None
+    else:
+        call_wall = float(lk[np.argmax(ln)]) if (ln > 0).any() else (float(lk[np.argmax(lc)]) if (lc > 0).any() else None)
+        put_wall = float(lk[np.argmin(ln)]) if (ln < 0).any() else (float(lk[np.argmin(lp)]) if (lp < 0).any() else None)
     abs_g = float(lk[np.argmax(np.abs(lc) + np.abs(lp))])
 
     # --- volatility trigger (aproximacion propia): el strike mas alto con gamma neta negativa
@@ -1454,12 +1562,15 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         },
         "regime": "positive" if net_total > 0 else "negative",
         "rate": rate_info(),
+        "model": model,
+        "dividend": ({"ref": div["ref"], "n": div["n"], "applied": bool(div["n"])} if div else None),
         "meta": {"contracts": int(m.sum()), "expirations": n_exp,
                  "max_dte": max_dte, "window_pct": window_pct, "window_auto": window_auto},
     }
     res["session"] = session_date(ch["timestamp"])
     res["prev"] = history_update(res, max_dte, save=not spot_override,
-                                 variant=("c" if combo else "") + ("f" if res["positioning"] == "flow" else ""))
+                                 variant=("c" if combo else "") + ("f" if res["positioning"] == "flow" else "")
+                                 + ("s" if model == "spotgamma" else ""))
     return res
 
 
@@ -1530,11 +1641,12 @@ _heat_cache: dict[str, tuple[float, dict]] = {}
 
 def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             spot_override: float | None = None, rows: int = 140, step_min: int = 5, which: str = "auto",
-            combine: bool = False, positioning: str = "standard") -> dict:
+            combine: bool = False, positioning: str = "standard", model: str = "gexbot") -> dict:
     """GEX total (por 1%) si el subyacente estuviera en cada precio a cada hora de la sesion.
     El open interest es el del cierre anterior: el mapa cambia con el tiempo y el precio, no con el flujo."""
     symbol = normalize(symbol)
-    key = f"{symbol}|{max_dte}|{window_pct}|{spot_override}|{which}|{combine}|{positioning}"
+    model = model if model in MODELS else "gexbot"
+    key = f"{symbol}|{max_dte}|{window_pct}|{spot_override}|{which}|{combine}|{positioning}|{model}"
     hit = _heat_cache.get(key)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
@@ -1577,6 +1689,11 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     if not m.any():
         raise LookupError("No hay contratos con open interest en ese filtro")
     K, C, OI, IV, EXP = ch["K"][m], ch["call"][m], ch["oi"][m], ch["iv"][m], ch["exp"][m]
+    if model == "spotgamma":  # IV de cada contrato (la de la cadena guardada si es una sesion anterior)
+        ivr = ch.get("iv_raw")
+        if ivr is not None and len(ivr) == len(ch["K"]):
+            IV = np.where(ivr[m] > 0.01, ivr[m], IV)
+    div = implied_dividends(parse_chain(fetch_chain(symbol)), spot, quote_time(now)) if model == "spotgamma" else None
     sign = np.where(C, 1.0, -1.0)
     pos = sign * OI
     if positioning == "flow" and not combine:
@@ -1643,17 +1760,18 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         if not live.any():
             continue
         # varianza restante en cada instante: se consume solo en horas de mercado (ver variance_to_expiry)
-        Wl, Tl = variance_to_expiry(IV[live], EXP[live], q, tt)
+        Wl, Tl, Ql = model_inputs(model, IV[live], None, EXP[live], q, tt, div)
+        Ql = np.zeros(Wl.size) if np.isscalar(Ql) else Ql
         sw = np.sqrt(Wl)
         lsk = log_sk if live.all() else log_sk[:, live]
-        d1 = lsk + (risk_free() * Tl + 0.5 * Wl).astype(np.float32)
+        d1 = lsk + ((risk_free() - Ql) * Tl + 0.5 * Wl).astype(np.float32)
         d1 *= (1.0 / sw).astype(np.float32)
         np.square(d1, out=d1)
         d1 *= -0.5
         np.exp(d1, out=d1)
         # gamma = pdf(d1) / (S * sqrt(w)); la division por S se aplica despues de sumar
-        Z[:, j] = (d1 @ (w[live] / (math.sqrt(2 * math.pi) * sw)).astype(np.float32)).astype(np.float64) * ys * 0.01  # $ por 1%
-        gk = gamma_w(K[live], K[live], Wl, Tl) * w[live] * K[live] * K[live] * 0.01
+        Z[:, j] = (d1 @ (w[live] * np.exp(-Ql * Tl) / (math.sqrt(2 * math.pi) * sw)).astype(np.float32)).astype(np.float64) * ys * 0.01  # $ por 1%
+        gk = gamma_w(K[live], K[live], Wl, Tl, q=Ql) * w[live] * K[live] * K[live] * 0.01
         ZK[:, j] = kern[:, live] @ gk
         if j == jref:
             kbar = (K[live], gk)
@@ -1668,7 +1786,7 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
 
     # las barras del panel lateral deben cubrir todo el rango de precios del mapa (que se amplia con las velas)
     cover = max(window_pct, (spot / lo - 1) * 100, (hi / spot - 1) * 100) + 0.1
-    lev = compute(symbol, max_dte=max_dte, window_pct=cover, spot_override=spot_override, level_window=window_pct,
+    lev = compute(symbol, max_dte=max_dte, window_pct=cover, spot_override=spot_override, level_window=window_pct, model=model,
                   combine=combine, positioning=positioning)
     res = {
         "symbol": symbol, "spot": spot, "session": day, "kind": kind, "approx": approx,

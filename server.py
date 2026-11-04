@@ -150,7 +150,8 @@ class Handler(SimpleHTTPRequestHandler):
                                          spot_override=float(spot.replace(",", ".")) if spot else None,
                                          which=q.get("session", "auto") if q.get("session") in ("auto", "last", "next") else "auto",
                                          combine=q.get("combine") == "1",
-                                         positioning="flow" if q.get("pos") == "flow" else "standard")
+                                         positioning="flow" if q.get("pos") == "flow" else "standard",
+                model="spotgamma" if q.get("model") == "spotgamma" else "gexbot")
                 return self._json(200, res)
             except (LookupError, ValueError, ConnectionError) as e:
                 return self._json(400, {"error": str(e)})
@@ -239,6 +240,7 @@ class Handler(SimpleHTTPRequestHandler):
                 force=q.get("refresh") == "1",
                 combine=q.get("combine") == "1",
                 positioning="flow" if q.get("pos") == "flow" else "standard",
+                model="spotgamma" if q.get("model") == "spotgamma" else "gexbot",
             )
             self._json(200, res)
         except (LookupError, ValueError, ConnectionError) as e:

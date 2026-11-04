@@ -10,6 +10,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python pruebas/tradier.py
+      - name: Produccion
+        run: python pruebas/tradier.py
         env:
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+      - name: Sandbox
+        run: python pruebas/tradier.py
+        env:
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_BASE: https://sandbox.tradier.com/v1

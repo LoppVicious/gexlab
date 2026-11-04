@@ -3,7 +3,7 @@ import json, os, time, urllib.request
 from datetime import datetime, timezone
 
 TOK = os.environ.get("TRADIER_TOKEN", "").strip()
-BASE = "https://api.tradier.com/v1"
+BASE = os.environ.get("TRADIER_BASE", "https://api.tradier.com/v1")
 
 
 def get(path):

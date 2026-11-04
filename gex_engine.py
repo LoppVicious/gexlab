@@ -668,7 +668,7 @@ def parse_chain(raw: dict) -> dict:
         ref = dict(zip(ks[otm[order]], IV_[order][otm[order]]))
         IV_ = np.array([ref.get(k, v) for k, v in zip(key, IV_)])
     chg = data.get("price_change_percent")
-    return {
+    return _reparar_cadena({
         "symbol": data.get("symbol", "").lstrip("^_"),
         "spot": spot,
         "prev_close": float(data.get("prev_day_close") or data.get("close") or spot),
@@ -679,7 +679,45 @@ def parse_chain(raw: dict) -> dict:
         "oi": oi[keep], "iv": IV_, "iv_raw": iv[keep], "bid": bid[keep], "ask": ask[keep], "delta": delta[keep],
         "vol": vol[keep], "last": last[keep],
         "iv30": float(data.get("iv30") or 0) / 100.0,
-    }
+    })
+
+
+def _reparar_cadena(ch: dict) -> dict:
+    """En los primeros minutos de la sesion CBOE publica a veces la cadena sin IV o sin open interest
+    (todo a cero). Si faltan la mayoria de datos respecto a la ultima cadena buena, se completan con ella
+    contrato a contrato: el precio, las cotizaciones y el volumen siguen siendo los nuevos.
+    Las cadenas buenas se guardan (como mucho cada 10 min) para tener siempre una referencia."""
+    sym = (ch.get("symbol") or "").replace(".", "_")
+    if not sym or os.environ.get("GEX_FIXTURE_DIR"):
+        return ch
+    path = os.path.join(CACHE_DIR, "ultima_cadena", f"{sym}.json.gz")
+    usable = int(((ch["oi"] > 0) & (ch["iv"] > 0.01)).sum())
+    prev = read_json(path)
+    pch = chain_from_min(prev) if prev else None
+    p_usable = int(((pch["oi"] > 0) & (pch["iv"] > 0.01)).sum()) if pch else 0
+    if pch is not None and p_usable >= 20 and usable < 0.5 * p_usable:
+        def keys(c):
+            return list(zip(c["exp"].astype("int64").tolist(), np.round(c["K"] * 1000).astype("int64").tolist(), c["call"].tolist()))
+        ref = {k: i for i, k in enumerate(keys(pch))}
+        idx = np.array([ref.get(k, -1) for k in keys(ch)])
+        hit = idx >= 0
+        oi, iv, ivr = ch["oi"].copy(), ch["iv"].copy(), ch["iv_raw"].copy()
+        fo = hit & (oi <= 0)
+        oi[fo] = pch["oi"][idx[fo]]
+        fi = hit & (iv <= 0.01)
+        iv[fi] = pch["iv"][idx[fi]]
+        ivr[fi] = pch["iv_raw"][idx[fi]]
+        ch = {**ch, "oi": oi, "iv": iv, "iv_raw": ivr, "reparada": True}
+        print(f"[{sym}] cadena de CBOE incompleta ({usable} contratos utiles frente a {p_usable}): "
+              f"OI de {int(fo.sum())} y IV de {int(fi.sum())} contratos tomados de la ultima cadena buena")
+        return ch
+    if usable >= 20:
+        try:
+            if not os.path.exists(path) or time.time() - os.path.getmtime(path) > 600:
+                write_json(path, chain_to_min(ch))
+        except OSError:
+            pass
+    return ch
 
 
 def _strike_step(K: np.ndarray, spot: float) -> float:

@@ -40,7 +40,7 @@ COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
 DTES = ["0", "7", "45", "all"]
 VAL_MODES = ["standard", "flow"]
-DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto"}
+DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
 
 _t0 = time.time()
 _errores: list[str] = []
@@ -93,12 +93,12 @@ def vista_canon(v: dict, symbol: str) -> dict:
     combo = "1" if str(v.get("combo", "0")) in ("1", "true", "True") and symbol in g.INDEX_PROXY else "0"
     pos = "flow" if v.get("pos") == "flow" and combo == "0" else "standard"
     sess = v.get("sess") if v.get("sess") in ("auto", "last", "next") else "auto"
-    model = "spotgamma" if v.get("model") == "spotgamma" else "gexbot"
+    model = "gexbot" if v.get("model") == "gexbot" else "spotgamma"
     return {"dte": dte, "range": rango_canon(v.get("range", "5")), "pos": pos, "combo": combo, "sess": sess, "model": model}
 
 
 def clave_niveles(v: dict) -> str:
-    return f"{v['dte']}_{v['range']}_{v['pos']}_{v['combo']}" + ("_sg" if v.get("model") == "spotgamma" else "")
+    return f"{v['dte']}_{v['range']}_{v['pos']}_{v['combo']}" + ("_gb" if v.get("model") == "gexbot" else "")
 
 
 def clave_mapa(v: dict) -> str:
@@ -294,7 +294,10 @@ def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
         t = time.time()
         try:
             if sym in syms:
-                g.compute(sym, max_dte=45, window_pct=5.0)  # historial, flujo y copia de la cadena
+                # historial de niveles de los dos motores y los cuatro filtros (grafico Historico), flujo y copia
+                for mdl in g.MODELS:
+                    for dte in (0, 7, 45, None):
+                        g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl)
             paq = paquete(sym)
             escribir_fixtures(paq)
             n = subir(st, f"pub/t/{sym}/paquete.json", paq)

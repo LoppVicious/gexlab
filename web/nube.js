@@ -30,7 +30,7 @@
     const pos = q.get("pos") === "flow" && combo === "0" ? "flow" : "standard";
     const s = q.get("session");
     const sess = ["auto", "last", "next"].includes(s) ? s : "auto";
-    const model = q.get("model") === "spotgamma" ? "spotgamma" : "gexbot";
+    const model = q.get("model") === "gexbot" ? "gexbot" : "spotgamma";
     return { dte, range: rango(q.get("range")), pos, combo, sess, model };
   }
 
@@ -127,7 +127,7 @@
     const spot = q.get("spot");
     const refresh = q.get("refresh") === "1";
     if (!spot && !refresh) {
-      const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (v.model === "spotgamma" ? "_sg" : "") + (kind === "heat" ? `_${v.sess}` : "");
+      const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (v.model === "gexbot" ? "_gb" : "") + (kind === "heat" ? `_${v.sess}` : "");
       const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/${kind === "heat" ? "mapa" : "niveles"}/${key}.json`, { signal });
       if (r.ok) {
         // una vista precalculada antigua no se usa: se recalcula aqui con el paquete (y se pide renovarlo)

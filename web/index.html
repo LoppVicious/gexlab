@@ -224,6 +224,7 @@
         <button role="tab" id="tabImpact" aria-selected="false" title="Gamma total, gamma del próximo vencimiento y gamma por strike">Impacto calls y puts</button>
         <button role="tab" id="tabStrike" aria-selected="true">Por strike</button>
         <button role="tab" id="tabProfile" aria-selected="false">Perfil</button>
+        <button role="tab" id="tabHistory" aria-selected="false" title="Niveles de cada sesión guardada con el precio">Histórico</button>
         <button role="tab" id="tabMap" aria-selected="false">Mapa</button>
       </div>
       <div class="seg compact" role="radiogroup" aria-label="Griega" id="greekSeg">
@@ -253,6 +254,14 @@
     </div>
     <div class="chart" id="chart" role="img" aria-label="Exposición gamma por strike">
       <div class="placeholder" id="placeholder">Escribe un ticker y pulsa Cargar.</div>
+    </div>
+    <div class="zoombar" id="zoomBar" hidden>
+      <div class="zb-track" id="zbTrack" title="Arrastra la ventana o sus extremos para acercar o alejar. Doble clic: todo el rango. En el gráfico, Ctrl + rueda.">
+        <div class="zb-mini" id="zbMini"></div>
+        <div class="zb-win" id="zbWin"><span class="zb-h l"></span><span class="zb-h r"></span></div>
+      </div>
+      <span class="zb-lab" id="zbLab"></span>
+      <button class="ghost zb-reset" id="zbReset" hidden>Todo</button>
     </div>
     <div class="tip" id="tip" hidden></div>
   </section>
@@ -449,6 +458,7 @@
 <script src="nube.js"></script>
 <script src="app.js"></script>
 <script src="hub.js"></script>
+<script src="historico.js"></script>
 <script src="vol.js"></script>
 </body>
 </html>

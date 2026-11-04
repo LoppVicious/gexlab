@@ -52,7 +52,8 @@ if (ME) {
 }
 
 // valores por defecto nuevos (rango Auto y actualizacion automatica): se aplican una vez a todos
-if (store.get("defs", "0") !== "2") { store.set("range", "auto"); store.set("autoOn", "1"); store.set("defs", "2"); }
+if (store.get("defs", "0") < "2") { store.set("range", "auto"); store.set("autoOn", "1"); }
+if (store.get("defs", "0") < "3") { store.set("model", "spotgamma"); store.set("defs", "3"); }
 const state = {
   symbol: store.get("symbol", "SPX"),
   dte: store.get("dte", "45"),
@@ -67,7 +68,7 @@ const state = {
   mapSess: "auto",
   greek: store.get("greek", "gamma"),
   pos: store.get("pos", "standard"),
-  model: store.get("model", "gexbot"),
+  model: store.get("model", "spotgamma"),
   validMode: "standard",
   watch: null,
   combo: store.get("combo", "0") === "1",
@@ -412,6 +413,7 @@ function renderProfile(d, W, H, exp = false) {
 
 /* ============================================================ piezas comunes */
 function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
+  if (x < left - 1 || x > right + 1) return legendSVG(legend || [], H - (fs + 16) / 2 - (exp ? 22 : 12), fs, left, left - 40, left, right); // spot fuera del zoom
   const label = `${d.spot_manual ? "Spot manual" : d.spot_implied && d.spot_implied.use ? "Pre-market" : "Spot"} ≈ ${fmtSpot(d.spot)}`;
   const w = label.length * fs * 0.62 + 30, h = fs + 16;
   const px = Math.min(Math.max(x - w / 2, left), right - w);
@@ -691,7 +693,7 @@ function extraParams() {
   const o = {};
   if (state.combo && COMBO[state.symbol]) o.combine = "1";
   if (state.pos === "flow") o.pos = "flow";
-  if (state.model === "spotgamma") o.model = "spotgamma";
+  o.model = state.model === "gexbot" ? "gexbot" : "spotgamma";
   return o;
 }
 
@@ -749,9 +751,12 @@ function draw() {
     el.setAttribute("aria-label", "Mapa de gamma por precio y hora");
     return;
   }
-  el.innerHTML = state.view === "impact" && typeof renderImpact === "function" ? renderImpact(d, W, H)
-    : state.view === "profile" ? renderProfile(d, W, H) : renderStrike(d, W, H);
-  el.setAttribute("aria-label", state.view === "profile" ? "Perfil de gamma" : "Exposición gamma por strike");
+  const z = typeof zoomed === "function" ? zoomed(d, state.view) : d;
+  el.innerHTML = state.view === "impact" && typeof renderImpact === "function" ? renderImpact(z, W, H)
+    : state.view === "history" && typeof renderHistory === "function" ? renderHistory(z, W, H)
+    : state.view === "profile" ? renderProfile(z, W, H) : renderStrike(z, W, H);
+  el.setAttribute("aria-label", state.view === "profile" ? "Perfil de gamma" : state.view === "history" ? "Histórico de niveles" : "Exposición gamma por strike");
+  if (typeof zoomBarSync === "function") zoomBarSync();
 }
 
 function paintSide(d) {
@@ -953,7 +958,7 @@ function syncCombo() {
 /* etiquetas con los ajustes del modelo que no están en su valor por defecto */
 function renderChips() {
   const chips = [];
-  if (state.model === "spotgamma") chips.push({ k: "model", t: "Motor: SpotGamma" });
+  if (state.model === "gexbot") chips.push({ k: "model", t: "Motor: gexbot" });
   if (state.pos === "flow") chips.push({ k: "pos", t: "Dealers: flujo" });
   if (state.combo && COMBO[state.symbol]) chips.push({ k: "combo", t: `+ ${COMBO[state.symbol]}` });
   const sp = $("spotInput").value.trim();
@@ -963,13 +968,13 @@ function renderChips() {
   }
   $("chips").innerHTML = chips.length
     ? chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Quitar" aria-label="Quitar ${esc(c.t)}">×</button></span>`).join("")
-    : `<span class="chip-default">Motor gexbot, convención estándar</span>`;
+    : `<span class="chip-default">Motor SpotGamma, convención estándar</span>`;
 }
 
 function clearChip(k) {
   if (k === "pos") { state.pos = "standard"; store.set("pos", "standard"); $("posSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "standard"))); }
   if (k === "combo") { state.combo = false; store.set("combo", "0"); }
-  if (k === "model") { state.model = "gexbot"; store.set("model", "gexbot"); $("modelSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "gexbot"))); }
+  if (k === "model") { state.model = "spotgamma"; store.set("model", "spotgamma"); $("modelSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "spotgamma"))); }
   if (k === "spot") $("spotInput").value = "";
   syncCombo();
   load();
@@ -1036,13 +1041,15 @@ function setView(v) {
   $("tabStrike").setAttribute("aria-selected", String(v === "strike"));
   document.body.classList.toggle("view-map", v === "map");
   $("tabProfile").setAttribute("aria-selected", String(v === "profile"));
+  $("tabHistory").setAttribute("aria-selected", String(v === "history"));
   $("tabMap").setAttribute("aria-selected", String(v === "map"));
   $("barsSeg").hidden = v !== "strike" || state.greek !== "gamma";
   $("greekSeg").hidden = v !== "strike";
   $("levelsToggle").hidden = v !== "map" && v !== "impact";
   $("mapSeg").hidden = v !== "map";
   $("sessSeg").hidden = v !== "map";
-  $("caption").textContent = v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente"
+  $("caption").textContent = v === "history" ? "Niveles al cierre de cada sesión guardada, con este filtro de vencimientos y este motor. Haz clic en la leyenda para mostrar u ocultar cada línea"
+    : v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente"
     : v === "impact" ? "Líneas: gamma total de los vencimientos del filtro y del próximo vencimiento semanal si el precio estuviera en cada nivel. Barras: gamma neta de cada strike al precio actual" : "";
   mapCaption();
   $("tip").hidden = true;
@@ -1071,6 +1078,9 @@ function onMove(e) {
       <div class="r">Calls <b>${fmtBig(b.calls[i], true)}</b></div>
       <div class="r">Puts <b>${fmtBig(b.puts[i], true)}</b></div>
       <div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`;
+  } else if (g.kind === "history" && typeof historyTip === "function") {
+    html = historyTip(d, g, x, svg);
+    if (!html) return hideTip();
   } else if (g.kind === "impact" && typeof impactTip === "function") {
     html = impactTip(d, g, x, svg);
     if (!html) return hideTip();
@@ -1137,12 +1147,13 @@ function hideTip() {
 /* ============================================================ exportar PNG */
 // imagen del grafico visible (mismo formato que Exportar PNG) como Blob
 function chartPngBlob() {
-  const d = state.data;
+  const d = typeof zoomed === "function" ? zoomed(state.data, state.view) : state.data;
   const isMap = state.view === "map" && state.heat;
   const W = 2000, H = isMap ? 1000 : 680, scale = 1.5;
   const geo = state.geo;
   const svg = isMap ? renderMap(d, state.heat, W, H, true)
     : state.view === "impact" ? renderImpact(d, W, H, true)
+    : state.view === "history" ? renderHistory(d, W, H, true)
     : state.view === "profile" ? renderProfile(d, W, H, true) : renderStrike(d, W, H, true);
   state.geo = geo;
   return new Promise((resolve, reject) => {
@@ -2678,6 +2689,7 @@ async function init() {
   });
   $("tabImpact").addEventListener("click", () => setView("impact"));
   $("tabStrike").addEventListener("click", () => setView("strike"));
+  $("tabHistory").addEventListener("click", () => setView("history"));
   $("tabProfile").addEventListener("click", () => setView("profile"));
   $("tabMap").addEventListener("click", () => setView("map"));
   bindSeg("mapSeg", "mapMode", () => { state.heatImg = null; draw(); });

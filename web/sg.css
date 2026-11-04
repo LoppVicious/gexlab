@@ -251,3 +251,18 @@ table.hwl td.up { color: var(--put); } table.hwl td.dn { color: var(--call); }
   body.ana-mode:not(.view-map) .stage { grid-template-columns: 1fr; }
   body.ana-mode:not(.view-map) .ladder { border-left: 0; border-top: 1px solid var(--line-soft); }
 }
+
+/* barra de zoom bajo el grafico */
+.zoombar { display: flex; align-items: center; gap: 12px; padding: 6px 18px 12px; }
+.zoombar[hidden] { display: none; }
+.zb-track { position: relative; flex: 1; height: 30px; border: 1px solid var(--line); border-radius: 6px; background: var(--ink); cursor: pointer; touch-action: none; user-select: none; }
+.zb-mini { position: absolute; inset: 1px 0; opacity: .7; pointer-events: none; }
+.zb-mini svg { display: block; }
+.zb-win { position: absolute; top: -1px; bottom: -1px; border: 1px solid var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 12%, transparent); cursor: grab; }
+.zb-win:active { cursor: grabbing; }
+.zb-h { position: absolute; top: 50%; width: 9px; height: 20px; margin-top: -10px; border-radius: 3px; background: var(--accent); cursor: ew-resize; }
+.zb-h.l { left: -5px; } .zb-h.r { right: -5px; }
+.zb-lab { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 120px; text-align: right; }
+.zb-reset { font-size: 12px; }
+body.view-map .zoombar { display: none; }
+@media (max-width: 700px) { .zb-lab { min-width: 0; } }

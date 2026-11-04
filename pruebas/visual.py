@@ -34,8 +34,17 @@ async def main():
         await pg.wait_for_timeout(8000); await shot(pg, "1_trace_strike")
         await pg.click('#mapSeg button[data-v="total"]'); await shot(pg, "2_trace_total")
         # Equity Hub NDX
-        await pg.click("#navHub"); await cargar(pg, "NDX"); await shot(pg, "3_hub_ndx")
+        await pg.click("#navHub"); await cargar(pg, "SPX"); await shot(pg, "3_hub_ndx")
         await pg.click("#tabStrike"); await shot(pg, "4_strike_ndx")
+        await pg.evaluate("() => zoomSet('strike', 0.35, 0.65)"); await shot(pg, "4b_strike_zoom")
+        await pg.click("#tabHistory"); await shot(pg, "4c_historico")
+        log.append("historico filas: " + str(await pg.evaluate("() => (state.data.history || {rows: []}).rows.length")))
+        await pg.evaluate("() => { const s = document.getElementById('modelSeg'); s.querySelector('[data-v=gexbot]').click(); }")
+        await pg.wait_for_timeout(6000); await shot(pg, "4d_historico_gexbot")
+        log.append("historico gexbot filas: " + str(await pg.evaluate("() => (state.data.history || {rows: []}).rows.length")))
+        await pg.evaluate("() => { const s = document.getElementById('modelSeg'); s.querySelector('[data-v=spotgamma]').click(); }")
+        await pg.wait_for_timeout(4000)
+        await pg.click("#tabStrike")
         log.append("rango auto: " + await pg.inner_text("#rangeAuto"))
         # informe
         try:

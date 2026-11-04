@@ -1254,7 +1254,7 @@ def scan(symbols: list[str], max_dte, workers: int = 4) -> list[dict]:
 
     def one(sym):
         try:
-            r = compute(sym, max_dte=max_dte, window_pct=5.0)
+            r = compute(sym, max_dte=max_dte, window_pct=5.0, model="spotgamma")
             L, s = r["levels"], r["spot"]
             pct = lambda v: None if v is None else (v / s - 1) * 100  # noqa: E731
             em = (r.get("moves") or {}).get("d1") or {}
@@ -1589,10 +1589,33 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
                  "max_dte": max_dte, "window_pct": window_pct, "window_auto": window_auto},
     }
     res["session"] = session_date(ch["timestamp"])
-    res["prev"] = history_update(res, max_dte, save=not spot_override,
-                                 variant=("c" if combo else "") + ("f" if res["positioning"] == "flow" else "")
-                                 + ("s" if model == "spotgamma" else ""))
+    variant = ("c" if combo else "") + ("f" if res["positioning"] == "flow" else "") + ("s" if model == "spotgamma" else "")
+    res["prev"] = history_update(res, max_dte, save=not spot_override, variant=variant)
+    res["history"] = history_series(res["symbol"], max_dte, variant)
     return res
+
+
+def history_series(symbol: str, max_dte, variant: str = "") -> dict:
+    """Niveles de cada sesion guardada (ultima foto del dia) con el mismo filtro y motor, para el grafico
+    historico, y los cierres diarios del subyacente."""
+    key_dte = ("all" if max_dte is None else str(max_dte)) + variant
+    hist = read_json(os.path.join(HIST_DIR, f"{symbol.replace('.', '_')}.json"), {}) or {}
+    rows = []
+    for k in sorted(hist):
+        parts = k.split("|")
+        if len(parts) == 2 and parts[1] == key_dte:
+            sn = hist[k]
+            rows.append({"d": parts[0], "spot": sn.get("spot"), "cw": sn.get("call_wall"), "pw": sn.get("put_wall"),
+                         "flip": sn.get("flip"), "vt": sn.get("vt"), "abs": sn.get("abs_gamma")})
+    closes = []
+    try:
+        ohlc, src = history_ohlc(symbol)
+        first = rows[0]["d"] if rows else None
+        if not src:  # NDX y RUT: CBOE solo da el historico de su ETF, en otra escala; se usa el spot guardado
+            closes = [[d, v[3]] for d, v in sorted(ohlc.items()) if first and d >= first]
+    except Exception:  # noqa: BLE001
+        closes = []
+    return {"rows": rows, "closes": closes}
 
 
 # ================================================================ mapa de calor (estilo TRACE)

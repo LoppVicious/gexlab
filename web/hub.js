@@ -10,6 +10,7 @@ const HUB_LAST = "#5b9dff";
 
 /* ------------------------------------------------------------ grafico */
 function impactRange(d) {
+  if (d._zoom) return d._zoom; // ventana de la barra de zoom
   // el rango elegido (±%), centrado en el spot: el mismo que ves en los controles
   const w = ((d.meta && d.meta.window_pct) || 5) / 100;
   return [d.spot * (1 - w), d.spot * (1 + w)];

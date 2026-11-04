@@ -1518,8 +1518,22 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         call_wall = float(wgrid[up][np.argmax(wcalls[up])]) if up.any() and (wcalls[up] > 0).any() else None
         put_wall = float(wgrid[dn][np.argmin(wputs[dn])]) if dn.any() and (wputs[dn] < 0).any() else None
     else:
-        call_wall = float(lk[np.argmax(ln)]) if (ln > 0).any() else (float(lk[np.argmax(lc)]) if (lc > 0).any() else None)
-        put_wall = float(lk[np.argmin(ln)]) if (ln < 0).any() else (float(lk[np.argmin(lp)]) if (lp < 0).any() else None)
+        # gexbot: GEX neta del rango, pero la Call Wall siempre en el precio o por encima y la Put Wall en el precio
+        # o por debajo (gexbot las deja cruzarse, lo que no se puede leer como resistencia y soporte).
+        # Si en un lado no hay barras de ese signo, la mayor gamma de calls (o de puts) de ese lado
+        upk, dnk = lk >= spot - 1e-9, lk <= spot + 1e-9
+
+        def _wall(side, sign, alt):
+            # sign = +1: la GEX neta mas positiva del lado; -1: la mas negativa
+            if not side.any():
+                return None
+            v, k = ln[side] * sign, lk[side]
+            if (v > 0).any():
+                return float(k[np.argmax(v)])
+            a = alt[side] * sign
+            return float(k[np.argmax(a)]) if (a > 0).any() else None
+        call_wall = _wall(upk, 1, lc)
+        put_wall = _wall(dnk, -1, lp)
     abs_g = float(lk[np.argmax(np.abs(lc) + np.abs(lp))])
 
     # --- volatility trigger (aproximacion propia): el strike mas alto con gamma neta negativa

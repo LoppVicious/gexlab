@@ -182,11 +182,18 @@ SG_MIN_T = 1.0 / (365 * 24)   # motor SpotGamma: tiempo natural con un minimo de
 SG_SPAN = 0.15                # motor SpotGamma: el zero gamma se busca en +-15% del precio
 
 
-def implied_dividends(ch: dict, spot: float, q_dt: datetime) -> dict:
-    """Rendimiento por dividendo implicito de cada vencimiento por paridad put-call con precios reales de
-    mercado: F = K + e^(rT)(C - P) en los strikes cerca del dinero y q = r - ln(F/S)/T (incluye el coste del
-    prestamo en acciones). Los vencimientos de menos de 3 dias dan un q ruidoso: toman el del primer
-    vencimiento fiable. Devuelve {"by_exp": {exp: q}, "ref": q del plazo ~1 mes, "n": vencimientos medidos}."""
+EUROPEAN = {"SPX", "NDX", "RUT", "XSP", "DJX", "XND", "MRUT", "XEO"}  # ejercicio europeo: la paridad es exacta
+
+
+def implied_dividends(ch: dict, spot: float, q_dt: datetime, symbol: str = "") -> dict:
+    """Rendimiento por dividendo implicito por paridad put-call con precios reales de mercado:
+    F = K + e^(rT)(C - P) en los strikes cerca del dinero de cada vencimiento y q = r - ln(F/S)/T.
+    Solo en indices de ejercicio europeo, donde la paridad es exacta (en ETFs y acciones, americanas, el
+    ejercicio anticipado la sesga y no se aplica dividendo). Los plazos cortos son ruidosos: se usa un unico q,
+    la mediana de los vencimientos de 7 a 180 dias. Devuelve {"q", "ref", "n", "by_exp"}."""
+    sym = (symbol or ch.get("symbol") or "").upper()
+    if sym not in EUROPEAN:
+        return {"by_exp": {}, "ref": None, "n": 0, "q": None}
     r = risk_free()
     q64 = np.datetime64(q_dt.replace(second=0, microsecond=0))
     K, C, E, bid, ask = ch["K"], ch["call"], ch["exp"], ch.get("bid"), ch.get("ask")
@@ -196,7 +203,7 @@ def implied_dividends(ch: dict, spot: float, q_dt: datetime) -> dict:
     out, Ts = {}, {}
     for ex in np.unique(E[ok]):
         T = float((ex - q64).astype("timedelta64[m]").astype(float)) / YEAR_MIN
-        if T < 3 / 365:
+        if T < 7 / 365 or T > 180 / 365:
             continue
         sel = ok & (E == ex)
         mids = {}
@@ -214,14 +221,14 @@ def implied_dividends(ch: dict, spot: float, q_dt: datetime) -> dict:
         if -0.05 <= qv <= 0.15:
             out[str(ex)] = qv
             Ts[str(ex)] = T
-    ref = None
-    if out:
-        ref = min(out.items(), key=lambda kv: abs(Ts[kv[0]] - 30 / 365))[1]
-    return {"by_exp": out, "ref": ref, "n": len(out)}
+    qv = float(np.median(list(out.values()))) if len(out) >= 3 else None
+    return {"by_exp": out, "ref": qv, "n": len(out) if qv is not None else 0, "q": qv}
 
 
 def q_per_contract(div: dict, exp: np.ndarray) -> np.ndarray:
-    """q de cada contrato: el de su vencimiento; si no se pudo medir, el del vencimiento medido mas cercano."""
+    """q de cada contrato: el unico q medido del indice (0 si no se pudo medir o no aplica)."""
+    if div.get("q") is not None:
+        return np.full(exp.size, float(div["q"]))
     by = div.get("by_exp") or {}
     if not by:
         return np.zeros(exp.size)
@@ -1376,7 +1383,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     EXP = cc["exp"][m]
     ivr = cc.get("iv_raw")
     IVR = ivr[m] if ivr is not None and len(ivr) == len(cc["K"]) else None
-    div = implied_dividends(ch, spot_mkt, q_dt) if model == "spotgamma" else None
+    div = implied_dividends(ch, spot_mkt, q_dt, normalize(symbol)) if model == "spotgamma" else None
     W, TT, QD = model_inputs(model, IV, IVR, EXP, q_dt, q_dt, div)
     front_exp = EXP.min()
     FRONT = EXP == front_exp
@@ -1693,7 +1700,7 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         ivr = ch.get("iv_raw")
         if ivr is not None and len(ivr) == len(ch["K"]):
             IV = np.where(ivr[m] > 0.01, ivr[m], IV)
-    div = implied_dividends(parse_chain(fetch_chain(symbol)), spot, quote_time(now)) if model == "spotgamma" else None
+    div = implied_dividends(parse_chain(fetch_chain(symbol)), spot, quote_time(now), symbol) if model == "spotgamma" else None
     sign = np.where(C, 1.0, -1.0)
     pos = sign * OI
     if positioning == "flow" and not combine:

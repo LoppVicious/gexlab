@@ -199,7 +199,7 @@ function paintHub(d) {
     ${hubRow("Volumen de calls", k(hb.call_vol))}
     ${hubRow("Volumen de puts", k(hb.put_vol))}
     ${hubRow("Ratio put/call (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—")}
-    ${d.model === "spotgamma" ? hubRow("Dividendo implícito", d.dividend && d.dividend.ref != null ? fmtNum(d.dividend.ref * 100, 2) + "%" : "sin medir", d.dividend && d.dividend.n ? `paridad put-call, ${d.dividend.n} venc.` : "no se aplica") : ""}`;
+    ${d.model === "spotgamma" ? hubRow("Dividendo implícito", d.dividend && d.dividend.ref != null ? fmtNum(d.dividend.ref * 100, 2) + "%" : "sin medir", d.dividend && d.dividend.n ? `paridad put-call, ${d.dividend.n} venc.` : "solo en índices europeos") : ""}`;
   card.hidden = false;
   const rows = (hub.scan || []).filter((r) => !r.error);
   wl.innerHTML = `<div class="htitle">Lista de seguimiento</div>` + (rows.length

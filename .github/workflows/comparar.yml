@@ -1,6 +1,10 @@
 name: Comparar con gexbot
 on:
   workflow_dispatch:
+    inputs:
+      script:
+        description: "Script de pruebas/ a ejecutar"
+        default: "comparar_vencimientos.py"
 jobs:
   comparar:
     runs-on: ubuntu-latest
@@ -11,4 +15,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -q -r requirements.txt
-      - run: python pruebas/comparar_vencimientos.py
+      - run: python pruebas/${{ inputs.script }}

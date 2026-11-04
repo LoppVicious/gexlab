@@ -292,27 +292,44 @@ def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
     ok = []
     for sym in syms + [p for p in proxies if p not in syms]:
         t = time.time()
-        try:
-            if sym in syms:
-                # historial de niveles de los dos motores y los cuatro filtros (grafico Historico), flujo y copia
-                for mdl in g.MODELS:
-                    for dte in (0, 7, 45, None):
-                        for pos in ("standard", "flow"):  # tambien el flujo: la Validacion tiene los dos modos
-                            g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl, positioning=pos)
-            paq = paquete(sym)
-            escribir_fixtures(paq)
-            n = subir(st, f"pub/t/{sym}/paquete.json", paq)
-            try:  # panel de volatilidad (y su historia diaria)
-                import volatilidad
-                subir(st, f"pub/t/{sym}/vol.json", volatilidad.vol_data(sym, save=sym in syms))
+        for intento in range(2):  # si CBOE limita las peticiones (429), espera y lo reintenta una vez
+            try:
+                _ticker(st, sym, syms)
+                ok.append(sym)
+                log(f"{sym}: listo en {time.time() - t:.1f} s")
+                break
+            except ConnectionError as e:
+                if "429" in str(e) and intento == 0:
+                    log(f"{sym}: CBOE limita las peticiones, reintento en 20 s")
+                    time.sleep(20)
+                    continue
+                err(sym, e)
+                break
             except Exception as e:  # noqa: BLE001
-                err(f"{sym} volatilidad", e)
-            ok.append(sym)
-            log(f"{sym}: paquete {n / 1e6:.2f} MB en {time.time() - t:.1f} s")
-        except Exception as e:  # noqa: BLE001
-            err(sym, e)
+                err(sym, e)
+                break
         time.sleep(0.3)
     return ok
+
+
+def _ticker(st, sym: str, syms: list[str]) -> None:
+    """Un ticker: historial de niveles, paquete para el navegador y panel de volatilidad."""
+    if sym in syms:
+        # historial de niveles de los dos motores, los cuatro filtros y los dos modos (Historico y Validacion),
+        # flujo y copia de la cadena
+        for mdl in g.MODELS:
+            for dte in (0, 7, 45, None):
+                for pos in ("standard", "flow"):
+                    g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl, positioning=pos)
+    paq = paquete(sym)
+    escribir_fixtures(paq)
+    n = subir(st, f"pub/t/{sym}/paquete.json", paq)
+    try:  # panel de volatilidad (y su historia diaria)
+        import volatilidad
+        subir(st, f"pub/t/{sym}/vol.json", volatilidad.vol_data(sym, save=sym in syms))
+    except Exception as e:  # noqa: BLE001
+        err(f"{sym} volatilidad", e)
+    log(f"{sym}: paquete {n / 1e6:.2f} MB")
 
 
 def fase_listas(st, listas: dict) -> None:

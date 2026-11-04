@@ -1183,6 +1183,43 @@ function copyPNG() {
     .finally(() => { btn.disabled = false; });
 }
 
+// niveles para el indicador de TradingView: una linea "precio, etiqueta" por nivel, de mayor a menor.
+// Las etiquetas llevan las palabras que el indicador usa para el color (call wall, put wall, flip, sigma, spot)
+function tvLevels(d) {
+  const L = d.levels, dec = decFor(d.step), num = (v, n) => Number(v).toFixed(n);
+  const rows = [];
+  const add = (v, lab, n = dec) => { if (v != null && isFinite(v)) rows.push([+v, `${num(v, n)}, ${lab}`]); };
+  add(L.call_wall, "Call Wall");
+  add(L.flip, "Gamma Flip");
+  add(L.vt, d.is_index === false ? "Hedge Wall" : "Vol Trigger");
+  add(L.put_wall, "Put Wall");
+  if (L.abs_gamma != null && ![L.call_wall, L.put_wall].includes(L.abs_gamma)) add(L.abs_gamma, "Gamma Absoluta");
+  if (L.zero_gamma != null && Math.abs(L.zero_gamma - (L.flip || 0)) > 1e-9) add(L.zero_gamma, "Zero Gamma");
+  add(d.spot, "Spot", 2);
+  const m1 = d.moves && d.moves.d1, m5 = d.moves && d.moves.d5;
+  if (m1) { add(m1.hi, "+1 Sigma", 2); add(m1.lo, "-1 Sigma", 2); }
+  if (m5) { add(m5.hi, "+1 Sigma 5d", 2); add(m5.lo, "-1 Sigma 5d", 2); }
+  return rows.sort((a, b) => b[0] - a[0]).map((r) => r[1]).join("\n");
+}
+
+async function copyTV() {
+  const d = state.data;
+  if (!d) return;
+  const text = tvLevels(d), btn = $("tvBtn");
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch {
+    // navegadores sin acceso al portapapeles: copia con un campo de texto temporal
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand("copy"); } catch { ok = false; }
+    ta.remove();
+  }
+  if (!ok) { toast("No se pudo copiar", "El navegador bloqueó el portapapeles."); return; }
+  btn.textContent = "Copiado"; setTimeout(() => { btn.textContent = "TradingView"; }, 1600);
+  toast(`Niveles de ${d.symbol} copiados`, `${text.split("\n").length} niveles. En TradingView: Ajustes del indicador ▸ Entradas ▸ pega en el cuadro de texto.`);
+}
+
 function svgToPng(svg, W, H, filename, scale = 1.5) {
   const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -2650,6 +2687,7 @@ async function init() {
   });
   $("exportBtn").addEventListener("click", exportPNG);
   $("copyBtn").addEventListener("click", copyPNG);
+  $("tvBtn").addEventListener("click", copyTV);
   $("chart").addEventListener("mousemove", onMove);
   $("chart").addEventListener("mouseleave", hideTip);
   document.addEventListener("keydown", (e) => {

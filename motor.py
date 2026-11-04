@@ -297,7 +297,8 @@ def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
                 # historial de niveles de los dos motores y los cuatro filtros (grafico Historico), flujo y copia
                 for mdl in g.MODELS:
                     for dte in (0, 7, 45, None):
-                        g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl)
+                        for pos in ("standard", "flow"):  # tambien el flujo: la Validacion tiene los dos modos
+                            g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl, positioning=pos)
             paq = paquete(sym)
             escribir_fixtures(paq)
             n = subir(st, f"pub/t/{sym}/paquete.json", paq)
@@ -324,7 +325,8 @@ def fase_listas(st, listas: dict) -> None:
         for dte in DTES:
             for mode in VAL_MODES:
                 try:
-                    subir(st, f"pub/l/{lid}/validacion_{dte}_{mode}.json", g.validation(syms, dte, mode))
+                    for mdl in g.MODELS:  # la Validacion sigue al motor elegido en la web
+                        subir(st, f"pub/l/{lid}/validacion_{dte}_{mode}_{mdl}.json", g.validation(syms, dte, mode, mdl))
                 except Exception as e:  # noqa: BLE001
                     err(f"validacion {lid} {dte} {mode}", e)
     log(f"listas: Compass y Validacion de {len(listas)} listas")

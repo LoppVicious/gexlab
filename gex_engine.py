@@ -880,18 +880,21 @@ MOVE_SESSIONS = (1, 5)
 AUTO_SIGMAS = 1.0  # rango automatico: 1 desviacion tipica (~68%) de la proxima sesion (o de lo que queda de hoy)
 
 
-def auto_window(moves: dict | None) -> float:
-    """Ventana visible automatica en % del spot: se adapta a la volatilidad, util con 0DTE."""
+def auto_window(moves: dict | None, full_session: bool = False) -> float:
+    """Ventana visible automatica en % del spot: 1 desviacion tipica de lo que queda de sesion (0DTE) o,
+    con full_session, de una sesion completa (resto de filtros: a ultima hora el rango no se estrecha)."""
     d1 = (moves or {}).get("d1") or {}
     pct = d1.get("pct")
     if not pct:
         return 3.0
+    if full_session and d1.get("partial") and d1.get("minutes"):
+        pct = pct * math.sqrt(SESSION_MIN / max(float(d1["minutes"]), 1.0))
     return float(min(10.0, max(0.4, round(AUTO_SIGMAS * pct, 2))))
 
 
-def resolve_window(window_pct, ch: dict, spot: float, now: datetime) -> tuple[float, bool]:
+def resolve_window(window_pct, ch: dict, spot: float, now: datetime, max_dte=0) -> tuple[float, bool]:
     if isinstance(window_pct, str):
-        return auto_window(implied_moves(ch, spot, now)), True
+        return auto_window(implied_moves(ch, spot, now), full_session=max_dte != 0), True
     return float(window_pct), False
 INDEX_LIKE = INDEX_SYMBOLS | {"SPY", "QQQ", "IWM", "DIA"}  # productos de indice: Vol Trigger; acciones: Hedge Wall
 
@@ -1359,7 +1362,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     now_dt = now_ny().replace(second=0, microsecond=0)
     q_dt = quote_time(now_dt)  # instante de las IV (ahora, o el ultimo cierre si el mercado esta cerrado)
     now = np.datetime64(now_dt)
-    window_pct, window_auto = resolve_window(window_pct, ch, spot, now_dt)
+    window_pct, window_auto = resolve_window(window_pct, ch, spot, now_dt, max_dte)
     index_K = ch["K"]
     cc, combo = combine_with_proxy(normalize(symbol), ch, force) if combine else (ch, None)
     alive = cc["exp"] > np.datetime64(q_dt)
@@ -1698,7 +1701,7 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     ch = parse_chain(fetch_chain(symbol))
     spot = float(spot_override) if spot_override else ch["spot"]
     now = now_ny()
-    window_pct, _ = resolve_window(window_pct, ch, spot, now)
+    window_pct, _ = resolve_window(window_pct, ch, spot, now, max_dte)
     sess, kind = map_session(now, which)
     day = sess.strftime("%Y-%m-%d")
     approx = False
@@ -2065,13 +2068,14 @@ def _percentile(v, arr):
 
 
 # ================================================================ validacion historica
-def validation(symbols: list[str], max_dte="45", mode: str = "standard") -> dict:
+def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: str = "spotgamma") -> dict:
     """Contrasta los niveles guardados de cada sesion con el precio de esa misma sesion
     (los niveles de la sesion d usan el OI del cierre de d-1, asi que son ex ante para d):
       - rango intradia (max-min)/cierre anterior segun el regimen (GEX neta + / -)
       - % de sesiones en que el maximo no supero el Call Wall / el minimo no perforo el Put Wall
       - % de sesiones en que el cierre quedo dentro del movimiento esperado (si era del mismo dia)."""
-    key_dte = ("all" if max_dte in (None, "all") else str(max_dte)) + ("f" if mode == "flow" else "")
+    key_dte = ("all" if max_dte in (None, "all") else str(max_dte)) + ("f" if mode == "flow" else "") \
+        + ("s" if model == "spotgamma" else "")
     rows, agg = [], {"pos": [], "neg": [], "cw": [], "pw": [], "em": []}
     for sym in symbols:
         path = os.path.join(HIST_DIR, f"{sym.replace('.', '_')}.json")

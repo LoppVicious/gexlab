@@ -1,7 +1,6 @@
 "use strict";
 /* ============================================================ Zoom de los graficos e Historico de niveles
-   - Barra de zoom bajo el grafico (como SpotGamma): una miniatura de todo el rango con una ventana que se
-     arrastra o se estrecha por los extremos. Vale para Por strike, Impacto calls y puts, Perfil e Historico.
+   - Barra de zoom bajo el grafico: una ventana que se arrastra o se estrecha por los extremos. Vale para Por strike, Impacto calls y puts, Perfil e Historico.
    - Historico: los niveles de cada sesion guardada (Call Wall, Put Wall, Gamma Flip, Vol Trigger, Gamma
      absoluta) con el precio, con el mismo filtro de vencimientos y el mismo motor que la vista actual. */
 
@@ -68,32 +67,6 @@ function zoomBarSync() {
   } else {
     $("zbLab").textContent = `${fmtSpot(a)} – ${fmtSpot(b)}`;
   }
-  zoomMini(d, view);
-}
-
-// miniatura de todo el dominio dentro de la barra
-function zoomMini(d, view) {
-  const el = $("zbMini"), W = Math.max(100, el.clientWidth), H = el.clientHeight || 26;
-  let s = "";
-  if (view === "strike" || view === "impact") {
-    const dom = zoomDomain(d, view), ks = [], vs = [];
-    d.strikes.forEach((k, i) => { if (k >= dom[0] && k <= dom[1]) { ks.push(k); vs.push(d.net[i]); } });
-    const m = Math.max(1e-9, ...vs.map(Math.abs)), bw = Math.max(1, W / Math.max(ks.length, 1) * 0.7);
-    ks.forEach((k, i) => {
-      const x = ((k - dom[0]) / (dom[1] - dom[0] || 1)) * W, h = Math.abs(vs[i]) / m * (H / 2 - 2);
-      s += `<rect x="${(x - bw / 2).toFixed(1)}" y="${(vs[i] > 0 ? H / 2 - h : H / 2).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0.5, h).toFixed(1)}" fill="${vs[i] > 0 ? C.pos : C.neg}" fill-opacity="0.75"/>`;
-    });
-  } else if (view === "profile") {
-    const X = d.profile.x, Y = d.profile.y, m = Math.max(1e-9, ...Y.map(Math.abs));
-    s += `<path d="M${X.map((x, i) => `${((i / (X.length - 1)) * W).toFixed(1)},${(H / 2 - Y[i] / m * (H / 2 - 2)).toFixed(1)}`).join(" L")}" fill="none" stroke="${C.pos}" stroke-width="1.2"/>`;
-  } else if (view === "history") {
-    const rows = histRows(d), px = rows.map((r) => r.px).filter((v) => v != null);
-    if (px.length > 1) {
-      const lo = Math.min(...px), hi = Math.max(...px);
-      s += `<path d="M${rows.map((r, i) => r.px == null ? null : `${((i / (rows.length - 1)) * W).toFixed(1)},${(H - 2 - (r.px - lo) / (hi - lo || 1) * (H - 4)).toFixed(1)}`).filter(Boolean).join(" L")}" fill="none" stroke="${C.muted}" stroke-width="1.2"/>`;
-    }
-  }
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="none">${s}</svg>`;
 }
 
 function zoomSet(view, a, b) {

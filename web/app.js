@@ -1665,7 +1665,7 @@ async function loadValidation() {
   const body = $("validBody");
   body.innerHTML = `<tr class="loading"><td colspan="7" class="l">Calculando…</td></tr>`;
   try {
-    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&symbols=${encodeURIComponent(watchlist().join(","))}`);
+    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=${state.model === "gexbot" ? "gexbot" : "spotgamma"}&symbols=${encodeURIComponent(watchlist().join(","))}`);
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Error en la validación");
     const pct = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} ses.</span>` : ""}`;

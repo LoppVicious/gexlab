@@ -111,7 +111,7 @@
     <span class="cap" id="capRange">Rango</span>
     <div class="rangebox">
       <div class="seg boxed" role="radiogroup" aria-labelledby="capRange" id="rangeSeg">
-        <button role="radio" data-v="auto" id="rangeAuto" title="Se adapta a la volatilidad: 1 desviación típica (≈68%) de lo que queda de sesión o, con el mercado cerrado, de la próxima. Útil con 0DTE">Auto</button>
+        <button role="radio" data-v="auto" id="rangeAuto" title="Se adapta a la volatilidad: 1 desviación típica (≈68%): en 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa o, con el mercado cerrado, de la próxima. Útil con 0DTE">Auto</button>
         <button role="radio" data-v="3">±3%</button>
         <button role="radio" data-v="5">±5%</button>
         <button role="radio" data-v="8">±8%</button>
@@ -257,7 +257,6 @@
     </div>
     <div class="zoombar" id="zoomBar" hidden>
       <div class="zb-track" id="zbTrack" title="Arrastra la ventana o sus extremos para acercar o alejar. Doble clic: todo el rango. En el gráfico, Ctrl + rueda.">
-        <div class="zb-mini" id="zbMini"></div>
         <div class="zb-win" id="zbWin"><span class="zb-h l"></span><span class="zb-h r"></span></div>
       </div>
       <span class="zb-lab" id="zbLab"></span>

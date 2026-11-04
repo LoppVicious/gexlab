@@ -173,7 +173,7 @@
       case "/api/gex": return analisis("gex", q, s);
       case "/api/heatmap": return analisis("heat", q, s);
       case "/api/scan": return lista(`escaner_${q.get("dte") || "45"}.json`, s, "Escáner");
-      case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}.json`, s, "Validación");
+      case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validación");
       case "/api/compass": return lista("compass.json", s, "Compass");
       case "/api/vix": return pub("vix.json", s, "Curva VIX");
       case "/api/cot": return pub("cot.json", s, "COT");

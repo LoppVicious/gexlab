@@ -166,7 +166,8 @@ class Handler(SimpleHTTPRequestHandler):
                 except ValueError:
                     continue
             try:
-                return self._json(200, gex_engine.validation(clean, q.get("dte", "45"), q.get("mode", "standard")))
+                return self._json(200, gex_engine.validation(clean, q.get("dte", "45"), q.get("mode", "standard"),
+                                                                   "gexbot" if q.get("model") == "gexbot" else "spotgamma"))
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Error interno: {e}"})

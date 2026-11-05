@@ -2010,7 +2010,8 @@ function renderVix() {
     fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "por encima de 1: tensión a corto plazo" : "por debajo de 1: estructura normal") : "sin dato", ratio >= 1, "vix3m"),
     fact("Racha", `${d.streak} ${d.streak === 1 ? "sesión" : "sesiones"}`, `en ${d.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% del año en contango`, false, "streak"),
   ].join("");
-  $("vxCap").textContent = `Cierres oficiales de CBOE. Índices VIX9D a VIX1Y en directo (15 min). Puntos huecos: vencimientos con menos de 1.000 contratos abiertos.`;
+  const idx = d.term_live === false ? "al cierre (con el mercado cerrado)" : "en directo (15 min)";
+  $("vxCap").textContent = `Cierres oficiales de CBOE. Índices VIX9D a VIX1Y ${idx}. Puntos huecos: vencimientos con menos de 1.000 contratos abiertos.`;
   renderVixCurve();
   renderVixHist();
 }

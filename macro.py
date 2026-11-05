@@ -265,11 +265,14 @@ def _vix_curve() -> dict:
             break
         streak += 1
 
-    # estructura de los indices de volatilidad (casi en directo)
+    # estructura de los indices de volatilidad: en directo (15 min) con el mercado abierto; si no, el cierre oficial
+    # de todos. CBOE calcula el VIX tambien en horario extendido (antes de la apertura), pero VIX9D, VIX3M, VIX6M y
+    # VIX1Y no: mezclarlos daria una curva y un VIX/VIX3M de dos momentos distintos.
+    live = g.market_open(g.now_ny())
     term = []
     for sym, days in VOL_TERM:
         qd = (g.fetch_quote(sym) or {}).get("data") or {}
-        v = float(qd.get("current_price") or 0)
+        v = float((qd.get("current_price") if live else (qd.get("close") or qd.get("current_price"))) or 0)
         if v > 0:
             term.append({"symbol": sym, "days": days, "value": v,
                          "prev": float(qd.get("prev_day_close") or qd.get("close") or 0) or None})
@@ -293,7 +296,8 @@ def _vix_curve() -> dict:
         "contango_share": sum(1 for s in spreads if s >= 0) / len(spreads),
         "history": hist,
         "term": term, "vix_vix3m": ratio,
-        "term_time": (g.fetch_quote("VIX") or {}).get("timestamp"),
+        "term_time": (g.fetch_quote("VIX") or {}).get("timestamp") if live else None,  # sin hora: son cierres
+        "term_live": live,
         "computed_at": now.strftime("%Y-%m-%d %H:%M"),
         "flat_tol": FLAT_TOL,
     }

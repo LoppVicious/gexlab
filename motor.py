@@ -324,7 +324,10 @@ def _ticker(st, sym: str, syms: list[str]) -> None:
         for mdl in g.MODELS:
             for dte in [_dte_arg(x) for x in DTES]:
                 for pos in ("standard", "flow"):
-                    g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl, positioning=pos)
+                    try:
+                        g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl, positioning=pos)
+                    except LookupError:  # sin vencimientos en ese filtro (p. ej. solo mensuales): se salta
+                        pass
     paq = paquete(sym)
     escribir_fixtures(paq)
     n = subir(st, f"pub/t/{sym}/paquete.json", paq)

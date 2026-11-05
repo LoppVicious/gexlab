@@ -1,20 +1,26 @@
 name: Prueba Tradier
 on:
   workflow_dispatch:
+    inputs:
+      script:
+        description: "Script de pruebas/ que se ejecuta con el token de Tradier"
+        default: "tradier.py"
 jobs:
   tradier:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - run: pip install -q -r requirements.txt
       - name: Produccion
-        run: python pruebas/tradier.py
+        run: python pruebas/${{ inputs.script || 'tradier.py' }}
         env:
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
       - name: Sandbox
+        if: ${{ (inputs.script || 'tradier.py') == 'tradier.py' }}
         run: python pruebas/tradier.py
         env:
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}

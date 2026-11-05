@@ -18,7 +18,7 @@ Publicado en https://dashboard.gexlab.workers.dev con coste 0 €.
 ## Arquitectura
 ```
 GitHub Actions (motor.yml, repo público = minutos ilimitados)
-  motor.py ciclo -> descarga CBOE, calcula, publica en R2 (Cloudflare)
+  motor.py ciclo -> descarga Tradier (tiempo real; CBOE de respaldo), calcula, publica en R2 (Cloudflare)
 Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
   - auth (PBKDF2 en el cliente, sesión única por cuenta), prefs y listas en D1
   - cron */15: toca() decide si lanza motor.yml (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00)
@@ -38,6 +38,7 @@ Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
 | `eventos.py` | Calendario macro (Fed, BEA, Census, ForexFactory, FRED API) |
 | `macro.py` | Curva VIX, COT (TFF de la CFTC), Resumen |
 | `almacen.py` | R2 (boto3) o disco local; JSON con gzip |
+| `fuente_tradier.py` | Cadena de Tradier en tiempo real con el formato de CBOE (IV propia desde el punto medio, límite 120/min) |
 | `historial500.py` | Historial diario (`historial500.yml`): cadena al cierre y niveles de una lista fija de ~100 tickers |
 | `nube/worker.js`, `nube/schema.sql`, `nube/desplegar.sh` | Worker, D1 y despliegue (desplegar.yml) |
 | `web/app.js` | App principal: estado, TRACE, Por strike, Perfil, Escáner, Compass, COT, VIX, Informe, TradingView |
@@ -65,7 +66,7 @@ El rango canónico es `auto` o un número sin ceros sobrantes. El motor borra la
 ### Secretos (solo los nombres)
 `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`,
 `GH_DISPATCH_TOKEN`, `GEX_SETUP_CODE`, `FRED_API_KEY`, `TRADIER_TOKEN`.
-El de Tradier ahora mismo responde 401 (token inválido). Ver "Pendiente".
+El de Tradier es válido (renovado el 5-11-2026); solo lo recibe `motor.yml`.
 
 ## Los dos motores de cálculo (Ajustes ▸ Motor; SpotGamma por defecto)
 Común a los dos:
@@ -94,7 +95,12 @@ Los dos:
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.
 
 ## Pruebas (con datos reales)
-- Desde el contenedor de Claude no se llega a CBOE ni a Tradier. Desde GitHub Actions, sí.
+- Desde el PC del usuario se llega a CBOE; el token de Tradier solo está en GitHub, así que Tradier se prueba en Actions:
+  `prueba_tradier.yml` con `inputs[script]=tradier_motor.py` (Tradier frente a CBOE) o `tradier_historial.py`.
+- Fuente de la cadena: Tradier si hay `TRADIER_TOKEN` (y `GEX_FUENTE` no es `cboe`); si falla, CBOE. El resultado lleva `source`.
+  El historial diario (`historial500.yml`) usa CBOE: no recibe el token (114 tickers no caben en 120 peticiones/min).
+- Historial de Tradier: velas diarias de años (subyacente) y de cada contrato desde que cotiza; 1 min unos 20 días,
+  5 y 15 min unos 40 días. No da OI ni IV pasados, así que los niveles pasados solo salen del historial propio.
 - **`comparar.yml`** (input `script`) ejecuta cualquier `pruebas/*.py`, por ejemplo:
   `gh api -X POST repos/LoppVicious/gexlab/actions/workflows/comparar.yml/dispatches -f ref=main -f 'inputs[script]=motores.py'`
 - **`prueba_visual.yml`** levanta `server.py`, recorre la web con Playwright y sube las capturas a la rama `prueba-visual`.
@@ -106,7 +112,6 @@ Los dos:
 - **Comprobación de JS:** `node --check`. Para Python, importar el módulo.
 
 ## Pendiente / ideas apuntadas por el usuario (para más adelante)
-- **Datos:** Tradier como fuente principal (tiempo real) con CBOE de respaldo, cuando haya un token válido. Ya existe `pruebas/tradier.py` + `prueba_tradier.yml`.
 - **Dealer Hedge Ratio** (en espera): COT TFF de dealers en ES y VX (en % del OI, z-score de 3 años) + pendiente de la curva del VIX.
   - Va como tarjeta en COT y alerta en Resumen.
   - Validar antes con el histórico de la CFTC desde 2010.

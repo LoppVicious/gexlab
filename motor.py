@@ -34,6 +34,10 @@ sys.path.insert(0, ROOT)
 import almacen  # noqa: E402
 import gex_engine as g  # noqa: E402
 
+# una descarga de cada cadena por ciclo: con Tradier (tiempo real) cada cadena son decenas de peticiones
+# (una por vencimiento, 120 por minuto) y el Compass y el recolector la vuelven a pedir
+g.CACHE_TTL = 900
+
 ESTADO_KEY = "estado/estado.tar.gz"
 COPIAS_PREFIX = "estado/copias/"
 COPIAS_N = 14

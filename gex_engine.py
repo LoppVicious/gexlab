@@ -669,8 +669,8 @@ def fetch_chain(symbol: str, force: bool = False) -> dict:
         else:
             raise LookupError(f"No hay datos de opciones para {symbol}")
     else:
-        candidates = [f"_{symbol}"] if symbol in INDEX_SYMBOLS else [symbol, f"_{symbol}"]
-        raw = None
+        raw = _fetch_tradier(symbol)  # tiempo real si hay token; None -> CBOE (15 min de retraso)
+        candidates = [] if raw else ([f"_{symbol}"] if symbol in INDEX_SYMBOLS else [symbol, f"_{symbol}"])
         for c in candidates:
             try:
                 raw = _fetch_json(CBOE_PATH.format(sym=c))
@@ -685,6 +685,26 @@ def fetch_chain(symbol: str, force: bool = False) -> dict:
             raise LookupError(f"CBOE no publica opciones para {symbol}")
 
     _cache[symbol] = (time.time(), raw)
+    return raw
+
+
+def _fetch_tradier(symbol: str) -> dict | None:
+    """Cadena de Tradier en formato CBOE, o None si no hay token o falla (se usa CBOE)."""
+    try:
+        import fuente_tradier as ft
+    except ImportError:  # navegador (Pyodide): no hay red ni token
+        return None
+    if not ft.disponible():
+        return None
+    try:
+        raw = ft.cadena(symbol)
+    except Exception as e:  # noqa: BLE001
+        print(f"[{symbol}] Tradier no disponible ({type(e).__name__}: {str(e)[:80]}); se usa CBOE", flush=True)
+        return None
+    try:  # IV a 30 dias de CBOE (Tradier no la publica)
+        raw["data"]["iv30"] = ((fetch_quote(symbol) or {}).get("data") or {}).get("iv30")
+    except Exception:  # noqa: BLE001
+        pass
     return raw
 
 
@@ -707,7 +727,7 @@ def chain_to_min(ch: dict) -> dict:
     """Cadena ya interpretada en formato compacto (columnas, vencimientos indexados). Es el paquete que usan el
     motor en la nube y el motor del navegador: los dos calculan sobre exactamente los mismos numeros."""
     exps, eidx = np.unique(ch["exp"], return_inverse=True)
-    d = {k: ch[k] for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30")}
+    d = {k: ch.get(k) for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30", "source")}
     d["exps"] = [str(x) for x in exps]
     d["e"] = eidx.astype(int).tolist()
     d["call"] = ch["call"].astype(int).tolist()
@@ -719,7 +739,7 @@ def chain_to_min(ch: dict) -> dict:
 
 def chain_from_min(d: dict) -> dict:
     exps = np.array(d["exps"], dtype="datetime64[m]")
-    ch = {k: d.get(k) for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30")}
+    ch = {k: d.get(k) for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30", "source")}
     ch["exp"] = exps[np.array(d["e"], dtype=int)] if d["e"] else np.array([], dtype="datetime64[m]")
     ch["call"] = np.array(d["call"], dtype=bool)
     for k in _MIN_ROUND:
@@ -792,6 +812,7 @@ def parse_chain(raw: dict) -> dict:
         "oi": oi[keep], "iv": IV_, "iv_raw": iv[keep], "bid": bid[keep], "ask": ask[keep], "delta": delta[keep],
         "vol": vol[keep], "last": last[keep],
         "iv30": float(data.get("iv30") or 0) / 100.0,
+        "source": raw.get("source") or "cboe",
     })
 
 
@@ -1608,6 +1629,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "regime": "positive" if net_total > 0 else "negative",
         "rate": rate_info(),
         "model": model,
+        "source": ch.get("source") or "cboe",
         "dividend": ({"ref": div["ref"], "n": div["n"], "applied": bool(div["n"])} if div else None),
         "meta": {"contracts": int(m.sum()), "expirations": n_exp,
                  "max_dte": max_dte, "window_pct": window_pct, "window_auto": window_auto},

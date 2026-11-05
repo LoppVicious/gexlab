@@ -98,13 +98,19 @@
 </header>
 
 <section class="controls" aria-label="Ajustes">
-  <div class="ctl">
+  <div class="ctl dtectl">
     <span class="cap" id="capDte">Vencimientos</span>
-    <div class="seg boxed" role="radiogroup" aria-labelledby="capDte" id="dteSeg">
-      <button role="radio" data-v="0">0DTE</button>
-      <button role="radio" data-v="7">7 días</button>
-      <button role="radio" data-v="45">45 días</button>
-      <button role="radio" data-v="all">Todos</button>
+    <div class="dteslider" id="dteSlider" title="Vencimientos incluidos (acumulados): 0DTE, el más próximo; 1DTE, ese y el de la sesión siguiente; N DTE, hasta N días; Todos, la cadena completa">
+      <input type="range" id="dteRange" min="0" max="6" step="1" value="5" aria-labelledby="capDte">
+      <div class="dteticks" id="dteTicks">
+        <button type="button" tabindex="-1" data-i="0">0DTE</button>
+        <button type="button" tabindex="-1" data-i="1">1DTE</button>
+        <button type="button" tabindex="-1" data-i="2">7DTE</button>
+        <button type="button" tabindex="-1" data-i="3">14DTE</button>
+        <button type="button" tabindex="-1" data-i="4">30DTE</button>
+        <button type="button" tabindex="-1" data-i="5">45DTE</button>
+        <button type="button" tabindex="-1" data-i="6">Todos</button>
+      </div>
     </div>
   </div>
   <div class="ctl only-analysis">

@@ -151,9 +151,9 @@ async function syncConfig(env) {
 }
 
 // ------------------------------------------------------------------ motor (GitHub Actions)
-async function dispatch(env, inputs) {
+async function dispatch(env, inputs, workflow = "motor.yml") {
   if (!env.GH_DISPATCH_TOKEN) return false;
-  const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/motor.yml/dispatches`, {
+  const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/dispatches`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.GH_DISPATCH_TOKEN}`, Accept: "application/vnd.github+json",
@@ -401,12 +401,19 @@ function toca(d) {
   return false;
 }
 
+// historial diario (historial500.yml): dias laborables a las 16:30 ET; el script descarta festivos
+function tocaHistorial(d) {
+  const { wd, min } = nyParts(d);
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min === 16 * 60 + 30;
+}
+
 
 export default {
   async scheduled(event, env, ctx) {
     const d = new Date(event.scheduledTime);
     d.setUTCSeconds(0, 0);
     if (toca(d)) ctx.waitUntil(dispatch(env, { modo: "ciclo" }));
+    if (tocaHistorial(d)) ctx.waitUntil(dispatch(env, {}, "historial500.yml"));
   },
 
   async fetch(req, env) {

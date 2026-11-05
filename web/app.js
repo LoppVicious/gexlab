@@ -502,7 +502,7 @@ function watermark(d, left, bottom, small, exp) {
 function frame(W, H, inner, d, exp, title) {
   let head = "";
   if (exp) {
-    const dte = { "0": "0DTE", "7": "≤ 7 días", "45": "≤ 45 días", "all": "todos los vencimientos" }[state.dte] || "";
+    const dte = DTE_LABEL[state.dte] || "";
     head = `<rect x="0" y="0" width="${W}" height="${H}" rx="22" fill="${C.surface}"/>
       <text x="92" y="44" font-family="${SANS}" font-size="22" font-weight="600" fill="${C.text}">${esc(d.symbol)}</text>
       <text x="${92 + d.symbol.length * 14 + 14}" y="44" font-family="${SANS}" font-size="18" fill="${C.muted}">${title}, ${dte}</text>`;
@@ -933,6 +933,37 @@ async function load(refresh = false, silent = false) {
 }
 
 /* ============================================================ interacción */
+// barra de vencimientos: pasos acumulados (los mismos filtros que gex_engine.DTE_FILTERS)
+const DTE_STEPS = ["0", "1", "7", "14", "30", "45", "all"];
+const DTE_LABEL = { "0": "0DTE", "1": "≤ 1DTE", "7": "≤ 7 días", "14": "≤ 14 días", "30": "≤ 30 días", "45": "≤ 45 días", all: "todos los vencimientos" };
+
+function bindDte(onChange) {
+  const range = $("dteRange"), ticks = $("dteTicks");
+  const btns = [...ticks.querySelectorAll("button")];
+  const names = btns.map((b) => b.textContent);
+  btns.forEach((b) => b.style.setProperty("--i", b.dataset.i));
+  if (!DTE_STEPS.includes(state.dte)) state.dte = "45";
+  const paint = (i) => {
+    $("dteSlider").style.setProperty("--p", String(i / (DTE_STEPS.length - 1)));
+    btns.forEach((b) => { b.setAttribute("aria-current", String(+b.dataset.i === i)); b.toggleAttribute("data-on", +b.dataset.i <= i); });
+    range.setAttribute("aria-valuetext", names[i]);
+  };
+  const commit = (i) => {
+    paint(i);
+    const v = DTE_STEPS[i];
+    if (v === state.dte) return;
+    state.dte = v; store.set("dte", v); onChange();
+  };
+  range.value = String(DTE_STEPS.indexOf(state.dte));
+  paint(+range.value);
+  range.addEventListener("input", () => paint(+range.value));   // mientras se arrastra solo se pinta
+  range.addEventListener("change", () => commit(+range.value)); // al soltar (o con el teclado) se calcula
+  ticks.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    range.value = b.dataset.i; commit(+b.dataset.i);
+  });
+}
+
 function bindSeg(id, key, onChange) {
   const box = $(id);
   const sync = () => box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === state[key])));
@@ -1283,7 +1314,7 @@ async function exportReport() {
   state.greek = greek; state.mapMode = mapMode; state.geo = geo; state.heatImg = null;
 
   const L = d.levels, t = d.totals, em = move1(d), hb = d.hub || {};
-  const dte = { "0": "0DTE", "7": "≤ 7 días", "45": "≤ 45 días", all: "todos los vencimientos" }[state.dte];
+  const dte = DTE_LABEL[state.dte] || "";
   const neg = d.regime === "negative";
   const T = (x, y, str, o = {}) => `<text x="${x}" y="${y}" text-anchor="${o.a || "start"}" font-family="${SANS}" font-size="${o.fs || 22}" font-weight="${o.w || 400}" fill="${o.c || C.text}">${str}</text>`;
   const card = (x, y, w, h) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="22" fill="${C.surface}" stroke="${C.axis}" stroke-opacity="0.6"/>`;
@@ -2650,7 +2681,7 @@ async function init() {
     const b = e.target.closest("button"); if (!b) return;
     $("symbol").value = b.dataset.s; $("spotInput").value = ""; load();
   });
-  bindSeg("dteSeg", "dte", () => (state.mode === "scanner" ? runScan() : load()));
+  bindDte(() => (state.mode === "scanner" ? runScan() : load()));
   bindSeg("barsSeg", "bars", () => draw());
   bindSeg("greekSeg", "greek", () => { $("barsSeg").hidden = state.view !== "strike" || state.greek !== "gamma"; draw(); });
   bindSeg("posSeg", "pos", () => { renderChips(); load(); });

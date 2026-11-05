@@ -136,7 +136,7 @@ class Handler(SimpleHTTPRequestHandler):
                         clean.append(gex_engine.normalize(x))
                     except ValueError:
                         continue
-                rows = gex_engine.scan(clean, None if dte == "all" else int(dte))
+                rows = gex_engine.scan(clean, gex_engine.dte_arg(dte))
                 return self._json(200, {"rows": rows, "computed_at": gex_engine.now_ny().strftime("%Y-%m-%d %H:%M")})
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
@@ -145,7 +145,7 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 dte = q.get("dte", "45")
                 spot = q.get("spot")
-                res = gex_engine.heatmap(q.get("symbol", "SPX"), max_dte=None if dte == "all" else int(dte),
+                res = gex_engine.heatmap(q.get("symbol", "SPX"), max_dte=gex_engine.dte_arg(dte),
                                          window_pct=_range(q.get("range", "5")),
                                          spot_override=float(spot.replace(",", ".")) if spot else None,
                                          which=q.get("session", "auto") if q.get("session") in ("auto", "last", "next") else "auto",
@@ -166,7 +166,7 @@ class Handler(SimpleHTTPRequestHandler):
                 except ValueError:
                     continue
             try:
-                return self._json(200, gex_engine.validation(clean, q.get("dte", "45"), q.get("mode", "standard"),
+                return self._json(200, gex_engine.validation(clean, gex_engine.dte_arg(q.get("dte", "45")), q.get("mode", "standard"),
                                                                    "gexbot" if q.get("model") == "gexbot" else "spotgamma"))
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
@@ -235,7 +235,7 @@ class Handler(SimpleHTTPRequestHandler):
             spot = q.get("spot")
             res = gex_engine.compute(
                 q.get("symbol", "SPX"),
-                max_dte=None if dte == "all" else int(dte),
+                max_dte=gex_engine.dte_arg(dte),
                 window_pct=_range(q.get("range", "5")),
                 spot_override=float(spot.replace(",", ".")) if spot else None,
                 force=q.get("refresh") == "1",

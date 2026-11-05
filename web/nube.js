@@ -25,7 +25,7 @@
   }
   function vista(q, sym) {
     let dte = q.get("dte") || "45";
-    if (!["0", "7", "45", "all"].includes(dte)) dte = "45";
+    if (!["0", "1", "7", "14", "30", "45", "all"].includes(dte)) dte = "45";
     const combo = q.get("combine") === "1" && PROXY[sym] ? "1" : "0";
     const pos = q.get("pos") === "flow" && combo === "0" ? "flow" : "standard";
     const s = q.get("session");

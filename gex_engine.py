@@ -97,6 +97,37 @@ def next_trading_day(d: datetime) -> datetime:
     return d
 
 
+DTE_FILTERS = ("0", "1", "7", "14", "30", "45", "all")  # pasos de la barra de vencimientos (acumulados)
+
+
+def dte_arg(v) -> int | None:
+    """Filtro de vencimientos de la API ("0", "1", ..., "all") a max_dte; uno desconocido vale 45."""
+    v = str(v if v is not None else "45")
+    if v not in DTE_FILTERS:
+        v = "45"
+    return None if v == "all" else int(v)
+
+
+def expiry_filter(exp: np.ndarray, alive: np.ndarray, ref_day: np.datetime64, max_dte) -> np.ndarray:
+    """Contratos que entran en el filtro de vencimientos (acumulado):
+      0     solo el primer vencimiento vivo (0DTE, o el siguiente con el mercado cerrado)
+      1     ese y los de la sesion de mercado siguiente (1DTE)
+      N     hasta N dias naturales desde ref_day
+      None  todos."""
+    exp_d = exp.astype("datetime64[D]")
+    if max_dte is None:
+        return np.ones(exp.shape, dtype=bool)
+    if max_dte in (0, 1):
+        if not alive.any():
+            return alive.copy()
+        first = exp_d[alive].min()
+        if max_dte == 0:
+            return exp_d == first
+        nxt = next_trading_day(datetime.strptime(str(first), "%Y-%m-%d"))
+        return exp_d <= np.datetime64(nxt.strftime("%Y-%m-%d"))
+    return (exp_d - ref_day.astype("datetime64[D]")).astype(int) <= max_dte
+
+
 def last_close(now: datetime) -> datetime:
     """Cierre de la ultima sesion terminada."""
     if is_trading_day(now) and now >= close_time(now):
@@ -1366,17 +1397,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     index_K = ch["K"]
     cc, combo = combine_with_proxy(normalize(symbol), ch, force) if combine else (ch, None)
     alive = cc["exp"] > np.datetime64(q_dt)
-    dte = np.floor((cc["exp"].astype("datetime64[D]") - now.astype("datetime64[D]")).astype(float))
-
-    # filtro de vencimientos
-    if max_dte == 0:
-        exps_alive = np.unique(cc["exp"][alive].astype("datetime64[D]"))
-        first = exps_alive.min() if exps_alive.size else None
-        exp_mask = cc["exp"].astype("datetime64[D]") == first if first is not None else alive
-    elif max_dte is None:
-        exp_mask = np.ones_like(alive)
-    else:
-        exp_mask = dte <= max_dte
+    exp_mask = expiry_filter(cc["exp"], alive, now, max_dte)  # filtro de vencimientos
 
     m = alive & exp_mask & (cc["oi"] > 0) & (cc["iv"] > 0.01) & (np.abs(cc["K"] / spot - 1) < 0.35)
     if not m.any():
@@ -1722,16 +1743,8 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         times.append(t)
         t += timedelta(minutes=step_min)
 
-    exp_d = ch["exp"].astype("datetime64[D]")
-    dte_sess = (exp_d - np.datetime64(sess.date())).astype(int)
     alive = ch["exp"] > np.datetime64(t0)
-    if max_dte == 0:
-        first = exp_d[alive].min() if alive.any() else None
-        f = exp_d == first if first is not None else alive
-    elif max_dte is None:
-        f = np.ones_like(alive)
-    else:
-        f = dte_sess <= max_dte
+    f = expiry_filter(ch["exp"], alive, np.datetime64(sess.date()), max_dte)
     m = alive & f & (ch["oi"] > 0) & (ch["iv"] > 0.01) & (np.abs(ch["K"] / spot - 1) < max(0.2, window_pct * 3 / 100))
     if not m.any():
         raise LookupError("No hay contratos con open interest en ese filtro")

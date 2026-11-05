@@ -38,7 +38,7 @@ ESTADO_KEY = "estado/estado.tar.gz"
 COPIAS_PREFIX = "estado/copias/"
 COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
-DTES = ["0", "7", "45", "all"]
+DTES = list(g.DTE_FILTERS)  # 0, 1, 7, 14, 30, 45 y todos
 VAL_MODES = ["standard", "flow"]
 DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
 
@@ -318,7 +318,7 @@ def _ticker(st, sym: str, syms: list[str]) -> None:
         # historial de niveles de los dos motores, los cuatro filtros y los dos modos (Historico y Validacion),
         # flujo y copia de la cadena
         for mdl in g.MODELS:
-            for dte in (0, 7, 45, None):
+            for dte in [_dte_arg(x) for x in DTES]:
                 for pos in ("standard", "flow"):
                     g.compute(sym, max_dte=dte, window_pct=5.0, model=mdl, positioning=pos)
     paq = paquete(sym)

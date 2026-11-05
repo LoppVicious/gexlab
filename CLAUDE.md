@@ -38,6 +38,7 @@ Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
 | `eventos.py` | Calendario macro (Fed, BEA, Census, ForexFactory, FRED API) |
 | `macro.py` | Curva VIX, COT (TFF de la CFTC), Resumen |
 | `almacen.py` | R2 (boto3) o disco local; JSON con gzip |
+| `historial500.py` | Historial diario (`historial500.yml`): cadena al cierre y niveles de una lista fija de ~100 tickers |
 | `nube/worker.js`, `nube/schema.sql`, `nube/desplegar.sh` | Worker, D1 y despliegue (desplegar.yml) |
 | `web/app.js` | App principal: estado, TRACE, Por strike, Perfil, Escáner, Compass, COT, VIX, Informe, TradingView |
 | `web/hub.js` | Equity Hub: Impacto calls y puts y ficha |
@@ -50,6 +51,13 @@ Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
 - `pub/t/SYM/{paquete,vol}.json`, `pub/t/SYM/niveles/*`, `pub/t/SYM/mapa/*`: vistas precalculadas.
 - `pub/l/{lid}/escaner_{dte}.json`, `compass.json`, `validacion_{dte}_{mode}_{model}.json`.
 - `config/config.json`: listas y vistas que escribe el Worker.
+- `hist500/{SYM}/{fecha}.json.gz`: historial diario para backtests, fuera del estado. Lo lanza el Worker a las 16:30 ET
+  (cron de GitHub de respaldo); `hist500/_dias/{fecha}.json` marca la sesión hecha. Se conservan 2 años.
+  - `chain`: cadena compacta (`chain_to_min`, contratos con OI o volumen); se recalcula con `parse_chain({"_min": chain})`.
+  - `levels[posición][motor][filtro]`: los mismos campos que el histórico (`_snap`), rango 5 %, estándar y flujo, calculados
+    tras el cierre. Todos los filtros de la barra; el 0DTE solo en los ETFs (`ETFS`), no en acciones.
+  - `hist500/_flujo/{SYM}.json.gz`: volumen y lado por contrato de las últimas 8 sesiones (modo flujo).
+  - La lista de tickers está en `TICKERS` dentro del script. Prueba local: `GEX_ALMACEN=local:./data/x python historial500.py --forzar AAPL`.
 
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El rango canónico es `auto` o un número sin ceros sobrantes. El motor borra las vistas que ya no calcula.
@@ -79,6 +87,8 @@ Común a los dos:
 - Flip: cruce por cero de la GEX total recalculada en ±15 %, el más cercano al spot.
 
 Los dos:
+- **Filtro de vencimientos** (barra deslizante, acumulado; `gex_engine.DTE_FILTERS` y `expiry_filter`): 0DTE = primer
+  vencimiento vivo; 1DTE = ese y los de la sesión siguiente; 7, 14, 30 y 45 = hasta N días naturales; Todos.
 - **Vol Trigger:** strike más alto por debajo del flip con GEX neta ≤ −25 % del máximo.
 - **Rango Auto:** 1σ implícita. En 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa. Mínimo 0,4 %, máximo 10 %.
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.

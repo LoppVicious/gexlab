@@ -1,0 +1,39 @@
+name: Historial diario
+# Cadena y niveles al cierre de una lista fija de tickers (historial500.py) en R2: hist500/{SYM}/{fecha}.json.gz
+# Lo lanza el Worker a las 16:30 ET los dias laborables; el cron de GitHub es solo un respaldo
+# (si la sesion ya esta guardada no hace nada).
+on:
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Rehacer la ultima sesion cerrada aunque ya este guardada"
+        type: boolean
+        default: false
+  schedule:
+    - cron: "45 23 * * 1-5"
+concurrency:
+  group: historial500
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  historial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-nube.txt
+      - run: pip install -q -r requirements-nube.txt
+      - name: Guardar la sesion
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          GEX_ALMACEN: r2
+          FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
+        run: python historial500.py $FORZAR

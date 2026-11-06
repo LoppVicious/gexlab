@@ -1,5 +1,8 @@
 """
-GEX Lab - historial diario de una lista fija de tickers (GitHub Actions, workflow historial500.yml).
+GEX Lab - historial diario de una lista de tickers (GitHub Actions, workflow historial500.yml).
+
+La lista la edita el administrador en la web (Usuarios > Historial diario) y se guarda en R2 en
+config/historial500.json; si aun no existe, se usa TICKERS (la lista inicial).
 
   python historial500.py                 sesion de hoy (solo si ya ha cerrado y no esta hecha)
   python historial500.py --forzar        rehace la ultima sesion cerrada (con el mercado cerrado)
@@ -11,7 +14,7 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
             (strike, tipo, vencimiento, OI, IV, bid, ask, volumen, ultimo precio).
             Se puede recalcular con cualquier motor: gex_engine.parse_chain({"_min": chain}).
     levels[posicion][motor][filtro]: niveles con posicion "standard" y "flow", los dos motores y los filtros
-            de la barra (0, 1, 7, 14, 30, 45, all; sin 0DTE en acciones), rango 5 %. Son los mismos campos que
+            de la barra (0, 1, 7, 14, 30, 45, all; el 0DTE solo con vencimientos diarios), rango 5 %. Son los mismos campos que
             guarda el historico de la app tras el cierre (el 0DTE ya es el vencimiento siguiente).
   hist500/_flujo/{SYM}.json.gz: volumen del dia y lado de la ultima operacion por contrato de las ultimas
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
@@ -48,11 +51,7 @@ MCHI KWEB BABA JD PDD BIDU NTES NIO LI XPEV YUMC FUTU
 PREFIX = "hist500/"
 RETENCION_ANOS = 2
 ESPERA_CIERRE_MIN = 20          # CBOE publica con 15 min de retraso
-# ETFs de la lista: guardan el 0DTE; en las acciones casi nadie lo mira y no se guarda
-ETFS = set("""
-RSP SPY QQQ GLD IWM XLK SMH XLF XLV TLT DIA XLE IEF XLI SLV XLU GDX XLY XLC SOXL DRAM MTUM XLP BKLN AGG SOXX
-EEM XBI EWY TAN MCHI KWEB
-""".split())
+LISTA_KEY = "config/historial500.json"  # la escribe el Worker (/api/admin/historial)
 POSICIONES = ("standard", "flow")
 RANGO = 5.0                     # el mismo rango que usa el historico de la app
 PAUSA = 0.5                     # segundos entre tickers (ademas del limite de gex_engine)
@@ -87,6 +86,27 @@ def sesion_objetivo(forzar: bool) -> str | None:
     return g.last_close(now).strftime("%Y-%m-%d")
 
 
+def lista_tickers(st) -> tuple[list[str], str]:
+    """Tickers del dia: la lista de la web (R2) o, si nadie la ha editado aun, TICKERS."""
+    try:
+        d = almacen.get_json(st, LISTA_KEY)
+    except Exception as e:  # noqa: BLE001
+        log(f"lista de la web no disponible ({type(e).__name__}); se usa la del codigo")
+        d = None
+    if d and isinstance(d.get("symbols"), list) and d["symbols"]:
+        return [str(x) for x in d["symbols"]], "web"
+    return list(TICKERS), "codigo"
+
+
+def vencimientos_diarios(ch: dict, sesion: str) -> bool:
+    """El 0DTE solo tiene sentido con vencimientos diarios (indices y los ETFs grandes): al menos 4 vencimientos
+    distintos en los 7 dias naturales siguientes a la sesion. Las acciones (semanales o lunes/miercoles/viernes)
+    y los ETFs pequenos no lo guardan."""
+    d0 = np.datetime64(sesion)
+    dias = np.unique(ch["exp"].astype("datetime64[D]"))
+    return int(((dias > d0) & (dias <= d0 + 7)).sum()) >= 4
+
+
 def cadena_compacta(ch: dict) -> dict:
     keep = (ch["oi"] > 0) | (ch["vol"] > 0)
     sub = {k: (v[keep] if isinstance(v, np.ndarray) and v.shape == keep.shape else v) for k, v in ch.items()}
@@ -108,7 +128,7 @@ def guardar_ticker(st, sym: str, sesion: str) -> int:
     _record_flow(sym, ch, sesion, force=True)
     flujo = g.read_json(fpath, {}) or {}
 
-    filtros = [x for x in g.DTE_FILTERS if not (x == "0" and sym not in ETFS)]
+    filtros = [x for x in g.DTE_FILTERS if x != "0" or vencimientos_diarios(ch, sesion)]
     niveles: dict = {}
     info_flujo = None
     for pos in POSICIONES:
@@ -152,12 +172,6 @@ def podar(st, sesion: str) -> int:
 def main(args: list[str]) -> int:
     forzar = "--forzar" in args
     pedidos = [a for a in args if not a.startswith("--")]
-    syms = []
-    for a in pedidos or TICKERS:
-        s = g.normalize(a)
-        if s not in syms:
-            syms.append(s)
-
     sesion = sesion_objetivo(forzar)
     now = g.now_ny()
     if sesion is None:
@@ -169,7 +183,17 @@ def main(args: list[str]) -> int:
         log(f"sesion {sesion} ya guardada")
         return 0
 
-    log(f"sesion {sesion}: {len(syms)} tickers")
+    lista, origen = (pedidos, "prueba") if pedidos else lista_tickers(st)
+    syms = []
+    for a in lista:
+        try:
+            s = g.normalize(a)
+        except ValueError:
+            log(f"ticker no valido en la lista: {a}")
+            continue
+        if s not in syms:
+            syms.append(s)
+    log(f"sesion {sesion}: {len(syms)} tickers (lista: {origen})")
     ok, fallos, total = [], [], 0
     pendientes = list(syms)
     for ronda in range(2):  # segunda ronda: los que fallaron, tras una pausa

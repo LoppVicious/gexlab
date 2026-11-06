@@ -188,6 +188,49 @@ async function fromR2(req, env, key) {
   return new Response(o.body, { headers: h, encodeBody: "manual" });
 }
 
+// ------------------------------------------------------------------ lista del historial diario (historial500.py)
+// La edita el administrador en la web; el trabajo diario la lee de R2. Mientras nadie la haya editado, se muestra
+// la de la ultima ejecucion (hist500/_dias/), que es la del codigo.
+const HIST_KEY = "config/historial500.json";
+const MAX_HIST = 200;
+
+async function r2json(env, key) {
+  const o = await env.R2.get(key);
+  if (!o) return null;
+  let b = new Uint8Array(await o.arrayBuffer());
+  if (b[0] === 0x1f && b[1] === 0x8b) b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  try { return JSON.parse(new TextDecoder().decode(b)); } catch { return null; }
+}
+
+async function histLista(env) {
+  const d = await r2json(env, HIST_KEY);
+  if (d && Array.isArray(d.symbols)) return { symbols: d.symbols, actualizado: d.actualizado || null, origen: "web" };
+  const keys = ((await env.R2.list({ prefix: "hist500/_dias/" })).objects || []).map((x) => x.key).sort();
+  const u = keys.length ? await r2json(env, keys[keys.length - 1]) : null;
+  if (u) return { symbols: [...(u.ok || []), ...(u.errores || [])], actualizado: u.session || null, origen: "ejecucion" };
+  return { symbols: [], actualizado: null, origen: "vacia" };
+}
+
+async function historial(req, env, me) {
+  if (req.method === "GET") return json(200, await histLista(env));
+  const b = await body(req);
+  const actual = new Set((await histLista(env)).symbols);
+  const conOpciones = new Set((await symbols(env)).map((x) => x[0]));
+  const syms = [], invalidos = [];
+  for (const x of b.symbols || []) {
+    const s = normalize(x);
+    if (!s) { invalidos.push(String(x).slice(0, 12)); continue; }
+    if (syms.includes(s)) continue;
+    // los nuevos tienen que tener opciones en CBOE (evita erratas); los que ya estaban se respetan
+    if (!actual.has(s) && conOpciones.size && !conOpciones.has(s)) { invalidos.push(s); continue; }
+    syms.push(s);
+  }
+  if (syms.length > MAX_HIST) throw new Error(`Como máximo ${MAX_HIST} tickers`);
+  const d = { symbols: syms, actualizado: stamp(), por: me.user };
+  await env.R2.put(HIST_KEY, JSON.stringify(d), { httpMetadata: { contentType: "application/json" } });
+  return json(200, { symbols: syms, actualizado: d.actualizado, origen: "web", invalidos });
+}
+
 const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_.\-/]{0,200}$/;
 
 // ------------------------------------------------------------------ buscador
@@ -330,6 +373,10 @@ async function api(req, env, url, me) {
     await env.R2.put("importar/historial.tar.gz", buf, { httpMetadata: { contentType: "application/gzip" } });
     const lanzado = await dispatch(env, { modo: "ciclo" });
     return json(200, { ok: true, bytes: b.length, lanzado });
+  }
+  if (p === "/api/admin/historial") {
+    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    return historial(req, env, me);
   }
   if (p === "/api/admin/usuarios") {
     if (!me.admin) return json(403, { error: "Solo el administrador" });

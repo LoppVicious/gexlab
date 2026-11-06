@@ -56,9 +56,11 @@ Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
   (cron de GitHub de respaldo); `hist500/_dias/{fecha}.json` marca la sesión hecha. Se conservan 2 años.
   - `chain`: cadena compacta (`chain_to_min`, contratos con OI o volumen); se recalcula con `parse_chain({"_min": chain})`.
   - `levels[posición][motor][filtro]`: los mismos campos que el histórico (`_snap`), rango 5 %, estándar y flujo, calculados
-    tras el cierre. Todos los filtros de la barra; el 0DTE solo en los ETFs (`ETFS`), no en acciones.
+    tras el cierre. Todos los filtros de la barra; el 0DTE solo con vencimientos diarios (≥4 en 7 días).
   - `hist500/_flujo/{SYM}.json.gz`: volumen y lado por contrato de las últimas 8 sesiones (modo flujo).
-  - La lista de tickers está en `TICKERS` dentro del script. Prueba local: `GEX_ALMACEN=local:./data/x python historial500.py --forzar AAPL`.
+  - Lista de tickers: la edita el administrador en la web (Usuarios ▸ Historial diario, `/api/admin/historial`) y se guarda
+    en R2 `config/historial500.json` (máx. 200; los nuevos deben estar en `pub/simbolos.json`). Si no existe, `TICKERS` del script.
+    Prueba local: `GEX_ALMACEN=local:./data/x python historial500.py --forzar AAPL`.
 
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El rango canónico es `auto` o un número sin ceros sobrantes. El motor borra las vistas que ya no calcula.

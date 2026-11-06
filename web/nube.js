@@ -230,6 +230,11 @@
   .adm .msg { min-height: 18px; font-size: 12.5px; margin: 10px 2px 0; color: var(--muted); }
   .adm .msg.err { color: var(--call); }
   .adm .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .adm .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; max-height: 210px; overflow: auto; }
+  .adm .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; background: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 4px 3px 8px; }
+  .adm .chip button { border: 0; background: none; color: var(--faint); cursor: pointer; padding: 0 3px; font-size: 13px; line-height: 1; }
+  .adm .chip button:hover { color: var(--call); background: none; opacity: 1; }
+  .adm .cnt { color: var(--faint); font-weight: 400; font-size: 13px; margin-left: 6px; }
   @media (max-width: 640px) { .adm form { grid-template-columns: 1fr; } .adm { padding: 16px; } }`;
   document.head.appendChild(css);
 
@@ -261,6 +266,11 @@
         <button class="btn" id="admGo" type="submit">Crear</button>
       </form>
       <p class="msg" id="admMsg" role="status"></p>
+      <h2 style="margin-top:18px">Historial diario<span class="cnt" id="hisCnt"></span></h2>
+      <p class="sub">Tickers que se guardan cada día de mercado a las 16:30 ET (cadena al cierre y niveles de los dos motores) para backtests. Los cambios valen desde la siguiente ejecución. El 0DTE solo se guarda en los que tienen vencimientos diarios.</p>
+      <div class="chips" id="hisList">Cargando…</div>
+      <form id="hisForm" style="grid-template-columns:1fr auto" autocomplete="off"><input id="hisAdd" autocapitalize="characters" spellcheck="false" placeholder="Añadir tickers: AAPL, MSFT…" aria-label="Tickers que añadir"><button class="btn" id="hisGo" type="submit">Añadir</button></form>
+      <p class="msg" id="hisMsg" role="status"></p>
       <h2 style="margin-top:18px">Historial del PC</h2>
       <p class="sub">Sube el archivo <code>historial_para_nube.tar.gz</code> para añadir el historial que guardó el recolector del PC. Se mezcla con el de la nube en el siguiente ciclo del motor (1–2 min); lo que ya existe en la nube no se pierde.</p>
       <form id="impForm" style="grid-template-columns:1fr auto"><input id="impFile" type="file" accept=".gz,.tgz,application/gzip" required><button class="btn" id="impGo" type="submit">Subir</button></form>
@@ -326,6 +336,52 @@
         m.textContent = `Subido (${(d.bytes / 1e6).toFixed(1)} MB). ${d.lanzado ? "El motor lo mezclará en 1–2 minutos." : "Se mezclará en el próximo ciclo del motor."}`;
       } catch (x) { m.className = "msg err"; m.textContent = x.message; } finally { go.disabled = false; }
     });
+    // ---- historial diario
+    let his = [];
+    const hmsg = (t, err) => { const m = back.querySelector("#hisMsg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); };
+    const hisCall = async (symbols) => {
+      const r = await realFetch("/api/admin/historial", { method: symbols ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: symbols ? JSON.stringify({ symbols }) : undefined });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "No se pudo completar");
+      return d;
+    };
+    const hisDraw = () => {
+      back.querySelector("#hisCnt").textContent = `${his.length} tickers`;
+      back.querySelector("#hisList").innerHTML = his.length
+        ? his.map((s) => `<span class="chip">${esc(s)}<button type="button" data-s="${esc(s)}" aria-label="Quitar ${esc(s)}" title="Quitar">✕</button></span>`).join("")
+        : '<span class="off">Sin tickers todavía.</span>';
+    };
+    const hisSave = async (list, okText) => {
+      const d = await hisCall(list);
+      his = d.symbols;
+      hisDraw();
+      const bad = (d.invalidos || []).length ? ` Sin opciones en CBOE o no válidos: ${d.invalidos.join(", ")}.` : "";
+      hmsg((typeof okText === "function" ? okText() : okText) + bad, !!bad);
+    };
+    back.querySelector("#hisList").addEventListener("click", async (e) => {
+      const b = e.target.closest("button[data-s]"); if (!b) return;
+      try { await hisSave(his.filter((x) => x !== b.dataset.s), `${b.dataset.s} quitado.`); } catch (x) { hmsg(x.message, true); }
+    });
+    back.querySelector("#hisForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const inp = back.querySelector("#hisAdd"), go = back.querySelector("#hisGo");
+      const nuevos = inp.value.split(/[\s,;]+/).map(normalize).filter((s) => s && !his.includes(s));
+      if (!nuevos.length) { hmsg("Escribe uno o varios tickers que no estén ya en la lista.", true); return; }
+      go.disabled = true; hmsg("Guardando…");
+      try {
+        await hisSave([...his, ...nuevos], () => {
+          const ok = nuevos.filter((s) => his.includes(s));
+          return ok.length ? `Añadido: ${ok.join(", ")}.` : "No se ha añadido ninguno.";
+        });
+        inp.value = "";
+      } catch (x) { hmsg(x.message, true); } finally { go.disabled = false; }
+    });
+    hisCall().then((d) => {
+      his = d.symbols || [];
+      hisDraw();
+      if (d.origen === "ejecucion") hmsg(`Lista de la última ejecución (${d.actualizado}). Al editarla se guarda aquí.`);
+    }).catch((x) => hmsg(x.message, true));
+
     refresh();
     back.querySelector("#admUser").focus();
   }

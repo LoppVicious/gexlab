@@ -122,7 +122,7 @@
         <button role="radio" data-v="5">±5%</button>
         <button role="radio" data-v="8">±8%</button>
       </div>
-      <label class="rangein" title="Rango manual: escribe el % y pulsa Enter (0,3 a 30)">±<input id="rangeInput" inputmode="decimal" placeholder="otro" maxlength="5" aria-label="Rango manual en %">%</label>
+      <label class="rangein" title="Rango manual: escribe el % y pulsa Enter (0,3 a 75)">±<input id="rangeInput" inputmode="decimal" placeholder="otro" maxlength="5" aria-label="Rango manual en %">%</label>
     </div>
   </div>
   <div class="ctl only-analysis model">
@@ -241,7 +241,7 @@
       <div class="seg compact" role="radiogroup" aria-label="Barras" id="barsSeg">
         <button role="radio" data-v="net" title="GEX neta por strike">Neta</button>
         <button role="radio" data-v="split" title="Calls hacia arriba, puts hacia abajo">Calls y puts</button>
-        <button role="radio" data-v="expiry" title="Separa el vencimiento más próximo del resto">Vencimiento</button>
+        <button role="radio" data-v="expiry" title="Separa el vencimiento más próximo (con su fecha, si es diario, semanal o mensual, y los días que faltan) del resto">Vencimiento</button>
       </div>
       <div class="seg compact" role="radiogroup" aria-label="Color del mapa" id="mapSeg" hidden>
         <button role="radio" data-v="strike" title="Gamma concentrada en cada strike, como TRACE">Por strike</button>

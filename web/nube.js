@@ -20,7 +20,7 @@
   function rango(r) {
     r = String(r == null ? "5" : r).trim().toLowerCase().replace(",", ".");
     if (r === "auto") return "auto";
-    const v = Math.min(30, Math.max(0.3, parseFloat(r) || 5));
+    const v = Math.min(75, Math.max(0.3, parseFloat(r) || 5));
     return v.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   }
   function vista(q, sym) {

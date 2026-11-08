@@ -243,6 +243,38 @@ def implied_vol(price, S, K, T, r, call) -> np.ndarray:
 FUTURES_OPTIONS = {"VIX", "VIXW"}   # opciones liquidadas contra un futuro, no contra el indice
 
 
+def _habil_anterior(d):
+    while d.weekday() >= 5 or d.strftime("%Y-%m-%d") in NYSE_HOLIDAYS:
+        d -= timedelta(days=1)
+    return d
+
+
+def _tercer_viernes(y: int, m: int):
+    from datetime import date
+    d = date(y, m, 15)
+    return d + timedelta(days=(4 - d.weekday()) % 7)
+
+
+def es_mensual(day, symbol: str = "") -> bool:
+    """Vencimiento mensual estandar: el tercer viernes (el dia habil anterior si es festivo). En el VIX, el miercoles
+    30 dias antes del tercer viernes del mes siguiente."""
+    if symbol.upper() in FUTURES_OPTIONS:
+        y, m = (day.year + 1, 1) if day.month == 12 else (day.year, day.month + 1)
+        return day == _habil_anterior(_tercer_viernes(y, m) - timedelta(days=30))
+    return day == _habil_anterior(_tercer_viernes(day.year, day.month))
+
+
+def expiry_kind(day, symbol: str = "") -> str:
+    """'mensual', 'semanal' (viernes, o jueves si el viernes es festivo; miercoles en el VIX) o 'diario'."""
+    if es_mensual(day, symbol):
+        return "mensual"
+    wd = 2 if symbol.upper() in FUTURES_OPTIONS else 4
+    nxt = day + timedelta(days=1)
+    if day.weekday() == wd or (day.weekday() == wd - 1 and nxt.strftime("%Y-%m-%d") in NYSE_HOLIDAYS):
+        return "semanal"
+    return "diario"
+
+
 def futures_forwards(ch: dict, t: datetime) -> tuple[np.ndarray, np.ndarray, dict]:
     """Opciones del VIX: van sobre el futuro del VIX de su vencimiento, que puede estar lejos del indice (contango o
     backwardation). Por vencimiento:
@@ -276,6 +308,19 @@ def futures_forwards(ch: dict, t: datetime) -> tuple[np.ndarray, np.ndarray, dic
         F[m] = f
         iv[m] = implied_vol(mid[m], f * np.exp(-r * T[m]), K[m], T[m], r, C[m])
     return F, iv, fwd
+
+
+def _expiries_info(EXP: np.ndarray, gex: np.ndarray, symbol: str) -> list[dict]:
+    """Vencimientos que entran en el calculo: fecha, tipo y parte de la gamma (en valor absoluto) de cada uno."""
+    from datetime import date
+    days = EXP.astype("datetime64[D]")
+    tot = float(np.abs(gex).sum()) or 1.0
+    out = []
+    for d in np.unique(days):
+        ds = str(d)
+        out.append({"date": ds, "kind": expiry_kind(date.fromisoformat(ds), symbol),
+                    "share": round(float(np.abs(gex[days == d]).sum()) / tot, 4)})
+    return out
 
 
 # ---------------------------------------------------------------- motores de calculo
@@ -1491,7 +1536,9 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     alive = cc["exp"] > np.datetime64(q_dt)
     exp_mask = expiry_filter(cc["exp"], alive, now, max_dte)  # filtro de vencimientos
 
-    m = alive & exp_mask & (cc["oi"] > 0) & (cc["iv"] > 0.01) & (np.abs(cc["K"] / spot - 1) < 0.35)
+    # contratos a +-35 % del precio o, con un rango mayor, hasta un 20 % mas alla del rango
+    reach = max(0.35, min(window_pct * 1.2, 95.0) / 100)
+    m = alive & exp_mask & (cc["oi"] > 0) & (cc["iv"] > 0.01) & (np.abs(cc["K"] / spot - 1) < reach)
     if not m.any():
         raise LookupError("No hay contratos con open interest en ese filtro")
 
@@ -1576,7 +1623,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     vanna_s, charm_s = wvanna[vis], wcharm[vis]
 
     # --- perfil: GEX total en spots hipoteticos
-    span = max(window_pct * 2.0, 8.0) / 100
+    span = min(max(window_pct * 2.0, 8.0), 95.0) / 100   # el perfil nunca llega a precio 0
     xs = np.linspace(spot * (1 - span), spot * (1 + span), 161)
     # vencimiento semanal para la linea del Equity Hub: el primer viernes con contratos en el filtro (en acciones,
     # los vencimientos diarios de lunes a jueves tienen poco open interest); si no hay viernes en 8 dias, el mas proximo
@@ -1698,6 +1745,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "combo": combo, "positioning": positioning if not (positioning == "flow" and combine) else "standard",
         "flow_info": flow_info,
         "front_expiry": str(front_exp.astype("datetime64[D]")),
+        "expiries": _expiries_info(EXP, gex, normalize(symbol)),
         "front_share": float(np.abs(gex[FRONT]).sum() / max(np.abs(gex).sum(), 1e-12)),
         "expected_move": expected_move(ch, spot, now_dt),
         "moves": implied_moves(ch, spot, now_dt),

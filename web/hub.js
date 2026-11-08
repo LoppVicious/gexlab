@@ -109,7 +109,7 @@ function renderImpact(d, W, H, exp = false) {
   }
   // lineas
   const path = (A) => A.map((v, i) => `${i ? "L" : "M"}${xOf(X[i]).toFixed(1)},${yOf(v).toFixed(1)}`).join("");
-  const wkLab = `Vencimiento ${ddmm(P.week_exp || d.front_expiry)}`;
+  const wkLab = `Vencimiento ${expText(d, P.week_exp || d.front_expiry)}`;
   s += `<g clip-path="url(#impclip${exp ? "e" : ""})">`;
   if (Wk) s += `<path d="${path(Wk)}" fill="none" stroke="${C.neg}" stroke-width="2"/>`;
   s += `<path d="${path(Y)}" fill="none" stroke="${C.pos}" stroke-width="2.4"/></g>`;

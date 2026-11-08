@@ -293,3 +293,7 @@ body.view-map .zoombar { display: none; }
 
 /* panel de volatilidad: marca de vencimiento mensual */
 .vm { display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 15px; color: var(--accent); background: var(--accent-soft); vertical-align: 1px; }
+
+/* leyenda detallada de Barras: Vencimiento (bajo los botones del grafico) */
+.capsw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.capsep { display: inline-block; width: 18px; }

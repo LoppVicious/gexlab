@@ -20,10 +20,10 @@ WEB = os.path.join(ROOT, "web")
 
 
 def _range(v: str):
-    """Ventana visible: 'auto' o un % entre 0,3 y 30."""
+    """Ventana visible: 'auto' o un % entre 0,3 y 75."""
     if v == "auto":
         return "auto"
-    return min(30.0, max(0.3, float(v.replace(",", "."))))
+    return min(75.0, max(0.3, float(v.replace(",", "."))))
 
 
 PUBLIC_PATHS = {"/login.html", "/api/login", "/favicon.ico"}

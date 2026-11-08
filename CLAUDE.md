@@ -8,6 +8,8 @@ Publicado en https://dashboard.gexlab.workers.dev con coste 0 €.
 - Quiere un resultado pulido, que se vea bien en la web y en el tema claro y oscuro.
 - La estética de referencia es **SpotGamma**. La referencia de números para comparar niveles es **gexbot**.
 - Antes de dar algo por hecho, **compruébalo con datos reales**: GitHub Actions sí llega a CBOE (ver "Pruebas").
+- **Cada push a `main` lleva su entrada en `CHANGELOG.md`** (desde el 2026-11-08): fecha, título y qué cambia para el
+  usuario en Añadido / Cambiado / Corregido, la más reciente arriba, en el mismo commit.
 
 ## Reglas que no se pueden romper
 - **El repositorio es público.** Nunca subas datos, historial, claves ni tokens. Los secretos solo van en GitHub Secrets.

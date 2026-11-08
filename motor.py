@@ -87,7 +87,7 @@ def rango_canon(r) -> str:
     r = str(r).strip().lower().replace(",", ".")
     if r == "auto":
         return "auto"
-    v = min(30.0, max(0.3, float(r)))
+    v = min(75.0, max(0.3, float(r)))
     return f"{v:.2f}".rstrip("0").rstrip(".")
 
 

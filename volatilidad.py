@@ -44,24 +44,7 @@ def _dte(exp: np.datetime64, now64: np.datetime64) -> float:
 VIX_ROOTS = {"VIX", "VIXW"}
 
 
-def _habil_anterior(d: date) -> date:
-    while d.weekday() >= 5 or d.strftime("%Y-%m-%d") in g.NYSE_HOLIDAYS:
-        d -= timedelta(days=1)
-    return d
-
-
-def _tercer_viernes(y: int, m: int) -> date:
-    d = date(y, m, 15)
-    return d + timedelta(days=(4 - d.weekday()) % 7)
-
-
-def es_mensual(day: date, symbol: str = "") -> bool:
-    """Vencimiento mensual estandar: el tercer viernes (el dia habil anterior si es festivo). En el VIX, el miercoles
-    30 dias antes del tercer viernes del mes siguiente."""
-    if symbol.upper() in VIX_ROOTS:
-        y, m = (day.year + 1, 1) if day.month == 12 else (day.year, day.month + 1)
-        return day == _habil_anterior(_tercer_viernes(y, m) - timedelta(days=30))
-    return day == _habil_anterior(_tercer_viernes(day.year, day.month))
+es_mensual = g.es_mensual
 
 
 def _pick_expiries(exps: list, dtes: list[float], symbol: str = "") -> list[int]:

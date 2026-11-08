@@ -115,6 +115,30 @@ function fmtAxis(v) {
 }
 function trimZ(x) { return fmtNum(x, x % 1 === 0 ? 0 : 1).replace("−", ""); }
 function ddmm(iso) { return iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : ""; }
+// vencimientos: "vie 13/11 · semanal · 5 d" (tipo segun el motor: diario, semanal o mensual)
+const DIAS_SEM = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+function expDays(d, iso) {
+  const ref = (d.computed_at || "").slice(0, 10) || d.session;   // dias desde hoy (NY), no desde la ultima sesion
+  if (!iso || !ref) return null;
+  return Math.round((Date.parse(iso + "T12:00:00Z") - Date.parse(ref + "T12:00:00Z")) / 86400e3);
+}
+function expText(d, iso, withKind = true) {
+  if (!iso) return "";
+  const e = (d.expiries || []).find((x) => x.date === iso);
+  const n = expDays(d, iso);
+  const wd = DIAS_SEM[new Date(iso + "T12:00:00Z").getUTCDay()];
+  return `${wd} ${ddmm(iso)}${withKind && e ? ` · ${e.kind}` : ""}${n == null ? "" : n <= 0 ? " · hoy" : ` · ${n} d`}`;
+}
+function restText(d) {
+  const rest = (d.expiries || []).filter((x) => x.date !== d.front_expiry);
+  if (!rest.length) return "Resto de vencimientos";
+  const c = { diario: 0, semanal: 0, mensual: 0 };
+  rest.forEach((x) => { c[x.kind] = (c[x.kind] || 0) + 1; });
+  const parts = [c.mensual && `${c.mensual} mensual${c.mensual > 1 ? "es" : ""}`, c.semanal && `${c.semanal} semanal${c.semanal > 1 ? "es" : ""}`,
+    c.diario && `${c.diario} diario${c.diario > 1 ? "s" : ""}`].filter(Boolean).join(", ");
+  const share = rest.reduce((a, x) => a + (x.share || 0), 0);
+  return `Resto: ${ddmm(rest[0].date)}–${ddmm(rest[rest.length - 1].date)} (${parts}) · ${Math.round(share * 100)} % de la gamma`;
+}
 function fmtPct(v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 2) + "%"; }
 /* ============================================================ horas: el servidor trabaja en hora de Nueva York (ET)
    y CBOE da sus marcas en UTC; en pantalla todo se muestra en la hora local del dispositivo */
@@ -430,10 +454,11 @@ function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
 function legendItems(d) {
   if (state.greek !== "gamma") return [{ colors: [C.pos], label: "Compras de cobertura" }, { colors: [C.neg], label: "Ventas de cobertura" }];
   if (state.bars === "split") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
-  if (state.bars === "expiry") return [
-    { colors: [C.neg, C.pos], label: "Resto de vencimientos" },
-    { colors: [C.negFront, C.posFront], label: `Vence ${ddmm(d.front_expiry)}` },
-  ];
+  if (state.bars === "expiry") {
+    const items = [{ colors: [C.negFront, C.posFront], label: `Vence ${expText(d, d.front_expiry, false)}` }];
+    if (!d.expiries || d.expiries.length > 1) items.unshift({ colors: [C.neg, C.pos], label: "Resto" });
+    return items;
+  }
   return [{ colors: [C.neg], label: "Gamma negativa" }, { colors: [C.pos], label: "Gamma positiva" }];
 }
 
@@ -740,10 +765,21 @@ function mapCaption() {
 }
 
 /* ============================================================ pintar */
+// detalle de "Barras: Vencimiento" bajo los botones: que vencimiento es el proximo y que hay en el resto
+function expiryCaption(d) {
+  if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
+  const f = (d.expiries || []).find((x) => x.date === d.front_expiry);
+  const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
+  let h = `${sw(C.posFront)}<b>Próximo vencimiento:</b> ${esc(expText(d, d.front_expiry))}${f ? ` · ${Math.round(f.share * 100)} % de la gamma` : ""}`;
+  if (!d.expiries || d.expiries.length > 1) h += `<span class="capsep"></span>${sw(C.pos)}${esc(restText(d))}`;
+  return h;
+}
+
 function draw() {
   const d = state.data;
   const el = $("chart");
   if (!d) return;
+  if (state.view === "strike") $("caption").innerHTML = expiryCaption(d);
   const W = Math.max(320, el.clientWidth), H = Math.max(360, el.clientHeight);
   if (state.view === "map") {
     if (!state.heat || state.heatKey !== heatParams()) { loadHeat(); return; }
@@ -2722,7 +2758,7 @@ async function init() {
   const applyRange = () => {
     const v = parseFloat($("rangeInput").value.replace(",", "."));
     if (!isFinite(v)) { syncRange(); return; }
-    const c = Math.min(30, Math.max(0.3, v));
+    const c = Math.min(75, Math.max(0.3, v));
     state.range = String(c); store.set("range", state.range);
     syncRange(); load();
   };

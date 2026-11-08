@@ -14,7 +14,8 @@ const vol = {
   mshow: store.get("volMat", "iv"),
   hor: store.get("volHor", "3m"),
 };
-const volH = () => (vol.hor === "1m" ? 32 : 100);   // horizonte en dias
+const volH = () => ({ "1m": 32, "3m": 100, "6m": 190 }[vol.hor] || 100);   // horizonte en dias
+const MTAG = '<span class="vm" title="Vencimiento mensual">M</span>';
 const inH = (x) => x.dte <= volH();
 // dias naturales hasta el vencimiento (sin decimales)
 function volDays(x) {
@@ -23,7 +24,7 @@ function volDays(x) {
   return Math.max(0, Math.round((Date.parse(x.exp + "T00:00:00Z") - today) / 86400000));
 }
 function horSeg() {
-  return `<div class="seg boxed" role="radiogroup" id="volHorSeg" aria-label="Horizonte"><button role="radio" data-v="1m" aria-checked="${vol.hor === "1m"}">1 mes</button><button role="radio" data-v="3m" aria-checked="${vol.hor === "3m"}">3 meses</button></div>`;
+  return `<div class="seg boxed" role="radiogroup" id="volHorSeg" aria-label="Horizonte"><button role="radio" data-v="1m" aria-checked="${vol.hor === "1m"}">1 mes</button><button role="radio" data-v="3m" aria-checked="${vol.hor === "3m"}">3 meses</button><button role="radio" data-v="6m" aria-checked="${vol.hor === "6m"}">6 meses</button></div>`;
 }
 const VOLC = ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"];
 const pct = (v, d = 1) => v == null ? "—" : fmtNum(v * 100, d) + "%";
@@ -279,7 +280,7 @@ function renderMatrix() {
   };
   const spotIdx = m.strikes.reduce((bi, k, i) => (Math.abs(k - vol.data.spot) < Math.abs(m.strikes[bi] - vol.data.spot) ? i : bi), 0);
   return `<table class="scan vmat"><thead><tr><th class="l">Vencimiento</th>${m.strikes.map((k, i) => `<th class="${i === spotIdx ? "atm" : ""}">${fmtNum(k, k < 100 ? 1 : 0)}</th>`).join("")}</tr></thead>
-    <tbody>${m.rows.filter(inH).map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b><span class="ds">${volDays(r)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
+    <tbody>${m.rows.filter(inH).map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b>${r.monthly ? MTAG : ""}<span class="ds">${volDays(r)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 /* ------------------------------------------------------------ controles y pintado */
@@ -293,7 +294,7 @@ function volControls() {
   if (vol.tab === "skew") {
     const ex = d.smiles.filter(inH).map((s) => {
       const k = vol.sel.indexOf(s.exp);
-      return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${VOLC[k % VOLC.length]}"` : ""}>${volDate(s.exp)}<small>${volDays(s)}d</small></button>`;
+      return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${VOLC[k % VOLC.length]}"` : ""}>${volDate(s.exp)}${s.monthly ? MTAG : ""}<small>${volDays(s)}d</small></button>`;
     }).join("");
     return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volAxisSeg"><button role="radio" data-v="strike" aria-checked="${vol.axis === "strike"}">Strike</button><button role="radio" data-v="delta" aria-checked="${vol.axis === "delta"}">Delta</button></div>
       ${hasPrev ? chip("d1", "Sesión anterior (discontinua)", sh.d1, C.muted) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}</div>
@@ -308,7 +309,8 @@ function volNote() {
   const band = b.days >= 15 ? `La banda es el rango entre los percentiles 10 y 90 de las últimas ${b.days} sesiones.` :
     `La banda de percentiles aparecerá con 15 sesiones guardadas (hoy hay ${b.days || 0}).`;
   if (vol.tab === "term") return `IV ATM de cada vencimiento (la de la opción fuera de dinero en cada strike, interpolada en el spot). La IV forward es la volatilidad implícita entre un vencimiento y el anterior: aísla lo que el mercado descuenta para ese tramo, por ejemplo un evento. ${band} Eventos: Fed, BEA, Census y la semana en curso de ForexFactory.`;
-  if (vol.tab === "skew") return `Volatilidad implícita de la opción fuera de dinero de cada strike (puts por debajo del spot, calls por encima). La línea discontinua es la sesión anterior; la banda, el percentil 10–90 del mismo plazo y delta. ${band}`;
+  const vixNote = vol.data && vol.data.smiles.some((s) => s.fwd) ? " En el VIX, las opciones van sobre el futuro de su vencimiento: fuera de dinero respecto a ese futuro y con su IV calculada sobre él (Black-76)." : "";
+  if (vol.tab === "skew") return `Volatilidad implícita de la opción fuera de dinero de cada strike (puts por debajo del spot, calls por encima).${vixNote} La línea discontinua es la sesión anterior; la banda, el percentil 10–90 del mismo plazo y delta. ${band}`;
   return "IV de cada vencimiento en strikes fijos alrededor del spot. El color indica el cambio frente a la última copia de la cadena de la sesión anterior: verde, sube; magenta, baja.";
 }
 
@@ -340,8 +342,10 @@ function volTip(e) {
     const p = best.p, b = bandAt(vol.data, p.dte);
     const prev = (k) => { const q = vol.data.prev && vol.data.prev[k]; const t = q && q.term.find((z) => z.exp === p.exp); return t ? t.atm : null; };
     const ev = (vol.events || []).filter((z) => z.date === p.exp);
-    html = `<div class="t">Vencimiento ${volDate(p.exp)}</div>
+    const smp = vol.data.smiles.find((s) => s.exp === p.exp) || {}, mens = smp.monthly;
+    html = `<div class="t">Vencimiento ${volDate(p.exp)}${mens ? " (mensual)" : ""}</div>
       <div class="r">Días al vencimiento <b>${volDays(p)}</b></div>
+      ${smp.fwd ? `<div class="r">Futuro (forward) <b>${fmtNum(smp.fwd, 2)}</b></div>` : ""}
       ${b ? `<div class="r">Percentil 10 <b>${pct(b[0], 2)}</b></div><div class="r">Percentil 90 <b>${pct(b[1], 2)}</b></div>` : ""}
       <div class="r">Hoy <b style="color:${C.accent}">${pct(p.atm, 2)}</b></div>
       ${p.fwd != null ? `<div class="r">IV forward <b>${pct(p.fwd, 2)}</b></div>` : ""}

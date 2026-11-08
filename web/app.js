@@ -849,6 +849,26 @@ function prevLine(d, r) {
   return `<span class="prev">${ddmm(p.date)}: ${fmtLevel(was)} <b class="${up ? "up" : "dn"}">${up ? "▲" : "▼"} ${fmtLevel(Math.abs(r.v - was))}</b></span>`;
 }
 
+// Estado de los datos. Con el mercado abierto, la hora del calculo. Fuera de horario las opciones no cotizan: el
+// calculo puede ser de ahora (precio pre-market y open interest del dia) pero sus precios e IV son los del cierre.
+function dataClosed(d) {
+  const c = nyDate(d.computed_at), q = nyDate(d.quote_time);
+  return !!(c && q && c - q > 5 * 60e3);
+}
+function dataStatus(d) {
+  if (!d.quote_time || !d.computed_at) return `Datos ${nyWhen(d.quote_time || d.computed_at)}`;
+  if (!dataClosed(d)) return `Datos ${nyWhen(d.computed_at)}`;
+  const pre = d.spot_implied && d.spot_implied.use ? " · pre-market" : "";
+  return `Calculado ${nyWhen(d.computed_at)}${pre} · opciones: cierre ${nyWhen(d.quote_time)}`;
+}
+function dataTitle(d) {
+  const src = d.source === "tradier" ? "Tradier (tiempo real al calcular)" : "CBOE (15 min de retraso)";
+  const base = `Calculado ${nyWhen(d.computed_at)} (hora local) con datos de ${src}.`;
+  if (!dataClosed(d)) return base;
+  return `${base} Fuera del horario de mercado las opciones no cotizan: sus precios e IV son los del cierre (${nyWhen(d.quote_time)}). ` +
+    (d.spot_implied && d.spot_implied.use ? `El precio es el de pre-market (vía ${d.spot_implied.proxy || "su ETF"}) y el open interest, el último publicado.` : "El open interest es el último publicado.");
+}
+
 function anaStatus(kind, text) {
   if (state.mode === "analysis" || state.mode === "scanner") setStatus(kind, text);
 }
@@ -920,8 +940,8 @@ async function load(refresh = false, silent = false) {
     syncRange(d);
     draw();
     $("refreshBtn").classList.remove("spin");
-    anaStatus("", `Datos ${nyWhen(d.quote_time || d.computed_at)}`);
-    $("status").title = `Calculado ${nyWhen(d.computed_at)}. Volatilidad implícita valorada a las ${nyWhen(d.quote_time)} (hora local)`;
+    anaStatus("", dataStatus(d));
+    $("status").title = dataTitle(d);
     document.title = `${d.symbol} ${fmtSpot(d.spot)} · GEX Lab`;
   } catch (e) {
     if (e.name === "AbortError") return;
@@ -1546,7 +1566,7 @@ function setMode(m) {
   if (m === "vix") { if (vx.data) { renderVix(); setStatus("", vixStatus()); } if (!vx.data || Date.now() - vx.at > 300000) loadVix(); return; }
   if (m === "cot") { if (cot.data) { renderCot(); setStatus("", cotStatus()); } if (!cot.data || Date.now() - cot.at > 300000) loadCot(); return; }
   if (m === "vol") { if (typeof showVol === "function") showVol(); return; }
-  if (state.data) setStatus("", `Datos ${nyWhen(state.data.quote_time || state.data.computed_at)}`);
+  if (state.data) setStatus("", dataStatus(state.data));
   if (m === "scanner") {
     loadCollector();
     setScanView(state.scanView);

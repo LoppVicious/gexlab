@@ -290,3 +290,6 @@ body.view-map .zoombar { display: none; }
   .dteslider { width: 100%; padding: 0 14px; box-sizing: border-box; }
   .dteticks button { font-size: 11px; }
 }
+
+/* panel de volatilidad: marca de vencimiento mensual */
+.vm { display: inline-block; margin-left: 5px; padding: 0 4px; border-radius: 4px; font-size: 10px; font-weight: 600; line-height: 15px; color: var(--accent); background: var(--accent-soft); vertical-align: 1px; }

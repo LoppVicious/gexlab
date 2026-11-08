@@ -15,7 +15,7 @@ cambien cada dia.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import numpy as np
 
@@ -26,7 +26,7 @@ TENORS = [7, 14, 30, 60, 90, 180]
 DELTAS = [-0.05, -0.10, -0.15, -0.20, -0.25, -0.35, -0.45, 0.45, 0.35, 0.25, 0.20, 0.15, 0.10, 0.05]
 MIN_BAND_DAYS = 15        # sesiones minimas para dibujar percentiles
 MAX_SMILES = 30           # vencimientos con smile completo
-HORIZON_DAYS = 100        # horizonte del panel: un trimestre
+HORIZON_DAYS = 190        # horizonte del panel: seis meses
 DAY_MIN = 24 * 60.0
 
 
@@ -41,18 +41,80 @@ def _dte(exp: np.datetime64, now64: np.datetime64) -> float:
     return float((exp - now64).astype("timedelta64[m]").astype(float) / DAY_MIN)
 
 
-def _pick_expiries(exps: list, dtes: list[float]) -> list[int]:
-    """Horizonte de un trimestre: todos los vencimientos de las dos proximas semanas, los viernes hasta 45 dias
-    y los mensuales (tercer viernes) hasta ~100 dias."""
-    out = []
-    for i, (e, d) in enumerate(zip(exps, dtes)):
-        day = e.astype("datetime64[D]")
-        wd = (int(day.astype(int)) + 3) % 7
-        dom = int(str(day)[8:10])
-        friday, monthly = wd == 4, wd == 4 and 15 <= dom <= 21
-        if d <= 14 or (friday and d <= 45) or (monthly and d <= HORIZON_DAYS):
-            out.append(i)
-    return out[:MAX_SMILES]
+VIX_ROOTS = {"VIX", "VIXW"}
+
+
+def _habil_anterior(d: date) -> date:
+    while d.weekday() >= 5 or d.strftime("%Y-%m-%d") in g.NYSE_HOLIDAYS:
+        d -= timedelta(days=1)
+    return d
+
+
+def _tercer_viernes(y: int, m: int) -> date:
+    d = date(y, m, 15)
+    return d + timedelta(days=(4 - d.weekday()) % 7)
+
+
+def es_mensual(day: date, symbol: str = "") -> bool:
+    """Vencimiento mensual estandar: el tercer viernes (el dia habil anterior si es festivo). En el VIX, el miercoles
+    30 dias antes del tercer viernes del mes siguiente."""
+    if symbol.upper() in VIX_ROOTS:
+        y, m = (day.year + 1, 1) if day.month == 12 else (day.year, day.month + 1)
+        return day == _habil_anterior(_tercer_viernes(y, m) - timedelta(days=30))
+    return day == _habil_anterior(_tercer_viernes(day.year, day.month))
+
+
+def _pick_expiries(exps: list, dtes: list[float], symbol: str = "") -> list[int]:
+    """Solo vencimientos semanales y mensuales hasta HORIZON_DAYS: de cada semana, el ultimo vencimiento si es el
+    viernes (o el jueves por festivo; en el VIX, miercoles o martes), mas los mensuales. Fuera los diarios y los de
+    fin de mes."""
+    dia_semanal = 2 if symbol.upper() in VIX_ROOTS else 4   # miercoles en el VIX, viernes en el resto
+    semana: dict = {}
+    for i, e in enumerate(exps):
+        if dtes[i] > HORIZON_DAYS:
+            continue
+        d = date.fromisoformat(str(e)[:10])
+        semana[d.isocalendar()[:2]] = (i, d)       # exps va ordenado: se queda el ultimo de cada semana
+    # el ultimo de la semana solo cuenta como semanal si cae ese dia o el anterior (festivo); asi no entran los
+    # de fin de mes o de trimestre (p. ej. un SPX que vence un martes 31)
+    out = {i for i, d in semana.values() if d.weekday() in (dia_semanal, dia_semanal - 1)}
+    out |= {i for i, e in enumerate(exps) if dtes[i] <= HORIZON_DAYS and es_mensual(date.fromisoformat(str(e)[:10]), symbol)}
+    return sorted(out)[:MAX_SMILES]
+
+
+def vix_forwards(ch: dict, T: np.ndarray, now64: np.datetime64):
+    """Las opciones del VIX van sobre el futuro del VIX de su vencimiento, no sobre el indice (que no se puede
+    comprar): con backwardation o contango fuerte el futuro esta lejos del spot y, si se usa el spot, el skew
+    salta al cambiar de puts a calls. Por vencimiento:
+      - forward por paridad put-call con los puntos medios: F = K + e^(rT) (C - P), mediana de los 5 strikes con
+        C y P mas parecidos (los mas cercanos al dinero);
+      - IV de cada contrato por Black-76 sobre ese forward (la de CBOE esta calculada contra el spot).
+    Devuelve (referencia por contrato, IV por contrato, {vencimiento: forward})."""
+    from fuente_tradier import implied_vol
+    K, C, E = ch["K"], ch["call"], ch["exp"]
+    bid, ask = ch["bid"], ch["ask"]
+    r = g.risk_free()
+    mid = np.where((bid > 0) & (ask >= bid), (bid + ask) / 2, np.nan)
+    ref = np.full(K.shape, np.nan)
+    iv = np.full(K.shape, np.nan)
+    fwd = {}
+    for x in np.unique(E[E > now64]):
+        m = E == x
+        calls = {float(k): p for k, p in zip(K[m & C], mid[m & C]) if np.isfinite(p)}
+        puts = {float(k): p for k, p in zip(K[m & ~C], mid[m & ~C]) if np.isfinite(p)}
+        t = float(T[m][0])
+        pares = sorted((abs(calls[k] - puts[k]), k + np.exp(r * t) * (calls[k] - puts[k])) for k in calls if k in puts)
+        if len(pares) < 2:
+            continue
+        f = float(np.median([v for _, v in pares[:5]]))
+        if f <= 0:
+            continue
+        fwd[str(x)] = f
+        ref[m] = f
+        iv[m] = implied_vol(mid[m], f * np.exp(-r * t), K[m], T[m], r, C[m])   # Black-76 = BS con S = F e^-rT
+    iv = np.where(np.isfinite(iv), iv, 0.0)          # sin forward o sin precio: fuera (IV 0 no pasa el filtro)
+    ref = np.where(np.isfinite(ref), ref, np.nanmedian(ref) if np.isfinite(ref).any() else 1.0)
+    return ref, iv, fwd
 
 
 def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
@@ -61,32 +123,38 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
     now64 = np.datetime64(now.replace(second=0, microsecond=0))
     K, C, E, IV = ch["K"], ch["call"], ch["exp"], ch["iv"]
     bid = ch.get("bid")
+    sym = str(ch.get("symbol") or "").upper()
+    T = np.maximum((E - now64).astype("timedelta64[m]").astype(float), 1.0) / (365 * DAY_MIN)
+    # precio de referencia de cada contrato: el spot o, en el VIX, el futuro de su vencimiento (ver vix_forwards)
+    ref = np.full(K.shape, float(spot))
+    fwd: dict = {}
+    if sym in VIX_ROOTS and bid is not None:
+        ref, IV, fwd = vix_forwards(ch, T, now64)
     # delta de Black-Scholes con la IV de cada strike (la misma regla para hoy y para las copias de dias
     # anteriores, que no guardan la delta de CBOE)
-    T = np.maximum((E - now64).astype("timedelta64[m]").astype(float), 1.0) / (365 * DAY_MIN)
     sig = np.maximum(IV, 1e-4) * np.sqrt(T)
-    d1 = (np.log(spot / K) + 0.5 * sig * sig) / sig
+    d1 = (np.log(ref / K) + 0.5 * sig * sig) / sig
     nd1 = 0.5 * (1 + _erf_arr(d1 / np.sqrt(2)))
     D = np.where(C, nd1, nd1 - 1)
     alive = (E > now64) & (IV > 0.01) & (IV < 5)
-    otm = np.where(C, K >= spot, K < spot)
+    otm = np.where(C, K >= ref, K < ref)
     sel = alive & otm
     if bid is not None:
         sel &= (bid > 0) | (ch.get("oi", np.ones_like(K)) > 0)
     exps = sorted(set(E[sel].tolist()))
     exps = [np.datetime64(x, "m") for x in exps]
-    # un solo vencimiento por dia: NDX, RUT o SPX tienen el mensual AM (NDX) y el PM (NDXP) el mismo dia;
-    # se queda el que tiene mas strikes cotizados
+    # un solo vencimiento por dia: SPX, NDX o RUT tienen el mensual AM (SPX, 09:30) y el semanal PM (SPXW) el mismo
+    # dia; se queda el mensual (el de hora mas temprana) si tiene strikes suficientes
     by_day: dict = {}
     for x in exps:
         n = int((sel & (E == x)).sum())
         dd = str(x)[:10]
-        if dd not in by_day or n > by_day[dd][1]:
+        if dd not in by_day or (n >= 5 and (by_day[dd][1] < 5 or x < by_day[dd][0])):
             by_day[dd] = (x, n)
     exps = sorted(v[0] for v in by_day.values())
     dtes = [_dte(x, now64) for x in exps]
     out = []
-    for i in _pick_expiries(exps, dtes) if exps else []:
+    for i in _pick_expiries(exps, dtes, sym) if exps else []:
         m = sel & (E == exps[i])
         if m.sum() < 5:
             continue
@@ -99,12 +167,16 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
         if k.size < 5:
             continue
         days = int((exps[i].astype("datetime64[D]") - now64.astype("datetime64[D]")).astype(int))
-        out.append({"exp": str(exps[i])[:10], "dte": round(dtes[i], 3), "days": max(days, 0), "K": np.round(k, 3).tolist(),
+        f = fwd.get(str(exps[i]))
+        out.append({"exp": str(exps[i])[:10], "dte": round(dtes[i], 3), "days": max(days, 0),
+                    **({"fwd": round(f, 4)} if f else {}),
+                    "monthly": es_mensual(date.fromisoformat(str(exps[i])[:10]), sym), "K": np.round(k, 3).tolist(),
                     "iv": np.round(iv, 5).tolist(), "delta": np.round(d, 4).tolist()})
     return out
 
 
 def atm_iv(sm: dict, spot: float) -> float | None:
+    spot = sm.get("fwd") or spot   # VIX: en el dinero respecto al futuro de ese vencimiento
     k, iv = np.array(sm["K"]), np.array(sm["iv"])
     if k.size < 2 or spot < k[0] or spot > k[-1]:
         return None
@@ -238,7 +310,7 @@ def matrix(smiles: list[dict], prev: list[dict], spot: float, n_strikes: int = 1
     for sm in smiles[:10]:
         cur = dict(zip(sm["K"], sm["iv"]))
         pv = pmap.get(sm["exp"], {})
-        rows.append({"exp": sm["exp"], "dte": sm["dte"], "days": sm.get("days"),
+        rows.append({"exp": sm["exp"], "dte": sm["dte"], "days": sm.get("days"), "monthly": sm.get("monthly"),
                      "iv": [cur.get(k) for k in ks],
                      "chg": [round(cur[k] - pv[k], 5) if k in cur and k in pv else None for k in ks]})
     return {"strikes": ks, "rows": rows}

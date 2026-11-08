@@ -19,8 +19,8 @@ const THEMES = {
   },
 };
 const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);
-const MONO = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
-const SANS = "'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif";
+const MONO = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
+const SANS = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 // preferencias: en el servidor publicado son de cada usuario (llegan en me.js y se guardan en /api/prefs);
 // en el PC, en el navegador
@@ -1225,7 +1225,6 @@ function setSections() {
       ["total", "Open interest total", "Contratos abiertos al cierre anterior: calls hacia arriba y puts hacia abajo."],
       ["chg", "Cambio diario", "Contratos abiertos (arriba) o cerrados (abajo) en la última sesión, calls y puts lado a lado. Solo en los tickers de las listas."],
       ["pos", "Posicionamiento neto", "Contratos netos de los dealers en cada strike: largos (arriba) o cortos (abajo). Con «Dealers: flujo», la posición estimada por el flujo."]] });
-    S.push({ type: "flag", key: "showLevels", lab: "Mostrar niveles clave", info: "Las etiquetas y líneas de Call Wall, Put Wall, Gamma Flip y el resto de niveles sobre el gráfico." });
   } else if (v === "map") {
     S.push({ type: "one", title: "Color del mapa", key: "mapMode", opts: [
       ["strike", "Por strike", "Gamma concentrada en cada strike, como TRACE."],
@@ -1233,9 +1232,6 @@ function setSections() {
     S.push({ type: "one", title: "Sesión", key: "mapSess", cur: state.mapKind || state.mapSess, opts: [
       ["last", "Última sesión", "Repite la última sesión con sus velas."],
       ["next", "Próxima", "Proyección de la siguiente sesión."]] });
-    S.push({ type: "flag", key: "showLevels", lab: "Mostrar niveles clave", info: "Las etiquetas de los niveles sobre el mapa." });
-  } else if (v === "impact") {
-    S.push({ type: "flag", key: "showLevels", lab: "Mostrar niveles clave", info: "Las líneas de los niveles sobre el gráfico." });
   }
   return S;
 }
@@ -1271,7 +1267,9 @@ function setChoose(k, v) {
 }
 function syncSet() {
   const v = state.view, strike = v === "strike";
-  $("setBtn").parentElement.hidden = !strike && v !== "map" && v !== "impact";
+  $("setBtn").parentElement.hidden = !strike && v !== "map";
+  $("levelsTg").hidden = !strike && v !== "map" && v !== "impact";
+  $("levelsTg").setAttribute("aria-checked", String(state.showLevels));
   const BN = { net: "Total", split: "Calls y puts", expiry: "Por vencimiento" };
   const nl = (state.greek === "gamma" || state.greek === "delta") ? state.lines.size : 0;
   $("setLab").textContent = strike ? GREEK_N[state.greek] +
@@ -3020,6 +3018,7 @@ async function init() {
   });
   bindDte(() => { renderChips(); return state.mode === "scanner" ? runScan() : load(); });
   bindPopovers();
+  $("levelsTg").addEventListener("click", () => setChoose("showLevels"));
   $("chartSet").addEventListener("click", (e) => {
     const i = e.target.closest(".cs-i");
     if (i) { const p = $(i.dataset.i); p.hidden = !p.hidden; i.setAttribute("aria-expanded", String(!p.hidden)); return; }

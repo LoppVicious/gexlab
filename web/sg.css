@@ -22,8 +22,8 @@
   --btn: #23232a; --btn-hover: #2c2c35; --pop: #1a1a1f; --hover: #1c1c22;
   --seg-on: #26262e; --knob: #d4d4dc; --scroll: #34343d; --shadow: rgba(0, 0, 0, .5);
   --side: #121215; --side-on: rgba(31, 200, 166, .10);
-  --sans: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;  /* cifras: la misma, con numeros tabulares */
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -50,7 +50,7 @@
   color-scheme: light;
 }
 
-body { font-family: var(--sans); font-size: 13.5px; letter-spacing: -.003em; }
+body { font-family: var(--sans); font-size: 13.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .price, .scard .sp, .mstate { letter-spacing: -.03em; }
 
 /* ---------------------------------------------------------------- estructura: barra lateral + contenido */
@@ -313,15 +313,25 @@ body.view-map .zoombar { display: none; }
 .cset, .cmenu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; background: var(--pop); border: 1px solid var(--line);
   border-radius: 14px; box-shadow: 0 16px 40px var(--shadow); }
 .cset[hidden], .cmenu[hidden] { display: none; }
-.cset { width: 356px; max-height: min(78vh, 640px); overflow: auto; padding: 12px 12px 8px; display: grid; gap: 4px;
-  font-family: "IBM Plex Sans", var(--sans); letter-spacing: 0; }
+.cset { width: 356px; max-height: min(78vh, 640px); overflow: auto; padding: 12px 12px 8px; display: grid; gap: 4px; letter-spacing: 0; }
+/* interruptor "Niveles clave" de la cabecera del grafico (vale para todos los tipos de grafico) */
+.kl-tg { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 4px 6px; font-size: 13px; color: var(--muted); }
+.kl-tg[hidden] { display: none; }
+.kl-tg:hover { color: var(--text); }
+.kl-tg i { position: relative; width: 32px; height: 18px; border-radius: 9px; background: var(--line-strong); transition: background .15s; flex: none; }
+.kl-tg i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--knob);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35); transition: left .15s; }
+.kl-tg[aria-checked="true"] i { background: color-mix(in srgb, var(--accent) 70%, var(--line-strong)); }
+.kl-tg[aria-checked="true"] i::after { left: 16px; background: #fff; }
+@media (prefers-reduced-motion: reduce) { .kl-tg i, .kl-tg i::after { transition: none; } }
 .cs-type { background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 10px 12px; margin-bottom: 6px; }
 .cs-t { text-align: center; font-size: 13px; font-weight: 600; color: var(--text); margin: 6px 0 8px; }
 .cs-type .cs-t { margin-top: 0; }
-.cs-segs { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.cs-segs { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line-strong); border-radius: 8px; }
 .cs-segs button { border: 0; border-left: 1px solid var(--line-strong); background: none; padding: 7px 4px; font: inherit; font-size: 12.5px;
   font-weight: 500; color: var(--muted); }
-.cs-segs button:first-child { border-left: 0; }
+.cs-segs button:first-child { border-left: 0; border-radius: 7px 0 0 7px; }
+.cs-segs button:last-child { border-radius: 0 7px 7px 0; }
 .cs-segs button:hover { color: var(--text); background: var(--hover); }
 .cs-segs button[aria-checked="true"] { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .cs-sec { display: grid; }

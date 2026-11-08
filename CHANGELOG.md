@@ -11,12 +11,14 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   - El mapa del TRACE de SPX, SPY, QQQ e IWM usa velas de 5 minutos de Tradier, sin retraso: cada 5 minutos aparece la
     vela que acaba de cerrar (la vela en curso no se muestra; en el SPX, nada después del cierre). Tradier no da velas
     de NDX ni de RUT: su mapa sigue con las de CBOE, aunque sus niveles se recalculan igualmente cada 5 minutos.
-- **Panel de opciones del gráfico** (botón con lo elegido, p. ej. «Gamma · Total · 1 línea»), con interruptores, una (i)
-  en cada opción que explica qué hace y su propia letra (IBM Plex Sans, de prueba):
+- **Panel de opciones del gráfico** (botón con lo elegido, p. ej. «Gamma · Total · 1 línea»), con interruptores y una (i)
+  en cada opción que explica qué hace:
   - Tipo de gráfico: Gamma, **Delta** (nuevo), Vanna, Charm y Open interest.
   - **Líneas** sobre Por strike, con su eje a la derecha, en Gamma y en Delta: total, del próximo vencimiento, del
     vencimiento mensual, total sin el próximo y total sin el mensual (varias a la vez). El tooltip da su valor.
-  - Barras de cada tipo; Mostrar niveles clave (ahora también en Por strike); en el Mapa, color, sesión y niveles.
+  - Barras de cada tipo; en el Mapa, color y sesión.
+- **Interruptor «Niveles clave»** en la cabecera del gráfico (Por strike, Mapa e Impacto): muestra u oculta las
+  etiquetas y líneas de los niveles en cualquier tipo de gráfico.
 - **Delta** por strike: la delta que tienen los dealers en cada strike, en $, total o de calls y puts (lado a lado).
 - **Open interest** por strike: contratos abiertos de calls (arriba) y puts (abajo); su **cambio diario**, contratos
   abiertos o cerrados en la última sesión (solo en los tickers de las listas, de los que el motor guarda el open
@@ -39,6 +41,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - El historial diario mide al terminar el espacio ocupado en R2 por carpeta.
 
 **Cambiado**
+- **Letra nueva en toda la web:** IBM Plex Sans (antes Inter), también en los gráficos y en las imágenes exportadas, con
+  cifras de ancho fijo para que las columnas de números queden alineadas.
 - **Cabecera de los gráficos más limpia:** el tipo de gráfico, las barras y las opciones del mapa pasan al panel de
   opciones; Informe, Copiar, PNG y TradingView, al menú «Exportar».
 - **Barras ▸ Vencimiento:** cada barra se reparte en el próximo vencimiento (0DTE, verde azulado), cada semanal

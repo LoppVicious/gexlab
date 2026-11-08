@@ -35,6 +35,9 @@ function zoomed(d, view) {
     if (keep.filter(Boolean).length < 3) return d;
     const o = { ...d };
     for (const k of ["strikes", "net", "calls", "puts", "front", "vanna", "charm"]) if (Array.isArray(d[k])) o[k] = d[k].filter((_, i) => keep[i]);
+    const cut = (a) => (Array.isArray(a) ? a.filter((_, i) => keep[i]) : a);
+    if (d.by_exp) o.by_exp = { ...d.by_exp, gex: d.by_exp.gex.map(cut) };
+    if (d.oi) o.oi = { ...d.oi, calls: cut(d.oi.calls), puts: cut(d.oi.puts), chg_calls: cut(d.oi.chg_calls), chg_puts: cut(d.oi.chg_puts) };
     return o;
   }
   if (view === "impact") return { ...d, _zoom: [lo, hi] };

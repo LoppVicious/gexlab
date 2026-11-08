@@ -1382,6 +1382,25 @@ def _flow_read(path: str) -> dict:
     return h
 
 
+def oi_previo(symbol: str, keys: list[str], oi) -> dict | None:
+    """OI de cada contrato en la sesion anterior a la cadena actual, del historial de flujo (record_flow guarda cada
+    sesion el OI publicado esa manana). Es el ultimo dia guardado cuyo OI ya no coincide con el actual. En el
+    navegador lo trae el paquete (fx/oiprev_{SYM}.json). Devuelve {"date", "oi": {clave: contratos}} o None."""
+    fx = os.environ.get("GEX_FIXTURE_DIR")
+    if fx:
+        return read_json(os.path.join(fx, f"oiprev_{symbol.replace('.', '_')}.json"))
+    h = _flow_read(os.path.join(HIST_DIR, f"flow_{symbol.replace('.', '_')}.json.gz"))
+    cur = dict(zip(keys, (int(x) for x in oi)))
+    for d in sorted(h, reverse=True):
+        o = h[d].get("oi") or {}
+        com = [k for k in o if k in cur]
+        if len(com) < 20:
+            continue
+        if sum(1 for k in com if o[k] == cur[k]) / len(com) < 0.9:
+            return {"date": d, "oi": {k: o[k] for k in cur if k in o}}
+    return None
+
+
 def _flow_pre(symbol: str, cc: dict) -> dict | None:
     fx = os.environ.get("GEX_FIXTURE_DIR")
     if not fx:
@@ -1642,6 +1661,19 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     np.add.at(wputs, idx[inw & ~C], gex[inw & ~C])
     wfront = np.zeros(wgrid.size)
     np.add.at(wfront, idx[inw & FRONT], gex[inw & FRONT])
+    # open interest por strike (contratos) y su cambio frente a la sesion anterior (si hay historial de ese ticker)
+    woi_c = np.zeros(wgrid.size); woi_p = np.zeros(wgrid.size)
+    np.add.at(woi_c, idx[inw & C], OI[inw & C])
+    np.add.at(woi_p, idx[inw & ~C], OI[inw & ~C])
+    oi_prev = None if combine else oi_previo(normalize(symbol), _contract_keys(K, C, EXP), OI)
+    wdc = wdp = None
+    if oi_prev and oi_prev.get("oi"):
+        po = oi_prev["oi"]
+        dOI = np.array([OI[i] - po[k] if k in po else np.nan for i, k in enumerate(_contract_keys(K, C, EXP))])
+        known = np.isfinite(dOI)
+        wdc = np.zeros(wgrid.size); wdp = np.zeros(wgrid.size)
+        np.add.at(wdc, idx[inw & C & known], dOI[inw & C & known])
+        np.add.at(wdp, idx[inw & ~C & known], dOI[inw & ~C & known])
     # desglose por vencimiento: el proximo, cada semana (con su semanal o mensual) y los posteriores (exp_groups)
     edays = EXP.astype("datetime64[D]")
     eu = np.unique(edays)
@@ -1662,6 +1694,10 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
           (wgrid <= math.ceil(spot * (1 + window_pct / 100) / step) * step + 1e-9)
     grid, net, calls, puts, front = wgrid[vis], wnet[vis], wcalls[vis], wputs[vis], wfront[vis]
     vanna_s, charm_s = wvanna[vis], wcharm[vis]
+    oi_out = {"calls": np.round(woi_c[vis]).tolist(), "puts": np.round(woi_p[vis]).tolist(),
+              "chg_calls": np.round(wdc[vis]).tolist() if wdc is not None else None,
+              "chg_puts": np.round(wdp[vis]).tolist() if wdp is not None else None,
+              "prev_date": oi_prev.get("date") if wdc is not None else None}
     by_exp = {"groups": egroups, "gex": [[float(f"{v:.5g}") for v in row] for row in wexp[:, vis]]}
 
     # --- perfil: GEX total en spots hipoteticos
@@ -1782,7 +1818,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "computed_at": now_ny().strftime("%Y-%m-%d %H:%M ET"),
         "step": step,
         "strikes": grid.tolist(),
-        "net": net.tolist(), "calls": calls.tolist(), "puts": puts.tolist(), "front": front.tolist(), "by_exp": by_exp,
+        "net": net.tolist(), "calls": calls.tolist(), "puts": puts.tolist(), "front": front.tolist(), "by_exp": by_exp, "oi": oi_out,
         "vanna": vanna_s.tolist(), "charm": charm_s.tolist(),
         "combo": combo, "positioning": positioning if not (positioning == "flow" and combine) else "standard",
         "flow_info": flow_info,

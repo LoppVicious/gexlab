@@ -234,30 +234,54 @@
         <button role="tab" id="tabHistory" aria-selected="false" title="Niveles de cada sesión guardada con el precio">Histórico</button>
         <button role="tab" id="tabMap" aria-selected="false">Mapa</button>
       </div>
-      <div class="seg compact" role="radiogroup" aria-label="Griega" id="greekSeg">
-        <button role="radio" data-v="gamma" title="Exposición gamma">Gamma</button>
-        <button role="radio" data-v="vanna" title="Compras o ventas de cobertura si la volatilidad implícita cae 1 punto">Vanna</button>
-        <button role="radio" data-v="charm" title="Compras o ventas de cobertura por el paso de un día">Charm</button>
-      </div>
-      <div class="seg compact" role="radiogroup" aria-label="Barras" id="barsSeg">
-        <button role="radio" data-v="net" title="GEX neta por strike">Neta</button>
-        <button role="radio" data-v="split" title="Calls hacia arriba, puts hacia abajo">Calls y puts</button>
-        <button role="radio" data-v="expiry" title="Separa el vencimiento más próximo (con su fecha, si es diario, semanal o mensual, y los días que faltan) del resto">Vencimiento</button>
-      </div>
-      <div class="seg compact" role="radiogroup" aria-label="Color del mapa" id="mapSeg" hidden>
-        <button role="radio" data-v="strike" title="Gamma concentrada en cada strike, como TRACE">Por strike</button>
-        <button role="radio" data-v="total" title="GEX total del mercado si el precio estuviera en ese nivel">Total</button>
-      </div>
-      <div class="seg compact" role="radiogroup" aria-label="Sesión del mapa" id="sessSeg" hidden>
-        <button role="radio" data-v="last" title="Repite la última sesión con sus velas">Última sesión</button>
-        <button role="radio" data-v="next" title="Proyección de la siguiente sesión">Próxima</button>
-      </div>
-      <button class="toggle" id="levelsToggle" aria-pressed="true" hidden>Niveles</button>
       <p class="chart-caption" id="caption"></p>
-      <button class="ghost" id="reportBtn" title="Imagen con los niveles, el gráfico por strike y el mapa">Informe</button>
-      <button class="ghost" id="copyBtn" title="Copia la imagen del gráfico al portapapeles para pegarla con Ctrl+V">Copiar</button>
-      <button class="ghost" id="exportBtn" title="Descargar la imagen del gráfico">PNG</button>
-      <button class="ghost" id="tvBtn" title="Copia los niveles en el formato del indicador de TradingView (precio, etiqueta) para pegarlos en Ajustes ▸ Entradas">TradingView</button>
+      <div class="chead-r">
+        <div class="popw">
+          <button class="ghost csbtn" id="setBtn" aria-haspopup="dialog" aria-expanded="false" title="Opciones del gráfico"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h8M15 5h2M3 10h2M9 10h8M3 15h10"/><circle cx="13" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="15" cy="15" r="2"/></svg><span id="setLab">Gráfico</span></button>
+          <div class="cset" id="chartSet" role="dialog" aria-label="Opciones del gráfico" hidden>
+            <div class="cs-seg" role="radiogroup" aria-label="Tipo de gráfico" id="greekSeg">
+              <div class="cs-h">Tipo de gráfico</div>
+              <div class="cs-row">
+                <button role="radio" data-v="gamma" title="Exposición gamma">Gamma</button>
+                <button role="radio" data-v="vanna" title="Compras o ventas de cobertura si la volatilidad implícita cae 1 punto">Vanna</button>
+                <button role="radio" data-v="charm" title="Compras o ventas de cobertura por el paso de un día">Charm</button>
+                <button role="radio" data-v="oi" title="Contratos abiertos por strike">Open interest</button>
+              </div>
+            </div>
+            <div class="cs-list" role="radiogroup" aria-label="Barras" id="barsSeg">
+              <div class="cs-h">Barras</div>
+              <button role="radio" data-v="net"><b>Neta</b><small>GEX neta de cada strike: calls menos puts</small></button>
+              <button role="radio" data-v="split"><b>Calls y puts</b><small>Calls hacia arriba, puts hacia abajo</small></button>
+              <button role="radio" data-v="expiry"><b>Por vencimiento</b><small>Próximo, cada semanal y cada mensual, con su peso</small></button>
+            </div>
+            <div class="cs-list" role="radiogroup" aria-label="Open interest" id="oiSeg" hidden>
+              <div class="cs-h">Barras</div>
+              <button role="radio" data-v="total"><b>Open interest</b><small>Contratos abiertos: calls hacia arriba, puts hacia abajo</small></button>
+              <button role="radio" data-v="chg"><b>Cambio diario</b><small>Contratos abiertos o cerrados en la última sesión</small></button>
+            </div>
+            <div class="cs-list" role="radiogroup" aria-label="Color del mapa" id="mapSeg" hidden>
+              <div class="cs-h">Color del mapa</div>
+              <button role="radio" data-v="strike"><b>Por strike</b><small>Gamma concentrada en cada strike, como TRACE</small></button>
+              <button role="radio" data-v="total"><b>Total</b><small>GEX total del mercado si el precio estuviera en ese nivel</small></button>
+            </div>
+            <div class="cs-list" role="radiogroup" aria-label="Sesión del mapa" id="sessSeg" hidden>
+              <div class="cs-h">Sesión</div>
+              <button role="radio" data-v="last"><b>Última sesión</b><small>Repite la última sesión con sus velas</small></button>
+              <button role="radio" data-v="next"><b>Próxima</b><small>Proyección de la siguiente sesión</small></button>
+            </div>
+            <button class="cs-switch" id="levelsToggle" aria-pressed="true" hidden><span>Mostrar los niveles</span><i aria-hidden="true"></i></button>
+          </div>
+        </div>
+        <div class="popw">
+          <button class="ghost" id="expBtn" aria-haspopup="menu" aria-expanded="false">Exportar <span aria-hidden="true">&#9662;</span></button>
+          <div class="cmenu" id="expMenu" role="menu" hidden>
+            <button role="menuitem" id="copyBtn" title="Para pegarla con Ctrl+V">Copiar imagen</button>
+            <button role="menuitem" id="exportBtn">Descargar PNG</button>
+            <button role="menuitem" id="reportBtn" title="Imagen con los niveles, el gráfico por strike y el mapa">Informe completo</button>
+            <button role="menuitem" id="tvBtn" title="En el formato del indicador de TradingView (precio, etiqueta), para pegarlos en Ajustes, Entradas">Niveles para TradingView</button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="chart" id="chart" role="img" aria-label="Exposición gamma por strike">
       <div class="placeholder" id="placeholder">Escribe un ticker y pulsa Cargar.</div>

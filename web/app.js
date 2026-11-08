@@ -69,6 +69,7 @@ const state = {
   mapMode: store.get("mapMode", "strike"),
   mapSess: "auto",
   greek: store.get("greek", "gamma"),
+  oiMode: store.get("oiMode", "total"),
   pos: store.get("pos", "standard"),
   model: store.get("model", "auto"),
   validMode: "standard",
@@ -269,11 +270,13 @@ function bucketStrikes(ks, arrs, step, maxN) {
 function bucketData(d, maxN) {
   const keys = ["net", "calls", "puts", "front", "vanna", "charm"];
   const rows = d.by_exp ? d.by_exp.gex : [];
-  const b = bucketStrikes(d.strikes, [...keys.map((x) => d[x] || null), ...rows], d.step, maxN);
+  const OIK = ["calls", "puts", "chg_calls", "chg_puts"], oiRows = OIK.map((x) => (d.oi && d.oi[x]) || null);
+  const b = bucketStrikes(d.strikes, [...keys.map((x) => d[x] || null), ...oiRows, ...rows], d.step, maxN);
   if (b.k === 1) return d;
   const o = { ...d, strikes: b.ks, step: b.step, bucket: b.k, bucketStep: d.step };
   keys.forEach((x, i) => { if (b.arrs[i]) o[x] = b.arrs[i]; });
-  if (d.by_exp) o.by_exp = { ...d.by_exp, gex: b.arrs.slice(keys.length) };
+  if (d.oi) { o.oi = { ...d.oi }; OIK.forEach((x, i) => { o.oi[x] = b.arrs[keys.length + i]; }); }
+  if (d.by_exp) o.by_exp = { ...d.by_exp, gex: b.arrs.slice(keys.length + OIK.length) };
   return o;
 }
 
@@ -321,11 +324,16 @@ function renderStrike(d0, W, H, exp = false) {
 
   // series segun el modo de barras
   const greek = state.greek;
-  const mode = greek === "gamma" ? state.bars : "net";
-  const series = greek === "gamma" ? d.net : (d[greek] || d.net);
+  const OI = d.oi || {};
+  const mode = greek === "gamma" ? state.bars : greek === "oi" ? (state.oiMode === "chg" ? "oichg" : "oi") : "net";
+  const oiNone = (mode === "oi" && !OI.calls) || (mode === "oichg" && !OI.chg_calls);
+  const series = greek === "gamma" || greek === "oi" ? d.net : (d[greek] || d.net);
   const rest = d.net.map((v, i) => v - (d.front ? d.front[i] : 0));
   let hiArr, loArr;
-  if (mode === "split") { hiArr = d.calls; loArr = d.puts; }
+  if (oiNone) { hiArr = [1]; loArr = [0]; }
+  else if (mode === "oi") { hiArr = OI.calls; loArr = OI.puts.map((v) => -v); }
+  else if (mode === "oichg") { hiArr = OI.chg_calls.map((v, i) => Math.max(v, OI.chg_puts[i])); loArr = OI.chg_calls.map((v, i) => Math.min(v, OI.chg_puts[i])); }
+  else if (mode === "split") { hiArr = d.calls; loArr = d.puts; }
   else if (mode === "expiry" && expG(d)) {
     hiArr = d.net.map((_, i) => d.by_exp.gex.reduce((a, r) => a + Math.max(0, r[i]), 0));
     loArr = d.net.map((_, i) => d.by_exp.gex.reduce((a, r) => a + Math.min(0, r[i]), 0));
@@ -363,7 +371,7 @@ function renderStrike(d0, W, H, exp = false) {
     s += `<text x="${x}" y="${bottom + small + 10}" text-anchor="middle" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtLevel(v)}</text>`;
   }
   // etiqueta eje Y
-  s += `<text transform="translate(${exp ? 26 : 14},${(top + bottom) / 2}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${{ gamma: "$ delta por $1", vanna: "$ si la IV cae 1 pt", charm: "$ por un día" }[greek]}</text>`;
+  s += `<text transform="translate(${exp ? 26 : 14},${(top + bottom) / 2}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${{ gamma: "$ delta por $1", vanna: "$ si la IV cae 1 pt", charm: "$ por un día", oi: mode === "oichg" ? "Cambio de contratos" : "Contratos" }[greek]}</text>`;
 
   // banda de movimiento esperado
   s += emBand(d, xOf, top, bottom, small, left, right);
@@ -379,7 +387,17 @@ function renderStrike(d0, W, H, exp = false) {
   s += `<rect id="hl" x="0" y="${top}" width="${band}" height="${bottom - top}" fill="${C.hi}" fill-opacity="0.04" visibility="hidden"/>`;
   for (let i = 0; i < n; i++) {
     const x = xOf(d.strikes[i]) - bw / 2;
-    if (mode === "split") {
+    if (oiNone) break;
+    if (mode === "oi") {
+      if (OI.calls[i]) s += bar(x, 0, OI.calls[i], C.pos);
+      if (OI.puts[i]) s += bar(x, 0, -OI.puts[i], C.neg);
+    } else if (mode === "oichg") {
+      // dos barras finas por strike: calls a la izquierda, puts a la derecha; hacia arriba, contratos nuevos
+      const hw = bw / 2;
+      const half = (xx, v, fill) => { const y = Math.min(yOf(0), yOf(v)), h = Math.max(0.8, Math.abs(yOf(v) - yOf(0))); return `<rect x="${xx.toFixed(2)}" y="${y.toFixed(2)}" width="${(hw - 0.5).toFixed(2)}" height="${h.toFixed(2)}" rx="${Math.min(rx, hw / 4)}" fill="${fill}"/>`; };
+      if (OI.chg_calls[i]) s += half(x, OI.chg_calls[i], C.pos);
+      if (OI.chg_puts[i]) s += half(x + hw + 0.5, OI.chg_puts[i], C.neg);
+    } else if (mode === "split") {
       if (d.calls[i]) s += bar(x, 0, d.calls[i], C.pos);
       if (d.puts[i]) s += bar(x, 0, d.puts[i], C.neg);
     } else if (mode === "expiry" && expG(d)) {
@@ -403,6 +421,11 @@ function renderStrike(d0, W, H, exp = false) {
     }
   }
   s += `<line x1="${left}" x2="${right}" y1="${y0}" y2="${y0}" stroke="${C.axis}" stroke-width="1.2"/>`;
+  if (oiNone) {
+    const msg = mode === "oi" ? "Estos datos aún no traen el open interest: aparecerá tras el próximo ciclo del motor"
+      : "Sin el open interest de la sesión anterior para este ticker. Se guarda cada día para los tickers de las listas";
+    s += `<text x="${(left + right) / 2}" y="${(top + bottom) / 2}" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.muted}">${esc(msg)}</text>`;
+  }
 
   // niveles
   s += tagsSVG(pt, titleH, bottom, fs);
@@ -412,7 +435,8 @@ function renderStrike(d0, W, H, exp = false) {
   s += watermark(d, left, bottom, small, exp);
 
   state.geo = exp ? state.geo : { kind: "strike", left, right, band, top, bottom, n, xOf, data: d };
-  return frame(W, H, s, d, exp, { gamma: "Exposición gamma por strike", vanna: "Flujo por vanna (IV −1 pt)", charm: "Flujo por charm (1 día)" }[greek]);
+  return frame(W, H, s, d, exp, { gamma: "Exposición gamma por strike", vanna: "Flujo por vanna (IV −1 pt)", charm: "Flujo por charm (1 día)",
+    oi: mode === "oichg" ? "Cambio de open interest por strike" : "Open interest por strike" }[greek]);
 }
 
 /* ============================================================ gráfico de perfil */
@@ -496,6 +520,7 @@ function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
 }
 
 function legendItems(d) {
+  if (state.greek === "oi") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
   if (state.greek !== "gamma") return [{ colors: [C.pos], label: "Compras de cobertura" }, { colors: [C.neg], label: "Ventas de cobertura" }];
   if (state.bars === "split") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
   if (state.bars === "expiry" && expG(d)) {
@@ -848,6 +873,15 @@ function mapCaption() {
 /* ============================================================ pintar */
 // detalle de "Barras: Vencimiento" bajo los botones: que vencimiento es el proximo y que hay en el resto
 function expiryCaption(d) {
+  if (state.view === "strike" && state.greek === "oi") {
+    const o = d.oi;
+    if (!o || !o.calls) return "";
+    const nf = new Intl.NumberFormat("es-ES", { notation: "compact", maximumFractionDigits: 1 });
+    const sum = (a) => a.reduce((x, v) => x + (v || 0), 0), f = (v) => (state.oiMode === "chg" && v > 0 ? "+" : "") + nf.format(v);
+    if (state.oiMode !== "chg") return `Contratos abiertos en el rango (cierre anterior): calls <b>${f(sum(o.calls))}</b> · puts <b>${f(sum(o.puts))}</b> · ratio put/call <b>${fmtNum(sum(o.puts) / Math.max(1, sum(o.calls)), 2)}</b>`;
+    if (!o.chg_calls) return "";
+    return `Cambio en la sesión del ${ddmm(o.prev_date)} (la OCC lo publica cada mañana): calls <b>${f(sum(o.chg_calls))}</b> · puts <b>${f(sum(o.chg_puts))}</b>. Hacia arriba, contratos nuevos; hacia abajo, cerrados`;
+  }
   if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
   const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
   if (expG(d)) {
@@ -1107,6 +1141,39 @@ function bindDte(onChange) {
   });
 }
 
+// opciones del grafico (boton con el resumen de lo elegido) y menu Exportar
+const GREEK_N = { gamma: "Gamma", vanna: "Vanna", charm: "Charm", oi: "Open interest" };
+const BARS_N = { net: "Neta", split: "Calls y puts", expiry: "Por vencimiento" };
+function syncSet() {
+  const v = state.view, strike = v === "strike";
+  $("greekSeg").hidden = !strike;
+  $("barsSeg").hidden = !strike || state.greek !== "gamma";
+  $("oiSeg").hidden = !strike || state.greek !== "oi";
+  $("mapSeg").hidden = v !== "map";
+  $("sessSeg").hidden = v !== "map";
+  $("levelsToggle").hidden = v !== "map" && v !== "impact";
+  $("setBtn").parentElement.hidden = !strike && v !== "map" && v !== "impact";
+  $("setLab").textContent = strike ? GREEK_N[state.greek] + (state.greek === "gamma" ? ` · ${BARS_N[state.bars]}` : state.greek === "oi" ? ` · ${state.oiMode === "chg" ? "Cambio diario" : "Total"}` : "")
+    : v === "map" ? (state.mapMode === "total" ? "Mapa total" : "Mapa por strike") : "Niveles";
+}
+function bindPopovers() {
+  const pairs = [["setBtn", "chartSet"], ["expBtn", "expMenu"]];
+  const close = (except) => pairs.forEach(([b, p]) => { if (p !== except) { $(p).hidden = true; $(b).setAttribute("aria-expanded", "false"); } });
+  pairs.forEach(([b, p]) => {
+    $(b).addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = $(p).hidden;
+      close(p);
+      $(p).hidden = !open; $(b).setAttribute("aria-expanded", String(open));
+    });
+    $(p).addEventListener("click", (e) => e.stopPropagation());
+  });
+  // el menu Exportar se cierra al elegir; las opciones del grafico siguen abiertas para probar varias
+  $("expMenu").addEventListener("click", (e) => { if (e.target.closest("button")) close(); });
+  document.addEventListener("click", () => close());
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+}
+
 function bindSeg(id, key, onChange) {
   const box = $(id);
   const sync = () => box.querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === state[key])));
@@ -1226,11 +1293,7 @@ function setView(v) {
   $("tabProfile").setAttribute("aria-selected", String(v === "profile"));
   $("tabHistory").setAttribute("aria-selected", String(v === "history"));
   $("tabMap").setAttribute("aria-selected", String(v === "map"));
-  $("barsSeg").hidden = v !== "strike" || state.greek !== "gamma";
-  $("greekSeg").hidden = v !== "strike";
-  $("levelsToggle").hidden = v !== "map" && v !== "impact";
-  $("mapSeg").hidden = v !== "map";
-  $("sessSeg").hidden = v !== "map";
+  syncSet();
   $("caption").textContent = v === "history" ? "Niveles al cierre de cada sesión guardada, con este filtro de vencimientos y este motor. Haz clic en la leyenda para mostrar u ocultar cada línea"
     : v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente"
     : v === "impact" ? "Líneas: gamma total de los vencimientos del filtro y del próximo vencimiento semanal si el precio estuviera en cada nivel. Barras: gamma neta de cada strike al precio actual" : "";
@@ -1260,7 +1323,7 @@ function onMove(e) {
       <div class="r">Neta <b>${fmtBig(b.net[i], true)}</b></div>
       <div class="r">Calls <b>${fmtBig(b.calls[i], true)}</b></div>
       <div class="r">Puts <b>${fmtBig(b.puts[i], true)}</b></div>
-      ${state.greek === "gamma" && state.bars === "expiry" && expG(b) ? expTip(b, i) : `<div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
+      ${state.greek === "oi" && b.oi && b.oi.calls ? oiTip(b, i) : state.greek === "gamma" && state.bars === "expiry" && expG(b) ? expTip(b, i) : `<div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
   } else if (g.kind === "history" && typeof historyTip === "function") {
     html = historyTip(d, g, x, svg);
     if (!html) return hideTip();
@@ -1286,6 +1349,11 @@ function onMove(e) {
   if (tx + tip.offsetWidth > pr.width - 8) tx = e.clientX - pr.left - tip.offsetWidth - 16;
   if (ty < wr.top - pr.top) ty = e.clientY - pr.top + 16;
   tip.style.left = tx + "px"; tip.style.top = ty + "px";
+}
+function oiTip(b, i) {
+  const o = b.oi, n = (v) => fmtNum(v || 0), c = (v) => (v > 0 ? "+" : "") + fmtNum(v || 0);
+  return `<div class="tsep"></div><div class="r">OI calls <b>${n(o.calls[i])}</b></div><div class="r">OI puts <b>${n(o.puts[i])}</b></div>` +
+    (o.chg_calls ? `<div class="r">Cambio calls <b>${c(o.chg_calls[i])}</b></div><div class="r">Cambio puts <b>${c(o.chg_puts[i])}</b></div>` : "");
 }
 function expTip(b, i) {
   const cols = expColors(b.by_exp), labs = expLabels(b);
@@ -1383,7 +1451,7 @@ function copyPNG() {
   if (!navigator.clipboard || !window.ClipboardItem) { toast("No se puede copiar", "Este navegador no permite copiar imágenes; usa Exportar PNG."); return; }
   btn.disabled = true;
   navigator.clipboard.write([new ClipboardItem({ "image/png": chartPngBlob() })])
-    .then(() => { btn.textContent = "Copiado"; setTimeout(() => { btn.textContent = "Copiar"; }, 1600); })
+    .then(() => toast("Imagen copiada", "Pégala con Ctrl+V."))
     .catch((e) => toast("No se pudo copiar", e && e.message ? e.message : "El navegador bloqueó el portapapeles."))
     .finally(() => { btn.disabled = false; });
 }
@@ -1421,7 +1489,6 @@ async function copyTV() {
     ta.remove();
   }
   if (!ok) { toast("No se pudo copiar", "El navegador bloqueó el portapapeles."); return; }
-  btn.textContent = "Copiado"; setTimeout(() => { btn.textContent = "TradingView"; }, 1600);
   toast(`Niveles de ${d.symbol} copiados`, `${text.split("\n").length} niveles. En TradingView: Ajustes del indicador ▸ Entradas ▸ pega en el cuadro de texto.`);
 }
 
@@ -2817,8 +2884,10 @@ async function init() {
     $("symbol").value = b.dataset.s; $("spotInput").value = ""; load();
   });
   bindDte(() => { renderChips(); return state.mode === "scanner" ? runScan() : load(); });
-  bindSeg("barsSeg", "bars", () => draw());
-  bindSeg("greekSeg", "greek", () => { $("barsSeg").hidden = state.view !== "strike" || state.greek !== "gamma"; draw(); });
+  bindSeg("barsSeg", "bars", () => { syncSet(); draw(); });
+  bindSeg("greekSeg", "greek", () => { syncSet(); draw(); });
+  bindSeg("oiSeg", "oiMode", () => { syncSet(); draw(); });
+  bindPopovers();
   bindSeg("posSeg", "pos", () => { renderChips(); load(); });
   bindSeg("modelSeg", "model", () => { state.heat = null; renderChips(); load(); });
   $("comboToggle").addEventListener("click", () => { state.combo = !state.combo; store.set("combo", state.combo ? "1" : "0"); syncCombo(); load(); });
@@ -2858,7 +2927,7 @@ async function init() {
   $("tabHistory").addEventListener("click", () => setView("history"));
   $("tabProfile").addEventListener("click", () => setView("profile"));
   $("tabMap").addEventListener("click", () => setView("map"));
-  bindSeg("mapSeg", "mapMode", () => { state.heatImg = null; draw(); });
+  bindSeg("mapSeg", "mapMode", () => { state.heatImg = null; syncSet(); draw(); });
   $("sessSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     state.mapSess = b.dataset.v; draw();

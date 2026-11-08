@@ -265,6 +265,12 @@ def paquete(sym: str) -> dict:
         files[f"fx/flowpos_{sym.replace('.', '_')}.json"] = g.flow_positions_all(sym, g.chain_from_min(mn))
     except Exception as e:  # noqa: BLE001
         err(f"{sym} flujo", e)
+    try:  # OI de la sesion anterior, para el cambio de open interest en el navegador
+        prev = g.oi_previo(sym, g._contract_keys(ch["K"], ch["call"], ch["exp"]), ch["oi"])
+        if prev:
+            files[f"fx/oiprev_{sym.replace('.', '_')}.json"] = prev
+    except Exception as e:  # noqa: BLE001
+        err(f"{sym} OI anterior", e)
     intr, velas = None, "cboe"
     if sym in VELAS_TRADIER:
         try:

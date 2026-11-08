@@ -267,7 +267,7 @@
       </form>
       <p class="msg" id="admMsg" role="status"></p>
       <h2 style="margin-top:18px">Historial diario<span class="cnt" id="hisCnt"></span></h2>
-      <p class="sub">Tickers que se guardan cada día de mercado a las 16:30 ET (cadena al cierre y niveles de los dos motores) para backtests. Los cambios valen desde la siguiente ejecución. El 0DTE solo se guarda en los que tienen vencimientos diarios.</p>
+      <p class="sub">Tickers que se guardan cada día de mercado a las 16:30 ET (cadena al cierre y niveles de los dos motores) para backtests. Los cambios valen desde la siguiente ejecución. El 0DTE solo se guarda en los que tienen vencimientos diarios. El VIX y la familia VIX (VIX9D, VIX3M, VIX6M, VIX1Y) se guardan siempre y no se borran nunca.</p>
       <div class="chips" id="hisList">Cargando…</div>
       <form id="hisForm" style="grid-template-columns:1fr auto" autocomplete="off"><input id="hisAdd" autocapitalize="characters" spellcheck="false" placeholder="Añadir tickers: AAPL, MSFT…" aria-label="Tickers que añadir"><button class="btn" id="hisGo" type="submit">Añadir</button></form>
       <p class="msg" id="hisMsg" role="status"></p>

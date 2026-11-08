@@ -52,6 +52,9 @@ PREFIX = "hist500/"
 RETENCION_ANOS = 2
 ESPERA_CIERRE_MIN = 20          # CBOE publica con 15 min de retraso
 LISTA_KEY = "config/historial500.json"  # la escribe el Worker (/api/admin/historial)
+SIEMPRE = ["VIX"]                        # se guardan siempre, esten o no en la lista de la web
+INDICES_VOL = ["VIX", "VIX9D", "VIX3M", "VIX6M", "VIX1Y"]   # serie diaria completa (solo el VIX tiene opciones)
+NUNCA_BORRAR = ("VIX/", "_indices_vol/")  # el VIX y la familia VIX se guardan sin limite de anos
 POSICIONES = ("standard", "flow")
 RANGO = 5.0                     # el mismo rango que usa el historico de la app
 PAUSA = 0.5                     # segundos entre tickers (ademas del limite de gex_engine)
@@ -94,8 +97,42 @@ def lista_tickers(st) -> tuple[list[str], str]:
         log(f"lista de la web no disponible ({type(e).__name__}); se usa la del codigo")
         d = None
     if d and isinstance(d.get("symbols"), list) and d["symbols"]:
-        return [str(x) for x in d["symbols"]], "web"
-    return list(TICKERS), "codigo"
+        lista, origen = [str(x) for x in d["symbols"]], "web"
+    else:
+        lista, origen = list(TICKERS), "codigo"
+    return lista + [s for s in SIEMPRE if s not in lista], origen
+
+
+def guardar_indices_vol(st, sesion: str) -> int:
+    """Familia VIX: el dia (apertura, maximo, minimo, cierre de cada indice y la curva de futuros del VIX) en
+    _indices_vol/{fecha}.json y la serie diaria completa de CBOE (desde 1990 el VIX) en _indices_vol/historico.json.gz,
+    que se reescribe cada dia con lo ultimo. No se borra nunca."""
+    dia: dict = {"session": sesion, "saved": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "indices": {}}
+    serie: dict = {}
+    for s in INDICES_VOL:
+        try:
+            q = (g.fetch_quote(s, ttl=0) or {}).get("data") or {}
+            dia["indices"][s] = {k: q.get(k) for k in ("open", "high", "low", "close", "prev_day_close", "current_price",
+                                                        "last_trade_time")}
+            h = g.fetch_aux("historical", s, ttl=0) or {}
+            serie[s] = [[r.get("date"), r.get("open"), r.get("high"), r.get("low"), r.get("close")]
+                        for r in h.get("data") or [] if r.get("date")]
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR {s}: {type(e).__name__}: {str(e)[:100]}")
+    try:  # curva de futuros del VIX (cierres oficiales) y estructura de los indices
+        import macro
+        c = macro.vix_curve()
+        dia["futuros"] = {"date": c.get("date"), "points": c.get("points"), "vix_close": c.get("vix_close"),
+                          "term": c.get("term"), "m1": c.get("m1"), "m2": c.get("m2")}
+    except Exception as e:  # noqa: BLE001
+        log(f"ERROR futuros del VIX: {type(e).__name__}: {str(e)[:100]}")
+    n = almacen.put_json(st, f"{PREFIX}_indices_vol/{sesion}.json", dia)
+    if serie:
+        n += almacen.put_json(st, f"{PREFIX}_indices_vol/historico.json.gz",
+                              {"actualizado": sesion, "columnas": ["fecha", "apertura", "maximo", "minimo", "cierre"],
+                               "series": serie})
+    log(f"familia VIX: {len(dia['indices'])} indices, serie de {sum(len(v) for v in serie.values())} dias, {n / 1024:.0f} KB")
+    return n
 
 
 def vencimientos_diarios(ch: dict, sesion: str) -> bool:
@@ -104,7 +141,7 @@ def vencimientos_diarios(ch: dict, sesion: str) -> bool:
     y los ETFs pequenos no lo guardan."""
     d0 = np.datetime64(sesion)
     dias = np.unique(ch["exp"].astype("datetime64[D]"))
-    return int(((dias > d0) & (dias <= d0 + 7)).sum()) >= 4
+    return int(((dias > d0) & (dias <= d0 + np.timedelta64(7, "D"))).sum()) >= 4
 
 
 def cadena_compacta(ch: dict) -> dict:
@@ -162,6 +199,8 @@ def podar(st, sesion: str) -> int:
     rx = re.compile(r"/(\d{4}-\d{2}-\d{2})\.json(\.gz)?$")
     n = 0
     for k in st.list(PREFIX):
+        if k[len(PREFIX):].startswith(NUNCA_BORRAR):
+            continue
         m = rx.search(k)
         if m and m.group(1) < corte:
             st.delete(k)
@@ -219,6 +258,10 @@ def main(args: list[str]) -> int:
         pendientes = siguientes
     fallos = pendientes
 
+    try:
+        total += guardar_indices_vol(st, sesion)
+    except Exception as e:  # noqa: BLE001
+        log(f"ERROR familia VIX: {type(e).__name__}: {str(e)[:120]}")
     if pedidos:  # prueba con unos tickers: ni poda ni marca de sesion hecha
         log(f"prueba terminada: {len(ok)}/{len(syms)} tickers, {total / 1e6:.2f} MB")
         return 0 if ok else 1

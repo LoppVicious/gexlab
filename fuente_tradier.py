@@ -106,39 +106,6 @@ def _lista(x) -> list:
     return x if isinstance(x, list) else [x]
 
 
-# ---------------------------------------------------------------- IV por Black-Scholes (vectorizado)
-def _ncdf(x: np.ndarray) -> np.ndarray:
-    # Abramowitz-Stegun 7.1.26 (error < 1.5e-7), suficiente para invertir precios
-    z = np.abs(x) / math.sqrt(2.0)
-    t = 1.0 / (1.0 + 0.3275911 * z)
-    y = 1.0 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * np.exp(-z * z)
-    return 0.5 * (1.0 + np.sign(x) * y)
-
-
-def _bs(S, K, T, r, sig, call):
-    sw = sig * np.sqrt(T)
-    d1 = (np.log(S / K) + (r + 0.5 * sig * sig) * T) / sw
-    d2 = d1 - sw
-    df = np.exp(-r * T)
-    c = S * _ncdf(d1) - K * df * _ncdf(d2)
-    return np.where(call, c, c - S + K * df)
-
-
-def implied_vol(price, S, K, T, r, call) -> np.ndarray:
-    """IV por biseccion (0,5 % a 500 %). NaN si el precio esta fuera de los limites del modelo."""
-    price, K, T, call = (np.asarray(a, dtype=float) for a in (price, K, T, call))
-    call = call.astype(bool)
-    lo, hi = np.full(price.shape, 0.005), np.full(price.shape, 5.0)
-    p_lo, p_hi = _bs(S, K, T, r, lo, call), _bs(S, K, T, r, hi, call)
-    ok = (price > p_lo + 1e-9) & (price < p_hi) & (T > 0)
-    for _ in range(60):
-        mid = 0.5 * (lo + hi)
-        above = _bs(S, K, T, r, mid, call) > price
-        hi = np.where(above, mid, hi)
-        lo = np.where(above, lo, mid)
-    return np.where(ok, 0.5 * (lo + hi), np.nan)
-
-
 # ---------------------------------------------------------------- cadena
 def _vencimientos(sym: str) -> list[str]:
     d = _get(f"/markets/options/expirations?symbol={sym}&includeAllRoots=true&strikes=false")
@@ -185,7 +152,7 @@ def cadena(symbol: str) -> dict:
         mid.append((b + a) / 2 if a > 0 and a >= b else np.nan)
         gk = o.get("greeks") or {}
         iv_t.append(float(gk.get("mid_iv") or gk.get("smv_vol") or 0))
-    iv = implied_vol(np.array(mid), spot, np.array(K), np.array(T), r, np.array(call))
+    iv = g.implied_vol(np.array(mid), spot, np.array(K), np.array(T), r, np.array(call))
     iv = np.where(np.isfinite(iv), iv, np.array(iv_t))
 
     options = []

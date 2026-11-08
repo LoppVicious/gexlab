@@ -1,4 +1,4 @@
-"""
+﻿"""
 GEX Lab - superficie de volatilidad implicita para el Panel de volatilidad.
 
 Para cada ticker publica (motor -> pub/t/<SYM>/vol.json):
@@ -82,41 +82,6 @@ def _pick_expiries(exps: list, dtes: list[float], symbol: str = "") -> list[int]
     return sorted(out)[:MAX_SMILES]
 
 
-def vix_forwards(ch: dict, T: np.ndarray, now64: np.datetime64):
-    """Las opciones del VIX van sobre el futuro del VIX de su vencimiento, no sobre el indice (que no se puede
-    comprar): con backwardation o contango fuerte el futuro esta lejos del spot y, si se usa el spot, el skew
-    salta al cambiar de puts a calls. Por vencimiento:
-      - forward por paridad put-call con los puntos medios: F = K + e^(rT) (C - P), mediana de los 5 strikes con
-        C y P mas parecidos (los mas cercanos al dinero);
-      - IV de cada contrato por Black-76 sobre ese forward (la de CBOE esta calculada contra el spot).
-    Devuelve (referencia por contrato, IV por contrato, {vencimiento: forward})."""
-    from fuente_tradier import implied_vol
-    K, C, E = ch["K"], ch["call"], ch["exp"]
-    bid, ask = ch["bid"], ch["ask"]
-    r = g.risk_free()
-    mid = np.where((bid > 0) & (ask >= bid), (bid + ask) / 2, np.nan)
-    ref = np.full(K.shape, np.nan)
-    iv = np.full(K.shape, np.nan)
-    fwd = {}
-    for x in np.unique(E[E > now64]):
-        m = E == x
-        calls = {float(k): p for k, p in zip(K[m & C], mid[m & C]) if np.isfinite(p)}
-        puts = {float(k): p for k, p in zip(K[m & ~C], mid[m & ~C]) if np.isfinite(p)}
-        t = float(T[m][0])
-        pares = sorted((abs(calls[k] - puts[k]), k + np.exp(r * t) * (calls[k] - puts[k])) for k in calls if k in puts)
-        if len(pares) < 2:
-            continue
-        f = float(np.median([v for _, v in pares[:5]]))
-        if f <= 0:
-            continue
-        fwd[str(x)] = f
-        ref[m] = f
-        iv[m] = implied_vol(mid[m], f * np.exp(-r * t), K[m], T[m], r, C[m])   # Black-76 = BS con S = F e^-rT
-    iv = np.where(np.isfinite(iv), iv, 0.0)          # sin forward o sin precio: fuera (IV 0 no pasa el filtro)
-    ref = np.where(np.isfinite(ref), ref, np.nanmedian(ref) if np.isfinite(ref).any() else 1.0)
-    return ref, iv, fwd
-
-
 def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
     """Una curva por vencimiento: en cada strike la IV de la opcion fuera de dinero (put por debajo del spot,
     call por encima), que es la que tiene cotizaciones fiables."""
@@ -125,11 +90,14 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
     bid = ch.get("bid")
     sym = str(ch.get("symbol") or "").upper()
     T = np.maximum((E - now64).astype("timedelta64[m]").astype(float), 1.0) / (365 * DAY_MIN)
-    # precio de referencia de cada contrato: el spot o, en el VIX, el futuro de su vencimiento (ver vix_forwards)
+    # precio de referencia de cada contrato: el spot o, en el VIX, el futuro de su vencimiento (ver gex_engine.futures_forwards)
     ref = np.full(K.shape, float(spot))
     fwd: dict = {}
-    if sym in VIX_ROOTS and bid is not None:
-        ref, IV, fwd = vix_forwards(ch, T, now64)
+    if sym in g.FUTURES_OPTIONS and bid is not None:
+        # el VIX va sobre el futuro de cada vencimiento: referencia e IV (Black-76) respecto a ese futuro
+        Fc, ivc, fwd = g.futures_forwards(ch, now)
+        IV = np.where(np.isfinite(ivc), ivc, 0.0)          # sin forward o sin precio: fuera (no pasa el filtro)
+        ref = np.where(np.isfinite(Fc), Fc, np.nanmedian(Fc) if np.isfinite(Fc).any() else float(spot))
     # delta de Black-Scholes con la IV de cada strike (la misma regla para hoy y para las copias de dias
     # anteriores, que no guardan la delta de CBOE)
     sig = np.maximum(IV, 1e-4) * np.sqrt(T)
@@ -326,7 +294,7 @@ def vol_data(sym: str, save: bool = True) -> dict:
         spot = implied["value"]
     sm = smiles_from_chain(ch, spot, now)
     if not sm:
-        raise LookupError("Sin vencimientos con volatilidad implícita")
+        raise LookupError("Sin vencimientos con volatilidad implÃ­cita")
     today = g.now_ny().strftime("%Y-%m-%d")
     snap = grid_snapshot(sm, spot)
     h = history(sym, today, snap if save and g.is_trading_day(now) else None)

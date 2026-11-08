@@ -28,6 +28,7 @@ Navegador
     con Pyodide (web/motor-web.js) ejecutando el MISMO gex_engine.py sobre el "paquete" del ticker
 ```
 Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
+El motor calcula siempre el VIX (`motor.SIEMPRE`), esté o no en las listas de los usuarios.
 
 ### Archivos clave
 | Archivo | Qué hace |
@@ -58,6 +59,9 @@ Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
   - `levels[posición][motor][filtro]`: los mismos campos que el histórico (`_snap`), rango 5 %, estándar y flujo, calculados
     tras el cierre. Todos los filtros de la barra; el 0DTE solo con vencimientos diarios (≥4 en 7 días).
   - `hist500/_flujo/{SYM}.json.gz`: volumen y lado por contrato de las últimas 8 sesiones (modo flujo).
+  - VIX siempre (`SIEMPRE`), aunque no esté en la lista de la web, y sin límite de años (`NUNCA_BORRAR`).
+  - `hist500/_indices_vol/{fecha}.json`: OHLC de VIX, VIX9D, VIX3M, VIX6M y VIX1Y y curva de futuros del VIX;
+    `_indices_vol/historico.json.gz`: su serie diaria completa de CBOE (VIX desde 1990). No se borran nunca.
   - Lista de tickers: la edita el administrador en la web (Usuarios ▸ Historial diario, `/api/admin/historial`) y se guarda
     en R2 `config/historial500.json` (máx. 200; los nuevos deben estar en `pub/simbolos.json`). Si no existe, `TICKERS` del script.
     Prueba local: `GEX_ALMACEN=local:./data/x python historial500.py --forzar AAPL`.
@@ -92,6 +96,8 @@ Común a los dos:
 Los dos:
 - **Filtro de vencimientos** (barra deslizante, acumulado; `gex_engine.DTE_FILTERS` y `expiry_filter`): 0DTE = primer
   vencimiento vivo; 1DTE = ese y los de la sesión siguiente; 7, 14, 30 y 45 = hasta N días naturales; Todos.
+- **VIX** (`FUTURES_OPTIONS`): sus opciones van sobre el futuro de cada vencimiento. `futures_forwards` saca el forward
+  por paridad put-call y la IV por Black-76; gamma, perfil, mapa y panel de volatilidad usan ese futuro (q = r).
 - **Vol Trigger:** strike más alto por debajo del flip con GEX neta ≤ −25 % del máximo.
 - **Rango Auto:** 1σ implícita. En 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa. Mínimo 0,4 %, máximo 10 %.
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.

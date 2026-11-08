@@ -44,6 +44,7 @@ COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
 DTES = list(g.DTE_FILTERS)  # 0, 1, 7, 14, 30, 45 y todos
 VAL_MODES = ["standard", "flow"]
+SIEMPRE = ["VIX"]   # se calculan cada ciclo aunque no esten en ninguna lista (paquete, historico, volatilidad)
 DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
 
 _t0 = time.time()
@@ -233,6 +234,9 @@ def leer_config(st) -> dict:
                 continue
             if s not in universo:
                 universo.append(s)
+    for s in SIEMPRE:
+        if s not in universo:
+            universo.append(s)
     vistas = c.get("vistas") or [DEFAULT_VISTA]
     if DEFAULT_VISTA not in vistas:
         vistas = [DEFAULT_VISTA] + list(vistas)

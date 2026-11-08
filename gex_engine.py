@@ -207,6 +207,77 @@ def gamma_w(S, K, w, T, r=None, q=0.0):
     return g * np.exp(-q * T) if np.any(q) else g
 
 
+# ---------------------------------------------------------------- IV implicita y opciones sobre futuros (VIX)
+def _ncdf(x: np.ndarray) -> np.ndarray:
+    # Abramowitz-Stegun 7.1.26 (error < 1.5e-7), suficiente para invertir precios
+    z = np.abs(x) / math.sqrt(2.0)
+    t = 1.0 / (1.0 + 0.3275911 * z)
+    y = 1.0 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * np.exp(-z * z)
+    return 0.5 * (1.0 + np.sign(x) * y)
+
+
+def _bs_price(S, K, T, r, sig, call):
+    sw = sig * np.sqrt(T)
+    d1 = (np.log(S / K) + (r + 0.5 * sig * sig) * T) / sw
+    d2 = d1 - sw
+    df = np.exp(-r * T)
+    c = S * _ncdf(d1) - K * df * _ncdf(d2)
+    return np.where(call, c, c - S + K * df)
+
+
+def implied_vol(price, S, K, T, r, call) -> np.ndarray:
+    """IV de Black-Scholes por biseccion (0,5 % a 500 %); NaN si el precio esta fuera de los limites del modelo.
+    S puede ir por contrato. Con S = F e^(-rT) es la IV de Black-76 (opciones sobre futuros)."""
+    price, K, T, call = (np.asarray(a, dtype=float) for a in (price, K, T, call))
+    call = call.astype(bool)
+    lo, hi = np.full(price.shape, 0.005), np.full(price.shape, 5.0)
+    ok = (price > _bs_price(S, K, T, r, lo, call) + 1e-9) & (price < _bs_price(S, K, T, r, hi, call)) & (T > 0)
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        above = _bs_price(S, K, T, r, mid, call) > price
+        hi = np.where(above, mid, hi)
+        lo = np.where(above, lo, mid)
+    return np.where(ok, 0.5 * (lo + hi), np.nan)
+
+
+FUTURES_OPTIONS = {"VIX", "VIXW"}   # opciones liquidadas contra un futuro, no contra el indice
+
+
+def futures_forwards(ch: dict, t: datetime) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Opciones del VIX: van sobre el futuro del VIX de su vencimiento, que puede estar lejos del indice (contango o
+    backwardation). Por vencimiento:
+      - forward por paridad put-call con los puntos medios: F = K + e^(rT) (C - P), mediana de los 5 strikes con
+        C y P mas parecidos (los mas cercanos al dinero);
+      - IV de cada contrato por Black-76 sobre ese forward (la de CBOE esta calculada contra el indice).
+    Devuelve (forward por contrato, IV por contrato, {vencimiento: forward}); NaN donde no se puede calcular."""
+    K, C, E = ch["K"], ch["call"], ch["exp"]
+    bid, ask = ch.get("bid"), ch.get("ask")
+    F = np.full(K.shape, np.nan)
+    iv = np.full(K.shape, np.nan)
+    if bid is None or ask is None or not K.size:
+        return F, iv, {}
+    r = risk_free()
+    t64 = np.datetime64(t.replace(second=0, microsecond=0))
+    T = np.maximum((E - t64).astype("timedelta64[m]").astype(float), 5.0) / YEAR_MIN
+    mid = np.where((bid > 0) & (ask >= bid), (bid + ask) / 2, np.nan)
+    fwd = {}
+    for x in np.unique(E[E > t64]):
+        m = E == x
+        calls = {float(k): p for k, p in zip(K[m & C], mid[m & C]) if np.isfinite(p)}
+        puts = {float(k): p for k, p in zip(K[m & ~C], mid[m & ~C]) if np.isfinite(p)}
+        tt = float(T[m][0])
+        pares = sorted((abs(calls[k] - puts[k]), k + math.exp(r * tt) * (calls[k] - puts[k])) for k in calls if k in puts)
+        if len(pares) < 2:
+            continue
+        f = float(np.median([v for _, v in pares[:5]]))
+        if f <= 0:
+            continue
+        fwd[str(x)] = f
+        F[m] = f
+        iv[m] = implied_vol(mid[m], f * np.exp(-r * T[m]), K[m], T[m], r, C[m])
+    return F, iv, fwd
+
+
 # ---------------------------------------------------------------- motores de calculo
 MODELS = ("gexbot", "spotgamma")
 SG_MIN_T = 1.0 / (365 * 24)   # motor SpotGamma: tiempo natural con un minimo de una hora (como el script)
@@ -1429,7 +1500,24 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     ivr = cc.get("iv_raw")
     IVR = ivr[m] if ivr is not None and len(ivr) == len(cc["K"]) else None
     div = implied_dividends(ch, spot_mkt, q_dt, normalize(symbol)) if model == "spotgamma" else None
+    # subyacente de cada contrato: el spot o, en el VIX, el futuro de su vencimiento (Black-76: gamma respecto al
+    # futuro, con q = r). Al mover el indice, los futuros se mueven en proporcion.
+    SX = spot
+    fut = normalize(symbol) in FUTURES_OPTIONS
+    if fut:
+        Fc, ivc, _ = futures_forwards(cc, q_dt)
+        Fm, ivm = Fc[m], ivc[m]
+        if np.isfinite(Fm).any():
+            SX = np.where(np.isfinite(Fm), Fm, np.nanmedian(Fm))
+            good = np.isfinite(ivm) & (ivm > 0.01)
+            IV = np.where(good, ivm, IV)
+            IVR = IV.copy()
+        else:
+            fut = False
     W, TT, QD = model_inputs(model, IV, IVR, EXP, q_dt, q_dt, div)
+    if fut:
+        QD = np.full(K.size, risk_free())
+    sx_rel = SX / spot  # 1 salvo en el VIX (futuro / indice)
     front_exp = EXP.min()
     FRONT = EXP == front_exp
     sign = np.where(C, 1.0, -1.0)
@@ -1441,9 +1529,9 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     flow_info = None
     if positioning == "flow" and not combine:
         pos, flow_info = flow_positions(normalize(symbol), cc, m, sign * OI)
-    g = gamma_w(spot, K, W, TT, q=QD)
-    gex = pos * g * 100.0 * spot
-    va, chm = vanna_charm_w(spot, K, W, TT)
+    g = gamma_w(SX, K, W, TT, q=QD)
+    gex = pos * g * 100.0 * SX
+    va, chm = vanna_charm_w(SX, K, W, TT)
     vex = pos * va * 0.01 * 100.0 * spot          # cambio de delta ($) de los dealers si la IV sube 1 punto
     # cambio de delta ($) de los dealers por un dia que pasa. Si el contrato vence antes de un dia, la tasa
     # instantanea extrapolada a 24 h no tiene sentido (la delta solo puede ir hasta 0 o 1): se usa el cambio
@@ -1452,11 +1540,12 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     short = TT < 1.0 / 365.0
     if short.any():
         from math import erf as _erf
-        d1s = (np.log(spot / K[short]) + risk_free() * TT[short] + 0.5 * W[short]) / np.sqrt(W[short])
+        sxs = SX[short] if np.ndim(SX) else SX
+        d1s = (np.log(sxs / K[short]) + risk_free() * TT[short] + 0.5 * W[short]) / np.sqrt(W[short])
         ncdf = 0.5 * (1 + np.vectorize(_erf)(d1s / math.sqrt(2)))
         call_s = C[short]
         delta_now = np.where(call_s, ncdf, ncdf - 1)
-        delta_exp = np.where(call_s, (spot > K[short]).astype(float), -(spot < K[short]).astype(float))
+        delta_exp = np.where(call_s, (sxs > K[short]).astype(float), -(sxs < K[short]).astype(float))
         day_move = day_move.copy()
         day_move[short] = delta_exp - delta_now
     cex = pos * day_move * 100.0 * spot
@@ -1500,7 +1589,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     prof_week = np.empty(xs.size)
     chunk = 20
     for a in range(0, xs.size, chunk):
-        S = xs[a:a + chunk, None]
+        S = xs[a:a + chunk, None] * sx_rel
         gm = pos * gamma_w(S, K, W, TT, q=QD) * 100.0 * S
         prof[a:a + chunk] = gm.sum(axis=1)
         prof_week[a:a + chunk] = gm[:, WEEK].sum(axis=1)
@@ -1515,7 +1604,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         # como el script de referencia: el cruce se busca en +-15% del precio (rejilla de 121 puntos), pero se
         # elige el mas cercano al spot, no el primero empezando por abajo; se afina con biseccion
         def tot(Sv):
-            return float((pos * gamma_w(Sv, K, W, TT, q=QD)).sum())
+            return float((pos * gamma_w(Sv * sx_rel, K, W, TT, q=QD)).sum())
         xg = np.linspace(spot * (1 - SG_SPAN), spot * (1 + SG_SPAN), 121)
         yg = np.array([tot(x) for x in xg])
         cr = np.where(np.sign(yg[:-1]) * np.sign(yg[1:]) < 0)[0]
@@ -1776,6 +1865,19 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         if ivr is not None and len(ivr) == len(ch["K"]):
             IV = np.where(ivr[m] > 0.01, ivr[m], IV)
     div = implied_dividends(parse_chain(fetch_chain(symbol)), spot, quote_time(now), symbol) if model == "spotgamma" else None
+    # VIX: cada contrato sobre el futuro de su vencimiento (ver futures_forwards); los forwards salen de la cadena
+    # de la sesion si trae bid y ask (y entonces tambien la IV de Black-76) o, si no, de la cadena actual
+    fut_rel = None
+    if normalize(symbol) in FUTURES_OPTIONS:
+        _, ivc, fwd = futures_forwards(ch, q)
+        if not fwd:
+            _, _, fwd = futures_forwards(parse_chain(fetch_chain(symbol)), quote_time(now))
+        if fwd:
+            Fm = np.array([fwd.get(str(x), np.nan) for x in EXP])
+            Fm = np.where(np.isfinite(Fm), Fm, float(np.median(list(fwd.values()))))
+            fut_rel = Fm / spot
+            if len(ivc) == len(ch["K"]):
+                IV = np.where(np.isfinite(ivc[m]) & (ivc[m] > 0.01), ivc[m], IV)
     sign = np.where(C, 1.0, -1.0)
     pos = sign * OI
     if positioning == "flow" and not combine:
@@ -1823,9 +1925,15 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     _, first_idx, grp = np.unique(keyarr, return_index=True, return_inverse=True)
     wg = np.bincount(grp.ravel(), weights=w, minlength=first_idx.size)
     K, EXP, IV, w = K[first_idx], EXP[first_idx], IV[first_idx], wg
+    if fut_rel is not None:
+        # gamma respecto al futuro F = rel * precio: log(F/K) = log(S/K) + log(rel) y GEX x F en lugar de x S
+        fut_rel = fut_rel[first_idx]
+        w = w * fut_rel
     kern = np.exp(-0.5 * ((ys[:, None] - K[None, :]) / sigma) ** 2)
     # log(S/K) no cambia con la hora: se calcula una vez. float32 basta para un mapa de color
     log_sk = np.log(S / K[None, :]).astype(np.float32)
+    if fut_rel is not None:
+        log_sk += np.log(fut_rel)[None, :].astype(np.float32)
     # columna de referencia para las barras laterales del modo "por strike": la hora actual con el mercado
     # abierto o la ultima vela de la sesion repetida; sin velas, la primera columna (la proxima sesion)
     live_now = market_open(now) and sess.date() == now.date()
@@ -1844,6 +1952,8 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         # varianza restante en cada instante: se consume solo en horas de mercado (ver variance_to_expiry)
         Wl, Tl, Ql = model_inputs(model, IV[live], None, EXP[live], q, tt, div)
         Ql = np.zeros(Wl.size) if np.isscalar(Ql) else Ql
+        if fut_rel is not None:
+            Ql = np.full(Wl.size, risk_free())   # Black-76
         sw = np.sqrt(Wl)
         lsk = log_sk if live.all() else log_sk[:, live]
         d1 = lsk + ((risk_free() - Ql) * Tl + 0.5 * Wl).astype(np.float32)

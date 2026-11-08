@@ -3,6 +3,20 @@
 Cada push a `main` añade aquí una entrada, la más reciente arriba: fecha, título y qué cambia para el usuario
 (**Añadido**, **Cambiado**, **Corregido**). Los detalles técnicos están en el commit.
 
+## 2026-11-08 — Escáner y tickers más rápidos, marca de agua en las imágenes
+
+**Añadido**
+- Marca de agua en las imágenes (Copiar, PNG): logo y «GEX Lab» arriba a la derecha y el logo grande, gris y muy
+  tenue en el centro, detrás del gráfico. En el Informe, el logo y el nombre arriba a la derecha. En pantalla no cambia.
+
+**Corregido**
+- Escáner: un ticker recién añadido a la lista podía quedarse «calculando» hasta 15 minutos, porque solo aparecía
+  tras el siguiente ciclo completo del motor. Ahora su fila se calcula al momento en el navegador.
+- Al abrir un ticker un día nuevo (antes de la apertura o en fin de semana) se recalculaba en el navegador y se
+  pedía una descarga nueva aunque los datos publicados fueran los del último cierre. Fuera de sesión, ahora solo
+  se consideran antiguos los datos anteriores al último cierre del mercado, y se muestran al momento.
+- El pie del Informe indica la fuente real de las opciones (Tradier o CBOE).
+
 ## 2026-11-08 — Barras por vencimiento: próximo, semanales y mensuales
 
 **Cambiado**

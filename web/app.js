@@ -577,6 +577,22 @@ function watermark(d, left, bottom, small, exp) {
   return `<text x="${left + 10}" y="${bottom - 12}" text-anchor="start" font-family="${MONO}" font-size="${small}" fill="${C.faint}" fill-opacity="0.75">GEX Lab, ${esc(d.symbol)}, ${date}</text>`;
 }
 
+// logo de GEX Lab (el de la barra lateral) en (x, y) con lado `size`
+// mono: de un solo color (la marca de agua grande, para que no se confunda con barras del grafico)
+function brandMark(x, y, size, op = 1, mono = false) {
+  const k = size / 22, n = mono ? C.text : C.neg, p = mono ? C.text : C.pos, a = mono ? C.text : C.accent;
+  return `<g transform="translate(${x},${y}) scale(${k})" opacity="${op}">
+    <rect x="2" y="11" width="3" height="8" rx="1" fill="${n}"/><rect x="7" y="11" width="3" height="5" rx="1" fill="${n}"/>
+    <rect x="12" y="6" width="3" height="5" rx="1" fill="${p}"/><rect x="17" y="3" width="3" height="8" rx="1" fill="${p}"/>
+    <line x1="1" y1="11" x2="21" y2="11" stroke="${a}" stroke-width="1.2"/></g>`;
+}
+// firma de las imagenes exportadas (Copiar, PNG, Informe): logo y nombre arriba a la derecha
+function brandSign(right, y, fs) {
+  const w = textW("GEX Lab", fs) * 1.05;
+  return brandMark(right - w - fs * 1.7, y - fs * 1.05, fs * 1.4) +
+    `<text x="${right}" y="${y}" text-anchor="end" font-family="${SANS}" font-size="${fs}" font-weight="600" fill="${C.muted}">GEX Lab</text>`;
+}
+
 function frame(W, H, inner, d, exp, title) {
   let head = "";
   if (exp) {
@@ -584,6 +600,11 @@ function frame(W, H, inner, d, exp, title) {
     head = `<rect x="0" y="0" width="${W}" height="${H}" rx="22" fill="${C.surface}"/>
       <text x="92" y="44" font-family="${SANS}" font-size="22" font-weight="600" fill="${C.text}">${esc(d.symbol)}</text>
       <text x="${92 + d.symbol.length * 14 + 14}" y="44" font-family="${SANS}" font-size="18" fill="${C.muted}">${title}, ${dte}</text>`;
+    if (!state.inReport) {
+      // marca de agua: firma arriba a la derecha y el logo grande y muy tenue en el centro, detras del grafico
+      const z = Math.min(W, H) * 0.42;
+      head += brandSign(W - 40, 44, 20) + brandMark(W / 2 - z / 2, H / 2 - z / 2, z, 0.035, true);
+    }
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${head}${inner}</svg>`;
 }
@@ -1445,11 +1466,11 @@ async function exportReport() {
   const yImp = headH + G, yStrike = yImp + impH + G, yMap = yStrike + chartH + G, H = yMap + mapH + footH;
   const cardW = 600, impW = W - cardW - G;
   const geo = state.geo, greek = state.greek, mapMode = state.mapMode;
-  state.greek = "gamma"; state.heatImg = null;
+  state.greek = "gamma"; state.heatImg = null; state.inReport = true;
   const impSvg = typeof renderImpact === "function" ? renderImpact(d, impW, impH, true).replace("<svg ", `<svg x="0" y="${yImp}" `) : "";
   const strikeSvg = renderStrike(d, W, chartH, true).replace("<svg ", `<svg x="0" y="${yStrike}" `);
   const mapSvg = renderMap(d, state.heat, W, mapH, true).replace("<svg ", `<svg x="0" y="${yMap}" `);
-  state.greek = greek; state.mapMode = mapMode; state.geo = geo; state.heatImg = null;
+  state.greek = greek; state.mapMode = mapMode; state.geo = geo; state.heatImg = null; state.inReport = false;
 
   const L = d.levels, t = d.totals, em = move1(d), hb = d.hub || {};
   const dte = DTE_LABEL[state.dte] || "";
@@ -1543,7 +1564,8 @@ async function exportReport() {
   });
 
   // --- pie
-  s += T(56, H - 28, "GEX Lab · datos de CBOE diferidos (~15 min) · open interest del cierre anterior · no es asesoramiento financiero", { fs: 17, c: C.faint });
+  s += brandSign(W - 56, 74, 26);
+  s += T(56, H - 28, `GEX Lab · opciones de ${d.source === "tradier" ? "Tradier (tiempo real al calcular)" : "CBOE (~15 min de retraso)"} · open interest del cierre anterior · no es asesoramiento financiero`, { fs: 17, c: C.faint });
   s += T(W - 56, H - 28, `Generado ${new Date().toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })}`, { a: "end", fs: 17, c: C.faint });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}${impSvg}${strikeSvg}${mapSvg}</svg>`;
@@ -1717,7 +1739,7 @@ async function runScan() {
     const ok = d.rows.filter((x) => !x.error).length;
     $("scanStatus").textContent = missing.length && ME && ME.nube
       ? `Calculando ${missing.join(", ")} en la nube (1–2 min)…`
-      : `${ok} de ${d.rows.length} tickers, calculado ${nyWhen(d.computed_at)}`;
+      : `${ok} de ${d.rows.length} tickers${d.computed_at ? `, calculado ${nyWhen(d.computed_at)}` : ""}`;
     clearTimeout(scanState.retry);
     if (missing.length && ME && ME.nube && (scanState.tries = (scanState.tries || 0) + 1) <= 20) {
       scanState.retry = setTimeout(() => { if (state.mode === "scanner") runScan(); }, 15000);

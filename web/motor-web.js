@@ -40,6 +40,8 @@ def _reset(names):
 
 def _run(op, kw):
     kw = json.loads(kw)
+    if op == "scan_row":
+        return json.dumps(_clean(g.scan_row(kw["symbol"], kw["max_dte"])), separators=(",", ":"))
     f = g.compute if op == "compute" else g.heatmap
     return json.dumps(_clean(f(**kw)), separators=(",", ":"))
 `);

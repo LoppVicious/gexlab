@@ -69,8 +69,13 @@
     const f = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
     const o = Object.fromEntries(f.formatToParts(new Date()).map((x) => [x.type, x.value]));
     const min = parseInt(o.hour, 10) * 60 + parseInt(o.minute, 10);
-    const sesion = !["Sat", "Sun"].includes(o.weekday) && min >= 9 * 60 && min <= 16 * 60 + 45;
-    return sesion ? edadS > 25 * 60 : edadS > 12 * 3600;
+    const lab = !["Sat", "Sun"].includes(o.weekday);
+    if (lab && min >= 9 * 60 && min <= 16 * 60 + 45) return edadS > 25 * 60;
+    // fuera de sesion no hay datos mas nuevos que los del ultimo cierre (16:00 ET del ultimo dia laborable): lo
+    // publicado despues del cierre (el motor corre hasta las 17:15, a las 18:00 y a las 20:00) sigue valiendo
+    const atras = { Mon: 3, Sun: 2, Sat: 1 }[o.weekday] || 1;
+    const desdeCierre = lab && min >= 16 * 60 ? min - 16 * 60 : atras * 1440 + min - 16 * 60;
+    return edadS / 60 > desdeCierre - 10;
   }
   const renovando = {};
   async function renovar(sym) {
@@ -159,6 +164,29 @@
     if (r.status === 404) return json(503, { error: `${what}: se calcula con tu lista en el próximo ciclo del motor (como mucho 15 min).` });
     return r;
   }
+  // Escaner: el archivo del ultimo ciclo y, para los tickers de la lista que aun no estan (recien anadidos), su fila
+  // calculada en el navegador con su paquete; el siguiente ciclo del motor ya los incluye
+  async function escaner(q, signal) {
+    const dte = q.get("dte") || "45";
+    const r = await realFetch(`/api/lista/escaner_${dte}.json`, { signal });
+    let d = { rows: [], computed_at: null };
+    if (r.ok) d = await r.json();
+    else if (r.status !== 404) return r;
+    const want = (q.get("symbols") || "").split(",").map(normalize).filter(Boolean);
+    const have = new Set(d.rows.map((x) => x.symbol));
+    for (const sym of want.filter((x) => !have.has(x))) {
+      try {
+        status(`Escáner: calculando ${sym}…`);
+        const p = await paquete(sym, signal, false);
+        const out = await motor("scan_row", { symbol: sym, max_dte: dte === "all" ? null : parseInt(dte, 10) }, [p]);
+        d.rows.push(JSON.parse(out));
+      } catch (e) {
+        if (e.name === "AbortError") throw e;
+        d.rows.push({ symbol: sym, error: e.message });
+      }
+    }
+    return json(200, d);
+  }
   async function pub(file, signal, what) {
     const r = await realFetch(`/api/pub/${file}`, { signal });
     if (r.status === 404) return json(503, { error: `${what}: todavía no hay datos del motor.` });
@@ -172,7 +200,7 @@
     switch (url.pathname) {
       case "/api/gex": return analisis("gex", q, s);
       case "/api/heatmap": return analisis("heat", q, s);
-      case "/api/scan": return lista(`escaner_${q.get("dte") || "45"}.json`, s, "Escáner");
+      case "/api/scan": return escaner(q, s);
       case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validación");
       case "/api/compass": return lista("compass.json", s, "Compass");
       case "/api/vix": return pub("vix.json", s, "Curva VIX");

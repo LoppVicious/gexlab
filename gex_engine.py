@@ -1449,29 +1449,31 @@ def flow_positions(symbol: str, cc: dict, m: np.ndarray, std_pos: np.ndarray):
 
 
 # ---------------------------------------------------------------- escaner
+def scan_row(sym: str, max_dte) -> dict:
+    """Fila del Escaner de un ticker (motor Perfil, rango 5 %). La usa tambien el navegador para un ticker recien
+    anadido a la lista, sin esperar al siguiente ciclo del motor."""
+    try:
+        r = compute(sym, max_dte=max_dte, window_pct=5.0, model="spotgamma")
+        L, s = r["levels"], r["spot"]
+        pct = lambda v: None if v is None else (v / s - 1) * 100  # noqa: E731
+        em = (r.get("moves") or {}).get("d1") or {}
+        prev = r.get("prev") or {}
+        return {"symbol": r["symbol"], "name": r["name"], "spot": s,
+                "chg": r["chg_pct"],
+                "regime": r["regime"], "net_per_pct": r["totals"]["net_per_pct"],
+                "flip": L["flip"], "flip_dist": pct(L["flip_exact"]),
+                "call_wall": L["call_wall"], "call_dist": pct(L["call_wall"]),
+                "put_wall": L["put_wall"], "put_dist": pct(L["put_wall"]),
+                "vt": L["vt"], "em_pct": em.get("pct"), "front_share": r["front_share"], "is_index": r["is_index"],
+                "step": r["step"], "prev": {k: prev.get(k) for k in ("date", "call_wall", "put_wall", "flip", "net_per_pct")} if prev else None}
+    except Exception as e:  # noqa: BLE001
+        return {"symbol": sym.upper(), "error": str(e)}
+
+
 def scan(symbols: list[str], max_dte, workers: int = 4) -> list[dict]:
     from concurrent.futures import ThreadPoolExecutor
-
-    def one(sym):
-        try:
-            r = compute(sym, max_dte=max_dte, window_pct=5.0, model="spotgamma")
-            L, s = r["levels"], r["spot"]
-            pct = lambda v: None if v is None else (v / s - 1) * 100  # noqa: E731
-            em = (r.get("moves") or {}).get("d1") or {}
-            prev = r.get("prev") or {}
-            return {"symbol": r["symbol"], "name": r["name"], "spot": s,
-                    "chg": r["chg_pct"],
-                    "regime": r["regime"], "net_per_pct": r["totals"]["net_per_pct"],
-                    "flip": L["flip"], "flip_dist": pct(L["flip_exact"]),
-                    "call_wall": L["call_wall"], "call_dist": pct(L["call_wall"]),
-                    "put_wall": L["put_wall"], "put_dist": pct(L["put_wall"]),
-                    "vt": L["vt"], "em_pct": em.get("pct"), "front_share": r["front_share"], "is_index": r["is_index"],
-                    "step": r["step"], "prev": {k: prev.get(k) for k in ("date", "call_wall", "put_wall", "flip", "net_per_pct")} if prev else None}
-        except Exception as e:  # noqa: BLE001
-            return {"symbol": sym.upper(), "error": str(e)}
-
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        return list(ex.map(one, symbols))
+        return list(ex.map(lambda s: scan_row(s, max_dte), symbols))
 
 
 def combine_with_proxy(symbol: str, ch: dict, force: bool = False):

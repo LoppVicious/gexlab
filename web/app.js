@@ -279,29 +279,31 @@ function bucketData(d, maxN) {
 
 // "Barras: Vencimiento": un color por vencimiento en una sola gama (el mas proximo verde azulado, los lejanos violeta);
 // los posteriores a los que tienen color propio, juntos en gris
+// tres familias de color: el proximo vencimiento (verde azulado), los semanales (violetas, mas oscuros cuanto mas
+// lejos) y los mensuales (corales); los posteriores, en gris. Los diarios van dentro del semanal o mensual de su semana
+const expG = (d) => !!(d && d.by_exp && d.by_exp.groups);
 function expColors(be) {
-  const n = be.dates.length, light = document.documentElement.dataset.theme === "light";
-  const cols = be.dates.map((_, i) => {
-    const t = n > 1 ? i / (n - 1) : 0;
-    const L = light ? 0.68 - 0.2 * t : 0.84 - 0.24 * t;
-    return `oklch(${L.toFixed(3)} ${(0.14 + 0.06 * t).toFixed(3)} ${(172 + 120 * t).toFixed(1)})`;
+  const light = document.documentElement.dataset.theme === "light";
+  const gs = be.groups, nW = gs.filter((g) => g.kind === "semanal").length, nM = gs.filter((g) => g.kind === "mensual").length;
+  let iW = 0, iM = 0;
+  const ramp = (i, n, L0, L1, C0, C1, h0, h1) => {
+    const t = n > 1 ? i / (n - 1) : 0, dl = light ? -0.14 : 0;
+    return `oklch(${(L0 + (L1 - L0) * t + dl).toFixed(3)} ${(C0 + (C1 - C0) * t).toFixed(3)} ${(h0 + (h1 - h0) * t).toFixed(1)})`;
+  };
+  return gs.map((g) => g.kind === "proximo" ? (light ? "oklch(0.66 0.14 172)" : "oklch(0.82 0.15 172)")
+    : g.kind === "semanal" ? ramp(iW++, nW, 0.84, 0.56, 0.11, 0.2, 290, 300)
+      : g.kind === "mensual" ? ramp(iM++, nM, 0.82, 0.66, 0.14, 0.17, 50, 32)
+        : C.faint);
+}
+function expLabels(d) { // etiqueta de cada grupo
+  return d.by_exp.groups.map((g) => {
+    if (g.kind === "proximo") { const n = expDays(d, g.date); return `${n != null && n <= 0 ? "0DTE" : "Próximo"} ${expText(d, g.date, false)}`; }
+    if (g.kind === "posteriores") return `Posteriores ${ddmm(g.from)}–${ddmm(g.to)}`;
+    const extra = g.from !== g.to ? " + diarios" : "";
+    return `${g.kind === "mensual" ? "Mensual" : "Semanal"} ${expText(d, g.date, false)}${extra}`;
   });
-  if (be.later) cols.push(C.faint);
-  return cols;
 }
-function expLabels(d) { // etiqueta de cada fila de by_exp
-  const be = d.by_exp;
-  const out = be.dates.map((x) => expText(d, x, false));
-  if (be.later) out.push(`Posteriores (${ddmm(be.later[0])}–${ddmm(be.later[1])})`);
-  return out;
-}
-function expShares(d) { // parte de la gamma total de cada fila de by_exp
-  const sh = new Map((d.expiries || []).map((x) => [x.date, x.share || 0]));
-  const be = d.by_exp;
-  const out = be.dates.map((x) => sh.get(x));
-  if (be.later) out.push((d.expiries || []).filter((x) => x.date >= be.later[0]).reduce((a, x) => a + (x.share || 0), 0));
-  return out;
-}
+function expShares(d) { return d.by_exp.groups.map((g) => g.share); }
 
 function renderStrike(d0, W, H, exp = false) {
   const fs = exp ? 15 : 12.5, small = exp ? 13 : 11;
@@ -324,7 +326,7 @@ function renderStrike(d0, W, H, exp = false) {
   const rest = d.net.map((v, i) => v - (d.front ? d.front[i] : 0));
   let hiArr, loArr;
   if (mode === "split") { hiArr = d.calls; loArr = d.puts; }
-  else if (mode === "expiry" && d.by_exp) {
+  else if (mode === "expiry" && expG(d)) {
     hiArr = d.net.map((_, i) => d.by_exp.gex.reduce((a, r) => a + Math.max(0, r[i]), 0));
     loArr = d.net.map((_, i) => d.by_exp.gex.reduce((a, r) => a + Math.min(0, r[i]), 0));
   } else if (mode === "expiry") {
@@ -373,14 +375,14 @@ function renderStrike(d0, W, H, exp = false) {
     const y = Math.min(yOf(from), yOf(to)), h = Math.max(0.8, Math.abs(yOf(to) - yOf(from)));
     return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${rx}" fill="${fill}"/>`;
   };
-  const ecol = d.by_exp ? expColors(d.by_exp) : null;
+  const ecol = expG(d) ? expColors(d.by_exp) : null;
   s += `<rect id="hl" x="0" y="${top}" width="${band}" height="${bottom - top}" fill="${C.hi}" fill-opacity="0.04" visibility="hidden"/>`;
   for (let i = 0; i < n; i++) {
     const x = xOf(d.strikes[i]) - bw / 2;
     if (mode === "split") {
       if (d.calls[i]) s += bar(x, 0, d.calls[i], C.pos);
       if (d.puts[i]) s += bar(x, 0, d.puts[i], C.neg);
-    } else if (mode === "expiry" && d.by_exp) {
+    } else if (mode === "expiry" && expG(d)) {
       // apiladas desde el eje: el vencimiento mas proximo pegado a cero, los lejanos por fuera
       let up = 0, dn = 0;
       d.by_exp.gex.forEach((r, j) => {
@@ -496,10 +498,14 @@ function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
 function legendItems(d) {
   if (state.greek !== "gamma") return [{ colors: [C.pos], label: "Compras de cobertura" }, { colors: [C.neg], label: "Ventas de cobertura" }];
   if (state.bars === "split") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
-  if (state.bars === "expiry" && d.by_exp) {
-    const cols = expColors(d.by_exp), n = d.by_exp.dates.length;
-    return [{ colors: n > 1 ? [cols[0], cols[n - 1]] : [cols[0]], label: n > 1 ? `${ddmm(d.by_exp.dates[0])} → ${ddmm(d.by_exp.dates[n - 1])}` : `Vence ${ddmm(d.by_exp.dates[0])}` }]
-      .concat(d.by_exp.later ? [{ colors: [C.faint], label: "Posteriores" }] : []);
+  if (state.bars === "expiry" && expG(d)) {
+    // leyenda corta: una muestra por familia (el detalle esta bajo los botones)
+    const gs = d.by_exp.groups, cols = expColors(d.by_exp), out = [];
+    for (const [k, lab] of [["proximo", "Próximo"], ["semanal", "Semanales"], ["mensual", "Mensuales"], ["posteriores", "Posteriores"]]) {
+      const c = cols.filter((_, j) => gs[j].kind === k);
+      if (c.length) out.push({ colors: c.length > 1 ? [c[0], c[c.length - 1]] : [c[0]], label: lab });
+    }
+    return out;
   }
   if (state.bars === "expiry") {
     const items = [{ colors: [C.negFront, C.posFront], label: `Vence ${expText(d, d.front_expiry, false)}` }];
@@ -823,7 +829,7 @@ function mapCaption() {
 function expiryCaption(d) {
   if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
   const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
-  if (d.by_exp) {
+  if (expG(d)) {
     const cols = expColors(d.by_exp), labs = expLabels(d), sh = expShares(d);
     return labs.map((l, j) => `<span class="capexp">${sw(cols[j])}${esc(l)}${sh[j] != null ? ` <b>${Math.round(sh[j] * 100)} %</b>` : ""}</span>`).join("");
   }
@@ -956,7 +962,9 @@ function dataStatus(d) {
   return `Calculado ${nyWhen(d.computed_at)}${pre} · opciones: cierre ${nyWhen(d.quote_time)}`;
 }
 function dataTitle(d) {
-  const src = d.source === "tradier" ? "Tradier (tiempo real al calcular)" : "CBOE (15 min de retraso)";
+  const src = d.source !== "tradier" ? "CBOE (15 min de retraso)"
+    : TIEMPO_REAL.has(d.symbol) ? "Tradier en tiempo real; este índice se recalcula cada 5 min con el mercado abierto"
+    : "Tradier en tiempo real al calcular; se recalcula cada 15 min";
   const base = `Calculado ${nyWhen(d.computed_at)} (hora local) con datos de ${src}.`;
   if (!dataClosed(d)) return base;
   return `${base} Fuera del horario de mercado las opciones no cotizan: sus precios e IV son los del cierre (${nyWhen(d.quote_time)}). ` +
@@ -1158,19 +1166,28 @@ function checkCrossings(prev, d) {
   }
 }
 
+// indices en tiempo real: en la nube el motor los recalcula cada 5 min (motor.py rapido); el resto, cada 15
+const TIEMPO_REAL = new Set(["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]);
+
 function setAuto(on, quiet = false) {
   state.auto = on;
   store.set("autoOn", on ? "1" : "0");
   $("autoToggle").setAttribute("aria-checked", String(on));
   clearInterval(state.autoTimer);
   if (on) {
+    // cada minuto mira si toca: los indices en tiempo real (en la nube) cada minuto, para ver cada vela nueva en
+    // cuanto el motor la publica; lo demas, cada 5 minutos
+    let tick = 0;
     state.autoTimer = setInterval(() => {
+      tick++;
+      const rt = ME.nube && state.mode !== "scanner" && TIEMPO_REAL.has(state.symbol);
+      if (!rt && tick % 5) return;
       if (state.mode === "scanner") { if (state.scanView === "table") runScan(); else if (state.scanView === "compass") loadCompass(true); }
       else load(false, true);
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
     if (quiet) return;
     try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
-    toast("Actualización automática activada", "Recalcula cada 5 minutos y avisa cuando el precio cruce un nivel.");
+    toast("Actualización automática activada", "Recarga los datos en cuanto el motor los publica (cada 5 min en SPX, NDX, RUT, SPY, QQQ e IWM; cada 15 en el resto) y avisa cuando el precio cruce un nivel.");
   }
 }
 
@@ -1222,7 +1239,7 @@ function onMove(e) {
       <div class="r">Neta <b>${fmtBig(b.net[i], true)}</b></div>
       <div class="r">Calls <b>${fmtBig(b.calls[i], true)}</b></div>
       <div class="r">Puts <b>${fmtBig(b.puts[i], true)}</b></div>
-      ${state.greek === "gamma" && state.bars === "expiry" && b.by_exp ? expTip(b, i) : `<div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
+      ${state.greek === "gamma" && state.bars === "expiry" && expG(b) ? expTip(b, i) : `<div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
   } else if (g.kind === "history" && typeof historyTip === "function") {
     html = historyTip(d, g, x, svg);
     if (!html) return hideTip();
@@ -2579,104 +2596,79 @@ function bindSummary() {
 const GLOSSARY = {
   lowvol: { t: "Punto de baja volatilidad", c: C.put,
     what: "El nivel de precio en el que la gamma total de los dealers sería máxima (el pico de la línea de gamma total).",
-    use: "Cerca de este precio la cobertura de los dealers frena más los movimientos: es donde se espera menos volatilidad realizada y donde el precio tiende a quedarse.",
-    calc: "Máximo de la gamma total recalculada en cada precio hipotético dentro del rango elegido (±%). Si el máximo cae en el borde del rango, se indica fuera de rango: amplía el rango para verlo." },
+    use: "Cerca de este precio la cobertura de los dealers frena más los movimientos: es donde se espera menos volatilidad realizada y donde el precio tiende a quedarse." },
   highvol: { t: "Punto de alta volatilidad", c: C.amber,
     what: "El nivel de precio en el que la gamma total sería más negativa (el valle de la línea de gamma total).",
-    use: "Cerca de este precio la cobertura de los dealers amplifica los movimientos: es la zona donde se espera más volatilidad realizada.",
-    calc: "Mínimo de la gamma total recalculada en cada precio hipotético dentro del rango elegido (±%). Si cae en el borde del rango, se indica fuera de rango: amplía el rango para verlo." },
+    use: "Cerca de este precio la cobertura de los dealers amplifica los movimientos: es la zona donde se espera más volatilidad realizada." },
   call_wall: { t: "Call Wall", c: C.call,
     what: "El strike con más gamma neta positiva por encima del precio: la mayor concentración de calls, una vez descontadas las puts del mismo strike.",
-    use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls.",
-    calc: "Motor Neto: mayor barra positiva de GEX neta (calls − puts) en el precio o por encima, dentro del rango elegido. Motor Perfil: strike con más GEX solo de calls por encima del precio, en ±10% o en el rango si es mayor." },
+    use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls." },
   put_wall: { t: "Put Wall", c: C.put,
     what: "El strike con más gamma neta negativa por debajo del precio: la mayor concentración de puts, una vez descontadas las calls del mismo strike.",
-    use: "Soporte y suelo del rango esperado; muchas coberturas se cierran ahí y eso suele frenar las caídas. Si se pierde con claridad, ese apoyo desaparece y la caída puede acelerarse: es una señal de alerta, no solo un nivel técnico roto.",
-    calc: "Motor Neto: mayor barra negativa de GEX neta (calls − puts) en el precio o por debajo, dentro del rango elegido. Motor Perfil: strike con más GEX solo de puts por debajo del precio, en ±10% o en el rango si es mayor." },
+    use: "Soporte y suelo del rango esperado; muchas coberturas se cierran ahí y eso suele frenar las caídas. Si se pierde con claridad, ese apoyo desaparece y la caída puede acelerarse: es una señal de alerta, no solo un nivel técnico roto." },
   flip: { t: "Gamma Flip (Zero Gamma)", c: C.amber,
     what: "El precio en el que la gamma total de los dealers pasa de positiva a negativa. No es un soporte ni una resistencia: marca el régimen.",
-    use: "Por encima, los dealers compran caídas y venden subidas: menos volatilidad y vuelta a la media. Por debajo hacen lo contrario y amplifican los movimientos. Muy cerca del flip (a menos de un 0,5%) no se espera un efecto claro en ningún sentido.",
-    calc: "Motor Neto: frontera de signo de la GEX neta por strike dentro del rango elegido, el precio que deja la menor gamma positiva por debajo y negativa por encima. Motor Perfil: el cruce por cero de la GEX total recalculada en cada precio (±15%), el más cercano al precio." },
+    use: "Por encima, los dealers compran caídas y venden subidas: menos volatilidad y vuelta a la media. Por debajo hacen lo contrario y amplifican los movimientos. Muy cerca del flip (a menos de un 0,5%) no se espera un efecto claro en ningún sentido." },
   vt: { t: "Volatility Trigger", c: C.amber,
     what: "El último soporte importante por encima del Put Wall, en el borde bajista del Gamma Flip.",
-    use: "Por debajo, la cobertura de los dealers deja de sostener el precio y empieza a acompañarlo: la volatilidad realizada suele expandirse. Si solo vigilas un nivel, que sea este. Por encima, entorno más estable.",
-    calc: "Aproximación propia: el strike más alto por debajo del flip con gamma neta negativa de al menos el 25% de la mayor barra. El de SpotGamma es un modelo propietario." },
+    use: "Por debajo, la cobertura de los dealers deja de sostener el precio y empieza a acompañarlo: la volatilidad realizada suele expandirse. Si solo vigilas un nivel, que sea este. Por encima, entorno más estable." },
   hedge: { t: "Hedge Wall", c: C.amber,
     what: "El equivalente del Volatility Trigger en acciones individuales.",
-    use: "Marca el punto a partir del cual se espera más volatilidad realizada. Por encima suelen funcionar mejor las estrategias de vuelta a la media; por debajo, las de momentum. Que suba de un día a otro es una señal alcista; que baje, bajista.",
-    calc: "El mismo cálculo que el Volatility Trigger: strike más alto por debajo del flip con gamma neta negativa relevante." },
+    use: "Marca el punto a partir del cual se espera más volatilidad realizada. Por encima suelen funcionar mejor las estrategias de vuelta a la media; por debajo, las de momentum. Que suba de un día a otro es una señal alcista; que baje, bajista." },
   abs: { t: "Gamma absoluta", c: C.muted,
     what: "El strike con más gamma total, sumando la de calls y la de puts sin signo. Es donde más contratos sensibles al precio hay.",
-    use: "Actúa como imán: con gamma positiva el precio tiende a quedarse pegado a él (pin), sobre todo cerca del vencimiento. También es soporte o resistencia fuerte. Suele estar cerca del flip, no en los extremos del rango. Si no aparece, es porque coincide con el Call Wall o el Put Wall.",
-    calc: "Strike con mayor |gamma de calls| + |gamma de puts| dentro del rango elegido." },
+    use: "Actúa como imán: con gamma positiva el precio tiende a quedarse pegado a él (pin), sobre todo cerca del vencimiento. También es soporte o resistencia fuerte. Suele estar cerca del flip, no en los extremos del rango. Si no aparece, es porque coincide con el Call Wall o el Put Wall." },
   spot: { t: "Precio", c: C.text,
     what: "El precio del subyacente con el que se calculan los niveles.",
-    use: "Con el mercado cerrado es el último cierre. En el pre-market de SPX, NDX, RUT y DJX se estima con su ETF, y en Ajustes puedes fijar un spot manual (por ejemplo, el implícito por futuros).",
-    calc: "Cotización diferida de CBOE (~15 min)." },
+    use: "Con el mercado cerrado es el último cierre. En el pre-market de SPX, NDX, RUT y DJX se estima con su ETF, y en Ajustes puedes fijar un spot manual (por ejemplo, el implícito por futuros)." },
   gex1: { t: "GEX neta por 1%", c: C.pos,
     what: "Los dólares de subyacente que los dealers tendrían que comprar o vender para cubrirse por cada 1% que se mueva el precio.",
-    use: "El signo da el régimen: positivo, los dealers frenan los movimientos; negativo, los amplifican. El tamaño, comparado con días anteriores del mismo ticker, indica cuánto pesa ese efecto.",
-    calc: "Σ Γ × OI × 100 × S² × 1%, con calls positivas y puts negativas (convención estándar) o con la posición estimada por flujo." },
+    use: "El signo da el régimen: positivo, los dealers frenan los movimientos; negativo, los amplifican. El tamaño, comparado con días anteriores del mismo ticker, indica cuánto pesa ese efecto." },
   range1s: { t: "Rango 1σ", c: C.text,
     what: "El rango de una desviación típica que descuentan las opciones: el precio debería cerrar dentro el 68,3% de las veces.",
-    use: "Para dimensionar stops y objetivos, o colocar las alas de un iron condor de corto plazo. Un cierre fuera del rango es un movimiento poco habitual. El de 5 sesiones sirve para la semana.",
-    calc: "Varianza implícita ATM de cada vencimiento, repartida en horas de mercado, hasta 1 sesión (390 min) y 5 sesiones; con el mercado abierto, la de hoy cuenta solo por lo que le queda. 1σ = S × √varianza. SpotGamma ajusta los suyos además con historia." },
+    use: "Para dimensionar stops y objetivos, o colocar las alas de un iron condor de corto plazo. Un cierre fuera del rango es un movimiento poco habitual. El de 5 sesiones sirve para la semana." },
   vanna: { t: "Vanna", c: C.text,
     what: "Lo que los dealers comprarían o venderían para cubrirse si la volatilidad implícita cae 1 punto.",
-    use: "Cuando la volatilidad baja (después de un evento o en subidas tranquilas), un vanna positivo se traduce en compras: es uno de los motores de las subidas tras un susto. Con vanna negativo, la caída de la volatilidad trae ventas.",
-    calc: "Σ vanna × posición × 100 × S × 0,01, con el signo de la cobertura de los dealers." },
+    use: "Cuando la volatilidad baja (después de un evento o en subidas tranquilas), un vanna positivo se traduce en compras: es uno de los motores de las subidas tras un susto. Con vanna negativo, la caída de la volatilidad trae ventas." },
   charm: { t: "Charm", c: C.text,
     what: "Lo que los dealers comprarían o venderían solo por el paso de un día, sin que se mueva el precio, porque las deltas cambian al acercarse el vencimiento.",
-    use: "Explica parte del flujo de las tardes y de las semanas de vencimiento. Un charm positivo grande antes de un vencimiento mensual suele dar soporte.",
-    calc: "Σ charm × posición × 100 × S / 365, con el signo de la cobertura de los dealers. En contratos que vencen antes de un día se usa el cambio real de delta hasta el vencimiento (hacia 0 o 1), no la tasa extrapolada a 24 h." },
+    use: "Explica parte del flujo de las tardes y de las semanas de vencimiento. Un charm positivo grande antes de un vencimiento mensual suele dar soporte." },
   front: { t: "Peso del próximo vencimiento", c: C.text,
     what: "La parte de la gamma total del filtro que vence en el próximo vencimiento.",
-    use: "Si es alta, los niveles cambiarán mucho cuando venza: tras el vencimiento las walls pueden moverse o perder fuerza. Si es baja, los niveles son más estables.",
-    calc: "|GEX| del próximo vencimiento / |GEX| total." },
+    use: "Si es alta, los niveles cambiarán mucho cuando venza: tras el vencimiento las walls pueden moverse o perder fuerza. Si es baja, los niveles son más estables." },
   vix: { t: "VIX", c: C.text,
     what: "La volatilidad implícita a 30 días del S&P 500.",
-    use: "Es el punto de partida de la curva: los futuros se comparan con él para saber si el mercado espera más o menos volatilidad que la actual.",
-    calc: "Cierre oficial de CBOE; el panel indica también el valor en directo si es distinto." },
+    use: "Es el punto de partida de la curva: los futuros se comparan con él para saber si el mercado espera más o menos volatilidad que la actual." },
   m1: { t: "M1 (primer futuro)", c: C.text,
     what: "El futuro del VIX que vence antes: lo que el mercado paga hoy por la volatilidad de ese mes.",
-    use: "Si está por encima del VIX (prima positiva), lo normal; si está por debajo, hay tensión inmediata. La prima se deshace a medida que el futuro converge al VIX en su vencimiento.",
-    calc: "Cierre oficial de CBOE Futures Exchange." },
+    use: "Si está por encima del VIX (prima positiva), lo normal; si está por debajo, hay tensión inmediata. La prima se deshace a medida que el futuro converge al VIX en su vencimiento." },
   m2: { t: "M2 (segundo futuro)", c: C.text,
     what: "El futuro del VIX del mes siguiente al M1.",
-    use: "Compararlo con el M1 da la pendiente del tramo corto, la referencia clásica de contango y backwardation.",
-    calc: "Cierre oficial de CBOE Futures Exchange." },
+    use: "Compararlo con el M1 da la pendiente del tramo corto, la referencia clásica de contango y backwardation." },
   slope: { t: "Pendiente M2 / M1", c: C.text,
     what: "Cuánto cotiza el segundo futuro por encima (contango) o por debajo (backwardation) del primero.",
-    use: "Positiva y amplia: mercado tranquilo y quien vende volatilidad cobra por mantener la posición. Negativa: estrés. El percentil indica si el valor de hoy es habitual en el último año.",
-    calc: "M2 / M1 − 1. Menos del 0,5% cuenta como tramo plano." },
+    use: "Positiva y amplia: mercado tranquilo y quien vende volatilidad cobra por mantener la posición. Negativa: estrés. El percentil indica si el valor de hoy es habitual en el último año." },
   cm30: { t: "Futuro a 30 días", c: C.text,
     what: "Un futuro sintético con vencimiento fijo a 30 días, comparable con el VIX día a día.",
-    use: "Evita los saltos que provoca el cambio de M1 al vencer cada contrato. Si está por encima del VIX, la estructura es normal.",
-    calc: "Interpolación entre los dos vencimientos que rodean los 30 días." },
+    use: "Evita los saltos que provoca el cambio de M1 al vencer cada contrato. Si está por encima del VIX, la estructura es normal." },
   vix3m: { t: "VIX / VIX3M", c: C.text,
     what: "La volatilidad implícita a 30 días frente a la de 3 meses.",
-    use: "Por debajo de 1, estructura normal. Por encima de 1, el mercado paga más por protección inmediata que a plazo: señal clásica de estrés, y su vuelta por debajo de 1 suele marcar la normalización.",
-    calc: "Cotizaciones de CBOE casi en directo (15 min)." },
+    use: "Por debajo de 1, estructura normal. Por encima de 1, el mercado paga más por protección inmediata que a plazo: señal clásica de estrés, y su vuelta por debajo de 1 suele marcar la normalización." },
   streak: { t: "Racha", c: C.text,
     what: "Cuántas sesiones seguidas lleva la pendiente M2/M1 en el mismo signo.",
-    use: "Una racha larga de contango que se rompe es un primer aviso de cambio de régimen. Junto al porcentaje del año en contango, muestra si la situación actual es excepcional.",
-    calc: "Cuenta de cierres consecutivos con M2 ≥ M1 o M2 < M1." },
+    use: "Una racha larga de contango que se rompe es un primer aviso de cambio de régimen. Junto al porcentaje del año en contango, muestra si la situación actual es excepcional." },
   asset_mgr: { t: "Gestoras", c: C.pos,
     what: "Gestoras de activos: fondos de pensiones, fondos de inversión, aseguradoras. Dinero real con horizontes largos.",
-    use: "Sus posiciones cambian despacio y siguen la tendencia de fondo. En índices suelen estar largas; los cambios de tendencia en su neta son más relevantes que el nivel.",
-    calc: "Largos − cortos del informe Traders in Financial Futures de la CFTC (solo futuros)." },
+    use: "Sus posiciones cambian despacio y siguen la tendencia de fondo. En índices suelen estar largas; los cambios de tendencia en su neta son más relevantes que el nivel." },
   lev_money: { t: "Fondos apalancados", c: C.neg,
     what: "Hedge funds y CTA: el dinero especulativo.",
-    use: "Siguen tendencias y se mueven rápido. En extremos de su rango suelen leerse a la contra: cuando todos están en el mismo lado, queda poco combustible para seguir. En bonos están cortos de forma estructural por el basis trade.",
-    calc: "Largos − cortos del informe Traders in Financial Futures de la CFTC (solo futuros)." },
+    use: "Siguen tendencias y se mueven rápido. En extremos de su rango suelen leerse a la contra: cuando todos están en el mismo lado, queda poco combustible para seguir. En bonos están cortos de forma estructural por el basis trade." },
   dealer: { t: "Dealers", c: C.put,
     what: "Bancos y creadores de mercado.",
-    use: "Normalmente están en el lado contrario de sus clientes, así que su posición es el espejo del resto. Sirve para confirmar lo que hacen gestoras y fondos.",
-    calc: "Largos − cortos del informe Traders in Financial Futures de la CFTC (solo futuros)." },
+    use: "Normalmente están en el lado contrario de sus clientes, así que su posición es el espejo del resto. Sirve para confirmar lo que hacen gestoras y fondos." },
   cot_index: { t: "Índice COT", c: C.amber,
     what: "Dónde está la posición neta actual dentro de su rango del periodo elegido: 0 es la más corta, 100 la más larga.",
-    use: "Compara cada grupo consigo mismo, no por el signo. Por encima de 90 o por debajo de 10 es un extremo: posicionamiento saturado, a menudo antes de giros.",
-    calc: "(neta − mínimo) / (máximo − mínimo) × 100, con 3 años o 1 año de informes semanales." },
+    use: "Compara cada grupo consigo mismo, no por el signo. Por encima de 90 o por debajo de 10 es un extremo: posicionamiento saturado, a menudo antes de giros." },
 };
 const GL_DELAY = 1500;
 const gl = { timer: null, el: null };
@@ -2703,8 +2695,7 @@ function glossaryShow(k) {
   const g = GLOSSARY[k], card = $("glcard");
   card.innerHTML = `<div class="glt"><i style="background:${g.c}"></i>${esc(g.t)}</div>
     <p class="glw">${esc(g.what)}</p>
-    <div class="gls">Para qué sirve</div><p>${esc(g.use)}</p>
-    <div class="gls">Cómo se calcula aquí</div><p class="glc">${esc(g.calc)}</p>`;
+    <div class="gls">Para qué sirve</div><p>${esc(g.use)}</p>`;
   card.hidden = false;
   requestAnimationFrame(() => card.classList.add("on"));
 }

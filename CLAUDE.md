@@ -23,7 +23,13 @@ GitHub Actions (motor.yml, repo público = minutos ilimitados)
   motor.py ciclo -> descarga Tradier (tiempo real; CBOE de respaldo), calcula, publica en R2 (Cloudflare)
 Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
   - auth (PBKDF2 en el cliente, sesión única por cuenta), prefs y listas en D1
-  - cron */15: toca() decide si lanza motor.yml (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00)
+  - cron */5: toca() lanza motor.yml modo ciclo cada 15 min (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00);
+    tocaRapido() lanza modo rapido cada 5 min de 09:35 a 16:05 ET.
+  - **Tiempo real** (`motor.py rapido`, `TIEMPO_REAL` = SPX NDX RUT SPY QQQ IWM): cadena y velas de 5 min de Tradier
+    (`fuente_tradier.velas`, solo cerradas, formato de CBOE intraday), paquete y vistas; lee el estado pero no lo guarda
+    (historial de niveles y flujo, en el ciclo de 15 min, que vuelve a descargar esos 6: el cupo de Tradier alcanza).
+    Escribe `pub/rapido.json`. Sale sin hacer nada si el mercado está cerrado (festivos, cierre a las 13:00). Resto de
+    tickers: velas de CBOE. La web (Auto) recarga cada minuto esos 6 y cada 5 el resto.
   - /api/pub/* sirve R2; /api/pedir lanza un ciclo para tickers nuevos
 Navegador
   - web/nube.js intercepta fetch: usa las vistas precalculadas de R2 o calcula en el navegador

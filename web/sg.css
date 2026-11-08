@@ -260,7 +260,7 @@ table.hwl td.up { color: var(--put); } table.hwl td.dn { color: var(--call); }
 .zb-win:active { cursor: grabbing; }
 .zb-h { position: absolute; top: 50%; width: 10px; height: 20px; margin-top: -10px; border-radius: 3px; background: var(--accent); cursor: ew-resize; }
 .zb-h.l { left: -5px; } .zb-h.r { right: -5px; }
-.zb-lab { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 120px; text-align: right; }
+.zb-lab { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 128px; text-align: right; }
 .zb-reset { font-size: 12px; }
 body.view-map .zoombar { display: none; }
 @media (max-width: 700px) { .zb-lab { min-width: 0; } }

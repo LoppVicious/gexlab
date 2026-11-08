@@ -3,6 +3,43 @@
 Cada push a `main` añade aquí una entrada, la más reciente arriba: fecha, título y qué cambia para el usuario
 (**Añadido**, **Cambiado**, **Corregido**). Los detalles técnicos están en el commit.
 
+## 2026-11-08 — Barras por vencimiento: próximo, semanales y mensuales
+
+**Cambiado**
+- Barras ▸ Vencimiento (TRACE y Equity Hub, Por strike): en vez de un color por cada día de vencimiento, cada barra se
+  reparte en el próximo vencimiento (0DTE, verde azulado), cada semanal (violetas) y cada mensual (corales), dentro
+  del filtro de vencimientos elegido. Los diarios de lunes a jueves se suman al semanal o mensual de su semana, así
+  la barra sigue sumando la GEX total. Más allá de 12 semanas, los posteriores van juntos en gris.
+- La leyenda del gráfico muestra una muestra por tipo; bajo los botones, cada tramo con su fecha, los días que faltan
+  y su peso en la gamma; el tooltip desglosa el strike por tramos.
+
+## 2026-11-08 — Índices en tiempo real cada 5 minutos
+
+**Añadido**
+- SPX, NDX, RUT, SPY, QQQ e IWM se recalculan cada 5 minutos con el mercado abierto (de 09:35 a 16:05 ET), con la
+  cadena de opciones de Tradier en tiempo real.
+- El mapa del TRACE de esos seis usa velas de 5 minutos de Tradier, sin retraso: cada 5 minutos aparece la vela que
+  acaba de cerrar (la vela en curso no se muestra).
+- Administración: la pista de ciclos separa el ciclo completo (arriba) del de los índices (abajo), y el bloque del
+  motor indica el último ciclo de los índices.
+
+**Cambiado**
+- El resto de tickers sigue cada 15 minutos (opciones de Tradier, velas de CBOE con ~15 min de retraso).
+- Con la actualización automática activada, la web recarga cada minuto esos seis índices y cada 5 minutos el resto,
+  para mostrar los datos nuevos en cuanto el motor los publica.
+- El pie de la página y la información de la fuente explican qué se actualiza cada 5 y cada 15 minutos.
+
+## 2026-11-08 — Deslizador de zoom estable y definiciones sin cálculo
+
+**Cambiado**
+- Las definiciones que aparecen al dejar el ratón sobre un nivel o un dato ya no muestran «Cómo se calcula aquí»:
+  solo qué es y para qué sirve.
+
+**Corregido**
+- Barra de zoom bajo los gráficos (TRACE y Equity Hub): al arrastrar un extremo más allá del borde, la barra temblaba.
+  El botón «Todo» aparecía y desaparecía y la pista cambiaba de ancho durante el arrastre; ahora el botón ocupa
+  siempre su sitio y la pista mantiene su medida mientras se arrastra.
+
 ## 2026-11-08 — Página de administración, motores Neto / Perfil y barras por vencimiento
 
 **Añadido**

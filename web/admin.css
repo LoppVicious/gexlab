@@ -45,10 +45,11 @@ body.admpage { background: var(--ink); color: var(--text); min-height: 100vh; }
 .day { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px 12px; margin-bottom: 18px; }
 .day-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; color: var(--faint); font-size: 12.5px; margin-bottom: 12px; }
 .day-h b { color: var(--text); font-weight: 600; font-size: 13.5px; }
-.trk { position: relative; height: 46px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
+.trk { position: relative; height: 52px; border-radius: 6px; background: var(--surface-2); overflow: hidden; }
 .trk .mkt { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent) 16%, transparent); border-left: 1px solid var(--line-strong); border-right: 1px solid var(--line-strong); }
-.trk .run { position: absolute; top: 9px; bottom: 9px; min-width: 3px; border-radius: 2px; background: var(--accent); }
-.trk .run.err { background: var(--call); top: 6px; bottom: 6px; }
+.trk .run { position: absolute; top: 6px; bottom: 26px; min-width: 3px; border-radius: 2px; background: var(--accent); }
+.trk .run.rap { top: 28px; bottom: 6px; min-width: 2px; opacity: .7; }
+.trk .run.err { background: var(--call); opacity: 1; }
 .trk .run.live { background: var(--amber); animation: pulse 1.6s ease-in-out infinite; }
 .trk .run:hover { filter: brightness(1.25); }
 .trk .hist { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--pos); z-index: 2; }

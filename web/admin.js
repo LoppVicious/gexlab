@@ -49,11 +49,14 @@
     const dias = [...new Set(runs.map((r) => et(r.inicio).d))].sort();
     const dia = dias.includes(hoy) || !dias.length ? hoy : dias[dias.length - 1];
     const delDia = runs.filter((r) => et(r.inicio).d === dia);
+    const esRap = (r) => /rapido/i.test(r.titulo || "");
+    const nRap = delDia.filter(esRap).length;
     const wd = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][new Date(dia + "T12:00:00Z").getUTCDay()];
     $("dayT").textContent = dia === hoy ? "Ciclos del motor hoy" : `Ciclos del motor del ${wd} ${ddmm(dia)}`;
+    // arriba el ciclo completo (cada 15 min), abajo el ligero de los indices en tiempo real (cada 5 min)
     const okN = delDia.filter((r) => r.resultado === "success").length, badN = delDia.filter((r) => r.resultado && r.resultado !== "success" && r.resultado !== "cancelled").length;
     $("dayS").textContent = e.ejecuciones.motor == null ? "GitHub no ha devuelto las ejecuciones" :
-      `${delDia.length} ciclos · ${okN} terminados${badN ? ` · ${badN} con error` : ""} · hora de Nueva York`;
+      `${delDia.length - nRap} completos y ${nRap} de índices · ${okN} terminados${badN ? ` · ${badN} con error` : ""} · hora de Nueva York`;
     const hist = e.historial && e.historial.session === dia;
     let h = `<div class="mkt" style="left:${xp(570)};right:calc(100% - ${xp(960)})" title="Mercado abierto 09:30–16:00 ET"></div>`;
     h += `<div class="hist${hist ? " done" : ""}" style="left:${xp(990)}" title="${hist ? `Historial diario guardado (${esc(e.historial.saved || "")})` : "Historial diario: 16:30 ET"}"></div>`;
@@ -61,8 +64,8 @@
       const a = et(r.inicio), b = r.fin ? et(r.fin) : et(Date.now());
       const cls = r.estado !== "completed" ? "live" : r.resultado === "success" ? "" : r.resultado === "cancelled" ? "" : "err";
       const w = Math.max(0, b.min - a.min);
-      const tip = `${a.hm} ET · ${r.estado !== "completed" ? "en marcha" : r.resultado === "success" ? "terminado" : r.resultado} · ${durTxt(durS(r.inicio, r.fin))}${r.evento === "workflow_dispatch" ? " · lanzado por la web" : ""}`;
-      h += `<a class="run ${cls}" href="${esc(r.url)}" target="_blank" rel="noopener" style="left:${xp(a.min)};width:calc(${(w / (T1 - T0) * 100).toFixed(2)}% )" title="${esc(tip)}" aria-label="${esc(tip)}"></a>`;
+      const tip = `${esRap(r) ? "Índices en tiempo real" : "Ciclo completo"} · ${a.hm} ET · ${r.estado !== "completed" ? "en marcha" : r.resultado === "success" ? "terminado" : r.resultado} · ${durTxt(durS(r.inicio, r.fin))}${r.evento === "workflow_dispatch" ? " · lanzado por la web" : ""}`;
+      h += `<a class="run ${cls}${esRap(r) ? " rap" : ""}" href="${esc(r.url)}" target="_blank" rel="noopener" style="left:${xp(a.min)};width:calc(${(w / (T1 - T0) * 100).toFixed(2)}% )" title="${esc(tip)}" aria-label="${esc(tip)}"></a>`;
     }
     if (dia === hoy) { const n = et(Date.now()).min; if (n > T0 && n < T1) h += `<div class="now" style="left:${xp(n)}" title="Ahora (${et(Date.now()).hm} ET)"></div>`; }
     $("track").innerHTML = h;
@@ -84,7 +87,9 @@
       <dt>Duración</dt><dd>${durTxt(m.segundos != null ? Math.round(m.segundos) : null)}</dd>
       <dt>Tickers calculados</dt><dd>${tick}${e.config ? ` de ${e.config.universo + e.config.fijos + 1}` : ""}</dd>
       <dt>Errores</dt><dd>${nerr}</dd>
-      <dt>Vistas guardadas</dt><dd>${e.config ? e.config.vistas : "—"}</dd></dl></div>`;
+      <dt>Vistas guardadas</dt><dd>${e.config ? e.config.vistas : "—"}</dd>
+      <dt title="Ciclo ligero de SPX, NDX, RUT, SPY, QQQ e IWM cada 5 min con el mercado abierto">Índices en tiempo real</dt><dd>${
+        e.rapido ? `${esc(e.rapido.ultimo_ciclo.slice(11, 16))} · ${(e.rapido.tickers || []).length}/6${(e.rapido.errores || []).length ? ` · ${e.rapido.errores.length} err.` : ""}` : "—"}</dd></dl></div>`;
     const hOk = hi ? (hi.ok || []).length : 0, hBad = hi ? (hi.errores || []).length : 0;
     const hState = !hi ? "err" : hBad ? "warn" : "ok";
     const fH = `<div class="kf"><h3><span class="state ${hState}"></span>Historial diario</h3>
@@ -120,7 +125,7 @@
   function drawRuns(e) {
     const r = e.ejecuciones || {};
     if (!r.motor && !r.historial) { $("runs").innerHTML = `<tr><td class="mute">GitHub no ha devuelto las ejecuciones. Comprueba que el token GH_DISPATCH_TOKEN tenga permiso de lectura de Actions.</td></tr>`; return; }
-    const all = [...(r.motor || []).slice(0, 8).map((x) => ({ ...x, q: "Motor" })), ...(r.historial || []).slice(0, 4).map((x) => ({ ...x, q: "Historial" }))]
+    const all = [...(r.motor || []).slice(0, 12).map((x) => ({ ...x, q: /rapido/i.test(x.titulo || "") ? "Índices" : "Motor" })), ...(r.historial || []).slice(0, 4).map((x) => ({ ...x, q: "Historial" }))]
       .sort((a, b) => Date.parse(b.inicio) - Date.parse(a.inicio)).slice(0, 8);
     const res = (x) => x.estado !== "completed" ? `<span class="state warn"></span>En marcha` : x.resultado === "success" ? `<span class="state ok"></span>Terminado`
       : x.resultado === "cancelled" ? `<span class="state"></span>Cancelado` : `<span class="state err"></span>Error`;

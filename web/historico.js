@@ -59,7 +59,8 @@ function zoomBarSync() {
   const win = $("zbWin");
   win.style.left = (z[0] * 100) + "%";
   win.style.width = ((z[1] - z[0]) * 100) + "%";
-  $("zbReset").hidden = zoomIsFull(z);
+  // el boton ocupa siempre su sitio: si apareciera y desapareciera, la pista cambiaria de ancho durante el arrastre
+  $("zbReset").style.visibility = zoomIsFull(z) ? "hidden" : "visible";
   const dom = zoomDomain(d, view), a = dom[0] + (dom[1] - dom[0]) * z[0], b = dom[0] + (dom[1] - dom[0]) * z[1];
   if (view === "history") {
     const rows = histRows(d);
@@ -80,7 +81,8 @@ function zoomSet(view, a, b) {
 function bindZoomBar() {
   const track = $("zbTrack");
   if (!track) return;
-  const frac = (e) => { const r = track.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
+  // durante un arrastre se usa la medida de la pista del inicio, para que nada que cambie de ancho la haga temblar
+  const frac = (e) => { const r = (zoom.drag && zoom.drag.rect) || track.getBoundingClientRect(); return Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); };
   track.addEventListener("pointerdown", (e) => {
     const view = state.view, z = zoomGet(view), f = frac(e);
     const h = e.target.closest(".zb-h");
@@ -90,7 +92,7 @@ function bindZoomBar() {
       zoomSet(view, f - w / 2, f + w / 2);
       mode = "move";
     }
-    zoom.drag = { mode, f0: f, z0: zoomGet(view).slice(), view };
+    zoom.drag = { mode, f0: f, z0: zoomGet(view).slice(), view, rect: track.getBoundingClientRect() };
     track.setPointerCapture(e.pointerId);
     e.preventDefault();
   });

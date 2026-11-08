@@ -325,7 +325,35 @@ def _expiries_info(EXP: np.ndarray, gex: np.ndarray, symbol: str) -> list[dict]:
 
 # ---------------------------------------------------------------- motores de calculo
 MODELS = ("gexbot", "spotgamma")
-EXP_SPLIT = 11  # barras por vencimiento: vencimientos con color propio; los posteriores van juntos
+EXP_GROUPS = 12  # barras por vencimiento: semanas y meses con color propio (ademas del proximo); el resto, juntos
+
+
+def exp_groups(days, symbol: str = "") -> tuple[np.ndarray, list[dict]]:
+    """Grupos de "Barras: Vencimiento" para los dias de vencimiento ordenados `days`: el proximo (0DTE) solo; el resto,
+    cada uno con el ultimo vencimiento de su semana (los diarios de lunes a jueves se suman al semanal o mensual de esa
+    semana); a partir del grupo EXP_GROUPS, todos juntos en "posteriores". Devuelve el grupo de cada dia y los grupos."""
+    from datetime import date
+    ds = [date.fromisoformat(str(d)) for d in days]
+    grp = np.zeros(len(ds), dtype=int)
+    groups = [{"date": str(ds[0]), "kind": "proximo", "from": str(ds[0]), "to": str(ds[0])}] if ds else []
+    semana: dict = {}
+    for i, d in enumerate(ds[1:], 1):
+        semana.setdefault(d.isocalendar()[:2], []).append(i)
+    for wk in sorted(semana):
+        idx = semana[wk]
+        last = ds[idx[-1]]
+        if len(groups) > EXP_GROUPS:
+            g = groups[-1]
+            if g["kind"] != "posteriores":
+                g = {"date": str(last), "kind": "posteriores", "from": str(ds[idx[0]]), "to": str(last)}
+                groups.append(g)
+            g["to"] = str(last)
+        else:
+            k = expiry_kind(last, symbol)
+            groups.append({"date": str(last), "kind": "mensual" if k == "mensual" else "semanal",
+                           "from": str(ds[idx[0]]), "to": str(last)})
+        grp[idx] = len(groups) - 1
+    return grp, groups
 SG_MIN_T = 1.0 / (365 * 24)   # motor SpotGamma: tiempo natural con un minimo de una hora (como el script)
 SG_SPAN = 0.15                # motor SpotGamma: el zero gamma se busca en +-15% del precio
 
@@ -1612,13 +1640,16 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     np.add.at(wputs, idx[inw & ~C], gex[inw & ~C])
     wfront = np.zeros(wgrid.size)
     np.add.at(wfront, idx[inw & FRONT], gex[inw & FRONT])
-    # desglose por vencimiento (dia): los EXP_SPLIT mas proximos por separado y el resto juntos en un ultimo grupo
+    # desglose por vencimiento: el proximo, cada semana (con su semanal o mensual) y los posteriores (exp_groups)
     edays = EXP.astype("datetime64[D]")
     eu = np.unique(edays)
-    n_sep = eu.size if eu.size <= EXP_SPLIT + 1 else EXP_SPLIT
-    eidx = np.minimum(np.searchsorted(eu, edays), n_sep)
-    wexp = np.zeros((min(eu.size, n_sep + 1), wgrid.size))
+    g_of_day, egroups = exp_groups(eu, normalize(symbol))
+    eidx = g_of_day[np.searchsorted(eu, edays)]
+    wexp = np.zeros((len(egroups), wgrid.size))
     np.add.at(wexp, (eidx[inw], idx[inw]), gex[inw])
+    tot_abs = float(np.abs(gex).sum()) or 1.0
+    for j, eg in enumerate(egroups):
+        eg["share"] = round(float(np.abs(gex[eidx == j]).sum()) / tot_abs, 4)
     # flujos de cobertura (lo que harian los dealers): vanna si la IV CAE 1 punto, charm por un dia
     wvanna = np.zeros(wgrid.size); wcharm = np.zeros(wgrid.size)
     np.add.at(wvanna, idx[inw], vex[inw])
@@ -1629,8 +1660,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
           (wgrid <= math.ceil(spot * (1 + window_pct / 100) / step) * step + 1e-9)
     grid, net, calls, puts, front = wgrid[vis], wnet[vis], wcalls[vis], wputs[vis], wfront[vis]
     vanna_s, charm_s = wvanna[vis], wcharm[vis]
-    by_exp = {"dates": [str(x) for x in eu[:n_sep]], "later": [str(eu[n_sep]), str(eu[-1])] if eu.size > n_sep else None,
-              "gex": [[float(f"{v:.5g}") for v in row] for row in wexp[:, vis]]}
+    by_exp = {"groups": egroups, "gex": [[float(f"{v:.5g}") for v in row] for row in wexp[:, vis]]}
 
     # --- perfil: GEX total en spots hipoteticos
     span = min(max(window_pct * 2.0, 8.0), 95.0) / 100   # el perfil nunca llega a precio 0

@@ -267,7 +267,7 @@
         <div class="zb-win" id="zbWin"><span class="zb-h l"></span><span class="zb-h r"></span></div>
       </div>
       <span class="zb-lab" id="zbLab"></span>
-      <button class="ghost zb-reset" id="zbReset" hidden>Todo</button>
+      <button class="ghost zb-reset" id="zbReset" style="visibility:hidden">Todo</button>
     </div>
     <div class="tip" id="tip" hidden></div>
   </section>
@@ -454,7 +454,7 @@
 </main>
 
 <footer class="foot">
-  Datos diferidos de CBOE (~15 min). El open interest es el del cierre anterior. Signo de dealer según la convención estándar: largos de calls, cortos de puts. El Volatility Trigger (Hedge Wall en acciones) es una aproximación propia, no el nivel de SpotGamma.
+  Opciones de Tradier en tiempo real: SPX, NDX, RUT, SPY, QQQ e IWM se recalculan cada 5 minutos con el mercado abierto, con velas de 5 minutos en el TRACE; el resto, cada 15 minutos, con velas de CBOE (~15 min de retraso). Si Tradier falla, se usa CBOE. El open interest es el del cierre anterior. Signo de dealer según la convención estándar: largos de calls, cortos de puts. El Volatility Trigger (Hedge Wall en acciones) es una aproximación propia, no el nivel de SpotGamma.
 </footer>
 </div>
 </div>

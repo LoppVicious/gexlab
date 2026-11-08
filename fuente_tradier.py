@@ -172,3 +172,31 @@ def cadena(symbol: str) -> dict:
         "last_trade_time": ts.strftime("%Y-%m-%dT%H:%M:%S"), "options": options,
     }
     return {"timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"), "source": "tradier", "data": data}
+
+
+# ---------------------------------------------------------------- velas de 5 minutos (indices en tiempo real)
+def velas(symbol: str, dias: int = 5) -> dict:
+    """Velas de 5 min de las ultimas sesiones, solo las ya cerradas, en el formato de las velas de 1 min de CBOE
+    ({"data": [{"datetime", "price": {open, high, low, close}}]}) que agrupa gex_engine.heatmap. La de 09:30-09:35
+    se marca como 09:31, igual que CBOE marca cada vela por su minuto de cierre."""
+    import gex_engine as g
+    from datetime import timedelta
+    sym = symbol.upper()
+    now = g.now_ny().replace(tzinfo=None, second=0, microsecond=0)
+    ini = (now - timedelta(days=dias)).strftime("%Y-%m-%d") + " 09:30"
+    d = _get(f"/markets/timesales?symbol={sym}&interval=5min&start={ini.replace(' ', '%20')}"
+             f"&end={now.strftime('%Y-%m-%d')}%2016:00&session_filter=open")
+    out = []
+    for b in _lista(((d or {}).get("series") or {}).get("data")):
+        try:
+            t0 = datetime.strptime(str(b["time"])[:16], "%Y-%m-%dT%H:%M")
+            o, h, l, c = (float(b[k]) for k in ("open", "high", "low", "close"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if t0 + timedelta(minutes=5) > now or c <= 0:  # la vela en curso no se publica
+            continue
+        out.append({"datetime": (t0 + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S"),
+                    "price": {"open": o, "high": h, "low": l, "close": c}, "volume": b.get("volume")})
+    if not out:
+        raise TradierError(f"Tradier no tiene velas de {sym}")
+    return {"symbol": sym, "source": "tradier", "interval": "5min", "data": out}

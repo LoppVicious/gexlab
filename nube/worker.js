@@ -257,7 +257,7 @@ async function ejecuciones(env, workflow, n) {
     if (!r.ok) return null;
     const d = await r.json();
     return (d.workflow_runs || []).map((x) => ({
-      id: x.id, estado: x.status, resultado: x.conclusion, evento: x.event,
+      id: x.id, estado: x.status, resultado: x.conclusion, evento: x.event, titulo: x.display_title || x.name || "",
       inicio: x.run_started_at || x.created_at, fin: x.status === "completed" ? x.updated_at : null, url: x.html_url,
     }));
   } catch { return null; }
@@ -268,15 +268,16 @@ async function estado(env) {
   const [motor, recolector, uso, hist, runsMotor, runsHist, fij, hl] = await Promise.all([
     r2json(env, "pub/motor.json"), r2json(env, "pub/recolector.json"), r2json(env, "estado/uso.json"),
     dias.length ? r2json(env, dias[dias.length - 1]) : null,
-    ejecuciones(env, "motor.yml", 60), ejecuciones(env, "historial500.yml", 10), fijosLista(env), histLista(env),
+    ejecuciones(env, "motor.yml", 100), ejecuciones(env, "historial500.yml", 10), fijosLista(env), histLista(env),
   ]);
+  const rapido = await r2json(env, "pub/rapido.json");
   const cfg = await readConfig(env);
   const u = await env.DB.prepare(
     "SELECT COUNT(*) AS n, SUM(CASE WHEN inactivo = 0 THEN 1 ELSE 0 END) AS activos FROM usuarios").first();
   const s = await env.DB.prepare("SELECT COUNT(DISTINCT usuario) AS n FROM sesiones WHERE exp > ?").bind(nowS()).first();
   return {
     ahora: new Date().toISOString(),
-    motor, recolector: recolector && { ultima_recogida: recolector.ultima_recogida, cierre: recolector.cierre },
+    motor, rapido, recolector: recolector && { ultima_recogida: recolector.ultima_recogida, cierre: recolector.cierre },
     historial: hist, historial_dias: dias.length, uso,
     ejecuciones: { motor: runsMotor, historial: runsHist },
     config: {
@@ -520,10 +521,18 @@ function nyParts(d) {
 function toca(d) {
   const { wd, min } = nyParts(d);
   const weekday = ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd);
+  if (min % 15) return false; // el reloj va cada 5 min; el ciclo completo, cada 15
   if (weekday && min >= 7 * 60 + 45 && min <= 17 * 60 + 15) return true;
   if (weekday && (min === 18 * 60 || min === 20 * 60)) return true;
   if (wd === "Sat" && min === 10 * 60) return true;
   return false;
+}
+
+// ciclo ligero de los indices en tiempo real (motor.py rapido): cada 5 min de 09:35 a 16:05 ET en dias laborables,
+// justo tras cerrar cada vela de 5 min (la de 16:05 recoge la ultima de la sesion); el motor descarta festivos
+function tocaRapido(d) {
+  const { wd, min } = nyParts(d);
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min % 5 === 0 && min >= 9 * 60 + 35 && min <= 16 * 60 + 5;
 }
 
 // historial diario (historial500.yml): dias laborables a las 16:30 ET; el script descarta festivos
@@ -538,6 +547,7 @@ export default {
     const d = new Date(event.scheduledTime);
     d.setUTCSeconds(0, 0);
     if (toca(d)) ctx.waitUntil(dispatch(env, { modo: "ciclo" }));
+    if (tocaRapido(d)) ctx.waitUntil(dispatch(env, { modo: "rapido" }));
     if (tocaHistorial(d)) ctx.waitUntil(dispatch(env, {}, "historial500.yml"));
   },
 

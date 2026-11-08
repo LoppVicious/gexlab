@@ -1,11 +1,12 @@
 name: Motor
+run-name: "Motor ${{ inputs.modo || 'ciclo' }}"
 on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "ciclo (todo) o ticker (calculo puntual)"
+        description: "ciclo (todo), ticker (calculo puntual) o rapido (indices en tiempo real)"
         type: choice
-        options: [ciclo, ticker]
+        options: [ciclo, ticker, rapido]
         default: ciclo
       tickers:
         description: "Tickers separados por espacios (solo modo ticker)"
@@ -48,7 +49,11 @@ jobs:
           TICKERS: ${{ inputs.tickers }}
         run: |
           if [ -n "$R2_ACCESS_KEY_ID" ]; then export GEX_ALMACEN=r2; else export GEX_ALMACEN=local:./almacen; fi
-          if [ "$MODO" = "ticker" ]; then python motor.py ticker $TICKERS; else python motor.py ciclo; fi
+          case "$MODO" in
+            ticker) python motor.py ticker $TICKERS ;;
+            rapido) python motor.py rapido ;;
+            *) python motor.py ciclo ;;
+          esac
       - name: Guardar almacen provisional
         if: always() && env.HAS_R2 != 'true' && inputs.modo == 'ciclo'
         uses: actions/cache/save@v4

@@ -3,6 +3,9 @@ GEX Lab - motor en la nube (GitHub Actions).
 
   python motor.py ciclo            recoge y calcula todo para los tickers de todas las listas
   python motor.py ticker SPX AMD   calculo puntual de uno o varios tickers (p. ej. uno nuevo en una lista)
+  python motor.py rapido           ciclo ligero de los indices en tiempo real (TIEMPO_REAL), cada 5 min con el
+                                   mercado abierto: cadena y velas de 5 min de Tradier, paquetes y vistas; no guarda
+                                   el estado (el historial de niveles y el flujo los lleva el ciclo de 15 min)
 
 Cada ciclo:
   1. recupera el estado (historial, flujo, copias de la cadena, caches) del almacen
@@ -44,6 +47,7 @@ COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
 DTES = list(g.DTE_FILTERS)  # 0, 1, 7, 14, 30, 45 y todos
 VAL_MODES = ["standard", "flow"]
+TIEMPO_REAL = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]  # ciclo ligero cada 5 min (motor.py rapido)
 SIEMPRE = ["VIX"]   # se calculan cada ciclo aunque no esten en ninguna lista (paquete, historico, volatilidad)
 DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
 
@@ -260,7 +264,16 @@ def paquete(sym: str) -> dict:
         files[f"fx/flowpos_{sym.replace('.', '_')}.json"] = g.flow_positions_all(sym, g.chain_from_min(mn))
     except Exception as e:  # noqa: BLE001
         err(f"{sym} flujo", e)
-    intr = g.fetch_aux("intraday", sym, ttl=60)
+    intr, velas = None, "cboe"
+    if sym in TIEMPO_REAL:
+        try:
+            import fuente_tradier as ft
+            if ft.disponible() and not os.environ.get("GEX_FIXTURE_DIR"):
+                intr, velas = ft.velas(sym), "tradier"
+        except Exception as e:  # noqa: BLE001
+            err(f"{sym} velas de Tradier", e)
+    if not intr:
+        intr = g.fetch_aux("intraday", sym, ttl=60)
     if intr:
         files[f"fx/intraday_{sym}.json"] = intr
     proxy = g.INDEX_PROXY.get(sym)
@@ -285,7 +298,8 @@ def paquete(sym: str) -> dict:
     if snap:
         files[f"hist/chains/{os.path.basename(g._snap_path(sym, day))}"] = snap
     return {"v": 1, "symbol": sym, "name": g.name_of(sym), "proxy": proxy, "generado": g.now_ny().strftime("%Y-%m-%d %H:%M ET"),
-            "timestamp": ch["timestamp"], "files": files}
+            "timestamp": ch["timestamp"], "source": ch.get("source", "cboe"), "velas": velas,
+            "tiempo_real": sym in TIEMPO_REAL, "files": files}
 
 
 def escribir_fixtures(paq: dict) -> None:
@@ -300,14 +314,14 @@ def escribir_fixtures(paq: dict) -> None:
 
 
 # ---------------------------------------------------------------- fases
-def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
+def fase_tickers(st, syms: list[str], proxies: list[str], ligero: bool = False) -> list[str]:
     """Descarga, mantiene el historial y el flujo (como al usar la app en el PC) y publica los paquetes."""
     ok = []
     for sym in syms + [p for p in proxies if p not in syms]:
         t = time.time()
         for intento in range(2):  # si CBOE limita las peticiones (429), espera y lo reintenta una vez
             try:
-                _ticker(st, sym, syms)
+                _ticker(st, sym, syms, ligero)
                 ok.append(sym)
                 log(f"{sym}: listo en {time.time() - t:.1f} s")
                 break
@@ -325,9 +339,9 @@ def fase_tickers(st, syms: list[str], proxies: list[str]) -> list[str]:
     return ok
 
 
-def _ticker(st, sym: str, syms: list[str]) -> None:
+def _ticker(st, sym: str, syms: list[str], ligero: bool = False) -> None:
     """Un ticker: historial de niveles, paquete para el navegador y panel de volatilidad."""
-    if sym in syms:
+    if sym in syms and not ligero:
         # historial de niveles de los dos motores, los cuatro filtros y los dos modos (Historico y Validacion),
         # flujo y copia de la cadena
         for mdl in g.MODELS:
@@ -506,7 +520,7 @@ def ciclo() -> int:
     return 0 if ok else 1
 
 
-def tickers(args: list[str]) -> int:
+def tickers(args: list[str], ligero: bool = False) -> int:
     """Calculo puntual: no toca el estado (solo lo lee) para no pisar al ciclo."""
     st = almacen.abrir()
     restaurar_estado(st)
@@ -521,7 +535,7 @@ def tickers(args: list[str]) -> int:
             syms.append(s)
     shutil.rmtree(os.path.join(ROOT, "salida"), ignore_errors=True)
     proxies = sorted({g.INDEX_PROXY[s] for s in syms if s in g.INDEX_PROXY})
-    ok = fase_tickers(st, syms, proxies)
+    ok = fase_tickers(st, syms, proxies, ligero)
     fase_vistas_ticker = [s for s in syms if s in ok]
     os.environ["GEX_FIXTURE_DIR"] = FX
     g._cache.clear(); g._aux_cache.clear(); g._heat_cache.clear(); g._rate["t"] = 0.0
@@ -535,15 +549,30 @@ def tickers(args: list[str]) -> int:
                 subir(st, f"pub/t/{sym}/mapa/{clave_mapa(v)}.json", g.heatmap(sym, which=v["sess"], **args_))
             except Exception as e:  # noqa: BLE001
                 err(f"{sym} vista", e)
+    if ligero:
+        subir(st, "pub/rapido.json", {
+            "ultimo_ciclo": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "segundos": round(time.time() - _t0, 1),
+            "tickers": fase_vistas_ticker, "errores": _errores[-20:]})
     esperar_subidas()
-    log(f"puntual: {len(fase_vistas_ticker)}/{len(syms)} tickers")
+    log(f"{'rapido' if ligero else 'puntual'}: {len(fase_vistas_ticker)}/{len(syms)} tickers")
     return 0 if ok else 1
+
+
+def rapido() -> int:
+    now = g.now_ny()
+    # dias sin mercado o fuera de sesion (el reloj del Worker no conoce los festivos ni los cierres a las 13:00):
+    # hasta 6 min tras el cierre, para recoger la ultima vela
+    from datetime import timedelta
+    if not (g.market_open(now) or g.market_open(now - timedelta(minutes=6))):
+        log(f"rapido: mercado cerrado ({now:%Y-%m-%d %H:%M} ET), nada que hacer")
+        return 0
+    return tickers(TIEMPO_REAL, ligero=True)
 
 
 if __name__ == "__main__":
     modo = sys.argv[1] if len(sys.argv) > 1 else "ciclo"
     try:
-        sys.exit(ciclo() if modo == "ciclo" else tickers(sys.argv[2:]) if modo == "ticker" else 2)
+        sys.exit(ciclo() if modo == "ciclo" else tickers(sys.argv[2:]) if modo == "ticker" else rapido() if modo == "rapido" else 2)
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         sys.exit(1)

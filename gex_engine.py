@@ -197,6 +197,16 @@ def vanna_charm_w(S, K, w, T, r=None):
     return vanna, charm
 
 
+def delta_w(S, K, w, T, call, r=None, q=0.0):
+    """Delta Black-Scholes (calls e^-qT N(d1), puts e^-qT (N(d1) - 1)) a partir de la varianza total w."""
+    r = risk_free() if r is None else r
+    sw = np.sqrt(w)
+    d1 = (np.log(S / K) + (r - q) * T + 0.5 * w) / sw
+    n = _ncdf(d1)
+    dlt = np.where(call, n, n - 1.0)
+    return dlt * np.exp(-q * T) if np.any(q) else dlt
+
+
 def gamma_w(S, K, w, T, r=None, q=0.0):
     """Gamma Black-Scholes a partir de la varianza total w = sigma^2 * T, con rendimiento por dividendo q
     (0 en el motor gexbot). S puede ser columna (N,1); q puede ir por contrato."""
@@ -1661,6 +1671,13 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     np.add.at(wputs, idx[inw & ~C], gex[inw & ~C])
     wfront = np.zeros(wgrid.size)
     np.add.at(wfront, idx[inw & FRONT], gex[inw & FRONT])
+    # exposicion delta de los dealers ($ de delta: posicion x delta x 100 x precio) y posicionamiento neto (contratos)
+    dex = pos * delta_w(SX, K, W, TT, C, q=QD) * 100.0 * SX
+    wdn = np.zeros(wgrid.size); wdcl = np.zeros(wgrid.size); wdpu = np.zeros(wgrid.size); wpos = np.zeros(wgrid.size)
+    np.add.at(wdn, idx[inw], dex[inw])
+    np.add.at(wdcl, idx[inw & C], dex[inw & C])
+    np.add.at(wdpu, idx[inw & ~C], dex[inw & ~C])
+    np.add.at(wpos, idx[inw], pos[inw])
     # open interest por strike (contratos) y su cambio frente a la sesion anterior (si hay historial de ese ticker)
     woi_c = np.zeros(wgrid.size); woi_p = np.zeros(wgrid.size)
     np.add.at(woi_c, idx[inw & C], OI[inw & C])
@@ -1697,7 +1714,9 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     oi_out = {"calls": np.round(woi_c[vis]).tolist(), "puts": np.round(woi_p[vis]).tolist(),
               "chg_calls": np.round(wdc[vis]).tolist() if wdc is not None else None,
               "chg_puts": np.round(wdp[vis]).tolist() if wdp is not None else None,
-              "prev_date": oi_prev.get("date") if wdc is not None else None}
+              "prev_date": oi_prev.get("date") if wdc is not None else None,
+              "net_pos": np.round(wpos[vis]).tolist()}
+    delta_out = {"net": np.round(wdn[vis]).tolist(), "calls": np.round(wdcl[vis]).tolist(), "puts": np.round(wdpu[vis]).tolist()}
     by_exp = {"groups": egroups, "gex": [[float(f"{v:.5g}") for v in row] for row in wexp[:, vis]]}
 
     # --- perfil: GEX total en spots hipoteticos
@@ -1710,14 +1729,26 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     fridays = [e for e in exp_days if (int(e.astype(int)) + 3) % 7 == 4 and (e - today_d).astype(int) <= 8]
     week_exp = fridays[0] if fridays else exp_days.min()
     WEEK = EXP.astype("datetime64[D]") == week_exp
+    # lineas del grafico por strike: el proximo vencimiento y el proximo mensual (y, en la web, el total menos cada uno)
+    from datetime import date as _date
+    month_exp = next((e for e in exp_days if es_mensual(_date.fromisoformat(str(e)), normalize(symbol))), None)
+    MONTH = EXP.astype("datetime64[D]") == month_exp if month_exp is not None else np.zeros(K.size, dtype=bool)
     prof = np.empty(xs.size)
     prof_week = np.empty(xs.size)
+    pf_next, pf_month = np.empty(xs.size), np.empty(xs.size)
+    pd_tot, pd_next, pd_month = np.empty(xs.size), np.empty(xs.size), np.empty(xs.size)
     chunk = 20
     for a in range(0, xs.size, chunk):
         S = xs[a:a + chunk, None] * sx_rel
         gm = pos * gamma_w(S, K, W, TT, q=QD) * 100.0 * S
         prof[a:a + chunk] = gm.sum(axis=1)
         prof_week[a:a + chunk] = gm[:, WEEK].sum(axis=1)
+        pf_next[a:a + chunk] = gm[:, FRONT].sum(axis=1)
+        pf_month[a:a + chunk] = gm[:, MONTH].sum(axis=1)
+        dm = pos * delta_w(S, K, W, TT, C, q=QD) * 100.0 * S
+        pd_tot[a:a + chunk] = dm.sum(axis=1)
+        pd_next[a:a + chunk] = dm[:, FRONT].sum(axis=1)
+        pd_month[a:a + chunk] = dm[:, MONTH].sum(axis=1)
 
     # --- zero gamma (convencion SpotGamma): precio en el que la GEX total recalculada cruza cero, el mas cercano
     zero_gamma = None
@@ -1828,7 +1859,11 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "expected_move": expected_move(ch, spot, now_dt),
         "moves": implied_moves(ch, spot, now_dt),
         "is_index": normalize(symbol) in INDEX_LIKE,
-        "profile": {"x": xs.tolist(), "y": prof.tolist(), "week": prof_week.tolist(), "week_exp": str(week_exp)},
+        "profile": {"x": xs.tolist(), "y": prof.tolist(), "week": prof_week.tolist(), "week_exp": str(week_exp),
+                    "next": pf_next.tolist(), "month": pf_month.tolist(), "next_exp": str(front_exp.astype("datetime64[D]")),
+                    "month_exp": str(month_exp) if month_exp is not None else None,
+                    "d": np.round(pd_tot).tolist(), "d_next": np.round(pd_next).tolist(), "d_month": np.round(pd_month).tolist()},
+        "delta": delta_out,
         "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, step, window_pct),
         "levels": {"call_wall": call_wall, "put_wall": put_wall, "flip": flip,
                    "flip_exact": flip_exact, "vt": vt, "abs_gamma": abs_g, "zero_gamma": zero_gamma,

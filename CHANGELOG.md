@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-08 — Índices en tiempo real, open interest, página de administración, motores Neto / Perfil y barras por vencimiento
+## 2026-11-08 — Índices en tiempo real, delta y open interest, panel de opciones, administración y motores Neto / Perfil
 
 **Añadido**
 - **Índices en tiempo real:** SPX, NDX, RUT, SPY, QQQ e IWM se recalculan cada 5 minutos con el mercado abierto
@@ -11,10 +11,17 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   - El mapa del TRACE de SPX, SPY, QQQ e IWM usa velas de 5 minutos de Tradier, sin retraso: cada 5 minutos aparece la
     vela que acaba de cerrar (la vela en curso no se muestra; en el SPX, nada después del cierre). Tradier no da velas
     de NDX ni de RUT: su mapa sigue con las de CBOE, aunque sus niveles se recalculan igualmente cada 5 minutos.
-- **Open interest** (TRACE y Equity Hub, Por strike ▸ Open interest): contratos abiertos de calls (hacia arriba) y puts
-  (hacia abajo) por strike, y su **cambio diario**: contratos abiertos o cerrados en la última sesión, calls y puts lado
-  a lado. Bajo los botones, los totales y el ratio put/call; el tooltip da las cifras de cada strike. El cambio diario
-  está en los tickers de las listas (el motor guarda su open interest de cada sesión).
+- **Panel de opciones del gráfico** (botón con lo elegido, p. ej. «Gamma · Total · 1 línea»), con interruptores, una (i)
+  en cada opción que explica qué hace y su propia letra (IBM Plex Sans, de prueba):
+  - Tipo de gráfico: Gamma, **Delta** (nuevo), Vanna, Charm y Open interest.
+  - **Líneas** sobre Por strike, con su eje a la derecha, en Gamma y en Delta: total, del próximo vencimiento, del
+    vencimiento mensual, total sin el próximo y total sin el mensual (varias a la vez). El tooltip da su valor.
+  - Barras de cada tipo; Mostrar niveles clave (ahora también en Por strike); en el Mapa, color, sesión y niveles.
+- **Delta** por strike: la delta que tienen los dealers en cada strike, en $, total o de calls y puts (lado a lado).
+- **Open interest** por strike: contratos abiertos de calls (arriba) y puts (abajo); su **cambio diario**, contratos
+  abiertos o cerrados en la última sesión (solo en los tickers de las listas, de los que el motor guarda el open
+  interest de cada sesión); y el **posicionamiento neto** de los dealers en contratos (convención estándar o, con
+  «Dealers: flujo», el estimado). Bajo los botones, los totales; el tooltip da las cifras de cada strike.
 - **Página de administración** (`/admin`, botón «Administración» de la barra lateral, solo para el administrador):
   - Estado: pista con los ciclos del motor del día (arriba el ciclo completo, abajo el de los índices; terminados, con
     error o en marcha), estado del motor, de los índices, del historial diario y del espacio ocupado en R2 (de los
@@ -32,9 +39,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - El historial diario mide al terminar el espacio ocupado en R2 por carpeta.
 
 **Cambiado**
-- **Cabecera de los gráficos más limpia:** el tipo de gráfico (Gamma, Vanna, Charm, Open interest) y sus barras, y las
-  opciones del mapa, pasan a un botón de opciones que muestra lo elegido (p. ej. «Gamma · Neta») y abre un panel con
-  cada opción explicada. Informe, Copiar, PNG y TradingView pasan al menú «Exportar».
+- **Cabecera de los gráficos más limpia:** el tipo de gráfico, las barras y las opciones del mapa pasan al panel de
+  opciones; Informe, Copiar, PNG y TradingView, al menú «Exportar».
 - **Barras ▸ Vencimiento:** cada barra se reparte en el próximo vencimiento (0DTE, verde azulado), cada semanal
   (violetas) y cada mensual (corales), dentro del filtro de vencimientos elegido, en vez de «próximo + resto». Los
   diarios de lunes a jueves se suman al semanal o mensual de su semana, así la barra sigue sumando la GEX total. Más

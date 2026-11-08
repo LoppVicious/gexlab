@@ -138,7 +138,7 @@ async function syncConfig(env) {
     let p = {};
     try { p = JSON.parse(r.prefs || "{}"); } catch { /* sin preferencias */ }
     const v = { dte: p.dte || "45", range: p.range || "auto", pos: p.pos || "standard", combo: p.combo || "0", sess: "auto",
-      model: p.model === "gexbot" ? "gexbot" : "spotgamma" };
+      model: p.model === "gexbot" || (p.model !== "spotgamma" && (p.dte || "45") === "0") ? "gexbot" : "spotgamma" };
     const k = JSON.stringify(v);
     if (!seen.has(k)) { seen.add(k); vistas.push(v); }
   }
@@ -211,10 +211,26 @@ async function histLista(env) {
   return { symbols: [], actualizado: null, origen: "vacia" };
 }
 
+const FIJOS_KEY = "config/fijos.json";
+const MAX_FIJOS = 60;
+
+async function fijosLista(env) {
+  const d = await r2json(env, FIJOS_KEY);
+  return { symbols: d && Array.isArray(d.symbols) ? d.symbols : [], actualizado: (d && d.actualizado) || null, origen: "web" };
+}
+
 async function historial(req, env, me) {
-  if (req.method === "GET") return json(200, await histLista(env));
+  return editarLista(req, env, me, HIST_KEY, MAX_HIST, histLista);
+}
+
+async function fijos(req, env, me) {
+  return editarLista(req, env, me, FIJOS_KEY, MAX_FIJOS, fijosLista);
+}
+
+async function editarLista(req, env, me, KEY, MAX, leer) {
+  if (req.method === "GET") return json(200, await leer(env));
   const b = await body(req);
-  const actual = new Set((await histLista(env)).symbols);
+  const actual = new Set((await leer(env)).symbols);
   const conOpciones = new Set((await symbols(env)).map((x) => x[0]));
   const syms = [], invalidos = [];
   for (const x of b.symbols || []) {
@@ -225,10 +241,50 @@ async function historial(req, env, me) {
     if (!actual.has(s) && conOpciones.size && !conOpciones.has(s)) { invalidos.push(s); continue; }
     syms.push(s);
   }
-  if (syms.length > MAX_HIST) throw new Error(`Como máximo ${MAX_HIST} tickers`);
+  if (syms.length > MAX) throw new Error(`Como máximo ${MAX} tickers`);
   const d = { symbols: syms, actualizado: stamp(), por: me.user };
-  await env.R2.put(HIST_KEY, JSON.stringify(d), { httpMetadata: { contentType: "application/json" } });
+  await env.R2.put(KEY, JSON.stringify(d), { httpMetadata: { contentType: "application/json" } });
   return json(200, { symbols: syms, actualizado: d.actualizado, origen: "web", invalidos });
+}
+
+// ------------------------------------------------------------------ panel de administracion: estado del sistema
+async function ejecuciones(env, workflow, n) {
+  if (!env.GH_DISPATCH_TOKEN) return null;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${REPO}/actions/workflows/${workflow}/runs?per_page=${n}`, {
+      headers: { Authorization: `Bearer ${env.GH_DISPATCH_TOKEN}`, Accept: "application/vnd.github+json", "User-Agent": "gexlab", "X-GitHub-Api-Version": "2022-11-28" },
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return (d.workflow_runs || []).map((x) => ({
+      id: x.id, estado: x.status, resultado: x.conclusion, evento: x.event,
+      inicio: x.run_started_at || x.created_at, fin: x.status === "completed" ? x.updated_at : null, url: x.html_url,
+    }));
+  } catch { return null; }
+}
+
+async function estado(env) {
+  const dias = ((await env.R2.list({ prefix: "hist500/_dias/" })).objects || []).map((x) => x.key).sort();
+  const [motor, recolector, uso, hist, runsMotor, runsHist, fij, hl] = await Promise.all([
+    r2json(env, "pub/motor.json"), r2json(env, "pub/recolector.json"), r2json(env, "estado/uso.json"),
+    dias.length ? r2json(env, dias[dias.length - 1]) : null,
+    ejecuciones(env, "motor.yml", 60), ejecuciones(env, "historial500.yml", 10), fijosLista(env), histLista(env),
+  ]);
+  const cfg = await readConfig(env);
+  const u = await env.DB.prepare(
+    "SELECT COUNT(*) AS n, SUM(CASE WHEN inactivo = 0 THEN 1 ELSE 0 END) AS activos FROM usuarios").first();
+  const s = await env.DB.prepare("SELECT COUNT(DISTINCT usuario) AS n FROM sesiones WHERE exp > ?").bind(nowS()).first();
+  return {
+    ahora: new Date().toISOString(),
+    motor, recolector: recolector && { ultima_recogida: recolector.ultima_recogida, cierre: recolector.cierre },
+    historial: hist, historial_dias: dias.length, uso,
+    ejecuciones: { motor: runsMotor, historial: runsHist },
+    config: {
+      universo: [...new Set(Object.values(cfg.listas || {}).flat())].length, listas: Object.keys(cfg.listas || {}).length,
+      vistas: (cfg.vistas || []).length, fijos: fij.symbols.length, historial: hl.symbols.length,
+    },
+    usuarios: { total: (u && u.n) || 0, activos: (u && u.activos) || 0, conectados: (s && s.n) || 0 },
+  };
 }
 
 const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_.\-/]{0,200}$/;
@@ -283,8 +339,13 @@ async function createUser(env, usuario, sal, clave, rol) {
 async function admin(req, env, me) {
   if (req.method === "GET") {
     const rows = (await env.DB.prepare(
-      "SELECT u.usuario, u.rol, u.inactivo, u.creado, u.cambiado, (SELECT COUNT(*) FROM sesiones s WHERE s.usuario = u.usuario AND s.exp > ?) AS sesiones FROM usuarios u ORDER BY u.creado",
+      "SELECT u.usuario, u.rol, u.inactivo, u.creado, u.cambiado, (SELECT COUNT(*) FROM sesiones s WHERE s.usuario = u.usuario AND s.exp > ?) AS sesiones, (SELECT MAX(s.creada) FROM sesiones s WHERE s.usuario = u.usuario) AS ultimo, l.json AS lista FROM usuarios u LEFT JOIN listas l ON l.usuario = u.usuario ORDER BY u.creado",
     ).bind(nowS()).all()).results || [];
+    for (const r of rows) {
+      let n = DEFAULT_WATCH.length;
+      try { const d = JSON.parse(r.lista || "null"); if (d && Array.isArray(d.symbols)) n = d.symbols.length; } catch { /* lista por defecto */ }
+      r.tickers = n; delete r.lista;
+    }
     return json(200, { usuarios: rows });
   }
   const b = await body(req);
@@ -377,6 +438,23 @@ async function api(req, env, url, me) {
   if (p === "/api/admin/historial") {
     if (!me.admin) return json(403, { error: "Solo el administrador" });
     return historial(req, env, me);
+  }
+  if (p === "/api/admin/fijos") {
+    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    return fijos(req, env, me);
+  }
+  if (p === "/api/admin/estado") {
+    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    return json(200, await estado(env));
+  }
+  if (p === "/api/admin/lanzar" && req.method === "POST") {
+    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    const b = await body(req);
+    const ok = b.que === "historial" ? await dispatch(env, b.forzar ? { forzar: "true" } : {}, "historial500.yml")
+      : b.que === "ciclo" ? await dispatch(env, { modo: "ciclo" }) : null;
+    if (ok === null) return json(400, { error: "Acción desconocida" });
+    if (!ok) return json(502, { error: "GitHub no ha aceptado el lanzamiento (revisa el token GH_DISPATCH_TOKEN)" });
+    return json(200, { ok: true });
   }
   if (p === "/api/admin/usuarios") {
     if (!me.admin) return json(403, { error: "Solo el administrador" });
@@ -495,6 +573,7 @@ export default {
         return new Response(js, { headers: { "Content-Type": "application/javascript; charset=utf-8", "Cache-Control": "no-store", ...SEC_HEADERS } });
       }
       if (p.startsWith("/api/")) return await api(req, env, url, me);
+      if (/^\/admin(\.html|\.js|\.css)?$/.test(p) && !me.admin) return redirect("/");
       const res = await env.ASSETS.fetch(req);
       const h = new Headers(res.headers);
       for (const [k, v] of Object.entries(SEC_HEADERS)) h.set(k, v);

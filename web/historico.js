@@ -145,7 +145,7 @@ function histRows(d) {
 
 function renderHistory(d0, W, H, exp = false) {
   const d = d0, all = histRows(d);
-  const model = d.model === "gexbot" ? "gexbot" : "SpotGamma";
+  const model = d.model === "gexbot" ? "Neto" : "Perfil";
   if (all.length < 2) {
     return `<div class="placeholder"><div><b>Histórico en construcción</b><br>Se guarda una foto de los niveles al cierre de cada sesión, con este filtro de vencimientos y el motor ${model}.<br>Hay ${all.length} ${all.length === 1 ? "sesión guardada" : "sesiones guardadas"}: el gráfico aparece a partir de la segunda.</div></div>`;
   }

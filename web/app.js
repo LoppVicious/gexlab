@@ -54,6 +54,8 @@ if (ME) {
 // valores por defecto nuevos (rango Auto y actualizacion automatica): se aplican una vez a todos
 if (store.get("defs", "0") < "2") { store.set("range", "auto"); store.set("autoOn", "1"); }
 if (store.get("defs", "0") < "3") { store.set("model", "spotgamma"); store.set("defs", "3"); }
+// motor Auto para todos: Neto (gexbot) en 0DTE, Perfil (spotgamma) en el resto
+if (store.get("defs", "0") < "4") { store.set("model", "auto"); store.set("defs", "4"); }
 const state = {
   symbol: store.get("symbol", "SPX"),
   dte: store.get("dte", "45"),
@@ -68,7 +70,7 @@ const state = {
   mapSess: "auto",
   greek: store.get("greek", "gamma"),
   pos: store.get("pos", "standard"),
-  model: store.get("model", "spotgamma"),
+  model: store.get("model", "auto"),
   validMode: "standard",
   watch: null,
   combo: store.get("combo", "0") === "1",
@@ -266,11 +268,39 @@ function bucketStrikes(ks, arrs, step, maxN) {
 }
 function bucketData(d, maxN) {
   const keys = ["net", "calls", "puts", "front", "vanna", "charm"];
-  const b = bucketStrikes(d.strikes, keys.map((x) => d[x] || null), d.step, maxN);
+  const rows = d.by_exp ? d.by_exp.gex : [];
+  const b = bucketStrikes(d.strikes, [...keys.map((x) => d[x] || null), ...rows], d.step, maxN);
   if (b.k === 1) return d;
   const o = { ...d, strikes: b.ks, step: b.step, bucket: b.k, bucketStep: d.step };
   keys.forEach((x, i) => { if (b.arrs[i]) o[x] = b.arrs[i]; });
+  if (d.by_exp) o.by_exp = { ...d.by_exp, gex: b.arrs.slice(keys.length) };
   return o;
+}
+
+// "Barras: Vencimiento": un color por vencimiento en una sola gama (el mas proximo verde azulado, los lejanos violeta);
+// los posteriores a los que tienen color propio, juntos en gris
+function expColors(be) {
+  const n = be.dates.length, light = document.documentElement.dataset.theme === "light";
+  const cols = be.dates.map((_, i) => {
+    const t = n > 1 ? i / (n - 1) : 0;
+    const L = light ? 0.68 - 0.2 * t : 0.84 - 0.24 * t;
+    return `oklch(${L.toFixed(3)} ${(0.14 + 0.06 * t).toFixed(3)} ${(172 + 120 * t).toFixed(1)})`;
+  });
+  if (be.later) cols.push(C.faint);
+  return cols;
+}
+function expLabels(d) { // etiqueta de cada fila de by_exp
+  const be = d.by_exp;
+  const out = be.dates.map((x) => expText(d, x, false));
+  if (be.later) out.push(`Posteriores (${ddmm(be.later[0])}–${ddmm(be.later[1])})`);
+  return out;
+}
+function expShares(d) { // parte de la gamma total de cada fila de by_exp
+  const sh = new Map((d.expiries || []).map((x) => [x.date, x.share || 0]));
+  const be = d.by_exp;
+  const out = be.dates.map((x) => sh.get(x));
+  if (be.later) out.push((d.expiries || []).filter((x) => x.date >= be.later[0]).reduce((a, x) => a + (x.share || 0), 0));
+  return out;
 }
 
 function renderStrike(d0, W, H, exp = false) {
@@ -294,7 +324,10 @@ function renderStrike(d0, W, H, exp = false) {
   const rest = d.net.map((v, i) => v - (d.front ? d.front[i] : 0));
   let hiArr, loArr;
   if (mode === "split") { hiArr = d.calls; loArr = d.puts; }
-  else if (mode === "expiry") {
+  else if (mode === "expiry" && d.by_exp) {
+    hiArr = d.net.map((_, i) => d.by_exp.gex.reduce((a, r) => a + Math.max(0, r[i]), 0));
+    loArr = d.net.map((_, i) => d.by_exp.gex.reduce((a, r) => a + Math.min(0, r[i]), 0));
+  } else if (mode === "expiry") {
     hiArr = d.net.map((_, i) => Math.max(0, rest[i]) + Math.max(0, d.front[i]));
     loArr = d.net.map((_, i) => Math.min(0, rest[i]) + Math.min(0, d.front[i]));
   } else { hiArr = series; loArr = series; }
@@ -340,12 +373,21 @@ function renderStrike(d0, W, H, exp = false) {
     const y = Math.min(yOf(from), yOf(to)), h = Math.max(0.8, Math.abs(yOf(to) - yOf(from)));
     return `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${rx}" fill="${fill}"/>`;
   };
+  const ecol = d.by_exp ? expColors(d.by_exp) : null;
   s += `<rect id="hl" x="0" y="${top}" width="${band}" height="${bottom - top}" fill="${C.hi}" fill-opacity="0.04" visibility="hidden"/>`;
   for (let i = 0; i < n; i++) {
     const x = xOf(d.strikes[i]) - bw / 2;
     if (mode === "split") {
       if (d.calls[i]) s += bar(x, 0, d.calls[i], C.pos);
       if (d.puts[i]) s += bar(x, 0, d.puts[i], C.neg);
+    } else if (mode === "expiry" && d.by_exp) {
+      // apiladas desde el eje: el vencimiento mas proximo pegado a cero, los lejanos por fuera
+      let up = 0, dn = 0;
+      d.by_exp.gex.forEach((r, j) => {
+        const v = r[i];
+        if (!v) return;
+        if (v > 0) { s += bar(x, up, up + v, ecol[j]); up += v; } else { s += bar(x, dn, dn + v, ecol[j]); dn += v; }
+      });
     } else if (mode === "expiry") {
       let up = 0, dn = 0;
       for (const [v, isFront] of [[rest[i], false], [d.front[i], true]]) {
@@ -454,6 +496,11 @@ function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
 function legendItems(d) {
   if (state.greek !== "gamma") return [{ colors: [C.pos], label: "Compras de cobertura" }, { colors: [C.neg], label: "Ventas de cobertura" }];
   if (state.bars === "split") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
+  if (state.bars === "expiry" && d.by_exp) {
+    const cols = expColors(d.by_exp), n = d.by_exp.dates.length;
+    return [{ colors: n > 1 ? [cols[0], cols[n - 1]] : [cols[0]], label: n > 1 ? `${ddmm(d.by_exp.dates[0])} → ${ddmm(d.by_exp.dates[n - 1])}` : `Vence ${ddmm(d.by_exp.dates[0])}` }]
+      .concat(d.by_exp.later ? [{ colors: [C.faint], label: "Posteriores" }] : []);
+  }
   if (state.bars === "expiry") {
     const items = [{ colors: [C.negFront, C.posFront], label: `Vence ${expText(d, d.front_expiry, false)}` }];
     if (!d.expiries || d.expiries.length > 1) items.unshift({ colors: [C.neg, C.pos], label: "Resto" });
@@ -713,12 +760,19 @@ function renderMap(d, hm, W, H, exp = false) {
   return frame(W, H, s, d, exp, `Mapa de gamma ${ddmm(hm.session)}`);
 }
 
+// motores: ids internos gexbot / spotgamma; en pantalla, Neto / Perfil
+const MOTOR_NOMBRE = { gexbot: "Neto", spotgamma: "Perfil" };
+function effModel() {
+  if (state.model === "gexbot" || state.model === "spotgamma") return state.model;
+  return state.dte === "0" ? "gexbot" : "spotgamma";
+}
+
 const COMBO = { SPX: "SPY", XSP: "SPY", NDX: "QQQ", RUT: "IWM", DJX: "DIA" };
 function extraParams() {
   const o = {};
   if (state.combo && COMBO[state.symbol]) o.combine = "1";
   if (state.pos === "flow") o.pos = "flow";
-  o.model = state.model === "gexbot" ? "gexbot" : "spotgamma";
+  o.model = effModel();
   return o;
 }
 
@@ -768,8 +822,12 @@ function mapCaption() {
 // detalle de "Barras: Vencimiento" bajo los botones: que vencimiento es el proximo y que hay en el resto
 function expiryCaption(d) {
   if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
-  const f = (d.expiries || []).find((x) => x.date === d.front_expiry);
   const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
+  if (d.by_exp) {
+    const cols = expColors(d.by_exp), labs = expLabels(d), sh = expShares(d);
+    return labs.map((l, j) => `<span class="capexp">${sw(cols[j])}${esc(l)}${sh[j] != null ? ` <b>${Math.round(sh[j] * 100)} %</b>` : ""}</span>`).join("");
+  }
+  const f = (d.expiries || []).find((x) => x.date === d.front_expiry);
   let h = `${sw(C.posFront)}<b>Próximo vencimiento:</b> ${esc(expText(d, d.front_expiry))}${f ? ` · ${Math.round(f.share * 100)} % de la gamma` : ""}`;
   if (!d.expiries || d.expiries.length > 1) h += `<span class="capsep"></span>${sw(C.pos)}${esc(restText(d))}`;
   return h;
@@ -1045,7 +1103,7 @@ function syncCombo() {
 /* etiquetas con los ajustes del modelo que no están en su valor por defecto */
 function renderChips() {
   const chips = [];
-  if (state.model === "gexbot") chips.push({ k: "model", t: "Motor: gexbot" });
+  if (state.model !== "auto") chips.push({ k: "model", t: `Motor: ${MOTOR_NOMBRE[effModel()]}` });
   if (state.pos === "flow") chips.push({ k: "pos", t: "Dealers: flujo" });
   if (state.combo && COMBO[state.symbol]) chips.push({ k: "combo", t: `+ ${COMBO[state.symbol]}` });
   const sp = $("spotInput").value.trim();
@@ -1055,13 +1113,13 @@ function renderChips() {
   }
   $("chips").innerHTML = chips.length
     ? chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Quitar" aria-label="Quitar ${esc(c.t)}">×</button></span>`).join("")
-    : `<span class="chip-default">Motor SpotGamma, convención estándar</span>`;
+    : `<span class="chip-default">Motor Auto (${MOTOR_NOMBRE[effModel()]}), convención estándar</span>`;
 }
 
 function clearChip(k) {
   if (k === "pos") { state.pos = "standard"; store.set("pos", "standard"); $("posSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "standard"))); }
   if (k === "combo") { state.combo = false; store.set("combo", "0"); }
-  if (k === "model") { state.model = "spotgamma"; store.set("model", "spotgamma"); $("modelSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "spotgamma"))); }
+  if (k === "model") { state.model = "auto"; store.set("model", "auto"); $("modelSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === "auto"))); }
   if (k === "spot") $("spotInput").value = "";
   syncCombo();
   load();
@@ -1164,7 +1222,7 @@ function onMove(e) {
       <div class="r">Neta <b>${fmtBig(b.net[i], true)}</b></div>
       <div class="r">Calls <b>${fmtBig(b.calls[i], true)}</b></div>
       <div class="r">Puts <b>${fmtBig(b.puts[i], true)}</b></div>
-      <div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`;
+      ${state.greek === "gamma" && state.bars === "expiry" && b.by_exp ? expTip(b, i) : `<div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
   } else if (g.kind === "history" && typeof historyTip === "function") {
     html = historyTip(d, g, x, svg);
     if (!html) return hideTip();
@@ -1190,6 +1248,13 @@ function onMove(e) {
   if (tx + tip.offsetWidth > pr.width - 8) tx = e.clientX - pr.left - tip.offsetWidth - 16;
   if (ty < wr.top - pr.top) ty = e.clientY - pr.top + 16;
   tip.style.left = tx + "px"; tip.style.top = ty + "px";
+}
+function expTip(b, i) {
+  const cols = expColors(b.by_exp), labs = expLabels(b);
+  const rows = b.by_exp.gex.map((r, j) => [j, r[i]]).filter(([, v]) => Math.abs(v) > 0);
+  if (!rows.length) return "";
+  return `<div class="tsep"></div>` + rows.map(([j, v]) =>
+    `<div class="r"><span class="capsw" style="background:${cols[j]}"></span>${esc(labs[j])} <b>${fmtBig(v, true)}</b></div>`).join("");
 }
 function placeTip(e) {
   const tip = $("tip");
@@ -1752,7 +1817,7 @@ async function loadValidation() {
   const body = $("validBody");
   body.innerHTML = `<tr class="loading"><td colspan="7" class="l">Calculando…</td></tr>`;
   try {
-    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=${state.model === "gexbot" ? "gexbot" : "spotgamma"}&symbols=${encodeURIComponent(watchlist().join(","))}`);
+    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&symbols=${encodeURIComponent(watchlist().join(","))}`);
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Error en la validación");
     const pct = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} ses.</span>` : ""}`;
@@ -2523,15 +2588,15 @@ const GLOSSARY = {
   call_wall: { t: "Call Wall", c: C.call,
     what: "El strike con más gamma neta positiva por encima del precio: la mayor concentración de calls, una vez descontadas las puts del mismo strike.",
     use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls.",
-    calc: "Motor gexbot: mayor barra positiva de GEX neta (calls − puts) en el precio o por encima, dentro del rango elegido. Motor SpotGamma: strike con más GEX solo de calls por encima del precio, en ±10% o en el rango si es mayor." },
+    calc: "Motor Neto: mayor barra positiva de GEX neta (calls − puts) en el precio o por encima, dentro del rango elegido. Motor Perfil: strike con más GEX solo de calls por encima del precio, en ±10% o en el rango si es mayor." },
   put_wall: { t: "Put Wall", c: C.put,
     what: "El strike con más gamma neta negativa por debajo del precio: la mayor concentración de puts, una vez descontadas las calls del mismo strike.",
     use: "Soporte y suelo del rango esperado; muchas coberturas se cierran ahí y eso suele frenar las caídas. Si se pierde con claridad, ese apoyo desaparece y la caída puede acelerarse: es una señal de alerta, no solo un nivel técnico roto.",
-    calc: "Motor gexbot: mayor barra negativa de GEX neta (calls − puts) en el precio o por debajo, dentro del rango elegido. Motor SpotGamma: strike con más GEX solo de puts por debajo del precio, en ±10% o en el rango si es mayor." },
+    calc: "Motor Neto: mayor barra negativa de GEX neta (calls − puts) en el precio o por debajo, dentro del rango elegido. Motor Perfil: strike con más GEX solo de puts por debajo del precio, en ±10% o en el rango si es mayor." },
   flip: { t: "Gamma Flip (Zero Gamma)", c: C.amber,
     what: "El precio en el que la gamma total de los dealers pasa de positiva a negativa. No es un soporte ni una resistencia: marca el régimen.",
     use: "Por encima, los dealers compran caídas y venden subidas: menos volatilidad y vuelta a la media. Por debajo hacen lo contrario y amplifican los movimientos. Muy cerca del flip (a menos de un 0,5%) no se espera un efecto claro en ningún sentido.",
-    calc: "Motor gexbot: frontera de signo de la GEX neta por strike dentro del rango elegido, el precio que deja la menor gamma positiva por debajo y negativa por encima. Motor SpotGamma: el cruce por cero de la GEX total recalculada en cada precio (±15%), el más cercano al precio." },
+    calc: "Motor Neto: frontera de signo de la GEX neta por strike dentro del rango elegido, el precio que deja la menor gamma positiva por debajo y negativa por encima. Motor Perfil: el cruce por cero de la GEX total recalculada en cada precio (±15%), el más cercano al precio." },
   vt: { t: "Volatility Trigger", c: C.amber,
     what: "El último soporte importante por encima del Put Wall, en el borde bajista del Gamma Flip.",
     use: "Por debajo, la cobertura de los dealers deja de sostener el precio y empieza a acompañarlo: la volatilidad realizada suele expandirse. Si solo vigilas un nivel, que sea este. Por encima, entorno más estable.",
@@ -2713,7 +2778,7 @@ function shellInit() {
     $("whoBox").hidden = false; $("whoName").textContent = ME.user; $("whoAv").textContent = (ME.user || "?").slice(0, 1);
     $("logoutNav").hidden = false;
     $("logoutNav").addEventListener("click", () => $("logoutBtn").click());
-    if (ME.admin && window.gexOpenAdmin) { $("usersNav").hidden = false; $("usersNav").addEventListener("click", () => window.gexOpenAdmin()); }
+    if (ME.admin && ME.nube) { $("usersNav").hidden = false; $("usersNav").addEventListener("click", () => { location.href = "/admin"; }); }
   }
   syncNav();
 }
@@ -2738,7 +2803,7 @@ async function init() {
     const b = e.target.closest("button"); if (!b) return;
     $("symbol").value = b.dataset.s; $("spotInput").value = ""; load();
   });
-  bindDte(() => (state.mode === "scanner" ? runScan() : load()));
+  bindDte(() => { renderChips(); return state.mode === "scanner" ? runScan() : load(); });
   bindSeg("barsSeg", "bars", () => draw());
   bindSeg("greekSeg", "greek", () => { $("barsSeg").hidden = state.view !== "strike" || state.greek !== "gamma"; draw(); });
   bindSeg("posSeg", "pos", () => { renderChips(); load(); });

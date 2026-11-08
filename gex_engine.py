@@ -325,6 +325,7 @@ def _expiries_info(EXP: np.ndarray, gex: np.ndarray, symbol: str) -> list[dict]:
 
 # ---------------------------------------------------------------- motores de calculo
 MODELS = ("gexbot", "spotgamma")
+EXP_SPLIT = 11  # barras por vencimiento: vencimientos con color propio; los posteriores van juntos
 SG_MIN_T = 1.0 / (365 * 24)   # motor SpotGamma: tiempo natural con un minimo de una hora (como el script)
 SG_SPAN = 0.15                # motor SpotGamma: el zero gamma se busca en +-15% del precio
 
@@ -1611,6 +1612,13 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     np.add.at(wputs, idx[inw & ~C], gex[inw & ~C])
     wfront = np.zeros(wgrid.size)
     np.add.at(wfront, idx[inw & FRONT], gex[inw & FRONT])
+    # desglose por vencimiento (dia): los EXP_SPLIT mas proximos por separado y el resto juntos en un ultimo grupo
+    edays = EXP.astype("datetime64[D]")
+    eu = np.unique(edays)
+    n_sep = eu.size if eu.size <= EXP_SPLIT + 1 else EXP_SPLIT
+    eidx = np.minimum(np.searchsorted(eu, edays), n_sep)
+    wexp = np.zeros((min(eu.size, n_sep + 1), wgrid.size))
+    np.add.at(wexp, (eidx[inw], idx[inw]), gex[inw])
     # flujos de cobertura (lo que harian los dealers): vanna si la IV CAE 1 punto, charm por un dia
     wvanna = np.zeros(wgrid.size); wcharm = np.zeros(wgrid.size)
     np.add.at(wvanna, idx[inw], vex[inw])
@@ -1621,6 +1629,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
           (wgrid <= math.ceil(spot * (1 + window_pct / 100) / step) * step + 1e-9)
     grid, net, calls, puts, front = wgrid[vis], wnet[vis], wcalls[vis], wputs[vis], wfront[vis]
     vanna_s, charm_s = wvanna[vis], wcharm[vis]
+    by_exp = {"dates": [str(x) for x in eu[:n_sep]], "later": [str(eu[n_sep]), str(eu[-1])] if eu.size > n_sep else None,
+              "gex": [[float(f"{v:.5g}") for v in row] for row in wexp[:, vis]]}
 
     # --- perfil: GEX total en spots hipoteticos
     span = min(max(window_pct * 2.0, 8.0), 95.0) / 100   # el perfil nunca llega a precio 0
@@ -1740,7 +1750,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         "computed_at": now_ny().strftime("%Y-%m-%d %H:%M ET"),
         "step": step,
         "strikes": grid.tolist(),
-        "net": net.tolist(), "calls": calls.tolist(), "puts": puts.tolist(), "front": front.tolist(),
+        "net": net.tolist(), "calls": calls.tolist(), "puts": puts.tolist(), "front": front.tolist(), "by_exp": by_exp,
         "vanna": vanna_s.tolist(), "charm": charm_s.tolist(),
         "combo": combo, "positioning": positioning if not (positioning == "flow" and combine) else "standard",
         "flow_info": flow_info,

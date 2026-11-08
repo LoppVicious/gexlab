@@ -60,6 +60,9 @@ class Local:
                     out.append(k)
         return sorted(out)
 
+    def sizes(self, prefix: str = "") -> list[tuple[str, int]]:
+        return [(k, os.path.getsize(self._p(k))) for k in self.list(prefix)]
+
 
 class R2:
     def __init__(self):
@@ -98,6 +101,33 @@ class R2:
             if not r.get("IsTruncated"):
                 return sorted(out)
             token = r["NextContinuationToken"]
+
+    def sizes(self, prefix: str = "") -> list[tuple[str, int]]:
+        out, token = [], None
+        while True:
+            kw = {"Bucket": self.bucket, "Prefix": prefix}
+            if token:
+                kw["ContinuationToken"] = token
+            r = self.s3.list_objects_v2(**kw)
+            out += [(o["Key"], int(o["Size"])) for o in r.get("Contents", [])]
+            if not r.get("IsTruncated"):
+                return out
+            token = r["NextContinuationToken"]
+
+
+def uso(st) -> dict:
+    """Espacio ocupado por carpeta de primer nivel (y por subcarpeta en hist500/): lo muestra el panel de administracion."""
+    por: dict[str, dict] = {}
+    total = n = 0
+    for k, b in st.sizes(""):
+        parts = k.split("/")
+        grupo = "/".join(parts[:2]) if parts[0] == "hist500" and len(parts) > 2 else parts[0]
+        g = por.setdefault(grupo, {"n": 0, "bytes": 0})
+        g["n"] += 1
+        g["bytes"] += b
+        total += b
+        n += 1
+    return {"total": total, "n": n, "por": dict(sorted(por.items(), key=lambda x: -x[1]["bytes"]))}
 
 
 def abrir():

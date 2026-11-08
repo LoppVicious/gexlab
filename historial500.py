@@ -270,6 +270,13 @@ def main(args: list[str]) -> int:
         "session": sesion, "saved": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "ok": ok, "errores": fallos,
         "bytes": total, "segundos": round(time.time() - _t0, 1)})
     log(f"terminado: {len(ok)}/{len(syms)} tickers, {total / 1e6:.1f} MB, {borrados} archivos antiguos borrados")
+    try:  # espacio ocupado en R2, para el panel de administracion
+        u = almacen.uso(st)
+        u["fecha"] = g.now_ny().strftime("%Y-%m-%d %H:%M ET")
+        almacen.put_json(st, "estado/uso.json", u)
+        log(f"almacen: {u['total'] / 1e9:.2f} GB en {u['n']} archivos")
+    except Exception as e:  # noqa: BLE001
+        log(f"uso del almacen no disponible: {type(e).__name__}: {str(e)[:120]}")
     return 0 if ok else 1
 
 

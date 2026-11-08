@@ -297,3 +297,7 @@ body.view-map .zoombar { display: none; }
 /* leyenda detallada de Barras: Vencimiento (bajo los botones del grafico) */
 .capsw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
 .capsep { display: inline-block; width: 18px; }
+/* Barras: Vencimiento, un elemento por vencimiento en la linea bajo los botones y separador en el tooltip */
+.capexp { display: inline-block; white-space: nowrap; margin-right: 14px; }
+.capexp b { font-weight: 600; }
+.tsep { height: 1px; background: var(--line); margin: 6px 0; }

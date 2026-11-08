@@ -41,7 +41,7 @@
   </nav>
   <div class="foot-side">
     <button class="item" id="themeBtn" title="Cambiar entre tema oscuro y claro"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg><span class="lbl" id="themeLbl">Tema claro</span></button>
-    <button class="item" id="usersNav" title="Gestionar usuarios" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3"/><path d="M2.5 16c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M13.5 4.2a3 3 0 0 1 0 5.6M15.5 11.8c1.3.6 2.1 2 2.4 4.2"/></svg><span class="lbl">Usuarios</span></button>
+    <button class="item" id="usersNav" title="Administración: estado, usuarios y ajustes" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3"/><path d="M2.5 16c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M13.5 4.2a3 3 0 0 1 0 5.6M15.5 11.8c1.3.6 2.1 2 2.4 4.2"/></svg><span class="lbl">Administración</span></button>
     <button class="item" id="sideMin" title="Plegar la barra lateral"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 5 7.5 10l5 5"/></svg><span class="lbl">Plegar</span></button>
     <div class="who" id="whoBox" hidden><span class="av" id="whoAv"></span><span class="nm" id="whoName"></span></div>
     <button class="item" id="logoutNav" title="Cerrar sesión" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 6.5 15.5 10 12 13.5M15.5 10H8"/></svg><span class="lbl">Salir</span></button>
@@ -139,11 +139,12 @@
       <div class="prow">
         <div class="ptext">
           <div class="ptitle">Motor de cálculo</div>
-          <p>gexbot: muros por GEX neta y flip por el cambio de signo de las barras por strike. SpotGamma: Call Wall de calls por encima del precio, Put Wall de puts por debajo, flip donde la gamma total recalculada cruza cero, con tiempo natural y dividendo implícito.</p>
+          <p>Neto: muros por GEX neta y flip por el cambio de signo de las barras por strike. Perfil: Call Wall de calls por encima del precio, Put Wall de puts por debajo, flip donde la gamma total recalculada cruza cero, con tiempo natural y dividendo implícito. Auto usa Neto en 0DTE y Perfil en el resto. Escáner, Compass y Validación usan siempre Perfil.</p>
         </div>
         <div class="seg boxed" role="radiogroup" aria-label="Motor de cálculo" id="modelSeg">
-          <button role="radio" data-v="gexbot">gexbot</button>
-          <button role="radio" data-v="spotgamma">SpotGamma</button>
+          <button role="radio" data-v="auto" title="Neto en 0DTE, Perfil en el resto">Auto</button>
+          <button role="radio" data-v="gexbot">Neto</button>
+          <button role="radio" data-v="spotgamma">Perfil</button>
         </div>
       </div>
       <div class="prow">

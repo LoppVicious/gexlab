@@ -44,6 +44,7 @@ rm -rf dist && mkdir -p dist
 cp -r ../web/. dist/
 cp pages/login.html pages/setup.html dist/
 cp ../gex_engine.py dist/
+cp ../CHANGELOG.md dist/   # lo muestra el panel de administracion
 if ! OUT=$($W deploy 2>&1); then echo "$OUT" | grep -Ei "error|subdomain|https://" ; exit 1; fi
 echo "$OUT" | grep -Ei "https://" || true
 printf '%s' "$GEX_SETUP_CODE" | $W secret put GEX_SETUP_CODE >/dev/null

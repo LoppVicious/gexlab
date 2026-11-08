@@ -234,7 +234,12 @@ def leer_config(st) -> dict:
                 continue
             if s not in universo:
                 universo.append(s)
-    for s in SIEMPRE:
+    fijos = almacen.get_json(st, "config/fijos.json", {}) or {}  # tickers fijos (panel de administracion)
+    for s in [*SIEMPRE, *(fijos.get("symbols") or [])]:
+        try:
+            s = g.normalize(str(s))
+        except ValueError:
+            continue
         if s not in universo:
             universo.append(s)
     vistas = c.get("vistas") or [DEFAULT_VISTA]

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<title>Administración · GEX Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="sg.css">
+<link rel="stylesheet" href="admin.css">
+<script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
+</head>
+<body class="admpage">
+<header class="ah">
+  <a class="ah-back" href="/" title="Volver a GEX Lab"><svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+      <rect x="2" y="11" width="3" height="8" rx="1" fill="var(--neg)"/><rect x="7" y="11" width="3" height="5" rx="1" fill="var(--neg)"/>
+      <rect x="12" y="6" width="3" height="5" rx="1" fill="var(--pos)"/><rect x="17" y="3" width="3" height="8" rx="1" fill="var(--pos)"/>
+      <line x1="1" y1="11" x2="21" y2="11" stroke="var(--accent)" stroke-width="1.2"/></svg><span>GEX Lab</span></a>
+  <h1>Administración</h1>
+  <div class="ah-right"><span id="who"></span><button class="ab ghost" id="reload" title="Volver a leer el estado">Actualizar</button></div>
+</header>
+
+<div class="aw">
+  <nav class="an" aria-label="Secciones">
+    <a href="#estado" class="on">Estado</a>
+    <a href="#usuarios">Usuarios</a>
+    <a href="#config">Configuración</a>
+    <a href="#acciones">Acciones</a>
+    <a href="#cambios">Cambios</a>
+  </nav>
+
+  <main class="am">
+    <section id="estado" aria-labelledby="estT">
+      <div class="shd"><h2 id="estT">Estado</h2><p class="when" id="estWhen"></p></div>
+
+      <div class="day" id="day" aria-label="Ciclos del motor del día">
+        <div class="day-h"><b id="dayT">Ciclos del motor</b><span id="dayS"></span></div>
+        <div class="trk" id="track"></div>
+        <div class="axis" id="axis"></div>
+        <div class="day-k">
+          <span><i class="k ok"></i>Terminado</span><span><i class="k err"></i>Con error</span>
+          <span><i class="k run"></i>En marcha</span><span><i class="k mkt"></i>Mercado abierto</span><span><i class="k hist"></i>Historial diario</span>
+        </div>
+      </div>
+
+      <div class="facts" id="facts"></div>
+
+      <div class="cols2">
+        <div>
+          <h3>Errores del último ciclo</h3>
+          <ul class="errs" id="errs"><li class="mute">Cargando…</li></ul>
+        </div>
+        <div>
+          <h3>Últimas ejecuciones</h3>
+          <table class="runs"><tbody id="runs"><tr><td class="mute">Cargando…</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
+    <section id="usuarios" aria-labelledby="usuT">
+      <div class="shd"><h2 id="usuT">Usuarios</h2><p class="when" id="usuSum"></p></div>
+      <p class="lead">Cada usuario tiene su lista y sus preferencias. Las contraseñas no se guardan: solo una huella que no permite recuperarlas. Un inicio de sesión en otro dispositivo cierra el anterior.</p>
+      <div class="tw"><table class="users"><thead><tr><th>Usuario</th><th>Alta</th><th>Último inicio</th><th class="n">Tickers</th><th class="n">Sesión</th><th></th></tr></thead>
+        <tbody id="users"><tr><td colspan="6" class="mute">Cargando…</td></tr></tbody></table></div>
+      <form class="row-form" id="newUser" autocomplete="off">
+        <label>Nuevo usuario<input id="nuName" autocapitalize="none" spellcheck="false" placeholder="nombre" required></label>
+        <label>Contraseña<input id="nuPw" type="password" autocomplete="new-password" minlength="10" placeholder="mínimo 10 caracteres" required></label>
+        <button class="ab" type="submit" id="nuGo">Crear usuario</button>
+      </form>
+      <p class="msg" id="usuMsg" role="status"></p>
+    </section>
+
+    <section id="config" aria-labelledby="cfgT">
+      <div class="shd"><h2 id="cfgT">Configuración</h2></div>
+
+      <div class="cfg">
+        <div class="cfg-h"><h3>Historial diario <span class="cnt" id="hisCnt"></span></h3></div>
+        <p class="lead">Se guarda cada día de mercado a las 16:30 ET la cadena al cierre y los niveles de los dos motores, para backtests. Los cambios valen desde la siguiente ejecución. El VIX y su familia (VIX9D, VIX3M, VIX6M, VIX1Y) se guardan siempre.</p>
+        <div class="tks" id="hisList"></div>
+        <form class="add" id="hisForm" autocomplete="off"><input id="hisAdd" autocapitalize="characters" spellcheck="false" placeholder="Añadir tickers: AAPL, MSFT…" aria-label="Tickers que añadir al historial diario"><button class="ab" type="submit">Añadir</button></form>
+        <p class="msg" id="hisMsg" role="status"></p>
+      </div>
+
+      <div class="cfg">
+        <div class="cfg-h"><h3>Tickers fijos del motor <span class="cnt" id="fijCnt"></span></h3></div>
+        <p class="lead">El motor calcula cada 15 minutos los tickers de las listas de los usuarios. Los de aquí se calculan siempre, aunque nadie los tenga en su lista (el VIX ya va incluido). Cada ticker alarga el ciclo unos segundos.</p>
+        <div class="tks" id="fijList"></div>
+        <form class="add" id="fijForm" autocomplete="off"><input id="fijAdd" autocapitalize="characters" spellcheck="false" placeholder="Añadir tickers: TLT, GLD…" aria-label="Tickers fijos que añadir"><button class="ab" type="submit">Añadir</button></form>
+        <p class="msg" id="fijMsg" role="status"></p>
+      </div>
+
+      <div class="cfg">
+        <div class="cfg-h"><h3>Motor de cálculo</h3></div>
+        <p class="lead">Para todos, por defecto, el motor está en <b>Auto</b>: <b>Neto</b> con el vencimiento 0DTE y <b>Perfil</b> con los demás. Escáner, Compass y Validación usan siempre Perfil. Cada usuario puede fijar uno en Ajustes del modelo.</p>
+      </div>
+    </section>
+
+    <section id="acciones" aria-labelledby="accT">
+      <div class="shd"><h2 id="accT">Acciones</h2></div>
+      <div class="acts">
+        <div class="acc">
+          <h3>Ciclo del motor</h3>
+          <p>Recalcula ahora todos los tickers y vistas. Tarda unos 6 minutos; si ya hay uno en marcha, este empieza al terminar.</p>
+          <button class="ab" data-lanzar="ciclo">Lanzar ciclo</button>
+          <p class="msg" role="status"></p>
+        </div>
+        <div class="acc">
+          <h3>Historial diario</h3>
+          <p>Guarda la última sesión cerrada si aún no está guardada. Con «rehacer» la vuelve a guardar aunque ya exista.</p>
+          <label class="chk"><input type="checkbox" id="forzar"> Rehacer la última sesión</label>
+          <button class="ab" data-lanzar="historial">Guardar historial</button>
+          <p class="msg" role="status"></p>
+        </div>
+        <div class="acc">
+          <h3>Historial del PC</h3>
+          <p>Sube <code>historial_para_nube.tar.gz</code> para añadir lo que guardó el recolector del PC. Se mezcla en el siguiente ciclo; lo que ya hay en la nube no se pierde.</p>
+          <form id="impForm"><input id="impFile" type="file" accept=".gz,.tgz,application/gzip" required aria-label="Archivo del historial del PC"><button class="ab" type="submit">Subir archivo</button></form>
+          <p class="msg" id="impMsg" role="status"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="cambios" aria-labelledby="camT">
+      <div class="shd"><h2 id="camT">Cambios</h2><p class="when">CHANGELOG.md del repositorio</p></div>
+      <div class="log" id="log"><p class="mute">Cargando…</p></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="pwDlg" aria-labelledby="pwT">
+  <form method="dialog" id="pwForm">
+    <h3 id="pwT">Nueva contraseña</h3>
+    <label>Contraseña<input id="pw1" type="password" autocomplete="new-password" minlength="10" required></label>
+    <label>Repítela<input id="pw2" type="password" autocomplete="new-password" minlength="10" required></label>
+    <p class="msg" id="pwMsg"></p>
+    <div class="dlg-b"><button class="ab ghost" value="cancel" formnovalidate>Cancelar</button><button class="ab" value="ok" id="pwOk">Guardar</button></div>
+  </form>
+</dialog>
+
+<script src="me.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

@@ -64,9 +64,14 @@ El motor calcula siempre el VIX (`motor.SIEMPRE`), esté o no en las listas de l
   - VIX siempre (`SIEMPRE`), aunque no esté en la lista de la web, y sin límite de años (`NUNCA_BORRAR`).
   - `hist500/_indices_vol/{fecha}.json`: OHLC de VIX, VIX9D, VIX3M, VIX6M y VIX1Y y curva de futuros del VIX;
     `_indices_vol/historico.json.gz`: su serie diaria completa de CBOE (VIX desde 1990). No se borran nunca.
-  - Lista de tickers: la edita el administrador en la web (Usuarios ▸ Historial diario, `/api/admin/historial`) y se guarda
+  - Lista de tickers: la edita el administrador en la web (`/admin` ▸ Configuración, `/api/admin/historial`) y se guarda
     en R2 `config/historial500.json` (máx. 200; los nuevos deben estar en `pub/simbolos.json`). Si no existe, `TICKERS` del script.
     Prueba local: `GEX_ALMACEN=local:./data/x python historial500.py --forzar AAPL`.
+
+**Panel de administración (`/admin`, solo admin):** `web/admin.html|js|css`. Estado (`/api/admin/estado`: `pub/motor.json`,
+último `hist500/_dias/`, `estado/uso.json` que escribe `historial500.py` con `almacen.uso`, y ejecuciones de GitHub con
+`GH_DISPATCH_TOKEN`), usuarios, listas editables (historial diario y tickers fijos del motor en `config/fijos.json`, que
+`motor.leer_config` suma al universo), lanzar ciclo o historial (`/api/admin/lanzar`) y el CHANGELOG (se copia a `dist/`).
 
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El rango canónico es `auto` o un número sin ceros sobrantes. El motor borra las vistas que ya no calcula.
@@ -76,7 +81,11 @@ El rango canónico es `auto` o un número sin ceros sobrantes. El motor borra la
 `GH_DISPATCH_TOKEN`, `GEX_SETUP_CODE`, `FRED_API_KEY`, `TRADIER_TOKEN`.
 El de Tradier es válido (renovado el 5-11-2026); solo lo recibe `motor.yml`.
 
-## Los dos motores de cálculo (Ajustes ▸ Motor; SpotGamma por defecto)
+## Los dos motores de cálculo (Ajustes ▸ Motor)
+En pantalla se llaman **Neto** (id interno `gexbot`) y **Perfil** (id `spotgamma`); los ids no cambian (claves `_gb`,
+archivos). Por defecto **Auto** (`state.model = "auto"`, `effModel()` en app.js): Neto en 0DTE y Perfil en el resto; el Worker
+aplica la misma regla a las vistas. Escáner, Compass y Validación usan siempre Perfil.
+
 Común a los dos:
 - GEX = signo · Γ · posición · 100 · S² · 1 %.
 - Tipo libre de riesgo: letra a 13 semanas (IRX de CBOE).

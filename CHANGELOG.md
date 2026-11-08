@@ -18,8 +18,9 @@ Cada push a `main` añade aquí una entrada, la más reciente arriba: fecha, tí
 **Añadido**
 - SPX, NDX, RUT, SPY, QQQ e IWM se recalculan cada 5 minutos con el mercado abierto (de 09:35 a 16:05 ET), con la
   cadena de opciones de Tradier en tiempo real.
-- El mapa del TRACE de esos seis usa velas de 5 minutos de Tradier, sin retraso: cada 5 minutos aparece la vela que
-  acaba de cerrar (la vela en curso no se muestra).
+- El mapa del TRACE de SPX, SPY, QQQ e IWM usa velas de 5 minutos de Tradier, sin retraso: cada 5 minutos aparece la
+  vela que acaba de cerrar (la vela en curso no se muestra; en el SPX, nada después del cierre). Tradier no da velas
+  de NDX ni de RUT: su mapa sigue con las de CBOE, aunque sus niveles se recalculan igualmente cada 5 minutos.
 - Administración: la pista de ciclos separa el ciclo completo (arriba) del de los índices (abajo), y el bloque del
   motor indica el último ciclo de los índices.
 

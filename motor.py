@@ -48,6 +48,7 @@ FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en forma
 DTES = list(g.DTE_FILTERS)  # 0, 1, 7, 14, 30, 45 y todos
 VAL_MODES = ["standard", "flow"]
 TIEMPO_REAL = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]  # ciclo ligero cada 5 min (motor.py rapido)
+VELAS_TRADIER = {"SPX", "SPY", "QQQ", "IWM"}  # Tradier no da velas de NDX ni RUT: van con las de CBOE
 SIEMPRE = ["VIX"]   # se calculan cada ciclo aunque no esten en ninguna lista (paquete, historico, volatilidad)
 DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
 
@@ -265,7 +266,7 @@ def paquete(sym: str) -> dict:
     except Exception as e:  # noqa: BLE001
         err(f"{sym} flujo", e)
     intr, velas = None, "cboe"
-    if sym in TIEMPO_REAL:
+    if sym in VELAS_TRADIER:
         try:
             import fuente_tradier as ft
             if ft.disponible() and not os.environ.get("GEX_FIXTURE_DIR"):

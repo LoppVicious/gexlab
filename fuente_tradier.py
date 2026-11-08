@@ -195,6 +195,8 @@ def velas(symbol: str, dias: int = 5) -> dict:
             continue
         if t0 + timedelta(minutes=5) > now or c <= 0:  # la vela en curso no se publica
             continue
+        if t0 + timedelta(minutes=5) > g.close_time(t0):  # el SPX se sigue calculando tras el cierre: fuera
+            continue
         out.append({"datetime": (t0 + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S"),
                     "price": {"open": o, "high": h, "low": l, "close": c}, "volume": b.get("volume")})
     if not out:

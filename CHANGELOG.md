@@ -3,6 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-10 — Curva VIX al día la misma tarde
+
+**Corregido**
+- **Curva VIX:** el cierre de los futuros del día ya aparece en el ciclo de las 18:00 ET (00:00 en España) en vez de al
+  día siguiente a las 13:45. Se toma de la liquidación diaria de CBOE hasta que llega a sus archivos históricos, de
+  madrugada; mientras tanto, el tooltip de cada vencimiento da el open interest de la sesión anterior y el volumen
+  como pendiente.
+
 ## 2026-11-09 — Menú Exportar más corto
 
 **Cambiado**

@@ -13,6 +13,7 @@ import json
 import os
 import threading
 import time
+import urllib.request
 from datetime import datetime, timedelta
 from urllib.parse import quote
 
@@ -22,6 +23,7 @@ import gex_engine as g
 
 CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
 VX_URL = "https://cdn.cboe.com/data/us/futures/market_statistics/historical_data/VX/VX_{d}.csv"
+SETTLE_URL = "https://www.cboe.com/us/futures/market_statistics/settlement/csv?dt={d}"
 VX_PAST = 14        # vencimientos ya liquidados que se descargan (historia de ~1 ano del M1/M2)
 VX_AHEAD = 10       # vencimientos futuros como maximo
 _lock = threading.Lock()
@@ -139,6 +141,54 @@ def _contract(exp: datetime, now: datetime) -> dict | None:
     return rows or None
 
 
+def _settlements(day: str) -> dict[str, float]:
+    """Liquidacion oficial de los futuros VX mensuales de un dia (vencimiento -> precio). CBOE la publica esa misma
+    tarde, mientras que los CSV por contrato no recogen el cierre hasta la madrugada siguiente. Si el dia aun no esta
+    publicado, CBOE devuelve sin avisar la ultima liquidacion que tenga: solo el nombre del archivo dice de que dia es."""
+    req = urllib.request.Request(SETTLE_URL.format(d=day), headers={"User-Agent": g._UA})
+    text = None
+    for ctx in g._SSL_CTXS:
+        try:
+            g._throttle()
+            with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
+                if f"_{day}." not in (r.headers.get("Content-Disposition") or ""):
+                    return {}
+                text = r.read().decode("utf-8", "replace")
+            break
+        except Exception:  # noqa: BLE001
+            continue
+    out = {}
+    for r in csv.DictReader(io.StringIO(text or "")):
+        if r.get("Product") != "VX" or not (r.get("Symbol") or "").startswith("VX/"):
+            continue  # semanales fuera: la curva es de vencimientos mensuales
+        try:
+            v = float(r.get("Price") or 0)
+        except ValueError:
+            continue
+        if v > 0:
+            out[r.get("Expiration Date") or ""] = v
+    return out
+
+
+def _completar_ultimo_cierre(contracts: dict[str, dict], now: datetime) -> None:
+    """Anade la liquidacion del ultimo dia a los contratos vivos que aun no la traen. Open interest: el de la sesion
+    anterior (marcado), solo sirve para decidir si el punto va hueco; el volumen queda sin dato."""
+    if os.environ.get("GEX_FIXTURE_DIR"):
+        return
+    day = _expected_last_settle(now)
+    faltan = [ek for ek, rows in contracts.items() if ek > day and day not in rows]
+    if not faltan:
+        return
+    precios = _settlements(day)
+    for ek in faltan:
+        if ek not in precios:
+            continue
+        rows = contracts[ek]
+        prev = rows[max(rows)]
+        # copia: las filas de la cache no deben quedarse con el cierre provisional
+        contracts[ek] = {**rows, day: {"settle": precios[ek], "vol": None, "oi": prev["oi"], "oi_prev": True}}
+
+
 _vix_cache: dict[str, tuple[float, dict]] = {}
 VOL_TERM = [("VIX9D", 9), ("VIX", 30), ("VIX3M", 91), ("VIX6M", 182), ("VIX1Y", 365)]
 
@@ -204,6 +254,7 @@ def _vix_curve() -> dict:
             contracts[e.strftime("%Y-%m-%d")] = rows
     if not contracts:
         raise ConnectionError("No se pudieron descargar los futuros del VIX de CBOE")
+    _completar_ultimo_cierre(contracts, now)
     exp_keys = sorted(contracts)
 
     vix_hist, _ = g.history_ohlc("VIX")
@@ -227,7 +278,8 @@ def _vix_curve() -> dict:
             r = contracts[ek].get(day)
             if r:
                 dd = (datetime.strptime(ek, "%Y-%m-%d") - datetime.strptime(day, "%Y-%m-%d")).days
-                out.append({"expiry": ek, "days": dd, "settle": r["settle"], "oi": r["oi"], "vol": r["vol"]})
+                out.append({"expiry": ek, "days": dd, "settle": r["settle"], "oi": r["oi"], "vol": r["vol"],
+                            **({"oi_prev": True} if r.get("oi_prev") else {})})
         return out
 
     # historia diaria del ultimo ano: M1, M2, contango M2/M1 y prima del sintetico a 30 dias sobre el VIX

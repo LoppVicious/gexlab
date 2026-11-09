@@ -2495,8 +2495,8 @@ function vixCurveTip(e) {
       <div class="r">Días al vencimiento <b>${c.days}</b></div>
       ${w ? `<div class="r">Hace 1 semana <b>${fmtNum(w, 2)}</b></div>` : ""}
       ${m ? `<div class="r">Hace 1 mes <b>${fmtNum(m, 2)}</b></div>` : ""}
-      <div class="r">Open interest <b>${fmtNum(c.oi)}</b></div>
-      <div class="r">Volumen <b>${fmtNum(c.vol)}</b></div>`;
+      <div class="r">Open interest${c.oi_prev ? " (sesión anterior)" : ""} <b>${fmtNum(c.oi)}</b></div>
+      <div class="r">Volumen <b>${c.vol == null ? "pendiente" : fmtNum(c.vol)}</b></div>`;
   }
   macroTip("vxTip", null, e, html);
 }

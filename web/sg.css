@@ -159,7 +159,6 @@ body.side-min .side .brand { justify-content: center; padding-left: 0; padding-r
 .chart-head button, .seg button, .tabs button { white-space: nowrap; }
 .chart-head .chart-caption { order: 10; flex-basis: 100%; }
 .chart-head .ghost { padding: 4px 10px; }
-#reportBtn { margin-left: auto; }
 
 /* ---------------------------------------------------------------- panel de volatilidad */
 body.vol-mode .controls { display: none; }

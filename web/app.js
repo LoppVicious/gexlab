@@ -665,7 +665,7 @@ function brandMark(x, y, size, op = 1, mono = false) {
     <rect x="12" y="6" width="3" height="5" rx="1" fill="${p}"/><rect x="17" y="3" width="3" height="8" rx="1" fill="${p}"/>
     <line x1="1" y1="11" x2="21" y2="11" stroke="${a}" stroke-width="1.2"/></g>`;
 }
-// firma de las imagenes exportadas (Copiar, PNG, Informe): logo y nombre arriba a la derecha
+// firma de las imagenes exportadas (Copiar, Informe): logo y nombre arriba a la derecha
 function brandSign(right, y, fs) {
   const w = textW("GEX Lab", fs) * 1.05;
   return brandMark(right - w - fs * 1.7, y - fs * 1.05, fs * 1.4) +
@@ -1535,8 +1535,8 @@ function hideTip() {
   svg.querySelector("#cross")?.setAttribute("visibility", "hidden");
 }
 
-/* ============================================================ exportar PNG */
-// imagen del grafico visible (mismo formato que Exportar PNG) como Blob
+/* ============================================================ copiar imagen */
+// imagen del grafico visible como Blob PNG
 function chartPngBlob() {
   const d = typeof zoomed === "function" ? zoomed(state.data, state.view) : state.data;
   const isMap = state.view === "map" && state.heat;
@@ -1565,23 +1565,12 @@ function chartPngBlob() {
   });
 }
 
-async function exportPNG() {
-  const d = state.data;
-  if (!d) return;
-  const b = await chartPngBlob();
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(b);
-  a.download = `GEX_${d.symbol}_${(d.computed_at || "").slice(0, 10)}_${{ profile: "perfil", map: "mapa", impact: "impacto" }[state.view] || "strikes"}.png`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
 // copia la imagen al portapapeles: la escritura se pide dentro del clic (con la imagen como promesa),
 // que es lo que exige el navegador
 function copyPNG() {
   if (!state.data) return;
   const btn = $("copyBtn");
-  if (!navigator.clipboard || !window.ClipboardItem) { toast("No se puede copiar", "Este navegador no permite copiar imágenes; usa Exportar PNG."); return; }
+  if (!navigator.clipboard || !window.ClipboardItem) { toast("No se puede copiar", "Este navegador no permite copiar imágenes."); return; }
   btn.disabled = true;
   navigator.clipboard.write([new ClipboardItem({ "image/png": chartPngBlob() })])
     .then(() => toast("Imagen copiada", "Pégala con Ctrl+V."))
@@ -3064,7 +3053,6 @@ async function init() {
   $("tabHistory").addEventListener("click", () => setView("history"));
   $("tabProfile").addEventListener("click", () => setView("profile"));
   $("tabMap").addEventListener("click", () => setView("map"));
-  $("exportBtn").addEventListener("click", exportPNG);
   $("copyBtn").addEventListener("click", copyPNG);
   $("tvBtn").addEventListener("click", copyTV);
   $("chart").addEventListener("mousemove", onMove);

@@ -7,7 +7,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 
 **Cambiado**
 - **Strikes por ticker:** el gráfico por strike y los niveles usan una rejilla fija en los tickers principales:
-  SPX de 25 en 25, NDX de 100 en 100, y SPY, QQQ e IWM de 5 en 5. Los strikes intermedios no se descartan: su gamma
+  SPX de 25 en 25, NDX de 100 en 100, SPY y QQQ de 5 en 5, e IWM de 1 en 1. Los strikes intermedios no se descartan: su gamma
   se suma a la barra más cercana (llevan entre el 10 y el 35% del open interest cerca del precio). El resto de
   tickers sigue con el paso automático.
 - **Exportar:** se quita «Descargar PNG»; quedan Copiar imagen, Informe completo y Niveles para TradingView.

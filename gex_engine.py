@@ -1029,7 +1029,7 @@ def _strike_step(K: np.ndarray, spot: float) -> float:
 
 # paso minimo de la rejilla de strikes en los tickers principales: los strikes intermedios (SPX de 5 en 5, SPY de 1 en 1...)
 # se suman a la barra mas cercana de la rejilla, no se descartan (llevan entre el 10 y el 35% del open interest cercano)
-STRIKE_GRID = {"SPX": 25, "NDX": 100, "SPY": 5, "QQQ": 5, "IWM": 5}
+STRIKE_GRID = {"SPX": 25, "NDX": 100, "SPY": 5, "QQQ": 5, "IWM": 1}
 
 
 def _nice_round(x: float, step: float) -> float:

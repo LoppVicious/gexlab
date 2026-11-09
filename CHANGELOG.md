@@ -3,6 +3,12 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-09 — Documentación interna reorganizada
+
+**Cambiado**
+- Sin cambios en la web. La guía de trabajo (`CLAUDE.md`) se resume y su detalle pasa a `docs/ARQUITECTURA.md`;
+  los pendientes e ideas, a `docs/ESTADO.md`.
+
 ## 2026-11-08 — Índices en tiempo real, delta y open interest, panel de opciones, administración y motores Neto / Perfil
 
 **Añadido**

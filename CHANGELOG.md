@@ -3,13 +3,9 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-09 — Rejilla de strikes fija en los índices principales y menú Exportar más corto
+## 2026-11-09 — Menú Exportar más corto
 
 **Cambiado**
-- **Strikes por ticker:** el gráfico por strike y los niveles usan una rejilla fija en los tickers principales:
-  SPX de 25 en 25, NDX de 100 en 100, SPY y QQQ de 5 en 5, e IWM de 1 en 1. Los strikes intermedios no se descartan: su gamma
-  se suma a la barra más cercana (llevan entre el 10 y el 35% del open interest cerca del precio). El resto de
-  tickers sigue con el paso automático.
 - **Exportar:** se quita «Descargar PNG»; quedan Copiar imagen, Informe completo y Niveles para TradingView.
 - Documentación interna: la guía de trabajo (`CLAUDE.md`) se resume y su detalle pasa a `docs/ARQUITECTURA.md`;
   los pendientes e ideas, a `docs/ESTADO.md`.

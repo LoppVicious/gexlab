@@ -1027,11 +1027,6 @@ def _strike_step(K: np.ndarray, spot: float) -> float:
     return mode if mode / step > 10 else step
 
 
-# paso minimo de la rejilla de strikes en los tickers principales: los strikes intermedios (SPX de 5 en 5, SPY de 1 en 1...)
-# se suman a la barra mas cercana de la rejilla, no se descartan (llevan entre el 10 y el 35% del open interest cercano)
-STRIKE_GRID = {"SPX": 25, "NDX": 100, "SPY": 5, "QQQ": 5, "IWM": 1}
-
-
 def _nice_round(x: float, step: float) -> float:
     return round(round(x / step) * step, 4)
 
@@ -1663,8 +1658,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     cex = pos * day_move * 100.0 * spot
 
     # --- rejilla de strikes amplia (los niveles se calculan aqui, no en la ventana visible)
-    fine = _strike_step(index_K[np.isin(index_K, K)] if combine else K, spot)
-    step = max(STRIKE_GRID.get(normalize(symbol), 0), fine)
+    step = _strike_step(index_K[np.isin(index_K, K)] if combine else K, spot)
     wide = max(LEVEL_WINDOW_PCT, window_pct)
     g_lo = math.floor(spot * (1 - wide / 100) / step) * step
     g_hi = math.ceil(spot * (1 + wide / 100) / step) * step
@@ -1803,7 +1797,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         flip_exact = float(mids[best[np.argmin(np.abs(mids[best] - spot))]])
     elif zero_gamma is not None:
         flip_exact = zero_gamma
-    flip = _nice_round(flip_exact, fine) if flip_exact else None
+    flip = _nice_round(flip_exact, step) if flip_exact else None
 
     # Call Wall y Put Wall: la mayor GEX neta positiva y la mayor negativa del rango, esten por encima o por debajo
     # del precio (como gexbot). Si no hay barras de ese signo, la mayor gamma de calls o de puts.
@@ -1870,7 +1864,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
                     "month_exp": str(month_exp) if month_exp is not None else None,
                     "d": np.round(pd_tot).tolist(), "d_next": np.round(pd_next).tolist(), "d_month": np.round(pd_month).tolist()},
         "delta": delta_out,
-        "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, fine, window_pct),
+        "hub": ticker_stats(ch, normalize(symbol), spot, now, xs, prof, step, window_pct),
         "levels": {"call_wall": call_wall, "put_wall": put_wall, "flip": flip,
                    "flip_exact": flip_exact, "vt": vt, "abs_gamma": abs_g, "zero_gamma": zero_gamma,
                    "window": lw},

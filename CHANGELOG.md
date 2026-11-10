@@ -22,7 +22,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   curva de hace un mes. La sesión anterior aparece en el gráfico, la leyenda y los tooltips.
 - **Curva VIX en directo:** durante la sesión, una línea con el precio de cada futuro VX implícito en las opciones del
   VIX (paridad put-call), actualizada en cada ciclo del motor e incluidos los vencimientos semanales. Se ve desde la
-  apertura hasta que CBOE publica la liquidación del día; la curva oficial pasa a llamarse «Last close».
+  apertura hasta que CBOE publica la liquidación del día; la curva oficial lleva en la leyenda la fecha de su cierre (p. ej. «Close (Nov 9)»).
 
 **Corregido**
 - **Call Wall y Put Wall (motor Perfil)** dependían del rango visible: en BABA el Hub a ±20 % daba la Call Wall en

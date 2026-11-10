@@ -2450,7 +2450,7 @@ function renderVixCurve() {
   for (const q of term) vx.curveGeo.push({ x: xOf(q.days), y: yOf(q.v), term: q });
   for (const q of live) vx.curveGeo.push({ x: xOf(q.days), y: yOf(q.v), live: q });
   // leyenda
-  const items = [["Last close", col, ""], [live.length ? `Live from options (${hhmm(utcDate(d.live.time))})` : "", C.text, ""], [d.prev ? `Previous session (${ddmm(d.prev.date)})` : "", C.muted, ""], ["1 week ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
+  const items = [[`Close (${ddmm(d.date)})`, col, ""], [live.length ? `Live from options (${hhmm(utcDate(d.live.time))})` : "", C.text, ""], [d.prev ? `Previous session (${ddmm(d.prev.date)})` : "", C.muted, ""], ["1 week ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
     .filter((it, k) => (k === 1 ? live.length : k === 2 ? prev.length : k === 3 ? week.length : k === 4 ? term.length : true));
   s += legendRows(items, W < 640 ? 8 : L, R, 14);
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;

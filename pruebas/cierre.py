@@ -45,6 +45,10 @@ for sym in ("KWEB", "MCHI"):
     hist = g.read_json(os.path.join(g.HIST_DIR, f"{sym}.json"), {}) or {}
     ok(len(hist) >= 7, f"{sym}: historial de niveles ({len(hist)} claves)")
     day = fake.strftime("%Y-%m-%d")
+    if not os.path.exists(g._snap_path(sym, day)):
+        ch = g.parse_chain(g.fetch_chain(sym))
+        print("  diagnostico:", sym, "timestamp", ch["timestamp"], "sesion", g.session_date(ch["timestamp"]),
+              "copias", os.listdir(os.path.dirname(g._snap_path(sym, day))) if os.path.isdir(os.path.dirname(g._snap_path(sym, day))) else "sin carpeta")
     ok(os.path.exists(g._snap_path(sym, day)), f"{sym}: copia de la cadena del dia")
     iv = g.read_json(os.path.join(g.HIST_DIR, f"ivsurf_{sym}.json"), {}) or {}
     ok(day in iv, f"{sym}: punto de volatilidad del dia")

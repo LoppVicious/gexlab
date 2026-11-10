@@ -71,6 +71,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Informe (Export ▸ Report):** fallaba con «Could not create the image» porque el título «Call & put impact»
   llevaba un `&` sin escapar y el SVG del informe dejaba de ser XML válido. Afectaba también a copiar o descargar
   la imagen de la vista Impact.
+- **Informe:** el logo de GEX Lab se montaba sobre la primera cifra clave; pasa al pie, junto a la hora de
+  generación. La pastilla «Negative gamma» cortaba la última letra: los anchos de texto de las imágenes exportadas
+  se miden ahora con el grosor real y con la fuente de respaldo, que es la que dibuja el navegador en una imagen.
 
 ## 2026-11-09 — Menú Exportar más corto
 

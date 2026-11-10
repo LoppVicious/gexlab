@@ -89,7 +89,7 @@ function renderImpact(d, W, H, exp = false) {
   labs.forEach(([v, col, lab], row) => {
     const x = xOf(v), y = T - 10 - row * (fs + 8);
     const t = `${lab} ${lab === "Previous close" ? fmtSpot(v) : fmtLevel(v)}`;
-    const tx = Math.min(x + 5, R - textW(t, fs) - 2);
+    const tx = Math.min(x + 5, R - textW(t, fs, 600, exp) - 2);
     s += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${B}" stroke="${col}" stroke-width="1.6"/>` +
       `<text x="${tx}" y="${y}" font-family="${SANS}" font-size="${fs}" font-weight="600" fill="${col}">${t}</text>`;
   });

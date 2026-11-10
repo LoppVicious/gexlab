@@ -682,7 +682,7 @@ function brandMark(x, y, size, op = 1, mono = false) {
 }
 // firma de las imagenes exportadas (Copiar, Informe): logo y nombre arriba a la derecha
 function brandSign(right, y, fs) {
-  const w = textW("GEX Lab", fs) * 1.05;
+  const w = textW("GEX Lab", fs, 600, true);
   return brandMark(right - w - fs * 1.7, y - fs * 1.05, fs * 1.4) +
     `<text x="${right}" y="${y}" text-anchor="end" font-family="${SANS}" font-size="${fs}" font-weight="600" fill="${C.muted}">GEX Lab</text>`;
 }
@@ -1697,12 +1697,13 @@ async function exportReport() {
   // --- cabecera: identidad, precio y regimen
   const date = fullDate(d.session || (d.computed_at || "").slice(0, 10));
   s += T(56, 74, esc(d.symbol), { fs: 46, w: 700 });
-  s += T(56 + textW(d.symbol, 46) * 1.05 + 20, 74, `${esc(d.name || "")}${d.combo ? ` + ${esc(d.combo.proxy)}` : ""}`, { fs: 22, c: C.muted });
+  s += T(56 + textW(d.symbol, 46, 700, true) + 20, 74, `${esc(d.name || "")}${d.combo ? ` + ${esc(d.combo.proxy)}` : ""}`, { fs: 22, c: C.muted });
   s += T(56, 112, `${dte}, ${date}, ${state.pos === "flow" ? "dealers from flow" : "standard convention"}`, { fs: 19, c: C.faint });
   s += T(56, 200, fmtSpot(d.spot), { fs: 76, w: 600 });
   const chg = d.chg_pct;
-  if (chg != null && !d.spot_manual) s += T(56 + textW(fmtSpot(d.spot), 76) * 1.02 + 22, 200, fmtPct(chg), { fs: 28, w: 500, c: chg >= 0 ? C.put : C.call });
-  s += `<rect x="56" y="232" width="${textW(neg ? "Negative gamma" : "Positive gamma", 20) + 34}" height="38" rx="19" fill="${neg ? C.neg : C.pos}" fill-opacity="0.16"/>`;
+  if (chg != null && !d.spot_manual) s += T(56 + textW(fmtSpot(d.spot), 76, 600, true) + 22, 200, fmtPct(chg), { fs: 28, w: 500, c: chg >= 0 ? C.put : C.call });
+  // pastilla: 30 px a la izquierda (punto) y 18 a la derecha del texto
+  s += `<rect x="56" y="232" width="${textW(neg ? "Negative gamma" : "Positive gamma", 20, 600, true) + 48}" height="38" rx="19" fill="${neg ? C.neg : C.pos}" fill-opacity="0.16"/>`;
   s += `<circle cx="74" cy="251" r="5" fill="${neg ? C.neg : C.pos}"/>` + T(86, 258, neg ? "Negative gamma" : "Positive gamma", { fs: 20, w: 600, c: neg ? C.neg : C.pos });
   s += T(56, 300, neg ? "Below the flip: dealer hedging tends" : "Above the flip: dealer hedging tends", { fs: 20, c: C.muted });
   s += T(56, 326, neg ? "to amplify moves." : "to dampen moves.", { fs: 20, c: C.muted });
@@ -1729,7 +1730,7 @@ async function exportReport() {
       const was = p[r.key], same = Math.abs(was - r.v) < 1e-9, up = r.v > was;
       s += same ? T(lx + 530, y, `same as ${ddmm(p.date)}`, { fs: 17, c: C.faint })
         : T(lx + 530, y, `${ddmm(p.date)}: ${fmtLevel(was)}`, { fs: 17, c: C.faint }) +
-          T(lx + 530 + textW(`${ddmm(p.date)}: ${fmtLevel(was)}`, 17) + 10, y, `${up ? "▲" : "▼"} ${fmtLevel(Math.abs(r.v - was))}`, { fs: 17, w: 600, c: up ? C.put : C.call });
+          T(lx + 530 + textW(`${ddmm(p.date)}: ${fmtLevel(was)}`, 17, 400, true) + 10, y, `${up ? "▲" : "▼"} ${fmtLevel(Math.abs(r.v - was))}`, { fs: 17, w: 600, c: up ? C.put : C.call });
     }
   });
 
@@ -1779,9 +1780,9 @@ async function exportReport() {
   });
 
   // --- pie
-  s += brandSign(W - 56, 74, 26);
-  s += T(56, H - 28, `GEX Lab. Options from ${d.source === "tradier" ? "Tradier (real time at calculation)" : "CBOE (~15 min delay)"}, open interest from the previous close. Not financial advice`, { fs: 17, c: C.faint });
-  s += T(W - 56, H - 28, `Generated ${fullDate(new Date().toISOString().slice(0, 10))} ${hhmm(new Date())}`, { a: "end", fs: 17, c: C.faint });
+  // la firma va en el pie: arriba a la derecha se montaba sobre las cifras clave
+  s += brandSign(W - 56, H - 26, 22);
+  s += T(56, H - 28, `Generated ${fullDate(new Date().toISOString().slice(0, 10))} ${hhmm(new Date())}. Options from ${d.source === "tradier" ? "Tradier (real time at calculation)" : "CBOE (~15 min delay)"}, open interest from the previous close. Not financial advice`, { fs: 17, c: C.faint });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}${impSvg}${strikeSvg}${mapSvg}</svg>`;
   svgToPng(svg, W, H, `Report_${d.symbol}_${d.session || ""}.png`, 1.25);
@@ -2297,7 +2298,13 @@ function longDate(iso) {
   return d.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" });
 }
 const _measure = document.createElement("canvas").getContext("2d");
-function textW(s, fs) { _measure.font = `${fs}px ${SANS}`; return _measure.measureText(s).width; }
+// ancho de un texto; img: en las imagenes exportadas (SVG cargado como imagen) no llega la fuente web y el navegador
+// dibuja con la de respaldo, asi que se mide con esa
+const IMG_SANS = SANS.replace("'IBM Plex Sans', ", "");
+function textW(s, fs, w = 400, img = false) {
+  _measure.font = `${w} ${fs}px ${img ? IMG_SANS : SANS}`;
+  return _measure.measureText(s).width;
+}
 // leyenda en linea que salta de fila si no cabe (moviles); alineada a la derecha si cabe en una
 function legendRows(items, L, R, y0, fs = 12) {
   const ws = items.map(([lab]) => textW(lab, fs) + 44);

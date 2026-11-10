@@ -32,6 +32,9 @@ INDEX_SYMBOLS = {"SPX", "NDX", "RUT", "VIX", "XSP", "DJX", "OEX", "XND", "MRUT",
 AM_SETTLED_ROOTS = {"SPX", "NDX", "RUT", "DJX", "OEX", "VIX", "VIXW"}  # liquidacion AM (precio de apertura)
 # ETF que cotizan fuera de horario y sirven para estimar el pre-market de cada indice
 INDEX_PROXY = {"SPX": "SPY", "XSP": "SPY", "NDX": "QQQ", "RUT": "IWM", "DJX": "DIA"}
+# mapa del TRACE con tramo previo a la apertura (desde PRE_OPEN): velas del ETF, escaladas al indice hasta las 09:30
+PRE_PROXY = {"SPX": "SPY", "NDX": "QQQ", "RUT": "IWM", "SPY": "SPY", "QQQ": "QQQ", "IWM": "IWM"}
+PRE_OPEN = (7, 0)
 YEAR_MIN = 365.0 * 24 * 60
 # Calendario oficial NYSE (NYSE Group, dic-2025). Actualizar cada ano.
 NYSE_HOLIDAYS = {
@@ -2077,7 +2080,9 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             approx = True  # sin copia de esa sesion: faltan los contratos que vencieron ese dia
     if combine:
         ch, _ = combine_with_proxy(symbol, ch)
-    t0, t1 = sess.replace(hour=9, minute=30), close_time(sess) - timedelta(minutes=5)
+    t_open = sess.replace(hour=9, minute=30)
+    t0 = sess.replace(hour=PRE_OPEN[0], minute=PRE_OPEN[1]) if symbol in PRE_PROXY else t_open
+    t1 = close_time(sess) - timedelta(minutes=5)
     times = []
     t = t0
     while t <= t1:
@@ -2166,12 +2171,13 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         log_sk += np.log(fut_rel)[None, :].astype(np.float32)
     # columna de referencia para las barras laterales del modo "por strike": la hora actual con el mercado
     # abierto o la ultima vela de la sesion repetida; sin velas, la primera columna (la proxima sesion)
-    live_now = market_open(now) and sess.date() == now.date()
+    pre_now = t0 < t_open and t0 <= now < t_open and sess.date() == now.date() and is_trading_day(now)
+    live_now = (market_open(now) or pre_now) and sess.date() == now.date()
     if live_now:
         jref = max(0, min(len(times) - 1, int(((now - t0).total_seconds() / 60) // step_min)))
     elif candles:
         hh, mm = map(int, candles[-1][0].split(":"))
-        jref = max(0, min(len(times) - 1, ((hh * 60 + mm) - (9 * 60 + 30)) // step_min))
+        jref = max(0, min(len(times) - 1, ((hh * 60 + mm) - (t0.hour * 60 + t0.minute)) // step_min))
     else:
         jref = 0
     kbar = None
@@ -2212,7 +2218,9 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
                   combine=combine, positioning=positioning)
     res = {
         "symbol": symbol, "spot": spot, "session": day, "kind": kind, "approx": approx,
-        "live": market_open(now) and sess.date() == now.date(),
+        "live": live_now, "pre": pre_now,
+        # velas antes de las 09:30: del ETF (escaladas al indice si no es el propio ETF)
+        "pre_src": (raw or {}).get("pre_src") if any(c[0] < "09:30" for c in candles) else None,
         "now": now.strftime("%H:%M"),
         "times": [t.strftime("%H:%M") for t in times],
         "prices": ys.tolist(), "z": np.round(Z, 0).tolist(), "zk": np.round(ZK, 0).tolist(),

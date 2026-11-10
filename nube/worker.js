@@ -528,11 +528,12 @@ function toca(d) {
   return false;
 }
 
-// ciclo ligero de los indices en tiempo real (motor.py rapido): cada 5 min de 09:35 a 16:05 ET en dias laborables,
-// justo tras cerrar cada vela de 5 min (la de 16:05 recoge la ultima de la sesion); el motor descarta festivos
+// ciclo ligero de los indices en tiempo real (motor.py rapido): cada 5 min de 07:05 a 16:05 ET en dias laborables,
+// justo tras cerrar cada vela de 5 min (de 07:05 a 09:30, el tramo previo a la apertura con las velas del ETF;
+// la de 16:05 recoge la ultima de la sesion); el motor descarta festivos
 function tocaRapido(d) {
   const { wd, min } = nyParts(d);
-  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min % 5 === 0 && min >= 9 * 60 + 35 && min <= 16 * 60 + 5;
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min % 5 === 0 && min >= 7 * 60 + 5 && min <= 16 * 60 + 5;
 }
 
 // historial diario (historial500.yml): dias laborables a las 16:30 ET; el script descarta festivos

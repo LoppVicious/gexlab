@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web
+## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE
 
 **Añadido**
 - **El historial diario alimenta toda la web:** cada día, tras el cierre (desde las 16:20 ET), el motor calcula
@@ -12,8 +12,13 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   sesión anterior y hace una semana, percentiles 10-90 a partir de 15 sesiones), el Histórico y el modo flujo, y
   se abren al instante con los datos del último cierre en lugar del aviso «Downloading … in the cloud». La pasada
   se reparte entre los ciclos de después del cierre y no repite los ya hechos en la sesión.
-- **Prueba de datos fuera de horario:** `pruebas/tradier_premarket.py` comprueba qué da Tradier antes de la
-  apertura (velas de SPY y SPX, operaciones nocturnas de SPXW, futuros), para estudiar velas pre-market en el TRACE.
+- **Pre-market en el TRACE:** el mapa de SPX, NDX, RUT, SPY, QQQ e IWM empieza a las 07:00 ET. Antes de la
+  apertura muestra, atenuadas, las velas de 5 min del ETF fuera de horario (SPY, QQQ, IWM), escaladas al índice, y
+  una línea discontinua a las 09:30. Desde las 09:40 esas velas se reescalan con la relación índice/ETF del día, así
+  que empalman sin salto con el índice real (también el día del dividendo del ETF). Antes de abrir, el precio y los
+  niveles van con la última vela y el motor rápido se actualiza cada 5 min desde las 07:05. El open interest sigue
+  siendo el del cierre anterior: en ese tramo el mapa cambia con el precio. Pruebas con datos reales en
+  `pruebas/tradier_premarket.py` y `pruebas/premarket_mapa.py`.
 
 **Cambiado**
 - **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y

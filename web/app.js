@@ -761,7 +761,8 @@ function renderMap(d, hm, W, H, exp = false) {
   const heatR = W - edge - cbW - cbGap - tagW;
   const pLo = hm.prices[0], pHi = hm.prices[hm.prices.length - 1];
   const yOf = (p) => bottom - ((p - pLo) / (pHi - pLo)) * (bottom - top);
-  const m0 = minutesOf("09:30"), m1 = minutesOf("16:00");
+  // el mapa de los indices empieza antes de la apertura (tramo previo con las velas del ETF)
+  const m0 = minutesOf(hm.times[0] || "09:30"), m1 = minutesOf("16:00"), mOpen = minutesOf("09:30");
   const xOf = (hhmm) => heatL + ((minutesOf(hhmm) - m0) / (m1 - m0)) * (heatR - heatL);
   const lastX = xOf(hm.times[hm.times.length - 1]) + (heatR - heatL) * 5 / (m1 - m0);
   if (!state.heatImg) state.heatImg = buildHeatImage(hm);
@@ -812,7 +813,11 @@ function renderMap(d, hm, W, H, exp = false) {
   s += `<rect x="${heatL}" y="${top}" width="${heatR - heatL}" height="${bottom - top}" fill="none" stroke="${C.line || C.axis}"/>`;
 
   // horas
-  for (let h = 10; h <= 16; h += narrow ? 2 : 1) {
+  if (m0 < mOpen) {  // apertura: separa el tramo previo de la sesion
+    const ox = xOf("09:30");
+    s += `<line x1="${ox}" x2="${ox}" y1="${top}" y2="${bottom}" stroke="${C.muted}" stroke-opacity="0.6" stroke-dasharray="3 3"/>`;
+  }
+  for (let h = Math.ceil(m0 / 60) + (m0 < mOpen && narrow ? 1 : 0); h <= 16; h += narrow ? 2 : 1) {
     const hh = String(h).padStart(2, "0") + ":00", x = xOf(hh);
     s += `<line x1="${x}" x2="${x}" y1="${bottom}" y2="${bottom + 5}" stroke="${C.muted}"/>`;
     s += `<text x="${x}" y="${bottom + small + 10}" text-anchor="middle" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${nyHHMM(hm.session + " " + hh) || hh}</text>`;
@@ -854,8 +859,10 @@ function renderMap(d, hm, W, H, exp = false) {
       const x = xOf(t) + slot / 2;
       const up = c >= o;
       const yT = yOf(Math.max(o, c)), yB = yOf(Math.min(o, c));
-      cs += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yOf(h).toFixed(1)}" y2="${yOf(l).toFixed(1)}" stroke="${C.candle}" stroke-width="1"/>`;
-      cs += `<rect x="${(x - cw / 2).toFixed(1)}" y="${yT.toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(1, yB - yT).toFixed(1)}" fill="${up ? C.candle : C.ink}" stroke="${C.candle}" stroke-width="0.9"/>`;
+      // antes de la apertura, atenuadas: son del ETF (escaladas al indice), no del indice
+      const op = minutesOf(t) < mOpen ? ` opacity="0.45"` : "";
+      cs += `<g${op}><line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yOf(h).toFixed(1)}" y2="${yOf(l).toFixed(1)}" stroke="${C.candle}" stroke-width="1"/>`;
+      cs += `<rect x="${(x - cw / 2).toFixed(1)}" y="${yT.toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(1, yB - yT).toFixed(1)}" fill="${up ? C.candle : C.ink}" stroke="${C.candle}" stroke-width="0.9"/></g>`;
     }
     s += `<g clip-path="url(#heatclip${exp ? "e" : "s"})">${cs}</g>`;
     s += `<clipPath id="heatclip${exp ? "e" : "s"}"><rect x="${heatL}" y="${top}" width="${heatR - heatL}" height="${bottom - top}"/></clipPath>`;
@@ -934,9 +941,12 @@ function mapCaption() {
   const dia = `${DIAS_SEM[dt.getDay()]} ${ddmm(hm.session)}`;
   if (state.mapKind !== hm.kind) { state.mapKind = hm.kind; if (!$("chartSet").hidden) renderSet(); }
   const cap = $("caption");
-  if (hm.live) cap.textContent = `Today's session (${dia}), with open interest from the previous close`;
+  const pre = hm.pre_src ? (hm.pre_src === hm.symbol ? ` Pre-market candles (faded) are extended-hours ${hm.pre_src}.`
+    : ` Pre-market candles (faded) are ${hm.pre_src} scaled to ${hm.symbol}, rescaled at 09:40 so they join the index.`) : "";
+  if (hm.pre) cap.textContent = `Pre-market (${dia}), with open interest from the previous close.` + pre;
+  else if (hm.live) cap.textContent = `Today's session (${dia}), with open interest from the previous close.` + pre;
   else if (hm.kind === "next") cap.textContent = `Projection for ${dia}. Candles will appear when the session opens`;
-  else cap.textContent = `Session of ${dia}` + (hm.approx ? ". Approximate: CBOE no longer publishes the contracts that expired that day" : "");
+  else cap.textContent = `Session of ${dia}` + (hm.approx ? ". Approximate: CBOE no longer publishes the contracts that expired that day" : ".") + pre;
   cap.title = hm.approx ? "From now on the app saves a copy of the chain during each session, so future replays will be exact." : "";
 }
 

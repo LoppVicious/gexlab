@@ -446,7 +446,7 @@
 </main>
 
 <footer class="foot">
-  Real-time Tradier options: SPX, NDX, RUT, SPY, QQQ and IWM are recalculated every 5 minutes while the market is open, with 5-minute candles in TRACE; everything else every 15 minutes, with CBOE candles (~15 min delay). If Tradier fails, CBOE is used. Open interest is from the previous close. Dealer sign follows the standard convention: long calls, short puts. The Volatility Trigger (Hedge Wall for stocks) is our own approximation, not the SpotGamma level.
+  Real-time Tradier options: SPX, NDX, RUT, SPY, QQQ and IWM are recalculated every 5 minutes from 07:00 ET to the close, with 5-minute candles in TRACE (before the open, the ETF's extended-hours candles, scaled to the index); everything else every 15 minutes, with CBOE candles (~15 min delay). If Tradier fails, CBOE is used. Open interest is from the previous close. Dealer sign follows the standard convention: long calls, short puts. The Volatility Trigger (Hedge Wall for stocks) is our own approximation, not the SpotGamma level.
 </footer>
 </div>
 </div>

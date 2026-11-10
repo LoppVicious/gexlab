@@ -281,6 +281,18 @@ def paquete(sym: str) -> dict:
             err(f"{sym} velas de Tradier", e)
     if not intr:
         intr = g.fetch_aux("intraday", sym, ttl=60)
+    etf = g.PRE_PROXY.get(sym)
+    if etf:  # tramo previo a la apertura con las velas del ETF (escaladas al indice)
+        try:
+            import fuente_tradier as ft
+            if ft.disponible() and not os.environ.get("GEX_FIXTURE_DIR"):
+                pre = ft.velas_pre(sym, etf, (intr or {}).get("data") or [])
+                if pre:
+                    intr = {**(intr or {}), "data": pre + list((intr or {}).get("data") or []), "pre_src": etf}
+                    if g.premarket(g.now_ny()):  # antes de abrir, el precio es el de la ultima vela, no el de ayer
+                        mn["spot"] = pre[-1]["price"]["close"]
+        except Exception as e:  # noqa: BLE001
+            err(f"{sym} velas pre-market", e)
     if intr:
         files[f"fx/intraday_{sym}.json"] = intr
     proxy = g.INDEX_PROXY.get(sym)
@@ -612,7 +624,8 @@ def rapido() -> int:
     # dias sin mercado o fuera de sesion (el reloj del Worker no conoce los festivos ni los cierres a las 13:00):
     # hasta 6 min tras el cierre, para recoger la ultima vela
     from datetime import timedelta
-    if not (g.market_open(now) or g.market_open(now - timedelta(minutes=6))):
+    pre = g.is_trading_day(now) and g.PRE_OPEN <= (now.hour, now.minute) < (9, 30)  # tramo previo del TRACE
+    if not (pre or g.market_open(now) or g.market_open(now - timedelta(minutes=6))):
         log(f"rapido: mercado cerrado ({now:%Y-%m-%d %H:%M} ET), nada que hacer")
         return 0
     return tickers(TIEMPO_REAL, ligero=True)

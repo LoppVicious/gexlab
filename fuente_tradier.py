@@ -181,3 +181,58 @@ def velas(symbol: str, dias: int = 5) -> dict:
     if not out:
         raise TradierError(f"Tradier no tiene velas de {sym}")
     return {"symbol": sym, "source": "tradier", "interval": "5min", "data": out}
+
+
+def velas_pre(symbol: str, etf: str, indice: list[dict]) -> list[dict]:
+    """Velas de 5 min de hoy antes de la apertura (desde gex_engine.PRE_OPEN), del ETF que cotiza fuera de horario y
+    escaladas al indice. Ratio: indice / ETF al cierre de la vela de 09:35-09:40 (con todas las acciones del indice ya
+    abiertas: la primera vela del indice lleva precios de ayer), sacado de `indice` (velas del propio indice, formato
+    CBOE); hasta entonces, el de los cierres de ayer. Asi el tramo empalma sin salto con el indice real y no arrastra el
+    dividendo del ETF. Mismo formato y marca de tiempo (minuto de cierre) que velas()."""
+    import gex_engine as g
+    from datetime import timedelta
+    sym, etf = symbol.upper(), etf.upper()
+    now = g.now_ny().replace(tzinfo=None, second=0, microsecond=0)
+    ini = now.replace(hour=g.PRE_OPEN[0], minute=g.PRE_OPEN[1])
+    if not g.is_trading_day(now) or now < ini + timedelta(minutes=5):
+        return []
+    dia = now.strftime("%Y-%m-%d")
+    d = _get(f"/markets/timesales?symbol={etf}&interval=5min&start={dia}%20{ini:%H:%M}"
+             f"&end={dia}%2009:45&session_filter=all")
+    pre, ref = [], None
+    for b in _lista(((d or {}).get("series") or {}).get("data")):
+        try:
+            t0 = datetime.strptime(str(b["time"])[:16], "%Y-%m-%dT%H:%M")
+            o, h, l, c = (float(b[k]) for k in ("open", "high", "low", "close"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if t0 + timedelta(minutes=5) > now or c <= 0:
+            continue
+        if t0 < now.replace(hour=9, minute=30):
+            pre.append((t0, o, h, l, c))
+        elif t0 == now.replace(hour=9, minute=35):
+            ref = c
+    if not pre:
+        return []
+    ratio = 1.0
+    if sym != etf:
+        ratio = None
+        if ref:  # cierre del indice a las 09:40 (ultima vela del indice entre 09:36 y 09:40)
+            fin = [b for b in indice if f"{dia} 09:36" <= str(b.get("datetime", ""))[:16].replace("T", " ") <= f"{dia} 09:40"
+                   and (b.get("price") or {}).get("close")]
+            if fin:
+                ratio = float(fin[-1]["price"]["close"]) / ref
+        if ratio is None:
+            q = {x.get("symbol"): x for x in _lista(((_get(f"/markets/quotes?symbols={sym},{etf}") or {})
+                                                     .get("quotes") or {}).get("quote"))}
+            qs = q.get(sym) or {}
+            a, b_ = float(qs.get("prevclose") or 0), float((q.get(etf) or {}).get("prevclose") or 0)
+            if a <= 0:  # Tradier no da prevclose de RUT: ultima vela de una sesion anterior, o el ultimo valor del
+                ant = [b for b in indice if str(b.get("datetime", ""))[:10] < dia and (b.get("price") or {}).get("close")]
+                a = float(ant[-1]["price"]["close"]) if ant else float(qs.get("last") or 0)  # indice (aun sin abrir)
+            if a <= 0 or b_ <= 0:
+                return []
+            ratio = a / b_
+    r = lambda v: round(v * ratio, 2)  # noqa: E731
+    return [{"datetime": (t0 + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S"),
+             "price": {"open": r(o), "high": r(h), "low": r(l), "close": r(c)}} for t0, o, h, l, c in pre]

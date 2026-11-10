@@ -9,13 +9,20 @@ GitHub Actions (motor.yml, repo público = minutos ilimitados)
 Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
   - auth (PBKDF2 en el cliente, sesión única por cuenta), prefs y listas en D1
   - cron */5: toca() lanza motor.yml modo ciclo cada 15 min (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00);
-    tocaRapido() lanza modo rapido cada 5 min de 09:35 a 16:05 ET.
+    tocaRapido() lanza modo rapido cada 5 min de 07:05 a 16:05 ET (de 07:05 a 09:30, el tramo previo a la apertura).
   - **Tiempo real** (`motor.py rapido`, `TIEMPO_REAL` = SPX NDX RUT SPY QQQ IWM): cadena y velas de 5 min de Tradier
     (`fuente_tradier.velas`, solo cerradas y hasta el cierre, formato de CBOE intraday; solo `VELAS_TRADIER`:
     Tradier no da velas de NDX ni RUT), paquete y vistas; lee el estado pero no lo guarda
     (historial de niveles y flujo, en el ciclo de 15 min, que vuelve a descargar esos 6: el cupo de Tradier alcanza).
-    Escribe `pub/rapido.json`. Sale sin hacer nada si el mercado está cerrado (festivos, cierre a las 13:00). Resto de
+    Escribe `pub/rapido.json`. Sale sin hacer nada fuera de 07:00-cierre (festivos, cierre a las 13:00). Resto de
     tickers: velas de CBOE. La web (Auto) recarga cada minuto esos 6 y cada 5 el resto.
+  - **Tramo previo a la apertura del TRACE** (`gex_engine.PRE_PROXY`, desde `PRE_OPEN` = 07:00): el mapa de SPX, NDX,
+    RUT y sus ETF empieza a las 07:00. `fuente_tradier.velas_pre` añade a `fx/intraday_SYM.json` las velas de 5 min del
+    ETF (Tradier, `session_filter=all`) escaladas al índice (`pre_src` = ETF). Ratio: índice / ETF al cierre de la vela
+    de 09:35-09:40 (la primera vela del índice lleva precios de ayer); antes, el de los cierres anteriores (RUT no tiene
+    `prevclose` en Tradier: última vela anterior o `last` antes de abrir). Antes de las 09:30 el `spot` del paquete es
+    el cierre de la última vela escalada. La gamma no consume varianza fuera de horas de mercado: en ese tramo el mapa
+    cambia solo con el precio (el open interest es el del cierre anterior). Prueba: `pruebas/premarket_mapa.py`.
   - /api/pub/* sirve R2; /api/pedir lanza un ciclo para tickers nuevos
 Navegador
   - web/nube.js intercepta fetch: usa las vistas precalculadas de R2 o calcula en el navegador

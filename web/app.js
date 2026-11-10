@@ -2374,7 +2374,8 @@ function renderVix() {
     fact("Streak", `${d.streak} ${d.streak === 1 ? "session" : "sessions"}`, `in ${d.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
   const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
-  $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.`;
+  const lv = d.live ? " Live: implied by VIX options until today's settlement; small points, weekly expirations." : "";
+  $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lv}`;
   renderVixCurve();
   renderVixHist();
 }
@@ -2395,8 +2396,12 @@ function renderVixCurve() {
   const today = [{ days: 0, v: d.vix_close, spot: true }, ...d.points.map((x) => ({ days: x.days, v: x.settle, x }))];
   const prev = series(d.prev), week = series(d.week);
   const term = (d.term || []).map((t) => ({ days: t.days, v: t.value, sym: t.symbol }));
-  const all = [...today, ...prev, ...week, ...term].map((x) => x.v).filter((v) => v != null);
-  const xmax = Math.max(...[...today, ...term].map((x) => x.days)) * 1.04 + 4;
+  const xlim = Math.max(...[...today, ...term].map((x) => x.days));
+  // curva de la sesion en curso, implicita en las opciones del VIX (hasta que CBOE publique la liquidacion)
+  const live = d.live ? [...(d.live.vix ? [{ days: 0, v: d.live.vix, spot: true }] : []),
+    ...d.live.points.filter((x) => x.days <= xlim).map((x) => ({ days: x.days, v: x.price, lx: x }))] : [];
+  const all = [...today, ...prev, ...week, ...term, ...live].map((x) => x.v).filter((v) => v != null);
+  const xmax = xlim * 1.04 + 4;
   const yt = niceTicks(Math.min(...all) - 0.4, Math.max(...all) + 0.4, Math.max(3, Math.round((B - T) / 55)));
   const xOf = (v) => L + (v / xmax) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
   let s = "";
@@ -2428,6 +2433,10 @@ function renderVixCurve() {
       }
     }
   }
+  if (live.length) {
+    s += `<path d="${path(live)}" fill="none" stroke="${C.text}" stroke-width="1.8" stroke-opacity="0.9"/>`;
+    for (const q of live) s += `<circle cx="${xOf(q.days)}" cy="${yOf(q.v)}" r="${q.lx && !q.lx.monthly ? 2.2 : 3.2}" fill="${C.text}"/>`;
+  }
   const col = SHAPE_COLOR(d.shape.code);
   s += `<path d="${path(today)}" fill="none" stroke="${col}" stroke-width="2.2"/>`;
   vx.curveGeo = [];
@@ -2439,9 +2448,10 @@ function renderVixCurve() {
     vx.curveGeo.push({ x, y, q });
   });
   for (const q of term) vx.curveGeo.push({ x: xOf(q.days), y: yOf(q.v), term: q });
+  for (const q of live) vx.curveGeo.push({ x: xOf(q.days), y: yOf(q.v), live: q });
   // leyenda
-  const items = [["Today", col, ""], [d.prev ? `Previous session (${ddmm(d.prev.date)})` : "", C.muted, ""], ["1 week ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
-    .filter((it, k) => (k === 1 ? prev.length : k === 2 ? week.length : k === 3 ? term.length : true));
+  const items = [["Last close", col, ""], [live.length ? `Live from options (${hhmm(utcDate(d.live.time))})` : "", C.text, ""], [d.prev ? `Previous session (${ddmm(d.prev.date)})` : "", C.muted, ""], ["1 week ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
+    .filter((it, k) => (k === 1 ? live.length : k === 2 ? prev.length : k === 3 ? week.length : k === 4 ? term.length : true));
   s += legendRows(items, W < 640 ? 8 : L, R, 14);
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
 }
@@ -2492,7 +2502,17 @@ function vixCurveTip(e) {
   if (!best) return macroTip("vxTip", null, e, "");
   const d = vx.data;
   let html;
-  if (best.term) {
+  if (best.live) {
+    const q = best.live, c = q.lx;
+    const set = c ? d.points.find((z) => z.expiry === c.expiry) : null;
+    html = q.spot
+      ? `<div class="t">Spot VIX now</div><div class="r">Value <b>${fmtNum(q.v, 2)}</b></div><div class="r">Last close <b>${fmtNum(d.vix_close, 2)}</b></div>`
+      : `<div class="t">${c.monthly ? `${monLabel(c.expiry)} future` : "Weekly expiration"} <span style="color:var(--muted);font-weight:400">expires ${ddmm(c.expiry)}</span></div>
+      <div class="r">Implied price now <b>${fmtNum(c.price, 2)}</b></div>
+      <div class="r">Days to expiration <b>${c.days}</b></div>
+      ${set ? `<div class="r">Last settle <b>${fmtNum(set.settle, 2)}</b></div><div class="r">Change <b>${c.price - set.settle >= 0 ? "+" : "−"}${fmtNum(Math.abs(c.price - set.settle), 2)}</b></div>` : ""}
+      <div class="r" style="color:var(--muted)">${c.monthly ? "From VIX options (put-call parity)" : "Weekly VIX options; no monthly future"}</div>`;
+  } else if (best.term) {
     const t = d.term.find((z) => z.symbol === best.term.sym);
     html = `<div class="t">${best.term.sym}</div><div class="r">SPX ${best.term.days}-day implied volatility <b>${fmtNum(t.value, 2)}</b></div>` +
       (t.prev ? `<div class="r">Previous close <b>${fmtNum(t.prev, 2)}</b></div>` : "");

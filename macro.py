@@ -245,6 +245,28 @@ def vix_curve() -> dict:
         return res
 
 
+def _live_curve(now: datetime, last: str, monthly: set[str], vix_now: float | None) -> dict | None:
+    """Curva VX de la sesion en curso, implicita en las opciones del VIX: cada opcion va sobre el futuro de su
+    vencimiento y la paridad put-call da su precio (gex_engine.futures_forwards). Solo entre la apertura de hoy y la
+    publicacion de su liquidacion oficial: luego manda el cierre. Incluye los vencimientos semanales."""
+    if not g.is_trading_day(now) or now < now.replace(hour=9, minute=30, second=0, microsecond=0):
+        return None
+    today = now.strftime("%Y-%m-%d")
+    if last >= today:
+        return None
+    ch = g.parse_chain(g.fetch_chain("VIX"))
+    _, _, fwd = g.futures_forwards(ch, g.quote_time(now))
+    pts = []
+    for ek, f in sorted(fwd.items()):
+        e = ek[:10]
+        dd = (datetime.strptime(e, "%Y-%m-%d") - datetime.strptime(today, "%Y-%m-%d")).days
+        if e > today and dd <= 400:
+            pts.append({"expiry": e, "days": dd, "price": round(f, 4), **({"monthly": True} if e in monthly else {})})
+    if len(pts) < 2:
+        return None
+    return {"date": today, "time": ch.get("timestamp"), "vix": vix_now, "points": pts}
+
+
 def _vix_curve() -> dict:
     now = g.now_ny()
     exps = vx_expiries(now)
@@ -333,13 +355,18 @@ def _vix_curve() -> dict:
     vix_live = tmap.get("VIX")
     ratio = vix_live / tmap["VIX3M"] if vix_live and tmap.get("VIX3M") else None
 
+    try:
+        live_curve = _live_curve(now, last, set(exp_keys), tmap.get("VIX"))
+    except Exception:  # noqa: BLE001
+        live_curve = None
+
     spot_last = vix_close.get(last)
     m1, m2 = cur[0]["settle"], cur[1]["settle"]
     res = {
         "date": last,
         "vix_close": spot_last,
         "points": cur,
-        "prev": back(1), "week": back(5),
+        "prev": back(1), "week": back(5), "live": live_curve,
         "shape": _shape(spot_last, m1, m2),
         "m1": m1, "m2": m2,
         "spread": cur_sp, "spread_pct_rank": pct,

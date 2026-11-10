@@ -20,6 +20,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Vol Trigger / Hedge Wall** en naranja (antes ámbar como el Gamma Flip) en los dos temas.
 
 **Corregido**
+- **Call Wall y Put Wall (motor Perfil)** dependían del rango visible: en BABA el Hub a ±20 % daba la Call Wall en
+  120 y el Escáner (5 %) en 110. Ahora se buscan en un rango fijo por activo: ±10 % en índices y sus ETF (SPX, NDX,
+  RUT, SPY, QQQ, IWM…), ±20 % en acciones y ±100 % en el VIX. Hub, Escáner, Compass e histórico dan la misma wall;
+  si cae fuera del gráfico, su etiqueta aparece en el borde con una flecha.
 - Al cambiar de tema sin recargar, la curva VIX, el resumen, el COT y el glosario mantenían los colores del tema
   anterior.
 - En el modo PC, la actualización automática daba un error cada minuto.

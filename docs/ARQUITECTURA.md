@@ -71,7 +71,9 @@ Común a los dos:
 **SpotGamma**
 - IV de cada contrato; tiempo natural con mínimo de 1 h.
 - Dividendo implícito por paridad put-call (mediana de 7 a 180 días), solo en índices europeos; 0 en ETFs y acciones.
-- Call Wall: mayor GEX de calls por encima del precio (±10 % o el rango, si es mayor).
+- Call Wall: mayor GEX de calls por encima del precio; Put Wall: mayor GEX de puts por debajo. Se buscan en un
+  rango fijo por activo, sea cual sea el rango visible (`wall_window_pct`): índices y sus ETF ±10 %, acciones ±20 %,
+  VIX ±100 %.
 - Put Wall: mayor GEX de puts por debajo.
 - Flip: cruce por cero de la GEX total recalculada en ±15 %, el más cercano al spot.
 

@@ -48,7 +48,16 @@ SESSION_MIN = 390.0  # 09:30-16:00
 OCC_RE = re.compile(r"^([A-Z0-9.]+?)(\d{6})([CP])(\d{8})$")
 
 RISK_FREE = 0.04  # respaldo si no se puede leer la letra del Tesoro
-LEVEL_WINDOW_PCT = 10.0  # rango (+-%) en el que se buscan walls y VT
+LEVEL_WINDOW_PCT = 10.0  # rango minimo (+-%) de la rejilla de niveles
+
+
+def wall_window_pct(symbol: str) -> float:
+    """Rango (+-%) en el que el motor Perfil busca Call Wall y Put Wall, fijo por tipo de activo para que no
+    dependa del rango visible: indices y sus ETF 10 %, acciones 20 %, VIX 100 % (sube +40/+60 % en un dia)."""
+    s = normalize(symbol)
+    if s in FUTURES_OPTIONS:
+        return 100.0
+    return LEVEL_WINDOW_PCT if s in INDEX_LIKE else 20.0
 CACHE_TTL = 90  # segundos
 _cache: dict[str, tuple[float, dict]] = {}
 
@@ -1597,7 +1606,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     exp_mask = expiry_filter(cc["exp"], alive, now, max_dte)  # filtro de vencimientos
 
     # contratos a +-35 % del precio o, con un rango mayor, hasta un 20 % mas alla del rango
-    reach = max(0.35, min(window_pct * 1.2, 95.0) / 100)
+    ww = wall_window_pct(symbol)
+    reach = max(0.35, min(window_pct * 1.2, 95.0) / 100, ww * 1.2 / 100)
     m = alive & exp_mask & (cc["oi"] > 0) & (cc["iv"] > 0.01) & (np.abs(cc["K"] / spot - 1) < reach)
     if not m.any():
         raise LookupError("No contracts with open interest in that filter")
@@ -1659,8 +1669,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
 
     # --- rejilla de strikes amplia (los niveles se calculan aqui, no en la ventana visible)
     step = _strike_step(index_K[np.isin(index_K, K)] if combine else K, spot)
-    wide = max(LEVEL_WINDOW_PCT, window_pct)
-    g_lo = math.floor(spot * (1 - wide / 100) / step) * step
+    wide = max(LEVEL_WINDOW_PCT, ww, window_pct)
+    g_lo = max(math.floor(spot * (1 - wide / 100) / step) * step, 0.0)
     g_hi = math.ceil(spot * (1 + wide / 100) / step) * step
     wgrid = np.round(np.arange(g_lo, g_hi + step / 2, step), 4)
     idx = np.round((K - g_lo) / step).astype(int)
@@ -1803,8 +1813,10 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     # del precio (como gexbot). Si no hay barras de ese signo, la mayor gamma de calls o de puts.
     if model == "spotgamma":
         # SpotGamma: Call Wall = strike con mas GEX de calls por encima del precio; Put Wall = strike con mas GEX
-        # de puts (la mas negativa) por debajo. Se buscan en toda la rejilla de niveles (+-10% o el rango, si es mayor)
-        up, dn = wgrid > spot, wgrid < spot
+        # de puts (la mas negativa) por debajo. Se buscan en el rango fijo del activo (wall_window_pct), sea cual
+        # sea el rango visible, para que Hub, Escaner y el resto den la misma wall
+        inr = np.abs(wgrid / spot - 1) <= ww / 100 + 1e-9
+        up, dn = inr & (wgrid > spot), inr & (wgrid < spot)
         call_wall = float(wgrid[up][np.argmax(wcalls[up])]) if up.any() and (wcalls[up] > 0).any() else None
         put_wall = float(wgrid[dn][np.argmin(wputs[dn])]) if dn.any() and (wputs[dn] < 0).any() else None
     else:

@@ -101,9 +101,10 @@ def _parse_vx(text: str) -> dict[str, dict]:
 
 
 def _expected_last_settle(now: datetime) -> str:
-    """Ultima sesion cuyo cierre oficial ya deberia estar publicado (CBOE lo publica por la tarde, hora de NY)."""
+    """Ultima sesion cuyo cierre oficial puede estar ya publicado. Desde las 16:00 ET se busca el de hoy en la liquidacion
+    diaria de CBOE (sin filas VX hasta que lo publica; ver _settlements); los CSV por contrato llegan de madrugada."""
     d = now
-    if not (g.is_trading_day(d) and (d.hour, d.minute) >= (17, 30)):
+    if not (g.is_trading_day(d) and (d.hour, d.minute) >= (16, 0)):
         d = g.prev_trading_day(d)
     return d.strftime("%Y-%m-%d")
 

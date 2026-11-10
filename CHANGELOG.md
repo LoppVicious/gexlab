@@ -20,8 +20,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   anterior.
 - En el modo PC, la actualización automática daba un error cada minuto.
 - En el mapa (TRACE), el rótulo de las barras por strike se montaba sobre sus cifras.
-- **Curva VIX:** el cierre de los futuros del día ya aparece en el ciclo de las 18:00 ET (00:00 en España) en vez de al
-  día siguiente a las 13:45. Se toma de la liquidación diaria de CBOE hasta que llega a sus archivos históricos, de
+- **Curva VIX:** el cierre de los futuros del día aparece en el primer ciclo del motor tras publicarlo CBOE (se busca
+  desde las 16:00 ET, 22:00 en España) en vez de al día siguiente a las 13:45. Se toma de la liquidación diaria de CBOE hasta que llega a sus archivos históricos, de
   madrugada; mientras tanto, el tooltip de cada vencimiento da el open interest de la sesión anterior y el volumen
   como pendiente.
 

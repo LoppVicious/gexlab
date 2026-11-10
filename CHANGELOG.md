@@ -14,6 +14,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   paneles, y gráficos con colores propios del tema: líneas del vencimiento mensual, vencimientos del skew, matriz de
   volatilidad, índices VIX9D–VIX1Y, puntos del Compass, cierre anterior e histórico. La página de acceso respeta el
   tema elegido.
+- **Tema claro más firme:** textos y bordes más oscuros, colores de nivel más saturados y letra más gruesa en el menú
+  lateral, las etiquetas y las cifras. En el Impacto calls y puts las barras por strike van en gris para no
+  confundirse con la línea de gamma total.
+- **Vol Trigger / Hedge Wall** en naranja (antes ámbar como el Gamma Flip) en los dos temas.
 
 **Corregido**
 - Al cambiar de tema sin recargar, la curva VIX, el resumen, el COT y el glosario mantenían los colores del tema

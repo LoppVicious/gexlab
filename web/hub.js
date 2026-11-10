@@ -80,7 +80,7 @@ function renderImpact(d, W, H, exp = false) {
   ks.forEach((kk, i) => {
     const h = vs[i] * k, x = xOf(kk);
     if (Math.abs(h) < 0.4) return;
-    bars += `<rect x="${(x - bw / 2).toFixed(1)}" y="${(h >= 0 ? y0 - h : y0).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.abs(h).toFixed(1)}" rx="1" fill="${C.pos}" fill-opacity="0.55"/>`;
+    bars += `<rect x="${(x - bw / 2).toFixed(1)}" y="${(h >= 0 ? y0 - h : y0).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.abs(h).toFixed(1)}" rx="1" fill="${C.bar}" fill-opacity="${C.barOp}"/>`;
   });
   s += `<g clip-path="url(#impclip${exp ? "e" : ""})">${bars}</g>`;
   s += `<line x1="${L}" x2="${R}" y1="${y0}" y2="${y0}" stroke="${C.axis}" stroke-dasharray="2 3"/>`;
@@ -103,8 +103,8 @@ function renderImpact(d, W, H, exp = false) {
       if (it.v < x0 || it.v > x1) continue;
       const x = xOf(it.v), room = x - lastLx >= fs + 3;
       if (room) lastLx = x;
-      s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${it.c}" stroke-dasharray="4 4" stroke-opacity=".75"/>` +
-        (room ? `<text transform="translate(${x - 4},${B - 22}) rotate(-90)" font-family="${SANS}" font-size="${fs - 0.5}" fill="${it.c}">${it.tag} ${fmtLevel(it.v)}</text>` : "");
+      s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${it.c}" stroke-width="1.4" stroke-dasharray="4 4"/>` +
+        (room ? `<text transform="translate(${x - 4},${B - 22}) rotate(-90)" font-family="${SANS}" font-size="${fs - 0.5}" font-weight="600" fill="${it.c}">${it.tag} ${fmtLevel(it.v)}</text>` : "");
     }
   }
   // lineas
@@ -114,12 +114,12 @@ function renderImpact(d, W, H, exp = false) {
   if (Wk) s += `<path d="${path(Wk)}" fill="none" stroke="${C.neg}" stroke-width="2"/>`;
   s += `<path d="${path(Y)}" fill="none" stroke="${C.pos}" stroke-width="2.4"/></g>`;
   // leyenda
-  const leg = [["Total gamma, all expirations in the filter", C.pos], [wkLab, C.neg], ["Net gamma by strike", C.pos, "bar"]];
+  const leg = [["Total gamma, all expirations in the filter", C.pos], [wkLab, C.neg], ["Net gamma by strike", C.bar, "bar"]];
   let lx = L, ly = titleH + 16;
   for (const [lab, c, kind] of leg) {
     const w = textW(lab, fs) + 30;
     if (lx + w > R && lx > L) { lx = L; ly += fs + 8; }
-    s += kind === "bar" ? `<rect x="${lx}" y="${ly - 6}" width="12" height="9" rx="1.5" fill="${c}" fill-opacity=".55"/>` : `<line x1="${lx}" x2="${lx + 16}" y1="${ly - 2}" y2="${ly - 2}" stroke="${c}" stroke-width="2.4"/>`;
+    s += kind === "bar" ? `<rect x="${lx}" y="${ly - 6}" width="12" height="9" rx="1.5" fill="${c}" fill-opacity="${C.barOp}"/>` : `<line x1="${lx}" x2="${lx + 16}" y1="${ly - 2}" y2="${ly - 2}" stroke="${c}" stroke-width="2.4"/>`;
     s += txt(lx + 22, ly + 2, lab, { fs, c: C.muted });
     lx += w;
   }

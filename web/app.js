@@ -11,19 +11,21 @@ const THEMES = {
     heat0: [15, 15, 18], heatNeg: [255, 40, 120], heatPos: [146, 76, 255],
   },
   light: {
-    ink: "#f2f3f6", surface: "#ffffff", grid: "#eaecf0", axis: "#c9ced6",
-    text: "#171b22", muted: "#535b69", faint: "#7a8291",
-    neg: "#d92a66", pos: "#6f4fe6", negFront: "#f2a0bd", posFront: "#bfb0f6", put: "#0d875c", amber: "#a66d00", call: "#d33d3d",
-    accent: "#12846e", hi: "#000000", candle: "#171b22", spotline: "#4a5160",
-    heat0: [252, 252, 253], heatNeg: [217, 42, 102], heatPos: [111, 79, 230],
+    ink: "#eceef2", surface: "#ffffff", grid: "#e4e7ec", axis: "#b4bcc8",
+    text: "#0e1117", muted: "#3d4451", faint: "#626b7a",
+    neg: "#d1185a", pos: "#5b34e0", negFront: "#ef8fb2", posFront: "#a993f3", put: "#067a50", amber: "#9a6500", call: "#c92a2a",
+    accent: "#0f7a65", hi: "#000000", candle: "#0e1117", spotline: "#3d4451",
+    heat0: [252, 252, 253], heatNeg: [209, 24, 90], heatPos: [91, 52, 224],
   },
 };
 // colores de apoyo que dependen del tema (lineas del mensual, indices de volatilidad, cierre anterior...)
 const THEME_EXTRA = {
-  dark: { purple: "#8b7cf0", month: "oklch(0.78 0.15 45)", xmonth: "oklch(0.74 0.12 300)", prevClose: "#5b9dff", vtHist: "#d08a3a",
-    vol: ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"] },
-  light: { purple: "#6d55e0", month: "oklch(0.60 0.16 45)", xmonth: "oklch(0.52 0.15 300)", prevClose: "#2f72c9", vtHist: "#b0621a",
-    vol: ["#12846e", "#6f4fe6", "#d92a66", "#a66d00", "#2f72c9"] },
+  // vt: Vol Trigger / Hedge Wall, naranja para no confundirlo con el Gamma Flip (ambar); bar: barras del Impacto;
+  // area: opacidad del relleno del perfil
+  dark: { purple: "#8b7cf0", month: "oklch(0.78 0.15 45)", xmonth: "oklch(0.74 0.12 300)", prevClose: "#5b9dff", vt: "#ff8a3d",
+    bar: "#9461ff", barOp: 0.55, area: 0.16, vol: ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"] },
+  light: { purple: "#5b34e0", month: "oklch(0.58 0.17 45)", xmonth: "oklch(0.48 0.16 300)", prevClose: "#1f63c2", vt: "#c2410c",
+    bar: "#7b879c", barOp: 0.7, area: 0.22, vol: ["#0f7a65", "#5b34e0", "#d1185a", "#9a6500", "#1f63c2"] },
 };
 Object.keys(THEMES).forEach((k) => Object.assign(THEMES[k], THEME_EXTRA[k]));
 const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);
@@ -214,8 +216,8 @@ function levelItems(d) {
   return [
     { key: "put_wall", tag: "PUT WALL", name: "Put Wall", v: L.put_wall, c: C.put },
     d.is_index === false
-      ? { key: "vt", tag: "HEDGE WALL", name: "Hedge Wall", v: L.vt, c: C.amber }
-      : { key: "vt", tag: "VT", name: "Vol Trigger", v: L.vt, c: C.amber },
+      ? { key: "vt", tag: "HEDGE WALL", name: "Hedge Wall", v: L.vt, c: C.vt }
+      : { key: "vt", tag: "VT", name: "Vol Trigger", v: L.vt, c: C.vt },
     { key: "flip", tag: "G-FLIP", name: "Gamma Flip", v: L.flip, c: C.amber },
     { key: "call_wall", tag: "CALL WALL", name: "Call Wall", v: L.call_wall, c: C.call },
   ].filter((x) => x.v != null);
@@ -252,7 +254,7 @@ function tagBox(t, y, fs) {
   return `<g opacity="${t.off ? (C.ink === THEMES.light.ink ? 0.85 : 0.7) : 1}">${title}
   <rect x="${t.left}" y="${y}" width="${t.w}" height="${t.h}" rx="7" fill="${C.surface}"/>
   <rect x="${t.left}" y="${y}" width="${t.w}" height="${t.h}" rx="7" fill="${t.c}" fill-opacity="0.09" stroke="${t.c}" stroke-width="1.4"/>
-  <text x="${cx}" y="${y + t.h / 2 + fs * 0.36}" text-anchor="middle" font-family="${MONO}" font-size="${fs}" fill="${t.c}">${esc(t.text)}</text></g>`;
+  <text x="${cx}" y="${y + t.h / 2 + fs * 0.36}" text-anchor="middle" font-family="${MONO}" font-size="${fs}" font-weight="600" fill="${t.c}">${esc(t.text)}</text></g>`;
 }
 function tagsSVG(pt, titleH, bottom, fs) {
   const yOfRow = (t) => titleH + 14 + t.row * (t.h + 8);
@@ -544,8 +546,8 @@ function renderProfile(d, W, H, exp = false) {
     <clipPath id="up${id}"><rect x="${left}" y="${top - 10}" width="${right - left}" height="${y0 - top + 10}"/></clipPath>
     <clipPath id="dn${id}"><rect x="${left}" y="${y0}" width="${right - left}" height="${bottom - y0 + 10}"/></clipPath>
   </defs>`;
-  s += `<path d="${area}" fill="${C.pos}" fill-opacity="0.16" clip-path="url(#up${id})"/>`;
-  s += `<path d="${area}" fill="${C.neg}" fill-opacity="0.16" clip-path="url(#dn${id})"/>`;
+  s += `<path d="${area}" fill="${C.pos}" fill-opacity="${C.area}" clip-path="url(#up${id})"/>`;
+  s += `<path d="${area}" fill="${C.neg}" fill-opacity="${C.area}" clip-path="url(#dn${id})"/>`;
   s += `<path d="${line}" fill="none" stroke="${C.pos}" stroke-width="2" clip-path="url(#up${id})"/>`;
   s += `<path d="${line}" fill="none" stroke="${C.neg}" stroke-width="2" clip-path="url(#dn${id})"/>`;
   s += `<line x1="${left}" x2="${right}" y1="${y0}" y2="${y0}" stroke="${C.axis}" stroke-width="1.2"/>`;
@@ -2690,7 +2692,7 @@ function bindMacro() {
 
 /* ============================================================ resumen */
 const sm = { data: null, at: 0, ctrl: null };
-const SUM_LV = [["call_wall", "Call Wall", "call"], ["flip", "Gamma Flip", "amber"], ["vt", "Vol Trigger", "amber"], ["put_wall", "Put Wall", "put"]];
+const SUM_LV = [["call_wall", "Call Wall", "call"], ["flip", "Gamma Flip", "amber"], ["vt", "Vol Trigger", "vt"], ["put_wall", "Put Wall", "put"]];
 function sumStatus() { const d = sm.data; return d ? `Summary · ${nyHHMM(d.computed_at)}` : ""; }
 
 async function loadSummary(refresh = false) {
@@ -2833,10 +2835,10 @@ const GLOSSARY = {
   flip: { t: "Gamma Flip (Zero Gamma)", c: "amber",
     what: "The price at which total dealer gamma turns from positive to negative. It is neither support nor resistance: it marks the regime.",
     use: "Above it, dealers buy dips and sell rallies: less volatility and mean reversion. Below it they do the opposite and amplify moves. Very close to the flip (within 0.5%) no clear effect is expected in either direction." },
-  vt: { t: "Volatility Trigger", c: "amber",
+  vt: { t: "Volatility Trigger", c: "vt",
     what: "The last major support above the Put Wall, on the bearish edge of the Gamma Flip.",
     use: "Below it, dealer hedging stops supporting the price and starts to go with it: realized volatility tends to expand. If you only watch one level, make it this one. Above it, a more stable environment." },
-  hedge: { t: "Hedge Wall", c: "amber",
+  hedge: { t: "Hedge Wall", c: "vt",
     what: "The equivalent of the Volatility Trigger for single stocks.",
     use: "It marks the point beyond which more realized volatility is expected. Above it mean-reversion strategies tend to work better; below it, momentum. A rise from one day to the next is a bullish sign; a drop, bearish." },
   abs: { t: "Absolute gamma", c: "muted",

@@ -28,28 +28,37 @@
 }
 /* tema claro: los colores de texto y de nivel pasan 4,5:1 (o casi) sobre blanco; el acento lleva texto blanco encima */
 :root[data-theme="light"] {
-  --ink: #f2f3f6;
+  --ink: #eceef2;
   --surface: #ffffff;
-  --surface-2: #f6f7f9;
-  --line: #dde1e7;
-  --line-soft: #e8ebef;
-  --line-strong: #c3c9d2;
-  --text: #171b22;
-  --muted: #535b69;
-  --faint: #7a8291;
-  --accent: #12846e;
-  --accent-soft: rgba(18, 132, 110, .10);
-  --pos: #6f4fe6;
-  --neg: #d92a66;
-  --put: #0d875c;
-  --call: #d33d3d;
-  --amber: #a66d00;
+  --surface-2: #f4f5f8;
+  --line: #d3d8e0;
+  --line-soft: #e1e5eb;
+  --line-strong: #b4bcc8;
+  --text: #0e1117;
+  --muted: #3d4451;
+  --faint: #626b7a;
+  --accent: #0f7a65;
+  --accent-soft: rgba(15, 122, 101, .11);
+  --pos: #5b34e0;
+  --neg: #d1185a;
+  --put: #067a50;
+  --call: #c92a2a;
+  --amber: #9a6500;
   --focus: #12846e;
   --btn: #eef0f3; --btn-hover: #e4e7ec; --pop: #ffffff; --hover: #f3f5f8;
   --seg-on: #ffffff; --knob: #ffffff; --scroll: #c8ced7; --shadow: rgba(20, 24, 33, .12);
   --side: #ffffff; --side-on: rgba(18, 132, 110, .09);
   color-scheme: light;
 }
+/* en claro IBM Plex a 400 se ve fina y palida: menu, etiquetas y cifras van un punto mas gruesas */
+:root[data-theme="light"] body { -webkit-font-smoothing: auto; }
+:root[data-theme="light"] .side .item { font-weight: 500; color: #262b34; }
+:root[data-theme="light"] .side .item[aria-current="page"] { font-weight: 600; }
+:root[data-theme="light"] .side .sec { font-weight: 700; color: var(--faint); }
+:root[data-theme="light"] .side .brand, :root[data-theme="light"] .pagetitle { font-weight: 700; }
+:root[data-theme="light"] :is(.levels .name, .fact .fl, .hrow span, .split-head, .cap, .meta dt, .tabs button, .seg button,
+  .ghost, .setbtn, .kl-tg, .chip-default, .scan th, .status, .quick button, .cs-tg, .chart-caption, .scan-note) { font-weight: 500; }
+:root[data-theme="light"] :is(.levels .val, .fact strong, .hrow b, .price, .scard .sp, .mstate) { font-weight: 600; }
 /* en claro los paneles se separan del fondo con una sombra leve, no solo con el borde */
 :root[data-theme="light"] :is(.stage, .tablewrap, .compass, .cside, .scard, .cotdetail, #vixView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
 :root[data-theme="light"] .chip { color: var(--amber); background: rgba(166, 109, 0, .08); border-color: rgba(166, 109, 0, .30); }

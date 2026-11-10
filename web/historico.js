@@ -132,7 +132,7 @@ const HIST_SERIES = [
   { k: "cw", name: "Call Wall", c: () => C.call, w: 1.8, step: true },
   { k: "pw", name: "Put Wall", c: () => C.put, w: 1.8, step: true },
   { k: "flip", name: "Gamma Flip", c: () => C.amber, w: 1.6, step: true },
-  { k: "vt", name: "Vol Trigger", c: () => C.vtHist, w: 1.4, step: true, dash: "5 4" },
+  { k: "vt", name: "Vol Trigger", c: () => C.vt, w: 1.4, step: true, dash: "5 4" },
   { k: "abs", name: "Absolute gamma", c: () => C.muted, w: 1.2, step: true, dash: "2 4" },
 ];
 function histShown() {

@@ -11,13 +11,21 @@ const THEMES = {
     heat0: [15, 15, 18], heatNeg: [255, 40, 120], heatPos: [146, 76, 255],
   },
   light: {
-    ink: "#f4f5f7", surface: "#ffffff", grid: "#eceef2", axis: "#d5d9e0",
-    text: "#1b1f27", muted: "#5d6573", faint: "#959cab",
-    neg: "#e5336f", pos: "#7c5cf0", negFront: "#f4a3c0", posFront: "#c3b5f7", put: "#13a874", amber: "#c98a00", call: "#e04848",
-    accent: "#1fa98f", hi: "#000000", candle: "#1b1f27", spotline: "#4a5160",
-    heat0: [252, 252, 253], heatNeg: [229, 51, 111], heatPos: [124, 92, 240],
+    ink: "#f2f3f6", surface: "#ffffff", grid: "#eaecf0", axis: "#c9ced6",
+    text: "#171b22", muted: "#535b69", faint: "#7a8291",
+    neg: "#d92a66", pos: "#6f4fe6", negFront: "#f2a0bd", posFront: "#bfb0f6", put: "#0d875c", amber: "#a66d00", call: "#d33d3d",
+    accent: "#12846e", hi: "#000000", candle: "#171b22", spotline: "#4a5160",
+    heat0: [252, 252, 253], heatNeg: [217, 42, 102], heatPos: [111, 79, 230],
   },
 };
+// colores de apoyo que dependen del tema (lineas del mensual, indices de volatilidad, cierre anterior...)
+const THEME_EXTRA = {
+  dark: { purple: "#8b7cf0", month: "oklch(0.78 0.15 45)", xmonth: "oklch(0.74 0.12 300)", prevClose: "#5b9dff", vtHist: "#d08a3a",
+    vol: ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"] },
+  light: { purple: "#6d55e0", month: "oklch(0.60 0.16 45)", xmonth: "oklch(0.52 0.15 300)", prevClose: "#2f72c9", vtHist: "#b0621a",
+    vol: ["#12846e", "#6f4fe6", "#d92a66", "#a66d00", "#2f72c9"] },
+};
+Object.keys(THEMES).forEach((k) => Object.assign(THEMES[k], THEME_EXTRA[k]));
 const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);
 const MONO = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
 const SANS = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
@@ -87,13 +95,13 @@ const state = {
 
 const $ = (id) => document.getElementById(id);
 
-/* ============================================================ formato (es-ES) */
+/* ============================================================ formato (en-US) */
 function fmtNum(v, dec = 0) {
   if (v == null || !isFinite(v)) return "—";
   const neg = v < 0;
   const [i, d] = Math.abs(v).toFixed(dec).split(".");
-  const int = i.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return (neg ? "−" : "") + int + (d ? "," + d : "");
+  const int = i.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return (neg ? "−" : "") + int + (d ? "." + d : "");
 }
 function decFor(step) { return step >= 1 && Number.isInteger(step) ? 0 : (step * 10) % 1 === 0 ? 1 : 2; }
 function fmtLevel(v) {
@@ -119,9 +127,13 @@ function fmtAxis(v) {
   return s + trimZ(a);
 }
 function trimZ(x) { return fmtNum(x, x % 1 === 0 ? 0 : 1).replace("−", ""); }
-function ddmm(iso) { return iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) : ""; }
-// vencimientos: "vie 13/11 · semanal · 5 d" (tipo segun el motor: diario, semanal o mensual)
-const DIAS_SEM = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+// fechas cortas "Nov 13" y largas "Nov 13, 2026" (sin ambiguedad dia/mes)
+const MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function ddmm(iso) { return iso ? `${MESES[+iso.slice(5, 7) - 1]} ${+iso.slice(8, 10)}` : ""; }
+function fullDate(iso) { return iso ? `${ddmm(iso)}, ${iso.slice(0, 4)}` : ""; }
+// vencimientos: "Fri Nov 13 · weekly · 5 d" (tipo segun el motor: diario, semanal o mensual)
+const DIAS_SEM = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const KIND_EN = { diario: "daily", semanal: "weekly", mensual: "monthly" };
 function expDays(d, iso) {
   const ref = (d.computed_at || "").slice(0, 10) || d.session;   // dias desde hoy (NY), no desde la ultima sesion
   if (!iso || !ref) return null;
@@ -132,18 +144,19 @@ function expText(d, iso, withKind = true) {
   const e = (d.expiries || []).find((x) => x.date === iso);
   const n = expDays(d, iso);
   const wd = DIAS_SEM[new Date(iso + "T12:00:00Z").getUTCDay()];
-  return `${wd} ${ddmm(iso)}${withKind && e ? ` · ${e.kind}` : ""}${n == null ? "" : n <= 0 ? " · hoy" : ` · ${n} d`}`;
+  return `${wd} ${ddmm(iso)}${withKind && e ? ` · ${KIND_EN[e.kind] || e.kind}` : ""}${n == null ? "" : n <= 0 ? " · today" : ` · ${n} d`}`;
 }
 function restText(d) {
   const rest = (d.expiries || []).filter((x) => x.date !== d.front_expiry);
-  if (!rest.length) return "Resto de vencimientos";
+  if (!rest.length) return "Other expirations";
   const c = { diario: 0, semanal: 0, mensual: 0 };
   rest.forEach((x) => { c[x.kind] = (c[x.kind] || 0) + 1; });
-  const parts = [c.mensual && `${c.mensual} mensual${c.mensual > 1 ? "es" : ""}`, c.semanal && `${c.semanal} semanal${c.semanal > 1 ? "es" : ""}`,
-    c.diario && `${c.diario} diario${c.diario > 1 ? "s" : ""}`].filter(Boolean).join(", ");
+  const parts = [c.mensual && `${c.mensual} monthly`, c.semanal && `${c.semanal} weekly`,
+    c.diario && `${c.diario} daily`].filter(Boolean).join(", ");
   const share = rest.reduce((a, x) => a + (x.share || 0), 0);
-  return `Resto: ${ddmm(rest[0].date)}–${ddmm(rest[rest.length - 1].date)} (${parts}) · ${Math.round(share * 100)} % de la gamma`;
+  return `Other: ${ddmm(rest[0].date)}–${ddmm(rest[rest.length - 1].date)} (${parts}) · ${Math.round(share * 100)}% of gamma`;
 }
+function ordinal(n) { const k = Math.round(n), t = k % 100, u = k % 10; return k + (t >= 11 && t <= 13 ? "th" : u === 1 ? "st" : u === 2 ? "nd" : u === 3 ? "rd" : "th"); }
 function fmtPct(v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 2) + "%"; }
 /* ============================================================ horas: el servidor trabaja en hora de Nueva York (ET)
    y CBOE da sus marcas en UTC; en pantalla todo se muestra en la hora local del dispositivo */
@@ -166,15 +179,15 @@ function utcDate(str) {
   const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(str || "");
   return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0))) : null;
 }
-function hhmm(dt) { return dt ? dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : ""; }
+function hhmm(dt) { return dt ? dt.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""; }
 function nyHHMM(str) { return hhmm(nyDate(str)); }
-// hora local con el dia si no es hoy ("ayer 22:00", "vie 30 22:00")
+// hora local con el dia si no es hoy ("yesterday 22:00", "Fri 30 22:00")
 function nyWhen(str) {
   const dt = nyDate(str);
   if (!dt) return "";
   const today = new Date(), y = new Date(Date.now() - 86400e3);
   const same = (a, b) => a.toDateString() === b.toDateString();
-  const day = same(dt, today) ? "" : same(dt, y) ? "ayer " : dt.toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) + " ";
+  const day = same(dt, today) ? "" : same(dt, y) ? "yesterday " : `${DIAS_SEM[dt.getDay()]} ${dt.getDate()} `;
   return day + hhmm(dt);
 }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -235,8 +248,8 @@ function tagLine(t, y, plotBottom) {
 }
 function tagBox(t, y, fs) {
   const cx = t.left + t.w / 2;
-  const title = t.off ? `<title>${t.name} fuera del rango visible</title>` : "";
-  return `<g opacity="${t.off ? 0.7 : 1}">${title}
+  const title = t.off ? `<title>${t.name} outside the visible range</title>` : "";
+  return `<g opacity="${t.off ? (C.ink === THEMES.light.ink ? 0.85 : 0.7) : 1}">${title}
   <rect x="${t.left}" y="${y}" width="${t.w}" height="${t.h}" rx="7" fill="${C.surface}"/>
   <rect x="${t.left}" y="${y}" width="${t.w}" height="${t.h}" rx="7" fill="${t.c}" fill-opacity="0.09" stroke="${t.c}" stroke-width="1.4"/>
   <text x="${cx}" y="${y + t.h / 2 + fs * 0.36}" text-anchor="middle" font-family="${MONO}" font-size="${fs}" fill="${t.c}">${esc(t.text)}</text></g>`;
@@ -307,10 +320,10 @@ function expColors(be) {
 }
 function expLabels(d) { // etiqueta de cada grupo
   return d.by_exp.groups.map((g) => {
-    if (g.kind === "proximo") { const n = expDays(d, g.date); return `${n != null && n <= 0 ? "0DTE" : "Próximo"} ${expText(d, g.date, false)}`; }
-    if (g.kind === "posteriores") return `Posteriores ${ddmm(g.from)}–${ddmm(g.to)}`;
-    const extra = g.from !== g.to ? " + diarios" : "";
-    return `${g.kind === "mensual" ? "Mensual" : "Semanal"} ${expText(d, g.date, false)}${extra}`;
+    if (g.kind === "proximo") { const n = expDays(d, g.date); return `${n != null && n <= 0 ? "0DTE" : "Next"} ${expText(d, g.date, false)}`; }
+    if (g.kind === "posteriores") return `Later ${ddmm(g.from)}–${ddmm(g.to)}`;
+    const extra = g.from !== g.to ? " + dailies" : "";
+    return `${g.kind === "mensual" ? "Monthly" : "Weekly"} ${expText(d, g.date, false)}${extra}`;
   });
 }
 function expShares(d) { return d.by_exp.groups.map((g) => g.share); }
@@ -319,10 +332,10 @@ function expShares(d) { return d.by_exp.groups.map((g) => g.share); }
 // precio estuviera en cada nivel, la del proximo vencimiento, la del mensual y el total sin cada uno de ellos
 const LINE_DEF = [
   { k: "total", lab: "Total", c: () => C.text },
-  { k: "next", lab: "Próximo vencimiento", c: () => C.accent },
-  { k: "month", lab: "Mensual", c: () => "oklch(0.78 0.15 45)" },
-  { k: "xnext", lab: "Total sin el próximo", c: () => C.amber, dash: true },
-  { k: "xmonth", lab: "Total sin el mensual", c: () => "oklch(0.74 0.12 300)", dash: true },
+  { k: "next", lab: "Next expiration", c: () => C.accent },
+  { k: "month", lab: "Monthly", c: () => C.month },
+  { k: "xnext", lab: "Total ex next", c: () => C.amber, dash: true },
+  { k: "xmonth", lab: "Total ex monthly", c: () => C.xmonth, dash: true },
 ];
 function strikeLines(d) {
   const P = d.profile, g = state.greek;
@@ -400,7 +413,7 @@ function renderStrike(d0, W, H, exp = false) {
     s += `<text x="${x}" y="${bottom + small + 10}" text-anchor="middle" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtLevel(v)}</text>`;
   }
   // etiqueta eje Y
-  s += `<text transform="translate(${exp ? 26 : 14},${(top + bottom) / 2}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${{ gamma: "$ delta por $1", delta: "$ de delta", vanna: "$ si la IV cae 1 pt", charm: "$ por un día", oi: mode === "oichg" ? "Cambio de contratos" : mode === "oipos" ? "Contratos netos de los dealers" : "Contratos" }[greek]}</text>`;
+  s += `<text transform="translate(${exp ? 26 : 14},${(top + bottom) / 2}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${{ gamma: "$ delta per $1", delta: "$ of delta", vanna: "$ if IV drops 1 pt", charm: "$ per day", oi: mode === "oichg" ? "Change in contracts" : mode === "oipos" ? "Dealer net contracts" : "Contracts" }[greek]}</text>`;
 
   // banda de movimiento esperado
   s += emBand(d, xOf, top, bottom, small, left, right);
@@ -470,8 +483,8 @@ function renderStrike(d0, W, H, exp = false) {
     }
   }
   if (oiNone) {
-    const msg = greek === "delta" || mode === "oi" || mode === "oipos" ? "Estos datos aún no traen este gráfico: aparecerá tras el próximo ciclo del motor"
-      : "Sin el open interest de la sesión anterior para este ticker. Se guarda cada día para los tickers de las listas";
+    const msg = greek === "delta" || mode === "oi" || mode === "oipos" ? "This data doesn't include this chart yet: it will appear after the next engine cycle"
+      : "No previous-session open interest for this ticker. It is saved every day for the tickers in the lists";
     s += `<text x="${(left + right) / 2}" y="${(top + bottom) / 2}" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.muted}">${esc(msg)}</text>`;
   }
 
@@ -483,8 +496,8 @@ function renderStrike(d0, W, H, exp = false) {
   s += watermark(d, left, bottom, small, exp);
 
   state.geo = exp ? state.geo : { kind: "strike", left, right, band, top, bottom, n, xOf, data: d };
-  return frame(W, H, s, d, exp, { gamma: "Exposición gamma por strike", delta: "Exposición delta por strike", vanna: "Flujo por vanna (IV −1 pt)", charm: "Flujo por charm (1 día)",
-    oi: mode === "oichg" ? "Cambio de open interest por strike" : mode === "oipos" ? "Posicionamiento neto de los dealers" : "Open interest por strike" }[greek]);
+  return frame(W, H, s, d, exp, { gamma: "Gamma exposure by strike", delta: "Delta exposure by strike", vanna: "Vanna flow (IV −1 pt)", charm: "Charm flow (1 day)",
+    oi: mode === "oichg" ? "Open interest change by strike" : mode === "oipos" ? "Dealer net positioning" : "Open interest by strike" }[greek]);
 }
 
 /* ============================================================ gráfico de perfil */
@@ -520,7 +533,7 @@ function renderProfile(d, W, H, exp = false) {
     s += `<line x1="${x}" x2="${x}" y1="${top}" y2="${bottom}" stroke="${C.grid}"/>`;
     s += `<text x="${x}" y="${bottom + small + 10}" text-anchor="middle" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtSpot(v)}</text>`;
   }
-  s += `<text transform="translate(${exp ? 26 : 14},${(top + bottom) / 2}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">GEX total si el spot fuera…</text>`;
+  s += `<text transform="translate(${exp ? 26 : 14},${(top + bottom) / 2}) rotate(-90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">Total GEX if spot were…</text>`;
 
   s += emBand(d, xOf, top, bottom, small, left, right);
   const pts = X.map((x, i) => `${xOf(x).toFixed(2)},${yOf(Y[i]).toFixed(2)}`);
@@ -543,18 +556,18 @@ function renderProfile(d, W, H, exp = false) {
 
   s += tagsSVG(pt, titleH, bottom, fs);
   s += spotSVG(d, xOf(d.spot), top - 8, bottom, fs, left, right, W, H, exp,
-    [{ colors: [C.neg], label: "GEX total negativa" }, { colors: [C.pos], label: "GEX total positiva" }]);
+    [{ colors: [C.neg], label: "Negative total GEX" }, { colors: [C.pos], label: "Positive total GEX" }]);
   s += `<g id="cross" visibility="hidden"><line id="crossL" y1="${top}" y2="${bottom}" stroke="${C.muted}" stroke-dasharray="2 3"/><circle id="crossC" r="4" fill="${C.text}"/></g>`;
   s += watermark(d, left, bottom, small, exp);
 
   if (!exp) state.geo = { kind: "profile", left, right, top, bottom, xOf, yOf, x0, x1 };
-  return frame(W, H, s, d, exp, "Perfil de gamma");
+  return frame(W, H, s, d, exp, "Gamma profile");
 }
 
 /* ============================================================ piezas comunes */
 function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
   if (x < left - 1 || x > right + 1) return legendSVG(legend || [], H - (fs + 16) / 2 - (exp ? 22 : 12), fs, left, left - 40, left, right); // spot fuera del zoom
-  const label = `${d.spot_manual ? "Spot manual" : d.spot_implied && d.spot_implied.use ? "Pre-market" : "Spot"} ≈ ${fmtSpot(d.spot)}`;
+  const label = `${d.spot_manual ? "Manual spot" : d.spot_implied && d.spot_implied.use ? "Pre-market" : "Spot"} ≈ ${fmtSpot(d.spot)}`;
   const w = label.length * fs * 0.62 + 30, h = fs + 16;
   const px = Math.min(Math.max(x - w / 2, left), right - w);
   const py = H - h - (exp ? 22 : 12);
@@ -569,29 +582,29 @@ function spotSVG(d, x, top, bottom, fs, left, right, W, H, exp, legend) {
 
 function legendItems(d) {
   const ln = state.view === "strike" ? strikeLines(d).map((l) => ({ colors: [l.color], label: l.lab })) : [];
-  if (state.greek === "oi" && state.oiMode === "pos") return [{ colors: [C.pos], label: "Dealers largos" }, { colors: [C.neg], label: "Dealers cortos" }];
+  if (state.greek === "oi" && state.oiMode === "pos") return [{ colors: [C.pos], label: "Dealers long" }, { colors: [C.neg], label: "Dealers short" }];
   if (state.greek === "oi") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
   if (state.greek === "delta") return (state.dbars === "split" ? [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }]
-    : [{ colors: [C.neg], label: "Delta negativa" }, { colors: [C.pos], label: "Delta positiva" }]).concat(ln);
+    : [{ colors: [C.neg], label: "Negative delta" }, { colors: [C.pos], label: "Positive delta" }]).concat(ln);
   if (state.greek === "gamma" && state.bars !== "expiry") return (state.bars === "split" ? [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }]
-    : [{ colors: [C.neg], label: "Gamma negativa" }, { colors: [C.pos], label: "Gamma positiva" }]).concat(ln);
-  if (state.greek !== "gamma") return [{ colors: [C.pos], label: "Compras de cobertura" }, { colors: [C.neg], label: "Ventas de cobertura" }];
+    : [{ colors: [C.neg], label: "Negative gamma" }, { colors: [C.pos], label: "Positive gamma" }]).concat(ln);
+  if (state.greek !== "gamma") return [{ colors: [C.pos], label: "Hedge buying" }, { colors: [C.neg], label: "Hedge selling" }];
   if (state.bars === "split") return [{ colors: [C.pos], label: "Calls" }, { colors: [C.neg], label: "Puts" }];
   if (state.bars === "expiry" && expG(d)) {
     // leyenda corta: una muestra por familia (el detalle esta bajo los botones)
     const gs = d.by_exp.groups, cols = expColors(d.by_exp), out = [];
-    for (const [k, lab] of [["proximo", "Próximo"], ["semanal", "Semanales"], ["mensual", "Mensuales"], ["posteriores", "Posteriores"]]) {
+    for (const [k, lab] of [["proximo", "Next"], ["semanal", "Weeklies"], ["mensual", "Monthlies"], ["posteriores", "Later"]]) {
       const c = cols.filter((_, j) => gs[j].kind === k);
       if (c.length) out.push({ colors: c.length > 1 ? [c[0], c[c.length - 1]] : [c[0]], label: lab });
     }
     return out.concat(ln);
   }
   if (state.bars === "expiry") {
-    const items = [{ colors: [C.negFront, C.posFront], label: `Vence ${expText(d, d.front_expiry, false)}` }];
-    if (!d.expiries || d.expiries.length > 1) items.unshift({ colors: [C.neg, C.pos], label: "Resto" });
+    const items = [{ colors: [C.negFront, C.posFront], label: `Expires ${expText(d, d.front_expiry, false)}` }];
+    if (!d.expiries || d.expiries.length > 1) items.unshift({ colors: [C.neg, C.pos], label: "Other" });
     return items;
   }
-  return [{ colors: [C.neg], label: "Gamma negativa" }, { colors: [C.pos], label: "Gamma positiva" }];
+  return [{ colors: [C.neg], label: "Negative gamma" }, { colors: [C.pos], label: "Positive gamma" }];
 }
 
 function legendSVG(items, cy, fs, pl, pr, left, right) {
@@ -620,7 +633,7 @@ function flipSide(spot, fx, fr) {
   return Math.min(Math.abs(dd), Math.abs(dr)) < FLIP_ZONE ? "near" : dd > 0 ? "above" : "below";
 }
 // con solo el 0DTE, el charm es el cambio hasta el vencimiento de hoy, no por un dia
-function charmLabel(d) { return d.meta && d.meta.max_dte === 0 && d.front_expiry === d.session ? "Charm, hasta el vencimiento" : "Charm, por un día"; }
+function charmLabel(d) { return d.meta && d.meta.max_dte === 0 && d.front_expiry === d.session ? "Charm, to expiration" : "Charm, per day"; }
 // selector de rango: Auto, botones fijos o valor manual (ningun boton marcado)
 function syncRange(d) {
   const r = state.range;
@@ -632,8 +645,8 @@ function syncRange(d) {
   $("rangeAuto").textContent = r === "auto" && w ? `Auto ±${fmtNum(w, w < 1 ? 2 : 1)}%` : "Auto";
 }
 function move1(d) { return d.moves && d.moves.d1; }
-function sessLabel(iso) { return iso ? new Date(iso + "T12:00:00").toLocaleDateString("es-ES", { weekday: "short", day: "numeric" }) : ""; }
-function rangeLabel(em) { return em ? (em.partial ? `resto del ${sessLabel(em.session)}` : sessLabel(em.session)) : "1 sesión"; }
+function sessLabel(iso) { return iso ? `${DIAS_SEM[new Date(iso + "T12:00:00").getDay()]} ${+iso.slice(8, 10)}` : ""; }
+function rangeLabel(em) { return em ? (em.partial ? `rest of ${sessLabel(em.session)}` : sessLabel(em.session)) : "1 session"; }
 
 function emBand(d, xOf, top, bottom, small, left, right) {
   const em = move1(d);
@@ -652,7 +665,7 @@ function emBand(d, xOf, top, bottom, small, left, right) {
 }
 
 function watermark(d, left, bottom, small, exp) {
-  const date = (d.session || (d.computed_at || "").slice(0, 10)).split("-").reverse().join("/");
+  const date = fullDate(d.session || (d.computed_at || "").slice(0, 10));
   return `<text x="${left + 10}" y="${bottom - 12}" text-anchor="start" font-family="${MONO}" font-size="${small}" fill="${C.faint}" fill-opacity="0.75">GEX Lab, ${esc(d.symbol)}, ${date}</text>`;
 }
 
@@ -786,7 +799,9 @@ function renderMap(d, hm, W, H, exp = false) {
   if (!narrow) {
     s += `<text x="${cx - half}" y="${bottom + small + 10}" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(-bmax)}</text>`;
     s += `<text x="${cx + half}" y="${bottom + small + 10}" text-anchor="end" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(bmax)}</text>`;
-    s += `<text x="${cx}" y="${bottom + small + 10}" text-anchor="middle" font-family="${SANS}" font-size="${small}" fill="${C.faint}">GEX por strike, 1%</text>`;
+    // el rotulo va entre las dos cifras si cabe; si no, en una segunda linea
+    const lab = "GEX by strike, 1%", fits = textW(lab, small) + textW(fmtAxis(-bmax), small) + textW(fmtAxis(bmax), small) + 24 <= barsR - barsL;
+    s += `<text x="${cx}" y="${bottom + small + 10 + (fits ? 0 : small + 5)}" text-anchor="middle" font-family="${SANS}" font-size="${small}" fill="${C.faint}">${lab}</text>`;
   }
 
   // mapa
@@ -857,17 +872,17 @@ function renderMap(d, hm, W, H, exp = false) {
     const y = top + ((1 - t) / 2) * (bottom - top);
     if (!narrow || t === 1 || t === -1 || t === 0) s += `<text x="${cbL + cbBar + 4}" y="${y + small * 0.35}" font-family="${MONO}" font-size="${small - (narrow ? 1 : 0)}" fill="${C.muted}">${fmtAxis(v)}</text>`;
   });
-  if (!narrow) s += `<text transform="translate(${cbL + cbBar + 6 + cbNum + small * 0.4},${(top + bottom) / 2}) rotate(90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${state.mapMode === "total" ? "GEX total por 1%" : "Gamma por strike, por 1%"}</text>`;
+  if (!narrow) s += `<text transform="translate(${cbL + cbBar + 6 + cbNum + small * 0.4},${(top + bottom) / 2}) rotate(90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${state.mapMode === "total" ? "Total GEX per 1%" : "Gamma by strike, per 1%"}</text>`;
 
   // marca de agua
   if (!narrow) s += `<text x="${heatL + 10}" y="${bottom - 10}" font-family="${MONO}" font-size="${small}" fill="${C.hi}" fill-opacity="0.35">GEX Lab, ${esc(d.symbol)}, ${ddmm(hm.session)}</text>`;
 
   if (!exp) state.geo = { kind: "map", left: heatL, right: heatR, top, bottom, barsL, barsR, pLo, pHi, m0, m1, lastX };
-  return frame(W, H, s, d, exp, `Mapa de gamma ${ddmm(hm.session)}`);
+  return frame(W, H, s, d, exp, `Gamma map ${ddmm(hm.session)}`);
 }
 
 // motores: ids internos gexbot / spotgamma; en pantalla, Neto / Perfil
-const MOTOR_NOMBRE = { gexbot: "Neto", spotgamma: "Perfil" };
+const MOTOR_NOMBRE = { gexbot: "Net", spotgamma: "Profile" };
 function effModel() {
   if (state.model === "gexbot" || state.model === "spotgamma") return state.model;
   return state.dte === "0" ? "gexbot" : "spotgamma";
@@ -885,7 +900,7 @@ function extraParams() {
 function heatParams() {
   const p = new URLSearchParams({ symbol: state.symbol, dte: state.dte, range: state.range, session: state.mapSess, ...extraParams() });
   const sp = $("spotInput").value.trim();
-  if (sp) p.set("spot", sp.replace(/\./g, "").replace(",", "."));
+  if (sp) p.set("spot", sp.replace(/,/g, ""));
   return p.toString();
 }
 
@@ -898,7 +913,7 @@ async function loadHeat() {
   try {
     const r = await fetch("/api/heatmap?" + key, { signal: state.heatCtrl.signal });
     const hm = await r.json();
-    if (!r.ok) throw new Error(hm.error || "No se pudo calcular el mapa");
+    if (!r.ok) throw new Error(hm.error || "Could not calculate the map");
     state.heat = hm; state.heatKey = key; state.heatImg = null;
     $("chart").classList.remove("loading");
     mapCaption();
@@ -913,15 +928,14 @@ async function loadHeat() {
 function mapCaption() {
   const hm = state.heat;
   if (state.view !== "map" || !hm) return;
-  const dias = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
   const dt = new Date(hm.session + "T12:00:00");
-  const dia = `${dias[dt.getDay()]} ${ddmm(hm.session)}`;
+  const dia = `${DIAS_SEM[dt.getDay()]} ${ddmm(hm.session)}`;
   if (state.mapKind !== hm.kind) { state.mapKind = hm.kind; if (!$("chartSet").hidden) renderSet(); }
   const cap = $("caption");
-  if (hm.live) cap.textContent = `Sesión de hoy (${dia}), con el open interest del cierre anterior`;
-  else if (hm.kind === "next") cap.textContent = `Proyección para el ${dia}. Las velas aparecerán cuando abra la sesión`;
-  else cap.textContent = `Sesión del ${dia}` + (hm.approx ? ". Aproximada: CBOE ya no publica los contratos que vencieron ese día" : "");
-  cap.title = hm.approx ? "Desde ahora la app guarda una copia de la cadena durante cada sesión, así que las próximas repeticiones serán exactas." : "";
+  if (hm.live) cap.textContent = `Today's session (${dia}), with open interest from the previous close`;
+  else if (hm.kind === "next") cap.textContent = `Projection for ${dia}. Candles will appear when the session opens`;
+  else cap.textContent = `Session of ${dia}` + (hm.approx ? ". Approximate: CBOE no longer publishes the contracts that expired that day" : "");
+  cap.title = hm.approx ? "From now on the app saves a copy of the chain during each session, so future replays will be exact." : "";
 }
 
 /* ============================================================ pintar */
@@ -930,21 +944,21 @@ function expiryCaption(d) {
   if (state.view === "strike" && state.greek === "oi") {
     const o = d.oi;
     if (!o || !o.calls) return "";
-    const nf = new Intl.NumberFormat("es-ES", { notation: "compact", maximumFractionDigits: 1 });
+    const nf = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
     const sum = (a) => a.reduce((x, v) => x + (v || 0), 0), f = (v) => (state.oiMode === "chg" && v > 0 ? "+" : "") + nf.format(v);
-    if (state.oiMode === "pos") return o.net_pos ? `Posición neta estimada de los dealers en cada strike, en contratos: ${state.pos === "flow" ? "la que estima el modo flujo" : "convención estándar, largos de calls y cortos de puts"}. Total en el rango: <b>${f(sum(o.net_pos))}</b>` : "";
-    if (state.oiMode !== "chg") return `Contratos abiertos en el rango (cierre anterior): calls <b>${f(sum(o.calls))}</b> · puts <b>${f(sum(o.puts))}</b> · ratio put/call <b>${fmtNum(sum(o.puts) / Math.max(1, sum(o.calls)), 2)}</b>`;
+    if (state.oiMode === "pos") return o.net_pos ? `Estimated dealer net position at each strike, in contracts: ${state.pos === "flow" ? "as estimated by flow mode" : "standard convention, long calls and short puts"}. Total in range: <b>${f(sum(o.net_pos))}</b>` : "";
+    if (state.oiMode !== "chg") return `Open contracts in range (previous close): calls <b>${f(sum(o.calls))}</b> · puts <b>${f(sum(o.puts))}</b> · put/call ratio <b>${fmtNum(sum(o.puts) / Math.max(1, sum(o.calls)), 2)}</b>`;
     if (!o.chg_calls) return "";
-    return `Cambio en la sesión del ${ddmm(o.prev_date)} (la OCC lo publica cada mañana): calls <b>${f(sum(o.chg_calls))}</b> · puts <b>${f(sum(o.chg_puts))}</b>. Hacia arriba, contratos nuevos; hacia abajo, cerrados`;
+    return `Change in the ${ddmm(o.prev_date)} session (the OCC publishes it every morning): calls <b>${f(sum(o.chg_calls))}</b> · puts <b>${f(sum(o.chg_puts))}</b>. Up, new contracts; down, closed ones`;
   }
   if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
   const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
   if (expG(d)) {
     const cols = expColors(d.by_exp), labs = expLabels(d), sh = expShares(d);
-    return labs.map((l, j) => `<span class="capexp">${sw(cols[j])}${esc(l)}${sh[j] != null ? ` <b>${Math.round(sh[j] * 100)} %</b>` : ""}</span>`).join("");
+    return labs.map((l, j) => `<span class="capexp">${sw(cols[j])}${esc(l)}${sh[j] != null ? ` <b>${Math.round(sh[j] * 100)}%</b>` : ""}</span>`).join("");
   }
   const f = (d.expiries || []).find((x) => x.date === d.front_expiry);
-  let h = `${sw(C.posFront)}<b>Próximo vencimiento:</b> ${esc(expText(d, d.front_expiry))}${f ? ` · ${Math.round(f.share * 100)} % de la gamma` : ""}`;
+  let h = `${sw(C.posFront)}<b>Next expiration:</b> ${esc(expText(d, d.front_expiry))}${f ? ` · ${Math.round(f.share * 100)}% of gamma` : ""}`;
   if (!d.expiries || d.expiries.length > 1) h += `<span class="capsep"></span>${sw(C.pos)}${esc(restText(d))}`;
   return h;
 }
@@ -958,14 +972,14 @@ function draw() {
   if (state.view === "map") {
     if (!state.heat || state.heatKey !== heatParams()) { loadHeat(); return; }
     el.innerHTML = renderMap(d, state.heat, W, H);
-    el.setAttribute("aria-label", "Mapa de gamma por precio y hora");
+    el.setAttribute("aria-label", "Gamma map by price and time");
     return;
   }
   const z = typeof zoomed === "function" ? zoomed(d, state.view) : d;
   el.innerHTML = state.view === "impact" && typeof renderImpact === "function" ? renderImpact(z, W, H)
     : state.view === "history" && typeof renderHistory === "function" ? renderHistory(z, W, H)
     : state.view === "profile" ? renderProfile(z, W, H) : renderStrike(z, W, H);
-  el.setAttribute("aria-label", state.view === "profile" ? "Perfil de gamma" : state.view === "history" ? "Histórico de niveles" : "Exposición gamma por strike");
+  el.setAttribute("aria-label", state.view === "profile" ? "Gamma profile" : state.view === "history" ? "Level history" : "Gamma exposure by strike");
   if (typeof zoomBarSync === "function") zoomBarSync();
 }
 
@@ -978,29 +992,29 @@ function paintSide(d) {
   const chg = d.chg_pct;
   const hc = $("hChg");
   const imp = d.spot_implied;
-  if (d.spot_manual) { hc.textContent = "spot manual"; hc.className = "chg"; }
-  else if (imp && imp.use) { hc.textContent = `pre-market vía ${imp.proxy}`; hc.className = "chg"; }
+  if (d.spot_manual) { hc.textContent = "manual spot"; hc.className = "chg"; }
+  else if (imp && imp.use) { hc.textContent = `pre-market via ${imp.proxy}`; hc.className = "chg"; }
   else if (chg != null && isFinite(chg)) { hc.textContent = fmtPct(chg); hc.className = "chg " + (chg >= 0 ? "up" : "dn"); }
   else { hc.textContent = ""; hc.className = "chg"; }
 
   const fx = d.levels.flip_exact;
   const fs = flipSide(d.spot, fx, d.levels.flip);
-  const side = fs === "above" ? "Por encima del flip, l" : fs === "below" ? "Por debajo del flip, l" : "";
+  const side = fs === "above" ? "Above the flip, d" : fs === "below" ? "Below the flip, d" : "";
   let reg = fs === "near"
-    ? `<b class="${d.regime === "negative" ? "neg" : "pos"}">Gamma ${d.regime === "negative" ? "negativa" : "positiva"}, junto al flip.</b> A menos de un ${fmtNum(FLIP_ZONE, 1)}% del Gamma Flip: zona de transición, sin efecto claro de los dealers en ninguno de los dos sentidos.`
+    ? `<b class="${d.regime === "negative" ? "neg" : "pos"}">${d.regime === "negative" ? "Negative" : "Positive"} gamma, next to the flip.</b> Within ${fmtNum(FLIP_ZONE, 1)}% of the Gamma Flip: a transition zone, with no clear dealer effect in either direction.`
     : d.regime === "negative"
-    ? `<b class="neg">Gamma negativa.</b> ${side || "L"}a cobertura de los dealers tiende a amplificar los movimientos.`
-    : `<b class="pos">Gamma positiva.</b> ${side || "L"}a cobertura de los dealers tiende a frenar los movimientos.`;
+    ? `<b class="neg">Negative gamma.</b> ${side || "D"}ealer hedging tends to amplify moves.`
+    : `<b class="pos">Positive gamma.</b> ${side || "D"}ealer hedging tends to dampen moves.`;
   if (imp && !imp.use && !d.spot_manual && Math.abs(imp.proxy_chg) > 0.01)
-    reg += `<span class="implied">Fuera de horario ${imp.proxy} implica ${fmtSpot(imp.value)} (${fmtPct(imp.proxy_chg)}).</span>`;
+    reg += `<span class="implied">After hours, ${imp.proxy} implies ${fmtSpot(imp.value)} (${fmtPct(imp.proxy_chg)}).</span>`;
   $("regime").innerHTML = reg;
 
   const rows = levelItems(d).map((x) => ({ ...x }));
   const ag = d.levels.abs_gamma;
   if (ag != null && ag !== d.levels.put_wall && ag !== d.levels.call_wall)
-    rows.push({ key: "abs", name: "Gamma absoluta", v: ag, c: C.muted });
+    rows.push({ key: "abs", name: "Absolute gamma", v: ag, c: C.muted });
   const gk = (r) => r.key === "vt" ? (d.is_index === false ? "hedge" : "vt") : r.key;
-  rows.push({ key: "spot", name: d.spot_manual ? "Spot manual" : "Spot", v: d.spot, spot: true });
+  rows.push({ key: "spot", name: d.spot_manual ? "Manual spot" : "Spot", v: d.spot, spot: true });
   rows.sort((a, b) => b.v - a.v || (a.spot ? 1 : -1));
   $("levels").innerHTML = rows.map((r) => r.spot
     ? `<li class="spot"><span class="name" data-g="spot">${r.name}</span><span class="val">${fmtSpot(r.v)}</span></li>`
@@ -1019,42 +1033,42 @@ function paintSide(d) {
 
   const em = move1(d), m5 = d.moves && d.moves.d5, st = d.expected_move;
   $("facts").hidden = false;
-  $("emLabel").textContent = `Rango 1σ, ${rangeLabel(em)}`;
+  $("emLabel").textContent = `1σ range, ${rangeLabel(em)}`;
   $("emVal").textContent = em ? `±${fmtNum(em.pct, 2)}%` : "—";
-  $("emRange").textContent = em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}${m5 ? ` · 5 sesiones ±${fmtNum(m5.pct, 2)}%` : ""}` : "sin IV ATM";
-  $("emRange").title = `Rango de 1 desviación típica (68,3%) implícito en las opciones: varianza ATM interpolada en horas de mercado.` +
-    (st ? ` Straddle ATM del ${ddmm(st.expiry)}: ±${fmtNum(st.pct, 2)}% (movimiento medio, ≈ 0,8σ).` : "");
+  $("emRange").textContent = em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}${m5 ? ` · 5 sessions ±${fmtNum(m5.pct, 2)}%` : ""}` : "no ATM IV";
+  $("emRange").title = `1 standard deviation range (68.3%) implied by options: ATM variance interpolated over market hours.` +
+    (st ? ` ATM straddle for ${ddmm(st.expiry)}: ±${fmtNum(st.pct, 2)}% (average move, ≈ 0.8σ).` : "");
   const vf = t.vanna_flow, cf = t.charm_flow;
   $("vannaVal").textContent = fmtBig(Math.abs(vf), true);
-  $("vannaSub").textContent = vf >= 0 ? "compras de cobertura" : "ventas de cobertura";
+  $("vannaSub").textContent = vf >= 0 ? "hedge buying" : "hedge selling";
   $("charmVal").textContent = fmtBig(Math.abs(cf), true);
-  $("charmSub").textContent = cf >= 0 ? "compras de cobertura" : "ventas de cobertura";
+  $("charmSub").textContent = cf >= 0 ? "hedge buying" : "hedge selling";
   $("charmLabel").textContent = charmLabel(d);
-  $("frontLabel").textContent = `Vence ${ddmm(d.front_expiry)}`;
+  $("frontLabel").textContent = `Expires ${ddmm(d.front_expiry)}`;
   $("frontVal").textContent = `${fmtNum(d.front_share * 100, 0)}%`;
 
   const m = d.meta;
   $("meta").innerHTML = `
-    <dt>Contratos</dt><dd>${fmtNum(m.contracts)}</dd>
-    <dt>Vencimientos</dt><dd>${m.expirations}</dd>
-    ${d.levels.zero_gamma ? `<dt title="Precio en el que la GEX total recalculada cruzaría cero (convención SpotGamma)">Zero gamma (perfil)</dt><dd>${fmtLevel(d.levels.zero_gamma)}</dd>` : ""}
-    ${d.levels.window ? `<dt title="Rango en el que se buscan Call Wall, Put Wall, Flip y Vol Trigger">Niveles en</dt><dd>±${fmtNum(d.levels.window, d.levels.window < 1 ? 2 : 1)}%</dd>` : ""}
-    <dt>Comparado con</dt><dd>${d.prev ? ddmm(d.prev.date) : "sin histórico aún"}</dd>
-    ${d.combo ? `<dt>Combinado</dt><dd>+ ${d.combo.proxy} (×${fmtNum(d.combo.ratio, 2)})</dd>` : ""}
+    <dt>Contracts</dt><dd>${fmtNum(m.contracts)}</dd>
+    <dt>Expirations</dt><dd>${m.expirations}</dd>
+    ${d.levels.zero_gamma ? `<dt title="Price at which the recalculated total GEX would cross zero (SpotGamma convention)">Zero gamma (profile)</dt><dd>${fmtLevel(d.levels.zero_gamma)}</dd>` : ""}
+    ${d.levels.window ? `<dt title="Range in which Call Wall, Put Wall, Flip and Vol Trigger are searched">Levels within</dt><dd>±${fmtNum(d.levels.window, d.levels.window < 1 ? 2 : 1)}%</dd>` : ""}
+    <dt>Compared with</dt><dd>${d.prev ? ddmm(d.prev.date) : "no history yet"}</dd>
+    ${d.combo ? `<dt>Combined</dt><dd>+ ${d.combo.proxy} (×${fmtNum(d.combo.ratio, 2)})</dd>` : ""}
     <dt>Dealers</dt><dd class="flowinfo">${d.positioning === "flow"
-      ? (!d.flow_info || !d.flow_info.days ? "flujo: aún sin datos, igual que la estándar"
-        : d.flow_info.days === 1 ? `flujo: solo el volumen de la última sesión (${fmtNum(d.flow_info.share_flipped * 100, 0)}% de la posición ajustada)`
-        : `flujo, ${d.flow_info.days} sesiones (${fmtNum(d.flow_info.share_flipped * 100, 0)}% ajustada)`)
-      : "convención estándar"}</dd>
-    <dt>Tipo sin riesgo</dt><dd title="${d.rate && d.rate.src === "IRX" ? "Letra del Tesoro a 13 semanas (IRX de CBOE), en tipo continuo" : "Valor fijo: no se pudo leer la letra del Tesoro"}">${d.rate ? fmtNum(d.rate.r * 100, 2) + "%" + (d.rate.src === "IRX" ? " · letra 13 sem." : " · fijo") : "—"}</dd>
-    <dt>Datos CBOE</dt><dd>${esc(d.timestamp ? d.timestamp.slice(0, 16) + " UTC" : "—")}</dd>`;
+      ? (!d.flow_info || !d.flow_info.days ? "flow: no data yet, same as standard"
+        : d.flow_info.days === 1 ? `flow: only the last session's volume (${fmtNum(d.flow_info.share_flipped * 100, 0)}% of the position adjusted)`
+        : `flow, ${d.flow_info.days} sessions (${fmtNum(d.flow_info.share_flipped * 100, 0)}% adjusted)`)
+      : "standard convention"}</dd>
+    <dt>Risk-free rate</dt><dd title="${d.rate && d.rate.src === "IRX" ? "13-week Treasury bill (CBOE IRX), continuously compounded" : "Fixed value: the Treasury bill rate could not be read"}">${d.rate ? fmtNum(d.rate.r * 100, 2) + "%" + (d.rate.src === "IRX" ? " · 13-wk bill" : " · fixed") : "—"}</dd>
+    <dt>Data time</dt><dd>${esc(d.timestamp ? d.timestamp.slice(0, 16) + " UTC" : "—")}</dd>`;
 }
 
 function prevLine(d, r) {
   const p = d.prev;
   if (!p || !(r.key in p) || p[r.key] == null) return "";
   const was = p[r.key];
-  if (Math.abs(was - r.v) < 1e-9) return `<span class="prev">igual que el ${ddmm(p.date)}</span>`;
+  if (Math.abs(was - r.v) < 1e-9) return `<span class="prev">same as ${ddmm(p.date)}</span>`;
   const up = r.v > was;
   return `<span class="prev">${ddmm(p.date)}: ${fmtLevel(was)} <b class="${up ? "up" : "dn"}">${up ? "▲" : "▼"} ${fmtLevel(Math.abs(r.v - was))}</b></span>`;
 }
@@ -1066,19 +1080,19 @@ function dataClosed(d) {
   return !!(c && q && c - q > 5 * 60e3);
 }
 function dataStatus(d) {
-  if (!d.quote_time || !d.computed_at) return `Datos ${nyWhen(d.quote_time || d.computed_at)}`;
-  if (!dataClosed(d)) return `Datos ${nyWhen(d.computed_at)}`;
+  if (!d.quote_time || !d.computed_at) return `Data ${nyWhen(d.quote_time || d.computed_at)}`;
+  if (!dataClosed(d)) return `Data ${nyWhen(d.computed_at)}`;
   const pre = d.spot_implied && d.spot_implied.use ? " · pre-market" : "";
-  return `Calculado ${nyWhen(d.computed_at)}${pre} · opciones: cierre ${nyWhen(d.quote_time)}`;
+  return `Calculated ${nyWhen(d.computed_at)}${pre} · options: close ${nyWhen(d.quote_time)}`;
 }
 function dataTitle(d) {
-  const src = d.source !== "tradier" ? "CBOE (15 min de retraso)"
-    : TIEMPO_REAL.has(d.symbol) ? "Tradier en tiempo real; este índice se recalcula cada 5 min con el mercado abierto"
-    : "Tradier en tiempo real al calcular; se recalcula cada 15 min";
-  const base = `Calculado ${nyWhen(d.computed_at)} (hora local) con datos de ${src}.`;
+  const src = d.source !== "tradier" ? "CBOE (15 min delay)"
+    : TIEMPO_REAL.has(d.symbol) ? "real-time Tradier; this index is recalculated every 5 min while the market is open"
+    : "real-time Tradier at calculation time; recalculated every 15 min";
+  const base = `Calculated ${nyWhen(d.computed_at)} (local time) with data from ${src}.`;
   if (!dataClosed(d)) return base;
-  return `${base} Fuera del horario de mercado las opciones no cotizan: sus precios e IV son los del cierre (${nyWhen(d.quote_time)}). ` +
-    (d.spot_implied && d.spot_implied.use ? `El precio es el de pre-market (vía ${d.spot_implied.proxy || "su ETF"}) y el open interest, el último publicado.` : "El open interest es el último publicado.");
+  return `${base} Outside market hours options don't trade: their prices and IV are from the close (${nyWhen(d.quote_time)}). ` +
+    (d.spot_implied && d.spot_implied.use ? `The price is the pre-market one (via ${d.spot_implied.proxy || "its ETF"}) and open interest is the latest published.` : "Open interest is the latest published.");
 }
 
 function anaStatus(kind, text) {
@@ -1094,7 +1108,7 @@ function showError(msg) {
   const el = $("chart");
   el.classList.remove("loading");
   el.innerHTML = `<div class="placeholder err"><div><div class="err-t">${esc(msg)}</div>
-    ${/CBOE|certificado|servidor/.test(msg) ? "" : `<div class="err-d">Comprueba el ticker (los índices van sin prefijo: SPX, NDX, RUT) o prueba otro filtro de vencimientos.</div>`}</div></div>`;
+    ${/CBOE|certificate|server/i.test(msg) ? "" : `<div class="err-d">Check the ticker (indices have no prefix: SPX, NDX, RUT) or try another expiration filter.</div>`}</div></div>`;
   state.data = null;
   clearSide();
 }
@@ -1131,18 +1145,18 @@ async function load(refresh = false, silent = false) {
   syncCombo();
   $("refreshBtn").classList.add("spin");
   if (!silent) $("chart").classList.add("loading");
-  anaStatus("busy", `Cargando ${sym}…`);
+  anaStatus("busy", `Loading ${sym}…`);
   $("tip").hidden = true;
 
   const p = new URLSearchParams({ symbol: sym, dte: state.dte, range: state.range, ...extraParams() });
   const sp = $("spotInput").value.trim();
-  if (sp) p.set("spot", sp.replace(/\./g, "").replace(",", ".") );
+  if (sp) p.set("spot", sp.replace(/,/g, ""));
   if (refresh) p.set("refresh", "1");
 
   try {
     const r = await fetch("/api/gex?" + p, { signal: state.ctrl.signal });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "No se pudieron calcular los datos");
+    if (!r.ok) throw new Error(d.error || "Could not calculate the data");
     const prevData = state.data;
     state.data = d;
     if (silent) checkCrossings(prevData, d);
@@ -1158,16 +1172,16 @@ async function load(refresh = false, silent = false) {
   } catch (e) {
     if (e.name === "AbortError") return;
     $("refreshBtn").classList.remove("spin");
-    if (silent && state.data) { anaStatus("err", "No se pudo actualizar; se mantienen los datos anteriores"); return; }
-    showError(e.message === "Failed to fetch" ? "El servidor local no responde. Vuelve a abrir GEX Lab." : e.message);
-    anaStatus("err", "Sin datos");
+    if (silent && state.data) { anaStatus("err", "Could not refresh; keeping the previous data"); return; }
+    showError(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message);
+    anaStatus("err", "No data");
   }
 }
 
 /* ============================================================ interacción */
 // barra de vencimientos: pasos acumulados (los mismos filtros que gex_engine.DTE_FILTERS)
 const DTE_STEPS = ["0", "1", "7", "14", "30", "45", "all"];
-const DTE_LABEL = { "0": "0DTE", "1": "≤ 1DTE", "7": "≤ 7 días", "14": "≤ 14 días", "30": "≤ 30 días", "45": "≤ 45 días", all: "todos los vencimientos" };
+const DTE_LABEL = { "0": "0DTE", "1": "≤ 1DTE", "7": "≤ 7 days", "14": "≤ 14 days", "30": "≤ 30 days", "45": "≤ 45 days", all: "all expirations" };
 
 function bindDte(onChange) {
   const range = $("dteRange"), ticks = $("dteTicks");
@@ -1206,32 +1220,32 @@ function setSections() {
   const nx = P.next_exp ? ` (${ddmm(P.next_exp)})` : "", mo = P.month_exp ? ` (${ddmm(P.month_exp)})` : "";
   const S = [];
   if (v === "strike") {
-    S.push({ type: "seg", title: "Tipo de gráfico", key: "greek", opts: [["gamma", "Gamma"], ["delta", "Delta"], ["vanna", "Vanna"], ["charm", "Charm"], ["oi", "OI"]] });
-    if (g === "gamma" || g === "delta") S.push({ type: "multi", title: "Líneas", key: "lines", opts: [
-      ["total", `${G} total`, `${G} de los dealers sumando todos los vencimientos del filtro si el precio estuviera en cada nivel (eje de la derecha).${g === "gamma" ? " Donde cruza cero está el Gamma Flip." : ""}`],
-      ["next", `${G} del próximo vencimiento${nx}`, `Solo el vencimiento más cercano. En los índices suele ser el 0DTE, el que más mueve la sesión.`],
-      ["month", `${G} del vencimiento mensual${mo}`, P.month_exp ? `Solo el próximo vencimiento mensual (tercer viernes), el de más peso estructural.` : `No hay ningún vencimiento mensual dentro del filtro de vencimientos.`, !P.month_exp],
-      ["xnext", `${G} total sin el próximo`, `El total menos el próximo vencimiento: cómo quedará la ${gg} cuando venza.`],
-      ["xmonth", `${G} total sin el mensual`, P.month_exp ? `El total menos el mensual: la estructura que quedará después del vencimiento mensual.` : `No hay ningún vencimiento mensual dentro del filtro de vencimientos.`, !P.month_exp],
+    S.push({ type: "seg", title: "Chart type", key: "greek", opts: [["gamma", "Gamma"], ["delta", "Delta"], ["vanna", "Vanna"], ["charm", "Charm"], ["oi", "OI"]] });
+    if (g === "gamma" || g === "delta") S.push({ type: "multi", title: "Lines", key: "lines", opts: [
+      ["total", `Total ${gg}`, `Dealer ${gg} summing every expiration in the filter if the price were at each level (right axis).${g === "gamma" ? " Where it crosses zero is the Gamma Flip." : ""}`],
+      ["next", `Next-expiration ${gg}${nx}`, `Only the nearest expiration. For indices it is usually the 0DTE, the one that moves the session the most.`],
+      ["month", `Monthly-expiration ${gg}${mo}`, P.month_exp ? `Only the next monthly expiration (third Friday), the one with the most structural weight.` : `There is no monthly expiration inside the expiration filter.`, !P.month_exp],
+      ["xnext", `Total ${gg} ex next`, `The total minus the next expiration: what ${gg} will look like once it expires.`],
+      ["xmonth", `Total ${gg} ex monthly`, P.month_exp ? `The total minus the monthly: the structure left after the monthly expiration.` : `There is no monthly expiration inside the expiration filter.`, !P.month_exp],
     ] });
-    if (g === "gamma") S.push({ type: "one", title: "Barras", key: "bars", opts: [
-      ["net", "Gamma total", "GEX neta de cada strike: gamma de las calls menos la de las puts, en $ de delta por cada $1 de movimiento."],
-      ["split", "Gamma de calls y puts", "Las calls hacia arriba y las puts hacia abajo, cada una por separado."],
-      ["expiry", "Gamma por vencimiento", "Cada barra repartida en el próximo vencimiento, cada semanal y cada mensual, con su peso en la gamma."]] });
-    if (g === "delta") S.push({ type: "one", title: "Barras", key: "dbars", opts: [
-      ["net", "Delta total", "Delta que tienen los dealers en cada strike, en $: lo que tendrían que vender (positiva) o comprar (negativa) para quedar neutrales."],
-      ["split", "Delta de calls y puts", "La delta de las calls y la de las puts, cada una por separado."]] });
-    if (g === "oi") S.push({ type: "one", title: "Barras", key: "oiMode", opts: [
-      ["total", "Open interest total", "Contratos abiertos al cierre anterior: calls hacia arriba y puts hacia abajo."],
-      ["chg", "Cambio diario", "Contratos abiertos (arriba) o cerrados (abajo) en la última sesión, calls y puts lado a lado. Solo en los tickers de las listas."],
-      ["pos", "Posicionamiento neto", "Contratos netos de los dealers en cada strike: largos (arriba) o cortos (abajo). Con «Dealers: flujo», la posición estimada por el flujo."]] });
+    if (g === "gamma") S.push({ type: "one", title: "Bars", key: "bars", opts: [
+      ["net", "Total gamma", "Net GEX at each strike: call gamma minus put gamma, in $ of delta per $1 move."],
+      ["split", "Call and put gamma", "Calls up and puts down, each one separately."],
+      ["expiry", "Gamma by expiration", "Each bar split into the next expiration, each weekly and each monthly, with its share of gamma."]] });
+    if (g === "delta") S.push({ type: "one", title: "Bars", key: "dbars", opts: [
+      ["net", "Total delta", "Dealer delta at each strike, in $: what they would have to sell (positive) or buy (negative) to be neutral."],
+      ["split", "Call and put delta", "Call delta and put delta, each one separately."]] });
+    if (g === "oi") S.push({ type: "one", title: "Bars", key: "oiMode", opts: [
+      ["total", "Total open interest", "Open contracts at the previous close: calls up and puts down."],
+      ["chg", "Daily change", "Contracts opened (up) or closed (down) in the last session, calls and puts side by side. Only for the tickers in the lists."],
+      ["pos", "Net positioning", "Dealer net contracts at each strike: long (up) or short (down). With “Dealers: flow”, the position estimated from flow."]] });
   } else if (v === "map") {
-    S.push({ type: "one", title: "Color del mapa", key: "mapMode", opts: [
-      ["strike", "Por strike", "Gamma concentrada en cada strike, como TRACE."],
-      ["total", "Total", "GEX total del mercado si el precio estuviera en ese nivel."]] });
-    S.push({ type: "one", title: "Sesión", key: "mapSess", cur: state.mapKind || state.mapSess, opts: [
-      ["last", "Última sesión", "Repite la última sesión con sus velas."],
-      ["next", "Próxima", "Proyección de la siguiente sesión."]] });
+    S.push({ type: "one", title: "Map color", key: "mapMode", opts: [
+      ["strike", "By strike", "Gamma concentrated at each strike, like TRACE."],
+      ["total", "Total", "Total market GEX if the price were at that level."]] });
+    S.push({ type: "one", title: "Session", key: "mapSess", cur: state.mapKind || state.mapSess, opts: [
+      ["last", "Last session", "Replays the last session with its candles."],
+      ["next", "Next", "Projection of the next session."]] });
   }
   return S;
 }
@@ -1239,7 +1253,7 @@ function renderSet() {
   const row = (role, k, val, on, lab, info, off = false) => {
     const id = `csd_${k}_${val}`;
     return `<div class="cs-r${off ? " off" : ""}"><button class="cs-tg" role="${role}" aria-checked="${on}" data-k="${k}" data-v="${val}"${off ? " disabled" : ""}><i aria-hidden="true"></i><span>${esc(lab)}</span></button>` +
-      (info ? `<button class="cs-i" data-i="${id}" aria-expanded="false" aria-controls="${id}" title="Qué es">i</button></div><p class="cs-d" id="${id}" hidden>${esc(info)}</p>` : "</div>");
+      (info ? `<button class="cs-i" data-i="${id}" aria-expanded="false" aria-controls="${id}" title="What is this">i</button></div><p class="cs-d" id="${id}" hidden>${esc(info)}</p>` : "</div>");
   };
   $("chartSet").innerHTML = setSections().map((sec) => {
     if (sec.type === "seg") return `<div class="cs-type"><div class="cs-t">${sec.title}</div><div class="cs-segs" role="radiogroup" aria-label="${sec.title}">${
@@ -1270,12 +1284,12 @@ function syncSet() {
   $("setBtn").parentElement.hidden = !strike && v !== "map";
   $("levelsTg").hidden = !strike && v !== "map" && v !== "impact";
   $("levelsTg").setAttribute("aria-checked", String(state.showLevels));
-  const BN = { net: "Total", split: "Calls y puts", expiry: "Por vencimiento" };
+  const BN = { net: "Total", split: "Calls and puts", expiry: "By expiration" };
   const nl = (state.greek === "gamma" || state.greek === "delta") ? state.lines.size : 0;
   $("setLab").textContent = strike ? GREEK_N[state.greek] +
-    (state.greek === "gamma" ? ` · ${BN[state.bars]}` : state.greek === "delta" ? ` · ${BN[state.dbars]}` : state.greek === "oi" ? ` · ${{ chg: "Cambio diario", pos: "Neto dealers" }[state.oiMode] || "Total"}` : "") +
-    (nl ? ` · ${nl} línea${nl > 1 ? "s" : ""}` : "")
-    : v === "map" ? (state.mapMode === "total" ? "Mapa total" : "Mapa por strike") : "Niveles";
+    (state.greek === "gamma" ? ` · ${BN[state.bars]}` : state.greek === "delta" ? ` · ${BN[state.dbars]}` : state.greek === "oi" ? ` · ${{ chg: "Daily change", pos: "Dealer net" }[state.oiMode] || "Total"}` : "") +
+    (nl ? ` · ${nl} line${nl > 1 ? "s" : ""}` : "")
+    : v === "map" ? (state.mapMode === "total" ? "Total map" : "Map by strike") : "Levels";
   if (!$("chartSet").hidden) renderSet();
 }
 function bindPopovers() {
@@ -1312,8 +1326,8 @@ function syncCombo() {
   const px = COMBO[state.symbol];
   $("comboRow").hidden = !px;
   if (px) {
-    $("comboTitle").textContent = `Sumar ${px}`;
-    $("comboHelp").textContent = `Añade las opciones de ${px} a ${state.symbol}, convertidas a sus unidades, como los niveles combo.`;
+    $("comboTitle").textContent = `Add ${px}`;
+    $("comboHelp").textContent = `Adds the ${px} options to ${state.symbol}, converted to its units, like combo levels.`;
   }
   $("comboToggle").setAttribute("aria-checked", String(state.combo && !!px));
   renderChips();
@@ -1322,17 +1336,17 @@ function syncCombo() {
 /* etiquetas con los ajustes del modelo que no están en su valor por defecto */
 function renderChips() {
   const chips = [];
-  if (state.model !== "auto") chips.push({ k: "model", t: `Motor: ${MOTOR_NOMBRE[effModel()]}` });
-  if (state.pos === "flow") chips.push({ k: "pos", t: "Dealers: flujo" });
+  if (state.model !== "auto") chips.push({ k: "model", t: `Engine: ${MOTOR_NOMBRE[effModel()]}` });
+  if (state.pos === "flow") chips.push({ k: "pos", t: "Dealers: flow" });
   if (state.combo && COMBO[state.symbol]) chips.push({ k: "combo", t: `+ ${COMBO[state.symbol]}` });
   const sp = $("spotInput").value.trim();
   if (sp) {
-    const v = parseFloat(sp.replace(/\./g, "").replace(",", "."));
+    const v = parseFloat(sp.replace(/,/g, ""));
     chips.push({ k: "spot", t: `Spot ${isFinite(v) ? fmtSpot(v) : sp}` });
   }
   $("chips").innerHTML = chips.length
-    ? chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Quitar" aria-label="Quitar ${esc(c.t)}">×</button></span>`).join("")
-    : `<span class="chip-default">Motor Auto (${MOTOR_NOMBRE[effModel()]}), convención estándar</span>`;
+    ? chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Remove" aria-label="Remove ${esc(c.t)}">×</button></span>`).join("")
+    : `<span class="chip-default">Auto engine (${MOTOR_NOMBRE[effModel()]}), standard convention</span>`;
 }
 
 function clearChip(k) {
@@ -1371,8 +1385,8 @@ function checkCrossings(prev, d) {
     const lv = it.v;
     if ((a < lv && b >= lv) || (a > lv && b <= lv)) {
       const up = b > a;
-      toast(`${d.symbol} ${up ? "supera" : "pierde"} ${it.name} ${fmtLevel(lv)}`,
-        `Precio ${fmtSpot(b)} (antes ${fmtSpot(a)}). ${it.key === "flip" ? (up ? "Entra en zona de gamma positiva." : "Entra en zona de gamma negativa.") : ""}`);
+      toast(`${d.symbol} ${up ? "breaks above" : "drops below"} ${it.name} ${fmtLevel(lv)}`,
+        `Price ${fmtSpot(b)} (was ${fmtSpot(a)}). ${it.key === "flip" ? (up ? "Entering positive gamma territory." : "Entering negative gamma territory.") : ""}`);
     }
   }
 }
@@ -1391,14 +1405,14 @@ function setAuto(on, quiet = false) {
     let tick = 0;
     state.autoTimer = setInterval(() => {
       tick++;
-      const rt = ME.nube && state.mode !== "scanner" && TIEMPO_REAL.has(state.symbol);
+      const rt = ME && ME.nube && state.mode !== "scanner" && TIEMPO_REAL.has(state.symbol);
       if (!rt && tick % 5) return;
       if (state.mode === "scanner") { if (state.scanView === "table") runScan(); else if (state.scanView === "compass") loadCompass(true); }
       else load(false, true);
     }, 60 * 1000);
     if (quiet) return;
     try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
-    toast("Actualización automática activada", "Recarga los datos en cuanto el motor los publica (cada 5 min en SPX, NDX, RUT, SPY, QQQ e IWM; cada 15 en el resto) y avisa cuando el precio cruce un nivel.");
+    toast("Auto refresh on", "Reloads the data as soon as the engine publishes it (every 5 min for SPX, NDX, RUT, SPY, QQQ and IWM; every 15 for the rest) and alerts you when the price crosses a level.");
   }
 }
 
@@ -1417,9 +1431,9 @@ function setView(v) {
   $("tabHistory").setAttribute("aria-selected", String(v === "history"));
   $("tabMap").setAttribute("aria-selected", String(v === "map"));
   syncSet();
-  $("caption").textContent = v === "history" ? "Niveles al cierre de cada sesión guardada, con este filtro de vencimientos y este motor. Haz clic en la leyenda para mostrar u ocultar cada línea"
-    : v === "profile" ? "GEX total recalculada en cada nivel hipotético del subyacente"
-    : v === "impact" ? "Líneas: gamma total de los vencimientos del filtro y del próximo vencimiento semanal si el precio estuviera en cada nivel. Barras: gamma neta de cada strike al precio actual" : "";
+  $("caption").textContent = v === "history" ? "Levels at the close of each saved session, with this expiration filter and this engine. Click the legend to show or hide each line"
+    : v === "profile" ? "Total GEX recalculated at each hypothetical underlying price"
+    : v === "impact" ? "Lines: total gamma of the filter's expirations and of the next weekly expiration if the price were at each level. Bars: net gamma at each strike at the current price" : "";
   mapCaption();
   $("tip").hidden = true;
   draw();
@@ -1443,12 +1457,12 @@ function onMove(e) {
     hl.setAttribute("x", g.left + i * g.band); hl.setAttribute("visibility", "visible");
     const k = b.strikes[i], h = b.bucket ? (b.step - b.bucketStep) / 2 : 0;
     html = `<div class="t">${b.bucket ? `Strikes ${fmtLevel(k - h)}–${fmtLevel(k + h)}` : `Strike ${fmtLevel(k)}`}</div>
-      <div class="r">Neta <b>${fmtBig(b.net[i], true)}</b></div>
+      <div class="r">Net <b>${fmtBig(b.net[i], true)}</b></div>
       <div class="r">Calls <b>${fmtBig(b.calls[i], true)}</b></div>
       <div class="r">Puts <b>${fmtBig(b.puts[i], true)}</b></div>
-      ${state.greek === "delta" && b.delta ? `<div class="tsep"></div><div class="r">Delta neta <b>${fmtBig(b.delta.net[i], true)}</b></div><div class="r">Delta calls <b>${fmtBig(b.delta.calls[i], true)}</b></div><div class="r">Delta puts <b>${fmtBig(b.delta.puts[i], true)}</b></div>` : ""}
+      ${state.greek === "delta" && b.delta ? `<div class="tsep"></div><div class="r">Net delta <b>${fmtBig(b.delta.net[i], true)}</b></div><div class="r">Delta calls <b>${fmtBig(b.delta.calls[i], true)}</b></div><div class="r">Delta puts <b>${fmtBig(b.delta.puts[i], true)}</b></div>` : ""}
       ${lineTip(b, k)}
-      ${state.greek === "oi" && b.oi && b.oi.calls ? oiTip(b, i) : state.greek === "gamma" && state.bars === "expiry" && expG(b) ? expTip(b, i) : `<div class="r">Vence ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
+      ${state.greek === "oi" && b.oi && b.oi.calls ? oiTip(b, i) : state.greek === "gamma" && state.bars === "expiry" && expG(b) ? expTip(b, i) : `<div class="r">Expires ${ddmm(b.front_expiry)} <b>${fmtBig(b.front[i], true)}</b></div>`}`;
   } else if (g.kind === "history" && typeof historyTip === "function") {
     html = historyTip(d, g, x, svg);
     if (!html) return hideTip();
@@ -1465,8 +1479,8 @@ function onMove(e) {
     cr.setAttribute("visibility", "visible");
     svg.querySelector("#crossL").setAttribute("x1", x); svg.querySelector("#crossL").setAttribute("x2", x);
     svg.querySelector("#crossC").setAttribute("cx", x); svg.querySelector("#crossC").setAttribute("cy", g.yOf(yv));
-    html = `<div class="t">Spot ${fmtSpot(v)}</div><div class="r">GEX total <b>${fmtBig(yv, true)}</b></div>
-      <div class="r">Distancia <b>${fmtPct((v / d.spot - 1) * 100)}</b></div>`;
+    html = `<div class="t">Spot ${fmtSpot(v)}</div><div class="r">Total GEX <b>${fmtBig(yv, true)}</b></div>
+      <div class="r">Distance <b>${fmtPct((v / d.spot - 1) * 100)}</b></div>`;
   }
   tip.innerHTML = html; tip.hidden = false;
   const wr = $("chart").getBoundingClientRect(), pr = tip.offsetParent.getBoundingClientRect();
@@ -1485,8 +1499,8 @@ function lineTip(b, k) {
 }
 function oiTip(b, i) {
   const o = b.oi, n = (v) => fmtNum(v || 0), c = (v) => (v > 0 ? "+" : "") + fmtNum(v || 0);
-  return `<div class="tsep"></div>${o.net_pos ? `<div class="r">Neto dealers <b>${c(o.net_pos[i])}</b></div>` : ""}<div class="r">OI calls <b>${n(o.calls[i])}</b></div><div class="r">OI puts <b>${n(o.puts[i])}</b></div>` +
-    (o.chg_calls ? `<div class="r">Cambio calls <b>${c(o.chg_calls[i])}</b></div><div class="r">Cambio puts <b>${c(o.chg_puts[i])}</b></div>` : "");
+  return `<div class="tsep"></div>${o.net_pos ? `<div class="r">Dealer net <b>${c(o.net_pos[i])}</b></div>` : ""}<div class="r">OI calls <b>${n(o.calls[i])}</b></div><div class="r">OI puts <b>${n(o.puts[i])}</b></div>` +
+    (o.chg_calls ? `<div class="r">Call change <b>${c(o.chg_calls[i])}</b></div><div class="r">Put change <b>${c(o.chg_puts[i])}</b></div>` : "");
 }
 function expTip(b, i) {
   const cols = expColors(b.by_exp), labs = expLabels(b);
@@ -1513,15 +1527,15 @@ function mapTip(e, x, y, g) {
     let bi = -1, bd = Infinity;
     d.strikes.forEach((k, i) => { const dd = Math.abs(k - price); if (dd < bd) { bd = dd; bi = i; } });
     if (bi < 0) return hideTip();
-    html = `<div class="t">Strike ${fmtLevel(d.strikes[bi])}</div><div class="r">GEX neta <b>${fmtBig(d.net[bi], true)}</b></div>
-      <div class="r">Vence ${ddmm(d.front_expiry)} <b>${fmtBig(d.front[bi], true)}</b></div>`;
+    html = `<div class="t">Strike ${fmtLevel(d.strikes[bi])}</div><div class="r">Net GEX <b>${fmtBig(d.net[bi], true)}</b></div>
+      <div class="r">Expires ${ddmm(d.front_expiry)} <b>${fmtBig(d.front[bi], true)}</b></div>`;
   } else if (x >= g.left && x <= Math.min(g.right, g.lastX)) {
     const mins = g.m0 + ((x - g.left) / (g.right - g.left)) * (g.m1 - g.m0);
     const c = Math.max(0, Math.min(hm.times.length - 1, Math.round((mins - g.m0) / 5)));
     const r = Math.max(0, Math.min(hm.prices.length - 1, Math.round(((price - g.pLo) / (g.pHi - g.pLo)) * (hm.prices.length - 1))));
-    html = `<div class="t">${nyHHMM(hm.session + " " + hm.times[c])}, precio ${fmtSpot(price)}</div>
-      <div class="r">${state.mapMode === "total" ? "GEX total" : "Gamma en el strike"} <b>${fmtBig(heatZ(hm)[r][c], true)}</b></div>
-      <div class="r">Distancia <b>${fmtPct((price / hm.spot - 1) * 100)}</b></div>`;
+    html = `<div class="t">${nyHHMM(hm.session + " " + hm.times[c])}, price ${fmtSpot(price)}</div>
+      <div class="r">${state.mapMode === "total" ? "Total GEX" : "Gamma at strike"} <b>${fmtBig(heatZ(hm)[r][c], true)}</b></div>
+      <div class="r">Distance <b>${fmtPct((price / hm.spot - 1) * 100)}</b></div>`;
   } else return hideTip();
   tip.innerHTML = html; tip.hidden = false;
   placeTip(e);
@@ -1558,9 +1572,9 @@ function chartPngBlob() {
       ctx.scale(scale, scale);
       ctx.drawImage(img, 0, 0, W, H);
       URL.revokeObjectURL(url);
-      cv.toBlob((bl) => (bl ? resolve(bl) : reject(new Error("No se pudo generar la imagen"))), "image/png");
+      cv.toBlob((bl) => (bl ? resolve(bl) : reject(new Error("Could not create the image"))), "image/png");
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo generar la imagen")); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not create the image")); };
     img.src = url;
   });
 }
@@ -1570,11 +1584,11 @@ function chartPngBlob() {
 function copyPNG() {
   if (!state.data) return;
   const btn = $("copyBtn");
-  if (!navigator.clipboard || !window.ClipboardItem) { toast("No se puede copiar", "Este navegador no permite copiar imágenes."); return; }
+  if (!navigator.clipboard || !window.ClipboardItem) { toast("Can't copy", "This browser doesn't allow copying images."); return; }
   btn.disabled = true;
   navigator.clipboard.write([new ClipboardItem({ "image/png": chartPngBlob() })])
-    .then(() => toast("Imagen copiada", "Pégala con Ctrl+V."))
-    .catch((e) => toast("No se pudo copiar", e && e.message ? e.message : "El navegador bloqueó el portapapeles."))
+    .then(() => toast("Image copied", "Paste it with Ctrl+V."))
+    .catch((e) => toast("Could not copy", e && e.message ? e.message : "The browser blocked the clipboard."))
     .finally(() => { btn.disabled = false; });
 }
 
@@ -1588,7 +1602,7 @@ function tvLevels(d) {
   add(L.flip, "Gamma Flip");
   add(L.vt, d.is_index === false ? "Hedge Wall" : "Vol Trigger");
   add(L.put_wall, "Put Wall");
-  if (L.abs_gamma != null && ![L.call_wall, L.put_wall].includes(L.abs_gamma)) add(L.abs_gamma, "Gamma Absoluta");
+  if (L.abs_gamma != null && ![L.call_wall, L.put_wall].includes(L.abs_gamma)) add(L.abs_gamma, "Absolute Gamma");
   if (L.zero_gamma != null && Math.abs(L.zero_gamma - (L.flip || 0)) > 1e-9) add(L.zero_gamma, "Zero Gamma");
   add(d.spot, "Spot", 2);
   const m1 = d.moves && d.moves.d1, m5 = d.moves && d.moves.d5;
@@ -1610,8 +1624,8 @@ async function copyTV() {
     try { ok = document.execCommand("copy"); } catch { ok = false; }
     ta.remove();
   }
-  if (!ok) { toast("No se pudo copiar", "El navegador bloqueó el portapapeles."); return; }
-  toast(`Niveles de ${d.symbol} copiados`, `${text.split("\n").length} niveles. En TradingView: Ajustes del indicador ▸ Entradas ▸ pega en el cuadro de texto.`);
+  if (!ok) { toast("Could not copy", "The browser blocked the clipboard."); return; }
+  toast(`${d.symbol} levels copied`, `${text.split("\n").length} levels. In TradingView: indicator Settings ▸ Inputs ▸ paste into the text box.`);
 }
 
 function svgToPng(svg, W, H, filename, scale = 1.5) {
@@ -1632,7 +1646,7 @@ function svgToPng(svg, W, H, filename, scale = 1.5) {
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     }, "image/png");
   };
-  img.onerror = () => { URL.revokeObjectURL(url); setStatus("err", "No se pudo generar la imagen"); console.error("svgToPng: la imagen SVG no se pudo cargar"); };
+  img.onerror = () => { URL.revokeObjectURL(url); setStatus("err", "Could not create the image"); console.error("svgToPng: la imagen SVG no se pudo cargar"); };
   img.src = url;
 }
 
@@ -1640,14 +1654,14 @@ function svgToPng(svg, W, H, filename, scale = 1.5) {
 async function exportReport() {
   const d = state.data;
   if (!d) return;
-  setStatus("busy", "Preparando informe…");
+  setStatus("busy", "Preparing report…");
   if (!state.heat || state.heatKey !== heatParams()) {
     try {
       const r = await fetch("/api/heatmap?" + heatParams());
       const hm = await r.json();
       if (!r.ok) throw new Error(hm.error);
       state.heat = hm; state.heatKey = heatParams(); state.heatImg = null;
-    } catch (e) { setStatus("err", "No se pudo calcular el mapa para el informe"); return; }
+    } catch (e) { setStatus("err", "Could not calculate the map for the report"); return; }
   }
   // Informe con la misma estetica que la web: tarjetas sobre el fondo, cabecera con precio, regimen y niveles
   // (con su cambio frente a la sesion anterior), Impacto calls y puts con la ficha, barras por strike y TRACE
@@ -1669,29 +1683,29 @@ async function exportReport() {
   let s = `<rect width="${W}" height="${H}" fill="${C.ink}"/>` + card(0, 0, W, headH);
 
   // --- cabecera: identidad, precio y regimen
-  const date = (d.session || (d.computed_at || "").slice(0, 10)).split("-").reverse().join("/");
+  const date = fullDate(d.session || (d.computed_at || "").slice(0, 10));
   s += T(56, 74, esc(d.symbol), { fs: 46, w: 700 });
   s += T(56 + textW(d.symbol, 46) * 1.05 + 20, 74, `${esc(d.name || "")}${d.combo ? ` + ${esc(d.combo.proxy)}` : ""}`, { fs: 22, c: C.muted });
-  s += T(56, 112, `${dte} · ${date} · ${state.pos === "flow" ? "dealers según el flujo" : "convención estándar"}`, { fs: 19, c: C.faint });
+  s += T(56, 112, `${dte} · ${date} · ${state.pos === "flow" ? "dealers from flow" : "standard convention"}`, { fs: 19, c: C.faint });
   s += T(56, 200, fmtSpot(d.spot), { fs: 76, w: 600 });
   const chg = d.chg_pct;
   if (chg != null && !d.spot_manual) s += T(56 + textW(fmtSpot(d.spot), 76) * 1.02 + 22, 200, fmtPct(chg), { fs: 28, w: 500, c: chg >= 0 ? C.put : C.call });
-  s += `<rect x="56" y="232" width="${textW(neg ? "Gamma negativa" : "Gamma positiva", 20) + 34}" height="38" rx="19" fill="${neg ? C.neg : C.pos}" fill-opacity="0.16"/>`;
-  s += `<circle cx="74" cy="251" r="5" fill="${neg ? C.neg : C.pos}"/>` + T(86, 258, neg ? "Gamma negativa" : "Gamma positiva", { fs: 20, w: 600, c: neg ? C.neg : C.pos });
-  s += T(56, 300, neg ? "Por debajo del flip: la cobertura de los dealers" : "Por encima del flip: la cobertura de los dealers", { fs: 20, c: C.muted });
-  s += T(56, 326, neg ? "tiende a amplificar los movimientos." : "tiende a frenar los movimientos.", { fs: 20, c: C.muted });
+  s += `<rect x="56" y="232" width="${textW(neg ? "Negative gamma" : "Positive gamma", 20) + 34}" height="38" rx="19" fill="${neg ? C.neg : C.pos}" fill-opacity="0.16"/>`;
+  s += `<circle cx="74" cy="251" r="5" fill="${neg ? C.neg : C.pos}"/>` + T(86, 258, neg ? "Negative gamma" : "Positive gamma", { fs: 20, w: 600, c: neg ? C.neg : C.pos });
+  s += T(56, 300, neg ? "Below the flip: dealer hedging tends" : "Above the flip: dealer hedging tends", { fs: 20, c: C.muted });
+  s += T(56, 326, neg ? "to amplify moves." : "to dampen moves.", { fs: 20, c: C.muted });
   // GEX neta con la barra calls/puts
   const cA = Math.abs(t.call_per_pct || 0), pA = Math.abs(t.put_per_pct || 0), tot = cA + pA || 1;
-  s += T(56, 356, "GEX neta por 1%", { fs: 19, c: C.muted }) + T(600, 356, fmtBig(t.net_per_pct, true), { a: "end", fs: 24, w: 600 });
+  s += T(56, 356, "Net GEX per 1%", { fs: 19, c: C.muted }) + T(600, 356, fmtBig(t.net_per_pct, true), { a: "end", fs: 24, w: 600 });
   s += `<rect x="56" y="370" width="${544 * cA / tot - 2}" height="8" rx="4" fill="${C.pos}"/><rect x="${56 + 544 * cA / tot + 2}" y="370" width="${544 * pA / tot - 2}" height="8" rx="4" fill="${C.neg}"/>`;
 
   // --- niveles con distancia y cambio frente a la sesion anterior
   const rows = levelItems(d);
-  if (L.abs_gamma != null && !rows.some((r) => r.v === L.abs_gamma)) rows.push({ key: "abs_gamma", name: "Gamma absoluta", v: L.abs_gamma, c: C.muted });
+  if (L.abs_gamma != null && !rows.some((r) => r.v === L.abs_gamma)) rows.push({ key: "abs_gamma", name: "Absolute gamma", v: L.abs_gamma, c: C.muted });
   rows.push({ key: "spot", name: "Spot", v: d.spot, c: C.text, spot: true });
   rows.sort((a, b) => b.v - a.v);
   const lx = 700, ly0 = 64, lh = Math.min(50, (headH - 90) / Math.max(1, rows.length));
-  s += T(lx, 40, "NIVELES", { fs: 16, w: 600, c: C.faint });
+  s += T(lx, 40, "LEVELS", { fs: 16, w: 600, c: C.faint });
   rows.forEach((r, i) => {
     const y = ly0 + 18 + i * lh;
     s += r.spot ? `<circle cx="${lx + 8}" cy="${y - 7}" r="8" fill="${C.text}"/>` : `<circle cx="${lx + 8}" cy="${y - 7}" r="8" fill="none" stroke="${r.c}" stroke-width="3"/>`;
@@ -1701,7 +1715,7 @@ async function exportReport() {
     const p = d.prev;
     if (!r.spot && p && r.key in p && p[r.key] != null) {
       const was = p[r.key], same = Math.abs(was - r.v) < 1e-9, up = r.v > was;
-      s += same ? T(lx + 530, y, `igual que el ${ddmm(p.date)}`, { fs: 17, c: C.faint })
+      s += same ? T(lx + 530, y, `same as ${ddmm(p.date)}`, { fs: 17, c: C.faint })
         : T(lx + 530, y, `${ddmm(p.date)}: ${fmtLevel(was)}`, { fs: 17, c: C.faint }) +
           T(lx + 530 + textW(`${ddmm(p.date)}: ${fmtLevel(was)}`, 17) + 10, y, `${up ? "▲" : "▼"} ${fmtLevel(Math.abs(r.v - was))}`, { fs: 17, w: 600, c: up ? C.put : C.call });
     }
@@ -1710,14 +1724,14 @@ async function exportReport() {
   // --- cifras clave
   const m5 = d.moves && d.moves.d5;
   const facts = [
-    [`Rango 1σ, ${rangeLabel(em)}`, em ? `±${fmtNum(em.pct, 2)}%` : "—", em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}` : ""],
-    ["Rango 1σ, 5 sesiones", m5 ? `±${fmtNum(m5.pct, 2)}%` : "—", m5 ? `${fmtSpot(m5.lo)} – ${fmtSpot(m5.hi)}` : ""],
+    [`1σ range, ${rangeLabel(em)}`, em ? `±${fmtNum(em.pct, 2)}%` : "—", em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}` : ""],
+    ["1σ range, 5 sessions", m5 ? `±${fmtNum(m5.pct, 2)}%` : "—", m5 ? `${fmtSpot(m5.lo)} – ${fmtSpot(m5.hi)}` : ""],
     ["Vanna (IV −1 pt)", `${t.vanna_flow >= 0 ? "+" : "−"}${fmtBig(Math.abs(t.vanna_flow), true)}`, ""],
     [charmLabel(d), `${t.charm_flow >= 0 ? "+" : "−"}${fmtBig(Math.abs(t.charm_flow), true)}`, ""],
-    ["Zero gamma (perfil)", L.zero_gamma != null ? fmtLevel(L.zero_gamma) : "—", ""],
+    ["Zero gamma (profile)", L.zero_gamma != null ? fmtLevel(L.zero_gamma) : "—", ""],
   ];
   const fx = 1480, fr = W - 56;
-  s += T(fx, 40, "CIFRAS", { fs: 16, w: 600, c: C.faint });
+  s += T(fx, 40, "KEY FIGURES", { fs: 16, w: 600, c: C.faint });
   facts.forEach(([k, v, sub], i) => {
     const y = 84 + i * 62;
     s += T(fx, y, esc(k), { fs: 20, c: C.muted }) + T(fr, y, esc(v), { a: "end", fs: 26, w: 600 });
@@ -1727,24 +1741,24 @@ async function exportReport() {
   // --- ficha (como en el Equity Hub)
   const cr = ((typeof hub !== "undefined" && hub.cmp) || (cmp.data && cmp.data.rows) || []).find((r) => r.symbol === d.symbol);
   const pc = (v) => (v == null ? "—" : fmtNum(v * 100, 1) + "%");
-  const exd = (iso) => (iso ? `${ddmm(iso)}/${iso.slice(2, 4)}` : "—");
-  const vp = (v, edge) => (v != null ? fmtLevel(v) : edge && hb.range ? (edge === "up" ? `por encima de ${fmtSpot(hb.range[1])}` : `por debajo de ${fmtSpot(hb.range[0])}`) : "—");
+  const exd = (iso) => (iso ? fullDate(iso) : "—");
+  const vp = (v, edge) => (v != null ? fmtLevel(v) : edge && hb.range ? (edge === "up" ? `above ${fmtSpot(hb.range[1])}` : `below ${fmtSpot(hb.range[0])}`) : "—");
   const ficha = [
-    ["Cierre anterior", fmtSpot(d.prev_close)],
+    ["Previous close", fmtSpot(d.prev_close)],
     ["IV rank", cr && cr.y != null ? fmtNum(cr.y, 0) + "%" : "—"],
-    ["IV 30 días", pc(hb.iv30)],
-    ["Vol. realizada 20 días", pc(hb.rv20)],
-    ["Punto de baja volatilidad", vp(hb.low_vol_point, hb.low_vol_edge)],
-    ["Punto de alta volatilidad", vp(hb.high_vol_point, hb.high_vol_edge)],
-    ["Gamma de calls (1%)", fmtBig(t.call_per_pct, true)],
-    ["Gamma de puts (1%)", fmtBig(t.put_per_pct, true)],
-    ["Venc. con más gamma", exd(hb.top_gamma_exp)],
-    ["Venc. con más delta", exd(hb.top_delta_exp)],
-    ["Volumen calls / puts", `${hb.call_vol != null ? fmtBig(hb.call_vol) : "—"} / ${hb.put_vol != null ? fmtBig(hb.put_vol) : "—"}`],
-    ["Ratio put/call (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—"],
+    ["30-day IV", pc(hb.iv30)],
+    ["20-day realized vol", pc(hb.rv20)],
+    ["Low volatility point", vp(hb.low_vol_point, hb.low_vol_edge)],
+    ["High volatility point", vp(hb.high_vol_point, hb.high_vol_edge)],
+    ["Call gamma (1%)", fmtBig(t.call_per_pct, true)],
+    ["Put gamma (1%)", fmtBig(t.put_per_pct, true)],
+    ["Exp. with most gamma", exd(hb.top_gamma_exp)],
+    ["Exp. with most delta", exd(hb.top_delta_exp)],
+    ["Call / put volume", `${hb.call_vol != null ? fmtBig(hb.call_vol) : "—"} / ${hb.put_vol != null ? fmtBig(hb.put_vol) : "—"}`],
+    ["Put/call ratio (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—"],
   ];
   const cx0 = impW + G;
-  s += card(cx0, yImp, cardW, impH) + T(cx0 + 36, yImp + 52, "FICHA", { fs: 16, w: 600, c: C.faint });
+  s += card(cx0, yImp, cardW, impH) + T(cx0 + 36, yImp + 52, "PROFILE", { fs: 16, w: 600, c: C.faint });
   const rh = (impH - 100) / ficha.length;
   ficha.forEach(([k, v], i) => {
     const y = yImp + 100 + i * rh;
@@ -1754,12 +1768,12 @@ async function exportReport() {
 
   // --- pie
   s += brandSign(W - 56, 74, 26);
-  s += T(56, H - 28, `GEX Lab · opciones de ${d.source === "tradier" ? "Tradier (tiempo real al calcular)" : "CBOE (~15 min de retraso)"} · open interest del cierre anterior · no es asesoramiento financiero`, { fs: 17, c: C.faint });
-  s += T(W - 56, H - 28, `Generado ${new Date().toLocaleString("es-ES", { dateStyle: "short", timeStyle: "short" })}`, { a: "end", fs: 17, c: C.faint });
+  s += T(56, H - 28, `GEX Lab · options from ${d.source === "tradier" ? "Tradier (real time at calculation)" : "CBOE (~15 min delay)"} · open interest from the previous close · not financial advice`, { fs: 17, c: C.faint });
+  s += T(W - 56, H - 28, `Generated ${fullDate(new Date().toISOString().slice(0, 10))} ${hhmm(new Date())}`, { a: "end", fs: 17, c: C.faint });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}${impSvg}${strikeSvg}${mapSvg}</svg>`;
-  svgToPng(svg, W, H, `Informe_${d.symbol}_${d.session || ""}.png`, 1.25);
-  setStatus("", `Informe de ${d.symbol} generado`);
+  svgToPng(svg, W, H, `Report_${d.symbol}_${d.session || ""}.png`, 1.25);
+  setStatus("", `${d.symbol} report generated`);
   draw();
 }
 
@@ -1809,7 +1823,7 @@ function pickSuggest(k) {
 }
 async function querySuggest() {
   const q = $("symbol").value.trim();
-  if (!q) { renderSuggest(recents(), recents().length ? "Recientes" : ""); return; }
+  if (!q) { renderSuggest(recents(), recents().length ? "Recent" : ""); return; }
   if (sug.ctrl) sug.ctrl.abort();
   sug.ctrl = new AbortController();
   try {
@@ -1864,11 +1878,11 @@ async function loadCollector() {
   try {
     const d = await fetch("/api/collector").then((r) => r.json());
     const u = d.ultima_recogida;
-    if (d.instalado === false && !u) { el.innerHTML = `<span class="cdot off"></span>Recolector no instalado`; el.title = "Ejecuta «Instalar recolector.bat» en la carpeta de la app"; return; }
-    if (!u) { el.innerHTML = `<span class="cdot"></span>Recolector instalado, sin recogidas aún`; return; }
+    if (d.instalado === false && !u) { el.innerHTML = `<span class="cdot off"></span>Collector not installed`; el.title = "Run “Instalar recolector.bat” in the app folder"; return; }
+    if (!u) { el.innerHTML = `<span class="cdot"></span>Collector installed, no runs yet`; return; }
     const errs = Object.keys(u.errores || {});
-    el.innerHTML = `<span class="cdot ${errs.length ? "warn" : ""}"></span>Recolector: ${({ cierre: "cierre", apertura: "apertura", intradia: "intradía", reintento: "reintento" })[u.tipo] || u.tipo} del ${ddmm(u.sesion)}, ${u.ok}/${u.total} tickers`;
-    el.title = `Hora: ${nyWhen(u.hora)}. ${errs.length ? "Con error: " + errs.join(", ") : "Sin errores"}.${d.instalado === false ? " Las tareas de Windows no están instaladas." : ""}`;
+    el.innerHTML = `<span class="cdot ${errs.length ? "warn" : ""}"></span>Collector: ${({ cierre: "close", apertura: "open", intradia: "intraday", reintento: "retry" })[u.tipo] || u.tipo} of ${ddmm(u.sesion)}, ${u.ok}/${u.total} tickers`;
+    el.title = `Time: ${nyWhen(u.hora)}. ${errs.length ? "Failed: " + errs.join(", ") : "No errors"}.${d.instalado === false ? " The Windows tasks are not installed." : ""}`;
   } catch { el.textContent = ""; }
 }
 
@@ -1912,14 +1926,14 @@ async function runScan() {
   if (scanState.ctrl) scanState.ctrl.abort();
   scanState.ctrl = new AbortController();
   $("scanBtn").disabled = true;
-  $("scanStatus").textContent = `Calculando ${list.length} tickers…`;
+  $("scanStatus").textContent = `Calculating ${list.length} tickers…`;
   const known = Object.fromEntries(scanState.rows.map((r) => [r.symbol, r]));
   scanState.rows = list.map((s) => known[s] ? { ...known[s], stale: true } : { symbol: s, loading: true });
   renderScan();
   try {
     const r = await fetch(`/api/scan?dte=${state.dte}&symbols=${encodeURIComponent(list.join(","))}`, { signal: scanState.ctrl.signal });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Error en el escáner");
+    if (!r.ok) throw new Error(d.error || "Scanner error");
     // en la nube el escaner es el del ultimo ciclo: los tickers recien anadidos aparecen como pendientes y se
     // vuelve a consultar cada 15 s hasta que el motor los incluye (1-2 min)
     const have = new Set(d.rows.map((x) => x.symbol));
@@ -1927,16 +1941,16 @@ async function runScan() {
     scanState.rows = d.rows.concat(missing.map((s) => ({ symbol: s, loading: true })));
     const ok = d.rows.filter((x) => !x.error).length;
     $("scanStatus").textContent = missing.length && ME && ME.nube
-      ? `Calculando ${missing.join(", ")} en la nube (1–2 min)…`
-      : `${ok} de ${d.rows.length} tickers${d.computed_at ? `, calculado ${nyWhen(d.computed_at)}` : ""}`;
+      ? `Calculating ${missing.join(", ")} in the cloud (1–2 min)…`
+      : `${ok} of ${d.rows.length} tickers${d.computed_at ? `, calculated ${nyWhen(d.computed_at)}` : ""}`;
     clearTimeout(scanState.retry);
     if (missing.length && ME && ME.nube && (scanState.tries = (scanState.tries || 0) + 1) <= 20) {
       scanState.retry = setTimeout(() => { if (state.mode === "scanner") runScan(); }, 15000);
     } else if (!missing.length) scanState.tries = 0;
   } catch (e) {
     if (e.name === "AbortError") return;
-    $("scanStatus").textContent = e.message === "Failed to fetch" ? "El servidor local no responde" : e.message;
-    scanState.rows = scanState.rows.map((x) => x.loading ? { symbol: x.symbol, error: "Sin datos" } : x);
+    $("scanStatus").textContent = e.message === "Failed to fetch" ? "The local server is not responding" : e.message;
+    scanState.rows = scanState.rows.map((x) => x.loading ? { symbol: x.symbol, error: "No data" } : x);
   } finally {
     $("scanBtn").disabled = false;
   }
@@ -1949,7 +1963,7 @@ function levelCell(v, dist, prevV, step) {
   let mv = "";
   if (prevV != null && Math.abs(prevV - v) > 1e-9) {
     const up = v > prevV;
-    mv = `<span class="mv ${up ? "up" : "dn"}" title="Antes ${fmtNum(prevV, Number.isInteger(prevV) ? 0 : dec)}">${up ? "▲" : "▼"}</span>`;
+    mv = `<span class="mv ${up ? "up" : "dn"}" title="Was ${fmtNum(prevV, Number.isInteger(prevV) ? 0 : dec)}">${up ? "▲" : "▼"}</span>`;
   }
   const near = dist != null && Math.abs(dist) < 0.5 ? " near" : "";
   return `<td><span class="lv">${fmtNum(v, dec)}</span>${mv}<span class="ds${near}">${dist == null ? "" : fmtPct(dist)}</span></td>`;
@@ -1975,12 +1989,12 @@ function renderScan() {
     th.dataset.dir = th.dataset.k === k ? (scanState.sortDir > 0 ? "▲" : "▼") : "";
   });
   if (!rows.length) {
-    body.innerHTML = `<tr class="err"><td colspan="11" class="l">${scanState.rows.length ? "Ningún ticker cumple el filtro." : "Añade tickers para empezar."}</td></tr>`;
+    body.innerHTML = `<tr class="err"><td colspan="11" class="l">${scanState.rows.length ? "No ticker matches the filter." : "Add tickers to get started."}</td></tr>`;
     return;
   }
   body.innerHTML = rows.map((r) => {
-    const rm = `<td><button class="rm" data-rm="${esc(r.symbol)}" title="Quitar ${esc(r.symbol)}" aria-label="Quitar ${esc(r.symbol)}">×</button></td>`;
-    if (r.loading) return `<tr class="loading"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="9" class="l">Calculando…</td>${rm}</tr>`;
+    const rm = `<td><button class="rm" data-rm="${esc(r.symbol)}" title="Remove ${esc(r.symbol)}" aria-label="Remove ${esc(r.symbol)}">×</button></td>`;
+    if (r.loading) return `<tr class="loading"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="9" class="l">Calculating…</td>${rm}</tr>`;
     if (r.error) return `<tr class="err"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="9" class="l">${esc(r.error)}</td>${rm}</tr>`;
     const p = r.prev || {};
     const neg = r.regime === "negative";
@@ -1988,7 +2002,7 @@ function renderScan() {
       <td class="l"><span class="tk">${esc(r.symbol)}</span><span class="nm">${esc(r.name || "")}</span></td>
       <td>${fmtSpot(r.spot)}</td>
       <td class="chg ${r.chg >= 0 ? "up" : "dn"}">${r.chg == null ? "—" : fmtPct(r.chg)}</td>
-      <td class="l"><span class="rg ${neg ? "neg" : "pos"}"><i></i>${neg ? "Negativa" : "Positiva"}</span></td>
+      <td class="l"><span class="rg ${neg ? "neg" : "pos"}"><i></i>${neg ? "Negative" : "Positive"}</span></td>
       ${levelCell(r.flip, r.flip_dist, p.flip, r.step)}
       ${levelCell(r.call_wall, r.call_dist, p.call_wall, r.step)}
       ${levelCell(r.put_wall, r.put_dist, p.put_wall, r.step)}
@@ -2018,12 +2032,12 @@ function renderCside() {
     : '<path d="M3 3l14 14M8.3 5.1A8.6 8.6 0 0 1 10 4.5c5 0 8 5.5 8 5.5a14 14 0 0 1-2.6 3.2M5.2 6.6A14 14 0 0 0 2 10s3 5.5 8 5.5c1.1 0 2.1-.3 3-.7"/>'}</svg>`;
   $("cBody").innerHTML = rows.map((r) => {
     const on = !hid.has(r.symbol), bad = r.error || r.x == null || r.y == null;
-    return `<tr class="${on ? "" : "off"}${bad ? " bad" : ""}" data-s="${esc(r.symbol)}"><td class="x"><button class="eye" aria-pressed="${on}" title="${on ? "Ocultar" : "Mostrar"} ${esc(r.symbol)}">${eye(on)}</button></td>
+    return `<tr class="${on ? "" : "off"}${bad ? " bad" : ""}" data-s="${esc(r.symbol)}"><td class="x"><button class="eye" aria-pressed="${on}" title="${on ? "Hide" : "Show"} ${esc(r.symbol)}">${eye(on)}</button></td>
       <td class="l"><span class="tk">${esc(r.symbol)}</span></td><td>${r.iv30 != null ? fmtNum(r.iv30 * 100, 1) + "%" : "—"}</td>
       <td>${r.x != null ? fmtNum(r.x, 0) : "—"}</td><td>${r.y != null ? fmtNum(r.y, 0) : "—"}</td></tr>`;
-  }).join("") || `<tr><td colspan="5" class="l na">Sin coincidencias</td></tr>`;
+  }).join("") || `<tr><td colspan="5" class="l na">No matches</td></tr>`;
   const vis = d.rows.filter((r) => !hid.has(r.symbol) && !r.error && r.x != null).length;
-  $("cCount").textContent = `${vis} de ${d.rows.length} tickers visibles`;
+  $("cCount").textContent = `${vis} of ${d.rows.length} tickers visible`;
 }
 
 function setScanView(v) {
@@ -2043,18 +2057,18 @@ function setScanView(v) {
 
 async function loadValidation() {
   const body = $("validBody");
-  body.innerHTML = `<tr class="loading"><td colspan="7" class="l">Calculando…</td></tr>`;
+  body.innerHTML = `<tr class="loading"><td colspan="7" class="l">Calculating…</td></tr>`;
   try {
     const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&symbols=${encodeURIComponent(watchlist().join(","))}`);
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Error en la validación");
-    const pct = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} ses.</span>` : ""}`;
-    const rng = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 2)}%<span class="ds">${n} ses.</span>`;
+    if (!r.ok) throw new Error(d.error || "Validation error");
+    const pct = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} sess.</span>` : ""}`;
+    const rng = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 2)}%<span class="ds">${n} sess.</span>`;
     const row = (x, cls = "") => `<tr class="${cls}"><td class="l"><span class="tk">${esc(x.symbol)}</span></td>
       <td>${x.n}</td><td>${rng(x.range_pos, x.n_pos)}</td><td>${rng(x.range_neg, x.n_neg)}</td>
       <td>${pct(x.cw_held)}</td><td>${pct(x.pw_held)}</td><td>${pct(x.em_hit, x.n_em)}</td></tr>`;
     body.innerHTML = d.rows.map((x) => row(x)).join("") + row({ ...d.total, symbol: "Total" }, "total");
-    $("scanStatus").textContent = d.total.n ? `${d.total.n} sesiones evaluadas (${d.total.n_ante} con niveles de antes de la apertura)` : "Aún no hay sesiones guardadas para evaluar";
+    $("scanStatus").textContent = d.total.n ? `${d.total.n} sessions evaluated (${d.total.n_ante} with levels from before the open)` : "No saved sessions to evaluate yet";
   } catch (e) {
     body.innerHTML = `<tr class="err"><td colspan="7" class="l">${esc(e.message)}</td></tr>`;
   }
@@ -2065,15 +2079,15 @@ async function loadCompass(force = false) {
   if (!force && cmp.data && cmp.key === key) { renderCompass(); return; }
   if (cmp.ctrl) cmp.ctrl.abort();
   cmp.ctrl = new AbortController();
-  $("compass").innerHTML = `<div class="placeholder">Calculando volatilidad de ${watchlist().length} tickers…</div>`;
-  $("scanStatus").textContent = "Calculando Compass…";
+  $("compass").innerHTML = `<div class="placeholder">Calculating volatility for ${watchlist().length} tickers…</div>`;
+  $("scanStatus").textContent = "Calculating Compass…";
   try {
     const r = await fetch("/api/compass?symbols=" + encodeURIComponent(key), { signal: cmp.ctrl.signal });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Error en el Compass");
+    if (!r.ok) throw new Error(d.error || "Compass error");
     cmp.data = d; cmp.key = key;
     const ok = d.rows.filter((x) => !x.error).length;
-    $("scanStatus").textContent = `${ok} de ${d.rows.length} tickers en el Compass`;
+    $("scanStatus").textContent = `${ok} of ${d.rows.length} tickers in the Compass`;
     renderCompass();
   } catch (e) {
     if (e.name === "AbortError") return;
@@ -2100,20 +2114,20 @@ function renderCompass() {
     <line x1="${mx}" x2="${mx}" y1="${T}" y2="${B}" stroke="${C.muted}" stroke-opacity="0.6"/>`;
   const q = (x, y, a, b, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${SANS}" font-size="${f}" fill="${C.faint}">
       <tspan x="${x}" dy="0">${a}</tspan><tspan x="${x}" dy="17">${b}</tspan></text>`;
-  s += q((L + mx) / 2, T + 34, "Volatilidad cara", "potencial alcista", "middle");
-  s += q((mx + R) / 2, T + 34, "Volatilidad cara", "potencial bajista", "middle");
-  s += q((L + mx) / 2, B - 40, "Volatilidad barata", "potencial alcista", "middle");
-  s += q((mx + R) / 2, B - 40, "Volatilidad barata", "potencial bajista", "middle");
-  s += `<text x="${mx}" y="${T - 14}" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">IV rank alto</text>`;
-  s += `<text x="${mx}" y="${B + 26}" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">IV rank bajo</text>`;
-  s += `<text transform="translate(${L - 24},${my}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">Risk reversal rank bajo</text>`;
-  s += `<text transform="translate(${R + 24},${my}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">Risk reversal rank alto</text>`;
+  s += q((L + mx) / 2, T + 34, "Expensive volatility", "upside potential", "middle");
+  s += q((mx + R) / 2, T + 34, "Expensive volatility", "downside potential", "middle");
+  s += q((L + mx) / 2, B - 40, "Cheap volatility", "upside potential", "middle");
+  s += q((mx + R) / 2, B - 40, "Cheap volatility", "downside potential", "middle");
+  s += `<text x="${mx}" y="${T - 14}" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">High IV rank</text>`;
+  s += `<text x="${mx}" y="${B + 26}" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">Low IV rank</text>`;
+  s += `<text transform="translate(${L - 24},${my}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">Low risk reversal rank</text>`;
+  s += `<text transform="translate(${R + 24},${my}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${f}" fill="${C.muted}">High risk reversal rank</text>`;
 
   // leyenda de estados
-  const lg = (cx, label, kind) => `<circle cx="${cx}" cy="${H - 16}" r="5" fill="${kind === "full" ? "#8b7cf0" : C.surface}" stroke="#8b7cf0" stroke-width="${kind === "full" ? 1 : 2}"/>` +
-    (kind === "half" ? `<path d="M${cx} ${H - 21} A5 5 0 0 0 ${cx} ${H - 11} Z" fill="#8b7cf0"/>` : "") +
+  const lg = (cx, label, kind) => `<circle cx="${cx}" cy="${H - 16}" r="5" fill="${kind === "full" ? C.purple : C.surface}" stroke="${C.purple}" stroke-width="${kind === "full" ? 1 : 2}"/>` +
+    (kind === "half" ? `<path d="M${cx} ${H - 21} A5 5 0 0 0 ${cx} ${H - 11} Z" fill="${C.purple}"/>` : "") +
     `<text x="${cx + 11}" y="${H - 12}" font-family="${SANS}" font-size="12" fill="${C.muted}">${label}</text>`;
-  s += lg(L, "Los dos ejes con su propia historia", "full") + lg(L + 250, "IV rank con su historia, RR provisional", "half") + lg(L + 520, "Provisional (frente a la lista)", "empty");
+  s += lg(L, "Both axes against their own history", "full") + lg(L + 250, "IV rank with its history, provisional RR", "half") + lg(L + 520, "Provisional (vs. the list)", "empty");
   const hid = cmpHidden();
   const pts = d.rows.filter((r) => !r.error && r.x != null && r.y != null && !hid.has(r.symbol));
   const placed = [];
@@ -2133,8 +2147,8 @@ function renderCompass() {
     const own = r.full;
     const half = !own && r.y_src && r.y_src !== "provisional";
     s += `<g class="cpt" data-s="${esc(r.symbol)}">${tr}
-      <circle class="dot" cx="${x}" cy="${y}" r="6" fill="${own ? "#8b7cf0" : C.surface}" stroke="#8b7cf0" stroke-width="${own ? 1 : 2}"/>
-      ${half ? `<path d="M${x} ${y - 6} A6 6 0 0 0 ${x} ${y + 6} Z" fill="#8b7cf0"/>` : ""}
+      <circle class="dot" cx="${x}" cy="${y}" r="6" fill="${own ? C.purple : C.surface}" stroke="${C.purple}" stroke-width="${own ? 1 : 2}"/>
+      ${half ? `<path d="M${x} ${y - 6} A6 6 0 0 0 ${x} ${y + 6} Z" fill="${C.purple}"/>` : ""}
       <text x="${x}" y="${ly}" text-anchor="middle" font-family="${SANS}" font-size="13" font-weight="600" fill="${C.text}">${esc(r.symbol)}</text></g>`;
     cmp.geo.push({ x, y, r });
   }
@@ -2143,11 +2157,11 @@ function renderCompass() {
   const prov = pts.filter((r) => !r.full);
   const errs = d.rows.filter((r) => r.error).map((r) => r.symbol);
   $("compassNote").textContent = (prov.length
-    ? `Un eje provisional compara el ticker con el resto de tu lista; pasa a compararse con su propia historia al tener ${d.min_days} sesiones guardadas. El IV rank de SPX, SPY, NDX, QQQ, DIA, AAPL, AMZN, GOOGL y algunos más ya usa un año de su índice de volatilidad de CBOE (VIX, VXN, VXAPL…). `
-    : "Ranks calculados frente al histórico guardado de cada ticker. ") +
-    (errs.length ? `Sin datos: ${errs.join(", ")}.` : "") +
-    (d.vol_index_missing && d.vol_index_missing.length ? ` CBOE no está sirviendo ahora el histórico de ${d.vol_index_missing.join(", ")}: esos tickers usan el rank provisional hasta que vuelva.` : "") +
-    " Haz clic en un punto para abrir su análisis.";
+    ? `A provisional axis compares the ticker with the rest of your list; it switches to its own history once it has ${d.min_days} saved sessions. The IV rank of SPX, SPY, NDX, QQQ, DIA, AAPL, AMZN, GOOGL and a few more already uses one year of its CBOE volatility index (VIX, VXN, VXAPL…). `
+    : "Ranks calculated against each ticker's saved history. ") +
+    (errs.length ? `No data: ${errs.join(", ")}.` : "") +
+    (d.vol_index_missing && d.vol_index_missing.length ? ` CBOE isn't serving the history of ${d.vol_index_missing.join(", ")} right now: those tickers use the provisional rank until it comes back.` : "") +
+    " Click a point to open its analysis.";
 }
 
 function compassTip(e) {
@@ -2160,14 +2174,14 @@ function compassTip(e) {
   if (!best) { tip.hidden = true; return; }
   const r = best.r;
   tip.innerHTML = `<div class="t">${esc(r.symbol)} <span style="color:var(--muted);font-weight:400">${esc(r.name || "")}</span></div>
-    <div class="r">IV 30 días <b>${r.iv30 != null ? fmtNum(r.iv30 * 100, 1) + "%" : "—"}</b></div>
-    <div class="r">Vol. realizada 20d <b>${r.rv20 != null ? fmtNum(r.rv20 * 100, 1) + "%" : "—"}</b></div>
-    <div class="r">IV / realizada <b>${r.vrp != null ? fmtNum(r.vrp, 2) : "—"}</b></div>
+    <div class="r">30-day IV <b>${r.iv30 != null ? fmtNum(r.iv30 * 100, 1) + "%" : "—"}</b></div>
+    <div class="r">20d realized vol <b>${r.rv20 != null ? fmtNum(r.rv20 * 100, 1) + "%" : "—"}</b></div>
+    <div class="r">IV / realized <b>${r.vrp != null ? fmtNum(r.vrp, 2) : "—"}</b></div>
     <div class="r">Risk reversal 25Δ <b>${r.rr25 != null ? (r.rr25 > 0 ? "+" : "−") + fmtNum(Math.abs(r.rr25 * 100), 1) + " pts" : "—"}</b></div>
-    <div class="r">IV rank <b>${fmtNum(r.y, 0)} ${r.y_src === "provisional" ? "(provisional)" : r.y_src === "propio" ? "(histórico propio)" : `(${r.y_src}, 1 año)`}</b></div>
-    <div class="r">RR rank <b>${fmtNum(r.x, 0)} ${r.x_src === "provisional" ? "(provisional)" : "(histórico propio)"}</b></div>
-    ${r.vol_index ? `<div class="r">${r.vol_index.index} <b>${fmtNum(r.vol_index.value, 2)} (rango ${fmtNum(r.vol_index.lo, 1)}–${fmtNum(r.vol_index.hi, 1)})</b></div>` : ""}
-    <div class="r">Histórico guardado <b>${r.days}/${cmp.data.min_days} sesiones</b></div>`;
+    <div class="r">IV rank <b>${fmtNum(r.y, 0)} ${r.y_src === "provisional" ? "(provisional)" : r.y_src === "propio" ? "(own history)" : `(${r.y_src}, 1 year)`}</b></div>
+    <div class="r">RR rank <b>${fmtNum(r.x, 0)} ${r.x_src === "provisional" ? "(provisional)" : "(own history)"}</b></div>
+    ${r.vol_index ? `<div class="r">${r.vol_index.index} <b>${fmtNum(r.vol_index.value, 2)} (range ${fmtNum(r.vol_index.lo, 1)}–${fmtNum(r.vol_index.hi, 1)})</b></div>` : ""}
+    <div class="r">Saved history <b>${r.days}/${cmp.data.min_days} sessions</b></div>`;
   tip.hidden = false;
   let tx = x + 16, ty = y - tip.offsetHeight - 10;
   if (tx + tip.offsetWidth > rect.width - 8) tx = x - tip.offsetWidth - 16;
@@ -2263,14 +2277,12 @@ function bindScanner() {
 
 /* ============================================================ curva VIX */
 const vx = { data: null, at: 0, ctrl: null, curveGeo: null, histGeo: null };
-const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
-const PURPLE = "#8b7cf0";
 function monLabel(iso) { return MESES[+iso.slice(5, 7) - 1] + " " + iso.slice(2, 4); }
 function sgnPct(v, dec = 1) { return v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v * 100), dec) + "%"; }
 function longDate(iso) {
   if (!iso) return "";
   const d = new Date(iso + "T12:00:00");
-  return d.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+  return d.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" });
 }
 const _measure = document.createElement("canvas").getContext("2d");
 function textW(s, fs) { _measure.font = `${fs}px ${SANS}`; return _measure.measureText(s).width; }
@@ -2302,65 +2314,65 @@ function macroTip(tipId, wrapEl, e, html) {
 function vixStatus() {
   const d = vx.data;
   if (!d) return "";
-  const t = d.term_time ? ` · índices ${hhmm(utcDate(d.term_time))}` : "";
-  return `Cierre ${ddmm(d.date)}${t}`;
+  const t = d.term_time ? ` · indices ${hhmm(utcDate(d.term_time))}` : "";
+  return `Close ${ddmm(d.date)}${t}`;
 }
 
 async function loadVix(refresh = false) {
   if (vx.ctrl) vx.ctrl.abort();
   vx.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
-  setStatus("busy", "Cargando la curva del VIX…");
-  if (!vx.data) $("vxCurve").innerHTML = `<div class="empty">Descargando los futuros del VIX de CBOE. La primera vez tarda unos segundos.</div>`;
+  setStatus("busy", "Loading the VIX curve…");
+  if (!vx.data) $("vxCurve").innerHTML = `<div class="empty">Downloading VIX futures from CBOE. The first time takes a few seconds.</div>`;
   try {
     const r = await fetch("/api/vix" + (refresh ? "?refresh=1" : ""), { signal: vx.ctrl.signal });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "No se pudo cargar la curva");
+    if (!r.ok) throw new Error(d.error || "Could not load the curve");
     vx.data = d; vx.at = Date.now();
     if (state.mode === "vix") { renderVix(); setStatus("", vixStatus()); }
   } catch (e) {
     if (e.name === "AbortError") return;
     if (state.mode === "vix") {
-      setStatus("err", vx.data ? "No se pudo actualizar" : "Sin datos");
-      if (!vx.data) $("vxCurve").innerHTML = `<div class="empty">${esc(e.message === "Failed to fetch" ? "El servidor local no responde. Vuelve a abrir GEX Lab." : e.message)}</div>`;
+      setStatus("err", vx.data ? "Could not refresh" : "No data");
+      if (!vx.data) $("vxCurve").innerHTML = `<div class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</div>`;
     }
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
 
 const SHAPE_CLASS = { contango: "contango", backwardation: "backwardation", front_inverted: "mixed", hump: "mixed", flat: "mixed" };
-const SHAPE_COLOR = { contango: C.put, backwardation: C.call, front_inverted: C.amber, hump: C.amber, flat: C.amber };
-const SHAPE_LABEL = { contango: "Contango", backwardation: "Backwardation", front_inverted: "Invertida en el tramo corto", hump: "Joroba", flat: "Plana" };
+const SHAPE_COLOR = (code) => ({ contango: C.put, backwardation: C.call }[code] || C.amber);
+const SHAPE_LABEL = { contango: "Contango", backwardation: "Backwardation", front_inverted: "Inverted front end", hump: "Front-end hump", flat: "Flat" };
 
 function renderVix() {
   const d = vx.data;
   if (!d) return;
   const sh = d.shape.code, p = d.points;
   const st = $("vxState");
-  st.textContent = d.shape.label; st.className = "mstate " + SHAPE_CLASS[sh];
-  $("vxSub").textContent = `Cierre oficial del ${longDate(d.date)}`;
+  st.textContent = SHAPE_LABEL[sh] || d.shape.label; st.className = "mstate " + SHAPE_CLASS[sh];
+  $("vxSub").textContent = `Official close, ${longDate(d.date)}`;
   const spr = `<b>${sgnPct(d.spread)}</b>`, bas = `<b>${sgnPct(d.basis)}</b>`;
   const reads = {
-    contango: `El segundo vencimiento cotiza ${spr} sobre el primero y el primero ${bas} sobre el VIX. Estructura normal: el mercado no descuenta estrés inmediato y los futuros tienden a converger a la baja hacia el VIX.`,
-    backwardation: `El primer vencimiento cotiza por encima del segundo (${spr}) y el VIX por encima del primero. Se paga más por protección inmediata que a plazo: es la firma de los episodios de estrés. La vuelta a contango suele acompañar a la normalización.`,
-    front_inverted: `El VIX al contado está por encima del primer futuro (${bas}), pero la curva vuelve a subir después (${spr}). Tensión a muy corto plazo que el mercado espera que se relaje.`,
-    hump: `El primer futuro está por encima del VIX (${bas}) y del segundo (${spr}). El mercado concentra el riesgo en el próximo vencimiento: suele reflejar un evento concreto en esa ventana (elecciones, Fed, datos).`,
-    flat: `El VIX, el primer y el segundo vencimiento están a menos de un ${fmtNum((d.flat_tol || 0.005) * 100, 1)}% entre sí (${bas} y ${spr}). Curva plana: transición entre regímenes; conviene vigilar hacia qué lado se resuelve.`,
+    contango: `The second expiration trades ${spr} over the first, and the first ${bas} over the VIX. Normal structure: the market isn't pricing immediate stress and futures tend to converge down toward the VIX.`,
+    backwardation: `The first expiration trades above the second (${spr}) and the VIX above the first. Immediate protection costs more than protection further out: the signature of stress episodes. A return to contango usually comes with normalization.`,
+    front_inverted: `Spot VIX is above the first future (${bas}), but the curve rises again after it (${spr}). Very short-term stress that the market expects to ease.`,
+    hump: `The first future is above the VIX (${bas}) and above the second (${spr}). The market concentrates risk in the next expiration: it usually reflects a specific event in that window (elections, the Fed, data).`,
+    flat: `The VIX, the first and the second expiration are within ${fmtNum((d.flat_tol || 0.005) * 100, 1)}% of each other (${bas} and ${spr}). Flat curve: a transition between regimes; watch which way it resolves.`,
   };
   $("vxRead").innerHTML = reads[sh];
   const live = (d.term || []).find((t) => t.symbol === "VIX");
   const ratio = d.vix_vix3m;
   const fact = (l, v, s, warn, g) => `<div class="fact"><span class="fl"${g ? ` data-g="${g}"` : ""}>${l}</span><strong>${v}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
   $("vxFacts").innerHTML = [
-    fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `al cierre · ahora ${fmtNum(live.value, 2)}` : "al cierre", false, "vix"),
-    fact(`M1 · ${monLabel(p[0].expiry)}`, fmtNum(d.m1, 2), `${p[0].days} días · ${sgnPct(d.basis)} sobre el VIX`, false, "m1"),
-    fact(`M2 · ${monLabel(p[1].expiry)}`, fmtNum(d.m2, 2), `${p[1].days} días`, false, "m2"),
-    fact("Pendiente M2 / M1", sgnPct(d.spread), `percentil ${fmtNum(d.spread_pct_rank, 0)} del último año`, false, "slope"),
-    fact("Futuro a 30 días", fmtNum(d.cm30, 2), "interpolado entre vencimientos", false, "cm30"),
-    fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "por encima de 1: tensión a corto plazo" : "por debajo de 1: estructura normal") : "sin dato", ratio >= 1, "vix3m"),
-    fact("Racha", `${d.streak} ${d.streak === 1 ? "sesión" : "sesiones"}`, `en ${d.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% del año en contango`, false, "streak"),
+    fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `at the close · now ${fmtNum(live.value, 2)}` : "at the close", false, "vix"),
+    fact(`M1 · ${monLabel(p[0].expiry)}`, fmtNum(d.m1, 2), `${p[0].days} days · ${sgnPct(d.basis)} over the VIX`, false, "m1"),
+    fact(`M2 · ${monLabel(p[1].expiry)}`, fmtNum(d.m2, 2), `${p[1].days} days`, false, "m2"),
+    fact("M2 / M1 slope", sgnPct(d.spread), `${ordinal(d.spread_pct_rank)} percentile of the last year`, false, "slope"),
+    fact("30-day future", fmtNum(d.cm30, 2), "interpolated between expirations", false, "cm30"),
+    fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "above 1: short-term stress" : "below 1: normal structure") : "no data", ratio >= 1, "vix3m"),
+    fact("Streak", `${d.streak} ${d.streak === 1 ? "session" : "sessions"}`, `in ${d.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
-  const idx = d.term_live === false ? "al cierre (con el mercado cerrado)" : "en directo (15 min)";
-  $("vxCap").textContent = `Cierres oficiales de CBOE. Índices VIX9D a VIX1Y ${idx}. Puntos huecos: vencimientos con menos de 1.000 contratos abiertos.`;
+  const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
+  $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.`;
   renderVixCurve();
   renderVixHist();
 }
@@ -2404,17 +2416,17 @@ function renderVixCurve() {
   if (month.length) s += `<path d="${path(month)}" fill="none" stroke="${C.faint}" stroke-width="1.4" stroke-dasharray="2 4"/>`;
   if (week.length) s += `<path d="${path(week)}" fill="none" stroke="${C.muted}" stroke-width="1.4" stroke-dasharray="6 4" stroke-opacity="0.8"/>`;
   if (term.length) {
-    s += `<path d="${path(term)}" fill="none" stroke="${PURPLE}" stroke-width="1.5" stroke-opacity="0.85"/>`;
+    s += `<path d="${path(term)}" fill="none" stroke="${C.purple}" stroke-width="1.5" stroke-opacity="0.85"/>`;
     for (const q of term) {
-      s += `<rect x="${xOf(q.days) - 3.5}" y="${yOf(q.v) - 3.5}" width="7" height="7" rx="1.5" fill="${C.surface}" stroke="${PURPLE}" stroke-width="1.5"/>`;
+      s += `<rect x="${xOf(q.days) - 3.5}" y="${yOf(q.v) - 3.5}" width="7" height="7" rx="1.5" fill="${C.surface}" stroke="${C.purple}" stroke-width="1.5"/>`;
       if (q.sym !== "VIX") {
         const fut = interpAt(today, q.days);
         const above = fut == null || q.v >= fut;
-        s += txt(xOf(q.days), yOf(q.v) + (above ? -10 : 19), q.sym, { a: "middle", fs: 11, c: PURPLE });
+        s += txt(xOf(q.days), yOf(q.v) + (above ? -10 : 19), q.sym, { a: "middle", fs: 11, c: C.purple });
       }
     }
   }
-  const col = SHAPE_COLOR[d.shape.code];
+  const col = SHAPE_COLOR(d.shape.code);
   s += `<path d="${path(today)}" fill="none" stroke="${col}" stroke-width="2.2"/>`;
   vx.curveGeo = [];
   today.forEach((q, k) => {
@@ -2426,7 +2438,7 @@ function renderVixCurve() {
   });
   for (const q of term) vx.curveGeo.push({ x: xOf(q.days), y: yOf(q.v), term: q });
   // leyenda
-  const items = [["Hoy", col, ""], ["Hace 1 semana", C.muted, "6 4"], ["Hace 1 mes", C.faint, "2 4"], ["Índices VIX9D–VIX1Y", PURPLE, ""]]
+  const items = [["Today", col, ""], ["1 week ago", C.muted, "6 4"], ["1 month ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
     .filter((it, k) => (k === 1 ? week.length : k === 2 ? month.length : k === 3 ? term.length : true));
   s += legendRows(items, W < 640 ? 8 : L, R, 14);
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
@@ -2480,23 +2492,23 @@ function vixCurveTip(e) {
   let html;
   if (best.term) {
     const t = d.term.find((z) => z.symbol === best.term.sym);
-    html = `<div class="t">${best.term.sym}</div><div class="r">Volatilidad implícita del SPX a ${best.term.days} días <b>${fmtNum(t.value, 2)}</b></div>` +
-      (t.prev ? `<div class="r">Cierre anterior <b>${fmtNum(t.prev, 2)}</b></div>` : "");
+    html = `<div class="t">${best.term.sym}</div><div class="r">SPX ${best.term.days}-day implied volatility <b>${fmtNum(t.value, 2)}</b></div>` +
+      (t.prev ? `<div class="r">Previous close <b>${fmtNum(t.prev, 2)}</b></div>` : "");
   } else if (best.q.spot) {
-    html = `<div class="t">VIX al contado</div><div class="r">Cierre <b>${fmtNum(d.vix_close, 2)}</b></div>` +
-      (d.week && d.week.vix ? `<div class="r">Hace 1 semana <b>${fmtNum(d.week.vix, 2)}</b></div>` : "") +
-      (d.month && d.month.vix ? `<div class="r">Hace 1 mes <b>${fmtNum(d.month.vix, 2)}</b></div>` : "");
+    html = `<div class="t">Spot VIX</div><div class="r">Close <b>${fmtNum(d.vix_close, 2)}</b></div>` +
+      (d.week && d.week.vix ? `<div class="r">1 week ago <b>${fmtNum(d.week.vix, 2)}</b></div>` : "") +
+      (d.month && d.month.vix ? `<div class="r">1 month ago <b>${fmtNum(d.month.vix, 2)}</b></div>` : "");
   } else {
     const c = best.q.x;
     const old = (b) => (b ? (b.points.find((z) => z.expiry === c.expiry) || {}).settle : null);
     const w = old(d.week), m = old(d.month);
-    html = `<div class="t">Futuro ${monLabel(c.expiry)} <span style="color:var(--muted);font-weight:400">vence ${ddmm(c.expiry)}</span></div>
-      <div class="r">Cierre <b>${fmtNum(c.settle, 2)}</b></div>
-      <div class="r">Días al vencimiento <b>${c.days}</b></div>
-      ${w ? `<div class="r">Hace 1 semana <b>${fmtNum(w, 2)}</b></div>` : ""}
-      ${m ? `<div class="r">Hace 1 mes <b>${fmtNum(m, 2)}</b></div>` : ""}
-      <div class="r">Open interest${c.oi_prev ? " (sesión anterior)" : ""} <b>${fmtNum(c.oi)}</b></div>
-      <div class="r">Volumen <b>${c.vol == null ? "pendiente" : fmtNum(c.vol)}</b></div>`;
+    html = `<div class="t">${monLabel(c.expiry)} future <span style="color:var(--muted);font-weight:400">expires ${ddmm(c.expiry)}</span></div>
+      <div class="r">Settle <b>${fmtNum(c.settle, 2)}</b></div>
+      <div class="r">Days to expiration <b>${c.days}</b></div>
+      ${w ? `<div class="r">1 week ago <b>${fmtNum(w, 2)}</b></div>` : ""}
+      ${m ? `<div class="r">1 month ago <b>${fmtNum(m, 2)}</b></div>` : ""}
+      <div class="r">Open interest${c.oi_prev ? " (previous session)" : ""} <b>${fmtNum(c.oi)}</b></div>
+      <div class="r">Volume <b>${c.vol == null ? "pending" : fmtNum(c.vol)}</b></div>`;
   }
   macroTip("vxTip", null, e, html);
 }
@@ -2509,35 +2521,36 @@ function vixHistTip(e) {
   if (i < 0 || i >= g.n) return macroTip("vxTip", null, e, "");
   const x = vx.data.history[i];
   const lab = SHAPE_LABEL[x.shape] || x.shape;
-  macroTip("vxTip", null, e, `<div class="t">${new Date(x.date + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}</div>
+  macroTip("vxTip", null, e, `<div class="t">${fullDate(x.date)}</div>
     <div class="r">VIX <b>${x.vix != null ? fmtNum(x.vix, 2) : "—"}</b></div>
     <div class="r">M1 <b>${fmtNum(x.m1, 2)}</b></div><div class="r">M2 <b>${fmtNum(x.m2, 2)}</b></div>
-    <div class="r">M2 / M1 <b>${sgnPct(x.spread)}</b></div><div class="r">Forma <b>${lab}</b></div>`);
+    <div class="r">M2 / M1 <b>${sgnPct(x.spread)}</b></div><div class="r">Shape <b>${lab}</b></div>`);
 }
 
 /* ============================================================ COT */
 const cot = { data: null, at: 0, sel: store.get("cotSel", "ES"), win: store.get("cotWin", "3y"), hist: {}, ctrl: null, geo: null };
-const COT_SHOW = [["asset_mgr", C.pos], ["lev_money", C.neg], ["dealer", C.put]];
-function cotStatus() { return cot.data && cot.data.report_date ? `COT del ${ddmm(cot.data.report_date)}` : ""; }
+const COT_SHOW = [["asset_mgr", "pos"], ["lev_money", "neg"], ["dealer", "put"]];   // grupo y color del tema
+const COT_LABEL = { asset_mgr: "Asset managers", lev_money: "Leveraged funds", dealer: "Dealers", other: "Other reportables", nonrept: "Non-reportables" };
+function cotStatus() { return cot.data && cot.data.report_date ? `COT of ${ddmm(cot.data.report_date)}` : ""; }
 
 async function loadCot(refresh = false) {
   if (cot.ctrl) cot.ctrl.abort();
   cot.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
-  setStatus("busy", "Cargando el COT…");
-  if (!cot.data) $("cotBody").innerHTML = `<tr class="loading"><td colspan="8" class="l">Descargando el informe de la CFTC…</td></tr>`;
+  setStatus("busy", "Loading the COT…");
+  if (!cot.data) $("cotBody").innerHTML = `<tr class="loading"><td colspan="8" class="l">Downloading the CFTC report…</td></tr>`;
   try {
     const r = await fetch("/api/cot" + (refresh ? "?refresh=1" : ""), { signal: cot.ctrl.signal });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "No se pudo cargar el COT");
+    if (!r.ok) throw new Error(d.error || "Could not load the COT");
     cot.data = d; cot.at = Date.now();
     if (refresh) cot.hist = {};
     if (state.mode === "cot") { renderCot(); setStatus("", cotStatus()); }
   } catch (e) {
     if (e.name === "AbortError") return;
     if (state.mode === "cot") {
-      setStatus("err", cot.data ? "No se pudo actualizar" : "Sin datos");
-      if (!cot.data) $("cotBody").innerHTML = `<tr class="err"><td colspan="8" class="l">${esc(e.message === "Failed to fetch" ? "El servidor local no responde. Vuelve a abrir GEX Lab." : e.message)}</td></tr>`;
+      setStatus("err", cot.data ? "Could not refresh" : "No data");
+      if (!cot.data) $("cotBody").innerHTML = `<tr class="err"><td colspan="8" class="l">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</td></tr>`;
     }
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
@@ -2546,15 +2559,15 @@ function cotIdx(g) {
   const v = cot.win === "1y" ? g.index1y : g.index3y;
   if (v == null) return `<span class="cidx"><span class="cbar"></span><b>—</b></span>`;
   const ext = v >= 90 || v <= 10;
-  return `<span class="cidx${ext ? " ext" : ""}" title="${ext ? "Extremo del periodo" : ""}"><span class="cbar"><i style="left:${v.toFixed(1)}%"></i></span><b>${fmtNum(v, 0)}</b></span>`;
+  return `<span class="cidx${ext ? " ext" : ""}" title="${ext ? "Extreme for the period" : ""}"><span class="cbar"><i style="left:${v.toFixed(1)}%"></i></span><b>${fmtNum(v, 0)}</b></span>`;
 }
 
 function renderCot() {
   const d = cot.data;
   if (!d) return;
   $("cotDate").innerHTML = d.report_date
-    ? `Posiciones del <b>${longDate(d.report_date)}</b> · publicado el ${longDate(d.release)}`
-    : "Sin informe";
+    ? `Positions as of <b>${longDate(d.report_date)}</b> · published ${longDate(d.release)}`
+    : "No report";
   $("cotWinSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cot.win)));
   let html = "", grp = "";
   for (const m of d.markets) {
@@ -2563,7 +2576,7 @@ function renderCot() {
     const cells = COT_SHOW.map(([k]) => {
       const g = m.groups[k];
       const dc = g.chg > 0 ? "up" : g.chg < 0 ? "dn" : "";
-      return `<td class="gs" title="Largos ${fmtNum(g.long)} · cortos ${fmtNum(g.short)} · neta ${fmtNum(g.net)} (${g.pct_oi != null ? sgnPct(g.pct_oi) : "—"} del open interest)"><span class="lv">${fmtBig(g.net)}</span><span class="dl ${dc}">${g.chg > 0 ? "+" : ""}${fmtBig(g.chg)}</span></td><td class="l">${cotIdx(g)}</td>`;
+      return `<td class="gs" title="Long ${fmtNum(g.long)} · short ${fmtNum(g.short)} · net ${fmtNum(g.net)} (${g.pct_oi != null ? sgnPct(g.pct_oi) : "—"} of open interest)"><span class="lv">${fmtBig(g.net)}</span><span class="dl ${dc}">${g.chg > 0 ? "+" : ""}${fmtBig(g.chg)}</span></td><td class="l">${cotIdx(g)}</td>`;
     }).join("");
     html += `<tr data-k="${m.key}" class="${m.key === cot.sel ? "sel" : ""}"><td class="l"><span class="tk">${esc(m.name)}</span><span class="nm">${esc(m.key)}${m.note ? " · " + esc(m.note) : ""}</span></td>
       <td><span class="lv">${fmtBig(m.oi)}</span><span class="dl ${m.oi_chg > 0 ? "up" : m.oi_chg < 0 ? "dn" : ""}">${m.oi_chg > 0 ? "+" : ""}${fmtBig(m.oi_chg)}</span></td>${cells}</tr>`;
@@ -2577,13 +2590,13 @@ async function loadCotHist(key) {
   $("cotBody").querySelectorAll("tr[data-k]").forEach((tr) => tr.classList.toggle("sel", tr.dataset.k === key));
   $("cotDetail").hidden = false;
   if (!cot.hist[key]) {
-    $("cotChart").innerHTML = `<div class="empty">Cargando…</div>`;
+    $("cotChart").innerHTML = `<div class="empty">Loading…</div>`;
     try {
       const r = await fetch("/api/cot_history?key=" + encodeURIComponent(key));
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       cot.hist[key] = d;
-    } catch (e) { $("cotChart").innerHTML = `<div class="empty">${esc(e.message || "Sin datos")}</div>`; return; }
+    } catch (e) { $("cotChart").innerHTML = `<div class="empty">${esc(e.message || "No data")}</div>`; return; }
   }
   if (cot.sel === key) renderCotChart();
 }
@@ -2603,8 +2616,8 @@ function renderCotChart() {
   const h = cotWindow(full);
   const oneY = cot.win === "1y";
   const m = cot.data.markets.find((x) => x.key === cot.sel) || {};
-  $("cotTitle").textContent = `${h.name}: posición neta por grupo, ${oneY ? "último año" : cot.data.years + " años"}`;
-  $("cotCap").textContent = h.price_ref ? `Contratos. Línea blanca: ${h.price_ref} al cierre del martes de cada informe${/^(SHY|IEI|IEF|TLT|QQQ|IWM|DIA)$/.test(h.price_ref) ? " (ETF de referencia)" : ""}.` : "Contratos.";
+  $("cotTitle").textContent = `${h.name}: net position by group, ${oneY ? "last year" : cot.data.years + " years"}`;
+  $("cotCap").textContent = h.price_ref ? `Contracts. ${document.documentElement.dataset.theme === "light" ? "Gray" : "White"} line: ${h.price_ref} at Tuesday's close for each report${/^(SHY|IEI|IEF|TLT|QQQ|IWM|DIA)$/.test(h.price_ref) ? " (reference ETF)" : ""}.` : "Contracts.";
   const W = Math.max(320, el.clientWidth), H = Math.max(260, el.clientHeight);
   const pad = { l: 60, r: h.price_ref ? 58 : 20, t: W < 640 ? 46 : 30, b: 28 };
   const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
@@ -2625,7 +2638,8 @@ function renderCotChart() {
     s += `<polyline points="${pts.join(" ")}" fill="none" stroke="${C.text}" stroke-opacity="0.35" stroke-width="1.2"/>`;
     for (const v of pt.ticks) if (v >= pt.lo && v <= pt.hi) s += txt(R + 8, pOf(v) + 4, fmtSpot(v), { mono: true, fs: 11 });
   }
-  for (const [k, c] of COT_SHOW) {
+  for (const [k, ck] of COT_SHOW) {
+    const c = C[ck];
     const pts = h.net[k].map((v, i) => `${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
     s += `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.8"/>`;
     const lv = h.net[k][n - 1];
@@ -2638,12 +2652,12 @@ function renderCotChart() {
     if (i > 0 && show && dt.slice(0, 7) !== prevY) s += txt(xOf(i), B + 18, mo === "01" ? y : MESES[+mo - 1], { a: "middle", fs: 11 });
     prevY = dt.slice(0, 7);
   });
-  const litems = COT_SHOW.map(([k, c]) => [(cot.data.groups.find((g) => g.key === k) || {}).label || k, c, ""]);
+  const litems = COT_SHOW.map(([k, ck]) => [COT_LABEL[k] || k, C[ck], ""]);
   const lgW = litems.reduce((a, [lab]) => a + textW(lab, 12) + 44, 0);
   s += lgW <= R - L ? legendRows(litems, L, L + lgW, 12) : legendRows(litems, 8, W - 8, 12);
   cot.geo = { L, R, n, xOf };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
-  if (m.weeks && m.weeks < 52) $("cotCap").textContent += " Historia corta: el índice es poco fiable.";
+  if (m.weeks && m.weeks < 52) $("cotCap").textContent += " Short history: the index is unreliable.";
 }
 
 function cotTip(e) {
@@ -2653,11 +2667,11 @@ function cotTip(e) {
   const rect = $("cotChart").getBoundingClientRect();
   const i = Math.round(((e.clientX - rect.left - g.L) / (g.R - g.L)) * (g.n - 1));
   if (i < 0 || i >= g.n) return macroTip("cotTip", null, e, "");
-  const rows = COT_SHOW.map(([k, c]) => {
-    const lab = (cot.data.groups.find((x) => x.key === k) || {}).label;
+  const rows = COT_SHOW.map(([k, ck]) => {
+    const lab = COT_LABEL[k], c = C[ck];
     return `<div class="r"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${c};margin-right:6px"></i>${lab}</span><b>${fmtNum(h.net[k][i])}</b></div>`;
   }).join("");
-  macroTip("cotTip", null, e, `<div class="t">${new Date(h.dates[i] + "T12:00:00").toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}</div>${rows}
+  macroTip("cotTip", null, e, `<div class="t">${fullDate(h.dates[i])}</div>${rows}
     <div class="r">Open interest <b>${fmtNum(h.oi[i])}</b></div>${h.price[i] != null ? `<div class="r">${esc(h.price_ref)} <b>${fmtSpot(h.price[i])}</b></div>` : ""}`);
 }
 
@@ -2676,26 +2690,26 @@ function bindMacro() {
 
 /* ============================================================ resumen */
 const sm = { data: null, at: 0, ctrl: null };
-const SUM_LV = [["call_wall", "Call Wall", C.call], ["flip", "Gamma Flip", C.amber], ["vt", "Vol Trigger", C.amber], ["put_wall", "Put Wall", C.put]];
-function sumStatus() { const d = sm.data; return d ? `Resumen · ${nyHHMM(d.computed_at)}` : ""; }
+const SUM_LV = [["call_wall", "Call Wall", "call"], ["flip", "Gamma Flip", "amber"], ["vt", "Vol Trigger", "amber"], ["put_wall", "Put Wall", "put"]];
+function sumStatus() { const d = sm.data; return d ? `Summary · ${nyHHMM(d.computed_at)}` : ""; }
 
 async function loadSummary(refresh = false) {
   if (sm.ctrl) sm.ctrl.abort();
   sm.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
-  setStatus("busy", "Preparando el resumen…");
-  if (!sm.data) $("sumIdx").innerHTML = SUMMARY_SYMS.map((s) => `<section class="scard"><div class="st">${s}</div><p class="empty">Cargando…</p></section>`).join("");
+  setStatus("busy", "Preparing the summary…");
+  if (!sm.data) $("sumIdx").innerHTML = SUMMARY_SYMS.map((s) => `<section class="scard"><div class="st">${s}</div><p class="empty">Loading…</p></section>`).join("");
   try {
     const r = await fetch("/api/summary" + (refresh ? "?refresh=1" : ""), { signal: sm.ctrl.signal });
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "No se pudo preparar el resumen");
+    if (!r.ok) throw new Error(d.error || "Could not prepare the summary");
     sm.data = d; sm.at = Date.now();
     if (state.mode === "summary") { renderSummary(); setStatus("", sumStatus()); }
   } catch (e) {
     if (e.name === "AbortError") return;
     if (state.mode === "summary") {
-      setStatus("err", sm.data ? "No se pudo actualizar" : "Sin datos");
-      if (!sm.data) $("sumIdx").innerHTML = `<section class="scard"><p class="empty">${esc(e.message === "Failed to fetch" ? "El servidor local no responde. Vuelve a abrir GEX Lab." : e.message)}</p></section>`;
+      setStatus("err", sm.data ? "Could not refresh" : "No data");
+      if (!sm.data) $("sumIdx").innerHTML = `<section class="scard"><p class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</p></section>`;
     }
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
@@ -2703,12 +2717,12 @@ const SUMMARY_SYMS = ["SPX", "NDX", "RUT"];
 
 function localTime(iso, withDay) {
   const dt = new Date(iso);
-  const t = dt.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+  const t = hhmm(dt);
   if (!withDay) return t;
   const today = new Date(); const tm = new Date(Date.now() + 86400000);
   const same = (a, b) => a.toDateString() === b.toDateString();
-  const day = same(dt, today) ? "hoy" : same(dt, tm) ? "mañana" : dt.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
-  return `${day} a las ${t}`;
+  const day = same(dt, today) ? "today" : same(dt, tm) ? "tomorrow" : dt.toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" });
+  return `${day} at ${t}`;
 }
 
 function sumIndexCard(c) {
@@ -2720,14 +2734,14 @@ function sumIndexCard(c) {
   const fd = f ? (c.spot / f - 1) * 100 : null;
   let read;
   const fs = flipSide(c.spot, f, c.levels.flip.v);
-  if (f == null) read = `Sin cruce de gamma en el rango: el régimen es <b>${neg ? "negativo" : "positivo"}</b> en todo el entorno del precio.`;
-  else if (fs === "near") read = `Junto al Gamma Flip (<b>${lv(c.levels.flip.v)}</b>, ${sgnPct(fd / 100)}): zona de transición, sin efecto claro de los dealers. Vigila hacia qué lado sale.`;
-  else read = `${fd >= 0 ? "Por encima" : "Por debajo"} del Gamma Flip (<b>${lv(c.levels.flip.v)}</b>, ${sgnPct(fd / 100)}). ` +
-    (neg ? "Los dealers amplifican los movimientos: más volatilidad y tendencia." : "Los dealers amortiguan los movimientos: rangos más estrechos y vuelta a la media.");
-  const rows = SUM_LV.map(([k, name, col]) => ({ k, name: k === "vt" && c.is_index === false ? "Hedge Wall" : name, col, ...c.levels[k] })).filter((x) => x.v != null);
+  if (f == null) read = `No gamma crossing in the range: the regime is <b>${neg ? "negative" : "positive"}</b> all around the price.`;
+  else if (fs === "near") read = `Next to the Gamma Flip (<b>${lv(c.levels.flip.v)}</b>, ${sgnPct(fd / 100)}): a transition zone, with no clear dealer effect. Watch which way it breaks.`;
+  else read = `${fd >= 0 ? "Above" : "Below"} the Gamma Flip (<b>${lv(c.levels.flip.v)}</b>, ${sgnPct(fd / 100)}). ` +
+    (neg ? "Dealers amplify moves: more volatility and trend." : "Dealers dampen moves: tighter ranges and mean reversion.");
+  const rows = SUM_LV.map(([k, name, ck]) => ({ k, name: k === "vt" && c.is_index === false ? "Hedge Wall" : name, col: C[ck], ...c.levels[k] })).filter((x) => x.v != null);
   const ag = c.abs_gamma;
-  if (ag && ag.v != null && !rows.some((x) => x.v === ag.v)) rows.push({ k: "abs", name: "Gamma absoluta", col: C.muted, ...ag });
-  rows.push({ k: "spot", name: c.implied ? "Precio (implícito)" : "Precio", v: c.spot, d: null });
+  if (ag && ag.v != null && !rows.some((x) => x.v === ag.v)) rows.push({ k: "abs", name: "Absolute gamma", col: C.muted, ...ag });
+  rows.push({ k: "spot", name: c.implied ? "Price (implied)" : "Price", v: c.spot, d: null });
   rows.sort((a, b) => b.v - a.v);
   const li = rows.map((x) => x.k === "spot"
     ? `<li class="spot"><span class="n" data-g="spot"><i></i>${x.name}</span><span class="v">${fmtNum(x.v, dec)}</span><span class="d"></span></li>`
@@ -2738,12 +2752,12 @@ function sumIndexCard(c) {
   const chg = c.chg;
   return `<section class="scard link" data-sym="${esc(c.symbol)}">
     <div class="sh"><span class="st">${esc(c.symbol)}<small>${esc(c.name || "")}</small></span><span class="sc ${chg > 0 ? "up" : chg < 0 ? "dn" : ""}">${chg != null ? fmtPct(chg) : ""}</span></div>
-    <div class="srow"><span class="sp">${fmtNum(c.spot, dec)}</span><span class="pill ${neg ? "neg" : "pos"}"><i></i>Gamma ${neg ? "negativa" : "positiva"}</span></div>
+    <div class="srow"><span class="sp">${fmtNum(c.spot, dec)}</span><span class="pill ${neg ? "neg" : "pos"}"><i></i>${neg ? "Negative" : "Positive"} gamma</span></div>
     <p class="sread">${read}</p>
     <ul class="slv">${li}</ul>
-    <div class="sfoot"><span data-g="range1s">Rango 1σ, ${rangeLabel(em)}</span><b>${emTxt}</b></div>
-    <div class="sfoot"><span data-g="range1s">Rango 1σ, 5 sesiones</span><b>${m5Txt}</b></div>
-    <div class="sfoot"><span data-g="gex1">GEX por 1%</span><b>${fmtBig(c.net_per_pct, true)}${c.prev_net != null ? ` <span style="color:var(--faint);font-weight:400">· ${ddmm(c.prev_date)} ${fmtBig(c.prev_net, true)}</span>` : ""}</b></div>
+    <div class="sfoot"><span data-g="range1s">1σ range, ${rangeLabel(em)}</span><b>${emTxt}</b></div>
+    <div class="sfoot"><span data-g="range1s">1σ range, 5 sessions</span><b>${m5Txt}</b></div>
+    <div class="sfoot"><span data-g="gex1">GEX per 1%</span><b>${fmtBig(c.net_per_pct, true)}${c.prev_net != null ? ` <span style="color:var(--faint);font-weight:400">· ${ddmm(c.prev_date)} ${fmtBig(c.prev_net, true)}</span>` : ""}</b></div>
   </section>`;
 }
 
@@ -2763,15 +2777,14 @@ function renderSummary() {
   if (!d) return;
   const s = d.session;
   const dateTxt = d.indices.find((c) => !c.error);
-  $("sumSub").textContent = dateTxt ? `Datos de CBOE de las ${nyHHMM(dateTxt.quote_time)} del ${longDate(dateTxt.quote_time.slice(0, 10))} · tipo sin riesgo ${fmtNum(d.rate.r * 100, 2)}%` : "";
-  $("sumSess").innerHTML = s.open ? `Mercado abierto · cierra a las <b>${localTime(s.close_utc)}</b>` : `Mercado cerrado · abre <b>${localTime(s.next_open_utc, true)}</b>`;
+  $("sumSub").textContent = dateTxt ? `Options data from ${nyHHMM(dateTxt.quote_time)} on ${longDate(dateTxt.quote_time.slice(0, 10))} · risk-free rate ${fmtNum(d.rate.r * 100, 2)}%` : "";
+  $("sumSess").innerHTML = s.open ? `Market open · closes at <b>${localTime(s.close_utc)}</b>` : `Market closed · opens <b>${localTime(s.next_open_utc, true)}</b>`;
   $("sumIdx").innerHTML = d.indices.map(sumIndexCard).join("");
 
   const v = d.vix;
-  if (v.error) $("sumVix").innerHTML = `<div class="st">Curva VIX</div><p class="empty">${esc(v.error)}</p>`;
+  if (v.error) $("sumVix").innerHTML = `<div class="st">VIX curve</div><p class="empty">${esc(v.error)}</p>`;
   else {
-    const col = SHAPE_COLOR[v.shape.code];
-    $("sumVix").innerHTML = `<div class="sh"><span class="st">Curva de futuros del VIX<small>cierre ${ddmm(v.date)}</small></span><span class="pill ${SHAPE_CLASS[v.shape.code]}"><i></i>${esc(v.shape.label)}</span></div>
+    $("sumVix").innerHTML = `<div class="sh"><span class="st">VIX futures curve<small>close ${ddmm(v.date)}</small></span><span class="pill ${SHAPE_CLASS[v.shape.code]}"><i></i>${esc(SHAPE_LABEL[v.shape.code] || v.shape.label)}</span></div>
       <div class="sspark" id="sumSpark"></div>
       <div class="sfacts">
         <div><span data-g="vix">VIX</span><b>${fmtNum(v.vix_close, 2)}</b></div>
@@ -2779,16 +2792,16 @@ function renderSummary() {
         <div><span data-g="slope">M2 / M1</span><b>${sgnPct(v.spread)}</b></div>
         <div><span data-g="vix3m">VIX / VIX3M</span><b style="color:${v.vix_vix3m >= 1 ? C.amber : C.text}">${v.vix_vix3m ? fmtNum(v.vix_vix3m, 2) : "—"}</b></div>
       </div>
-      <p class="sread">Pendiente en el percentil <b>${fmtNum(v.spread_pct_rank, 0)}</b> del último año. ${v.streak} ${v.streak === 1 ? "sesión" : "sesiones"} en ${v.streak_contango ? "contango" : "backwardation"} (M2/M1).</p>`;
+      <p class="sread">Slope at the <b>${ordinal(v.spread_pct_rank)}</b> percentile of the last year. ${v.streak} ${v.streak === 1 ? "session" : "sessions"} in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1).</p>`;
   }
-  if (!v.error) { const sp = $("sumSpark"); sp.innerHTML = sumSpark(v.points, SHAPE_COLOR[v.shape.code], Math.max(200, sp.clientWidth)); }
+  if (!v.error) { const sp = $("sumSpark"); sp.innerHTML = sumSpark(v.points, SHAPE_COLOR(v.shape.code), Math.max(200, sp.clientWidth)); }
   const c = d.cot;
   if (c.error) $("sumCot").innerHTML = `<div class="st">COT</div><p class="empty">${esc(c.error)}</p>`;
   else {
-    const list = c.extremes.slice(0, 7).map((x) => `<li data-k="${x.key}"><span>${esc(x.name)} · ${esc(x.group)}</span><em>neta ${fmtBig(x.net)} (${x.chg > 0 ? "+" : ""}${fmtBig(x.chg)})</em><b>${fmtNum(x.index, 0)}</b></li>`).join("");
-    $("sumCot").innerHTML = `<div class="sh"><span class="st">Extremos del COT<small>índice de 3 años · ${c.report_date ? ddmm(c.report_date) : ""}</small></span><span class="pill"><i style="background:var(--amber)"></i>${c.extremes.length} ${c.extremes.length === 1 ? "extremo" : "extremos"}</span></div>
-      ${list ? `<ul class="sext">${list}</ul>` : `<p class="empty">Ningún grupo está por encima de 90 ni por debajo de 10 en su rango de 3 años.</p>`}
-      <p class="sread">Por encima de 90, la posición neta más larga del periodo; por debajo de 10, la más corta. En extremos, el posicionamiento especulativo suele leerse a la contra.</p>`;
+    const list = c.extremes.slice(0, 7).map((x) => `<li data-k="${x.key}"><span>${esc(x.name)} · ${esc(x.group)}</span><em>net ${fmtBig(x.net)} (${x.chg > 0 ? "+" : ""}${fmtBig(x.chg)})</em><b>${fmtNum(x.index, 0)}</b></li>`).join("");
+    $("sumCot").innerHTML = `<div class="sh"><span class="st">COT extremes<small>3-year index · ${c.report_date ? ddmm(c.report_date) : ""}</small></span><span class="pill"><i style="background:var(--amber)"></i>${c.extremes.length} ${c.extremes.length === 1 ? "extreme" : "extremes"}</span></div>
+      ${list ? `<ul class="sext">${list}</ul>` : `<p class="empty">No group is above 90 or below 10 in its 3-year range.</p>`}
+      <p class="sread">Above 90, the longest net position of the period; below 10, the shortest. At extremes, speculative positioning is usually read as a contrarian signal.</p>`;
   }
 }
 
@@ -2805,81 +2818,81 @@ function bindSummary() {
 
 /* ============================================================ glosario flotante */
 const GLOSSARY = {
-  lowvol: { t: "Punto de baja volatilidad", c: C.put,
-    what: "El nivel de precio en el que la gamma total de los dealers sería máxima (el pico de la línea de gamma total).",
-    use: "Cerca de este precio la cobertura de los dealers frena más los movimientos: es donde se espera menos volatilidad realizada y donde el precio tiende a quedarse." },
-  highvol: { t: "Punto de alta volatilidad", c: C.amber,
-    what: "El nivel de precio en el que la gamma total sería más negativa (el valle de la línea de gamma total).",
-    use: "Cerca de este precio la cobertura de los dealers amplifica los movimientos: es la zona donde se espera más volatilidad realizada." },
-  call_wall: { t: "Call Wall", c: C.call,
-    what: "El strike con más gamma neta positiva por encima del precio: la mayor concentración de calls, una vez descontadas las puts del mismo strike.",
-    use: "Resistencia y techo del rango esperado. Cerca de él, la cobertura de los dealers vende en las subidas y las frena. Si el precio lo supera con fuerza, la resistencia puede pasar a ser soporte y el techo se desplaza al siguiente strike con calls." },
-  put_wall: { t: "Put Wall", c: C.put,
-    what: "El strike con más gamma neta negativa por debajo del precio: la mayor concentración de puts, una vez descontadas las calls del mismo strike.",
-    use: "Soporte y suelo del rango esperado; muchas coberturas se cierran ahí y eso suele frenar las caídas. Si se pierde con claridad, ese apoyo desaparece y la caída puede acelerarse: es una señal de alerta, no solo un nivel técnico roto." },
-  flip: { t: "Gamma Flip (Zero Gamma)", c: C.amber,
-    what: "El precio en el que la gamma total de los dealers pasa de positiva a negativa. No es un soporte ni una resistencia: marca el régimen.",
-    use: "Por encima, los dealers compran caídas y venden subidas: menos volatilidad y vuelta a la media. Por debajo hacen lo contrario y amplifican los movimientos. Muy cerca del flip (a menos de un 0,5%) no se espera un efecto claro en ningún sentido." },
-  vt: { t: "Volatility Trigger", c: C.amber,
-    what: "El último soporte importante por encima del Put Wall, en el borde bajista del Gamma Flip.",
-    use: "Por debajo, la cobertura de los dealers deja de sostener el precio y empieza a acompañarlo: la volatilidad realizada suele expandirse. Si solo vigilas un nivel, que sea este. Por encima, entorno más estable." },
-  hedge: { t: "Hedge Wall", c: C.amber,
-    what: "El equivalente del Volatility Trigger en acciones individuales.",
-    use: "Marca el punto a partir del cual se espera más volatilidad realizada. Por encima suelen funcionar mejor las estrategias de vuelta a la media; por debajo, las de momentum. Que suba de un día a otro es una señal alcista; que baje, bajista." },
-  abs: { t: "Gamma absoluta", c: C.muted,
-    what: "El strike con más gamma total, sumando la de calls y la de puts sin signo. Es donde más contratos sensibles al precio hay.",
-    use: "Actúa como imán: con gamma positiva el precio tiende a quedarse pegado a él (pin), sobre todo cerca del vencimiento. También es soporte o resistencia fuerte. Suele estar cerca del flip, no en los extremos del rango. Si no aparece, es porque coincide con el Call Wall o el Put Wall." },
-  spot: { t: "Precio", c: C.text,
-    what: "El precio del subyacente con el que se calculan los niveles.",
-    use: "Con el mercado cerrado es el último cierre. En el pre-market de SPX, NDX, RUT y DJX se estima con su ETF, y en Ajustes puedes fijar un spot manual (por ejemplo, el implícito por futuros)." },
-  gex1: { t: "GEX neta por 1%", c: C.pos,
-    what: "Los dólares de subyacente que los dealers tendrían que comprar o vender para cubrirse por cada 1% que se mueva el precio.",
-    use: "El signo da el régimen: positivo, los dealers frenan los movimientos; negativo, los amplifican. El tamaño, comparado con días anteriores del mismo ticker, indica cuánto pesa ese efecto." },
-  range1s: { t: "Rango 1σ", c: C.text,
-    what: "El rango de una desviación típica que descuentan las opciones: el precio debería cerrar dentro el 68,3% de las veces.",
-    use: "Para dimensionar stops y objetivos, o colocar las alas de un iron condor de corto plazo. Un cierre fuera del rango es un movimiento poco habitual. El de 5 sesiones sirve para la semana." },
-  vanna: { t: "Vanna", c: C.text,
-    what: "Lo que los dealers comprarían o venderían para cubrirse si la volatilidad implícita cae 1 punto.",
-    use: "Cuando la volatilidad baja (después de un evento o en subidas tranquilas), un vanna positivo se traduce en compras: es uno de los motores de las subidas tras un susto. Con vanna negativo, la caída de la volatilidad trae ventas." },
-  charm: { t: "Charm", c: C.text,
-    what: "Lo que los dealers comprarían o venderían solo por el paso de un día, sin que se mueva el precio, porque las deltas cambian al acercarse el vencimiento.",
-    use: "Explica parte del flujo de las tardes y de las semanas de vencimiento. Un charm positivo grande antes de un vencimiento mensual suele dar soporte." },
-  front: { t: "Peso del próximo vencimiento", c: C.text,
-    what: "La parte de la gamma total del filtro que vence en el próximo vencimiento.",
-    use: "Si es alta, los niveles cambiarán mucho cuando venza: tras el vencimiento las walls pueden moverse o perder fuerza. Si es baja, los niveles son más estables." },
-  vix: { t: "VIX", c: C.text,
-    what: "La volatilidad implícita a 30 días del S&P 500.",
-    use: "Es el punto de partida de la curva: los futuros se comparan con él para saber si el mercado espera más o menos volatilidad que la actual." },
-  m1: { t: "M1 (primer futuro)", c: C.text,
-    what: "El futuro del VIX que vence antes: lo que el mercado paga hoy por la volatilidad de ese mes.",
-    use: "Si está por encima del VIX (prima positiva), lo normal; si está por debajo, hay tensión inmediata. La prima se deshace a medida que el futuro converge al VIX en su vencimiento." },
-  m2: { t: "M2 (segundo futuro)", c: C.text,
-    what: "El futuro del VIX del mes siguiente al M1.",
-    use: "Compararlo con el M1 da la pendiente del tramo corto, la referencia clásica de contango y backwardation." },
-  slope: { t: "Pendiente M2 / M1", c: C.text,
-    what: "Cuánto cotiza el segundo futuro por encima (contango) o por debajo (backwardation) del primero.",
-    use: "Positiva y amplia: mercado tranquilo y quien vende volatilidad cobra por mantener la posición. Negativa: estrés. El percentil indica si el valor de hoy es habitual en el último año." },
-  cm30: { t: "Futuro a 30 días", c: C.text,
-    what: "Un futuro sintético con vencimiento fijo a 30 días, comparable con el VIX día a día.",
-    use: "Evita los saltos que provoca el cambio de M1 al vencer cada contrato. Si está por encima del VIX, la estructura es normal." },
-  vix3m: { t: "VIX / VIX3M", c: C.text,
-    what: "La volatilidad implícita a 30 días frente a la de 3 meses.",
-    use: "Por debajo de 1, estructura normal. Por encima de 1, el mercado paga más por protección inmediata que a plazo: señal clásica de estrés, y su vuelta por debajo de 1 suele marcar la normalización." },
-  streak: { t: "Racha", c: C.text,
-    what: "Cuántas sesiones seguidas lleva la pendiente M2/M1 en el mismo signo.",
-    use: "Una racha larga de contango que se rompe es un primer aviso de cambio de régimen. Junto al porcentaje del año en contango, muestra si la situación actual es excepcional." },
-  asset_mgr: { t: "Gestoras", c: C.pos,
-    what: "Gestoras de activos: fondos de pensiones, fondos de inversión, aseguradoras. Dinero real con horizontes largos.",
-    use: "Sus posiciones cambian despacio y siguen la tendencia de fondo. En índices suelen estar largas; los cambios de tendencia en su neta son más relevantes que el nivel." },
-  lev_money: { t: "Fondos apalancados", c: C.neg,
-    what: "Hedge funds y CTA: el dinero especulativo.",
-    use: "Siguen tendencias y se mueven rápido. En extremos de su rango suelen leerse a la contra: cuando todos están en el mismo lado, queda poco combustible para seguir. En bonos están cortos de forma estructural por el basis trade." },
-  dealer: { t: "Dealers", c: C.put,
-    what: "Bancos y creadores de mercado.",
-    use: "Normalmente están en el lado contrario de sus clientes, así que su posición es el espejo del resto. Sirve para confirmar lo que hacen gestoras y fondos." },
-  cot_index: { t: "Índice COT", c: C.amber,
-    what: "Dónde está la posición neta actual dentro de su rango del periodo elegido: 0 es la más corta, 100 la más larga.",
-    use: "Compara cada grupo consigo mismo, no por el signo. Por encima de 90 o por debajo de 10 es un extremo: posicionamiento saturado, a menudo antes de giros." },
+  lowvol: { t: "Low volatility point", c: "put",
+    what: "The price level at which total dealer gamma would peak (the top of the total gamma line).",
+    use: "Near this price dealer hedging dampens moves the most: it is where the least realized volatility is expected and where the price tends to settle." },
+  highvol: { t: "High volatility point", c: "amber",
+    what: "The price level at which total gamma would be most negative (the trough of the total gamma line).",
+    use: "Near this price dealer hedging amplifies moves: it is the zone where the most realized volatility is expected." },
+  call_wall: { t: "Call Wall", c: "call",
+    what: "The strike with the most positive net gamma above the price: the largest concentration of calls, net of the puts at the same strike.",
+    use: "Resistance and the ceiling of the expected range. Near it, dealer hedging sells into rallies and slows them down. If the price breaks through it decisively, resistance can turn into support and the ceiling moves to the next strike with calls." },
+  put_wall: { t: "Put Wall", c: "put",
+    what: "The strike with the most negative net gamma below the price: the largest concentration of puts, net of the calls at the same strike.",
+    use: "Support and the floor of the expected range; many hedges are closed there, which tends to slow down selloffs. If it is clearly lost, that support disappears and the drop can accelerate: it is a warning sign, not just a broken technical level." },
+  flip: { t: "Gamma Flip (Zero Gamma)", c: "amber",
+    what: "The price at which total dealer gamma turns from positive to negative. It is neither support nor resistance: it marks the regime.",
+    use: "Above it, dealers buy dips and sell rallies: less volatility and mean reversion. Below it they do the opposite and amplify moves. Very close to the flip (within 0.5%) no clear effect is expected in either direction." },
+  vt: { t: "Volatility Trigger", c: "amber",
+    what: "The last major support above the Put Wall, on the bearish edge of the Gamma Flip.",
+    use: "Below it, dealer hedging stops supporting the price and starts to go with it: realized volatility tends to expand. If you only watch one level, make it this one. Above it, a more stable environment." },
+  hedge: { t: "Hedge Wall", c: "amber",
+    what: "The equivalent of the Volatility Trigger for single stocks.",
+    use: "It marks the point beyond which more realized volatility is expected. Above it mean-reversion strategies tend to work better; below it, momentum. A rise from one day to the next is a bullish sign; a drop, bearish." },
+  abs: { t: "Absolute gamma", c: "muted",
+    what: "The strike with the most total gamma, adding call and put gamma without sign. It is where the most price-sensitive contracts are.",
+    use: "It acts as a magnet: with positive gamma the price tends to stick to it (pinning), especially near expiration. It is also strong support or resistance. It is usually near the flip, not at the edges of the range. If it doesn't show up, it coincides with the Call Wall or the Put Wall." },
+  spot: { t: "Price", c: "text",
+    what: "The underlying price used to calculate the levels.",
+    use: "With the market closed it is the last close. In the SPX, NDX, RUT and DJX pre-market it is estimated from their ETF, and in Settings you can set a manual spot (for example, the one implied by futures)." },
+  gex1: { t: "Net GEX per 1%", c: "pos",
+    what: "The dollars of underlying that dealers would have to buy or sell to hedge for every 1% the price moves.",
+    use: "The sign gives the regime: positive, dealers dampen moves; negative, they amplify them. The size, compared with previous days for the same ticker, shows how much that effect weighs." },
+  range1s: { t: "1σ range", c: "text",
+    what: "The one standard deviation range priced by options: the price should close inside it 68.3% of the time.",
+    use: "To size stops and targets, or place the wings of a short-term iron condor. A close outside the range is an unusual move. The 5-session one is for the week." },
+  vanna: { t: "Vanna", c: "text",
+    what: "What dealers would buy or sell to hedge if implied volatility drops 1 point.",
+    use: "When volatility falls (after an event or during quiet rallies), positive vanna turns into buying: it is one of the engines of rallies after a scare. With negative vanna, falling volatility brings selling." },
+  charm: { t: "Charm", c: "text",
+    what: "What dealers would buy or sell just from one day passing, without the price moving, because deltas change as expiration approaches.",
+    use: "It explains part of the afternoon flows and of expiration weeks. A large positive charm before a monthly expiration tends to provide support." },
+  front: { t: "Next-expiration weight", c: "text",
+    what: "The share of the filter's total gamma that expires at the next expiration.",
+    use: "If it is high, the levels will change a lot when it expires: after expiration the walls can move or lose strength. If it is low, the levels are more stable." },
+  vix: { t: "VIX", c: "text",
+    what: "The 30-day implied volatility of the S&P 500.",
+    use: "It is the starting point of the curve: futures are compared with it to see whether the market expects more or less volatility than now." },
+  m1: { t: "M1 (front future)", c: "text",
+    what: "The VIX future that expires first: what the market pays today for that month's volatility.",
+    use: "Above the VIX (positive premium) is normal; below it, there is immediate stress. The premium unwinds as the future converges to the VIX at expiration." },
+  m2: { t: "M2 (second future)", c: "text",
+    what: "The VIX future for the month after M1.",
+    use: "Comparing it with M1 gives the slope of the front end, the classic reference for contango and backwardation." },
+  slope: { t: "M2 / M1 slope", c: "text",
+    what: "How far the second future trades above (contango) or below (backwardation) the first.",
+    use: "Positive and wide: a calm market, and volatility sellers get paid to hold the position. Negative: stress. The percentile shows whether today's value is usual for the last year." },
+  cm30: { t: "30-day future", c: "text",
+    what: "A synthetic future with a fixed 30-day maturity, comparable with the VIX day by day.",
+    use: "It avoids the jumps caused by the M1 roll as each contract expires. If it is above the VIX, the structure is normal." },
+  vix3m: { t: "VIX / VIX3M", c: "text",
+    what: "30-day implied volatility versus 3-month implied volatility.",
+    use: "Below 1, normal structure. Above 1, the market pays more for immediate protection than for protection further out: a classic stress signal, and its return below 1 usually marks normalization." },
+  streak: { t: "Streak", c: "text",
+    what: "How many consecutive sessions the M2/M1 slope has kept the same sign.",
+    use: "A long contango streak that breaks is an early warning of a regime change. Together with the share of the year in contango, it shows whether the current situation is exceptional." },
+  asset_mgr: { t: "Asset managers", c: "pos",
+    what: "Pension funds, mutual funds, insurers. Real money with long horizons.",
+    use: "Their positions change slowly and follow the underlying trend. In indices they are usually long; trend changes in their net matter more than the level." },
+  lev_money: { t: "Leveraged funds", c: "neg",
+    what: "Hedge funds and CTAs: the speculative money.",
+    use: "They follow trends and move fast. At the extremes of their range they are usually read as a contrarian signal: when everyone is on the same side, there is little fuel left. In bonds they are structurally short because of the basis trade." },
+  dealer: { t: "Dealers", c: "put",
+    what: "Banks and market makers.",
+    use: "They are usually on the other side of their clients, so their position mirrors everyone else's. It helps confirm what asset managers and funds are doing." },
+  cot_index: { t: "COT index", c: "amber",
+    what: "Where the current net position sits within its range for the chosen period: 0 is the shortest, 100 the longest.",
+    use: "Compare each group with itself, not by its sign. Above 90 or below 10 is an extreme: crowded positioning, often ahead of reversals." },
 };
 const GL_DELAY = 1500;
 const gl = { timer: null, el: null };
@@ -2904,9 +2917,9 @@ function glossaryInit() {
 }
 function glossaryShow(k) {
   const g = GLOSSARY[k], card = $("glcard");
-  card.innerHTML = `<div class="glt"><i style="background:${g.c}"></i>${esc(g.t)}</div>
+  card.innerHTML = `<div class="glt"><i style="background:${C[g.c]}"></i>${esc(g.t)}</div>
     <p class="glw">${esc(g.what)}</p>
-    <div class="gls">Para qué sirve</div><p>${esc(g.use)}</p>`;
+    <div class="gls">How to use it</div><p>${esc(g.use)}</p>`;
   card.hidden = false;
   requestAnimationFrame(() => card.classList.add("on"));
 }
@@ -2920,14 +2933,14 @@ function glossaryHide() {
 
 /* ============================================================ barra lateral y tema */
 const NAV = {
-  navSummary: { t: "Resumen", go: () => setMode("summary") },
+  navSummary: { t: "Summary", go: () => setMode("summary") },
   navTrace: { t: "TRACE", go: () => { setMode("analysis"); if (state.view !== "map") setView("map"); } },
   navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView(state.hubView || "impact"); } },
-  navVol: { t: "Panel de volatilidad", go: () => setMode("vol") },
-  navVix: { t: "Curva VIX", go: () => setMode("vix") },
-  navScan: { t: "Escáner", go: () => { setMode("scanner"); setScanView("table"); } },
+  navVol: { t: "Volatility dashboard", go: () => setMode("vol") },
+  navVix: { t: "VIX curve", go: () => setMode("vix") },
+  navScan: { t: "Scanner", go: () => { setMode("scanner"); setScanView("table"); } },
   navCompass: { t: "Compass", go: () => { setMode("scanner"); setScanView("compass"); } },
-  navValid: { t: "Validación", go: () => { setMode("scanner"); setScanView("valid"); } },
+  navValid: { t: "Validation", go: () => { setMode("scanner"); setScanView("valid"); } },
   navCot: { t: "COT", go: () => setMode("cot") },
 };
 function currentNav() {
@@ -2951,7 +2964,7 @@ function applyTheme(t) {
   document.documentElement.dataset.theme = t;
   try { localStorage.setItem("gexlab.theme", t); } catch { /* sin almacenamiento */ }
   Object.assign(C, THEMES[t]);
-  const lbl = $("themeLbl"); if (lbl) lbl.textContent = t === "dark" ? "Tema claro" : "Tema oscuro";
+  const lbl = $("themeLbl"); if (lbl) lbl.textContent = t === "dark" ? "Light theme" : "Dark theme";
   const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute("content", C.ink);
   state.heatImg = null;
   redrawAll();
@@ -2960,7 +2973,7 @@ function redrawAll() {
   if (state.mode === "analysis") draw();
   else if (state.mode === "scanner" && state.scanView === "compass" && typeof renderCompass === "function") renderCompass();
   else if (state.mode === "vix" && vx.data) renderVix();
-  else if (state.mode === "cot" && cot.data) renderCotChart();
+  else if (state.mode === "cot" && cot.data) renderCot();
   else if (state.mode === "summary" && sm.data) renderSummary();
   else if (state.mode === "vol" && typeof renderVol === "function") renderVol();
 }
@@ -2970,7 +2983,7 @@ function shellInit() {
     b.addEventListener("click", () => { document.body.classList.remove("side-open"); n.go(); });
   }
   $("themeBtn").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
-  $("themeLbl").textContent = document.documentElement.dataset.theme === "light" ? "Tema oscuro" : "Tema claro";
+  $("themeLbl").textContent = document.documentElement.dataset.theme === "light" ? "Dark theme" : "Light theme";
   const setMin = (on) => { document.body.classList.toggle("side-min", on); try { localStorage.setItem("gexlab.sidemin", on ? "1" : "0"); } catch { /* */ } };
   try { setMin(localStorage.getItem("gexlab.sidemin") === "1"); } catch { /* */ }
   $("sideMin").addEventListener("click", () => { setMin(!document.body.classList.contains("side-min")); setTimeout(redrawAll, 220); });

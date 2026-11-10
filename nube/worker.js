@@ -71,9 +71,9 @@ const ip = (req) => req.headers.get("CF-Connecting-IP") || "?";
 
 async function body(req) {
   const ct = req.headers.get("Content-Type") || "";
-  if (!ct.includes("application/json")) throw new Error("Peticion no valida");
+  if (!ct.includes("application/json")) throw new Error("Invalid request");
   const t = await req.text();
-  if (t.length > 100000) throw new Error("Peticion demasiado grande");
+  if (t.length > 100000) throw new Error("Request too large");
   return t ? JSON.parse(t) : {};
 }
 
@@ -180,7 +180,7 @@ async function pedir(env, syms) {
 // ------------------------------------------------------------------ datos publicados por el motor (R2 pub/)
 async function fromR2(req, env, key) {
   const o = await env.R2.get(key, { onlyIf: req.headers });
-  if (o === null) return json(404, { error: "Todavia no hay datos para esto", pendiente: true });
+  if (o === null) return json(404, { error: "No data for this yet", pendiente: true });
   const h = new Headers({ "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-cache", ETag: o.httpEtag, ...SEC_HEADERS });
   if (!("body" in o) || !o.body) return new Response(null, { status: 304, headers: h });
   if (o.httpMetadata && o.httpMetadata.contentEncoding === "gzip") h.set("Content-Encoding", "gzip");
@@ -241,7 +241,7 @@ async function editarLista(req, env, me, KEY, MAX, leer) {
     if (!actual.has(s) && conOpciones.size && !conOpciones.has(s)) { invalidos.push(s); continue; }
     syms.push(s);
   }
-  if (syms.length > MAX) throw new Error(`Como máximo ${MAX} tickers`);
+  if (syms.length > MAX) throw new Error(`At most ${MAX} tickers`);
   const d = { symbols: syms, actualizado: stamp(), por: me.user };
   await env.R2.put(KEY, JSON.stringify(d), { httpMetadata: { contentType: "application/json" } });
   return json(200, { symbols: syms, actualizado: d.actualizado, origen: "web", invalidos });
@@ -327,10 +327,10 @@ async function countUsers(env) {
 }
 
 async function createUser(env, usuario, sal, clave, rol) {
-  if (!USER_RE.test(usuario)) throw new Error("Usuario no valido: minusculas, numeros, punto, guion o guion bajo (2-32)");
-  if (!/^[0-9a-f]{32}$/.test(sal) || !HEX64.test(clave)) throw new Error("Datos de contrasena no validos");
+  if (!USER_RE.test(usuario)) throw new Error("Invalid username: lowercase letters, digits, dot, hyphen or underscore (2-32)");
+  if (!/^[0-9a-f]{32}$/.test(sal) || !HEX64.test(clave)) throw new Error("Invalid password data");
   const ex = await env.DB.prepare("SELECT 1 FROM usuarios WHERE usuario = ?").bind(usuario).first();
-  if (ex) throw new Error(`El usuario ${usuario} ya existe`);
+  if (ex) throw new Error(`User ${usuario} already exists`);
   await env.DB.prepare("INSERT INTO usuarios (usuario, sal, verif, rol, lid, inactivo, creado) VALUES (?, ?, ?, ?, ?, 0, ?)")
     .bind(usuario, sal, await sha256(clave), rol, randHex(6), stamp()).run();
   await env.DB.prepare("INSERT INTO listas (usuario, json) VALUES (?, ?) ON CONFLICT(usuario) DO NOTHING")
@@ -355,10 +355,10 @@ async function admin(req, env, me) {
     await createUser(env, u, String(b.sal || ""), String(b.clave || ""), b.rol === "admin" ? "admin" : "usuario");
   } else {
     const ex = await env.DB.prepare("SELECT usuario FROM usuarios WHERE usuario = ?").bind(u).first();
-    if (!ex) throw new Error(`El usuario ${u} no existe`);
-    if (u === me.user && b.accion !== "contrasena") throw new Error("No puedes desactivar ni borrar tu propia cuenta");
+    if (!ex) throw new Error(`User ${u} does not exist`);
+    if (u === me.user && b.accion !== "contrasena") throw new Error("You can't disable or delete your own account");
     if (b.accion === "contrasena") {
-      if (!/^[0-9a-f]{32}$/.test(b.sal || "") || !HEX64.test(b.clave || "")) throw new Error("Datos de contrasena no validos");
+      if (!/^[0-9a-f]{32}$/.test(b.sal || "") || !HEX64.test(b.clave || "")) throw new Error("Invalid password data");
       await env.DB.prepare("UPDATE usuarios SET sal = ?, verif = ?, cambiado = ? WHERE usuario = ?").bind(b.sal, await sha256(b.clave), stamp(), u).run();
       await env.DB.prepare("DELETE FROM sesiones WHERE usuario = ? AND h != ?").bind(u, u === me.user ? me.h : "").run();
     } else if (b.accion === "desactivar" || b.accion === "activar") {
@@ -366,7 +366,7 @@ async function admin(req, env, me) {
       if (b.accion === "desactivar") await env.DB.prepare("DELETE FROM sesiones WHERE usuario = ?").bind(u).run();
     } else if (b.accion === "borrar") {
       for (const t of ["sesiones", "prefs", "listas", "usuarios"]) await env.DB.prepare(`DELETE FROM ${t} WHERE usuario = ?`).bind(u).run();
-    } else throw new Error("Accion desconocida");
+    } else throw new Error("Unknown action");
   }
   const nuevos = await syncConfig(env);
   if (nuevos.length) await pedir(env, nuevos);
@@ -385,7 +385,7 @@ async function api(req, env, url, me) {
     const clean = {};
     for (const [k, v] of Object.entries(b.prefs || {}).slice(0, 80)) clean[String(k).slice(0, 40)] = String(v).slice(0, 2000);
     const s = JSON.stringify(clean);
-    if (s.length > 50000) throw new Error("Preferencias demasiado grandes");
+    if (s.length > 50000) throw new Error("Preferences too large");
     await env.DB.prepare("INSERT INTO prefs (usuario, json) VALUES (?, ?) ON CONFLICT(usuario) DO UPDATE SET json = excluded.json").bind(me.user, s).run();
     await syncConfig(env);
     return json(200, clean);
@@ -412,56 +412,56 @@ async function api(req, env, url, me) {
   if (p === "/api/pedir" && req.method === "POST") {
     const b = await body(req);
     const syms = [...new Set((b.symbols || []).map(normalize).filter(Boolean))];
-    if (!syms.length) return json(400, { error: "Ticker no valido" });
+    if (!syms.length) return json(400, { error: "Invalid ticker" });
     return json(200, await pedir(env, syms));
   }
   if (p.startsWith("/api/pub/")) {
     const rest = p.slice(9);
-    if (!SAFE_PATH.test(rest) || rest.includes("..") || rest.startsWith("l/")) return json(400, { error: "Ruta no valida" });
+    if (!SAFE_PATH.test(rest) || rest.includes("..") || rest.startsWith("l/")) return json(400, { error: "Invalid path" });
     return fromR2(req, env, "pub/" + rest);
   }
   if (p.startsWith("/api/lista/")) {
     const f = p.slice(11);
-    if (!/^[a-z_0-9]+\.json$/.test(f)) return json(400, { error: "Ruta no valida" });
+    if (!/^[a-z_0-9]+\.json$/.test(f)) return json(400, { error: "Invalid path" });
     return fromR2(req, env, `pub/l/${me.lid}/${f}`);
   }
   if (p === "/api/admin/importar" && req.method === "POST") {
     // historial del PC (history.tar.gz): lo mezcla el motor en su siguiente ciclo
-    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    if (!me.admin) return json(403, { error: "Administrator only" });
     const buf = await req.arrayBuffer();
     const b = new Uint8Array(buf);
-    if (b.length < 20 || b[0] !== 0x1f || b[1] !== 0x8b) return json(400, { error: "El archivo no es un .tar.gz" });
-    if (b.length > 50 * 1024 * 1024) return json(400, { error: "Archivo demasiado grande (máximo 50 MB)" });
+    if (b.length < 20 || b[0] !== 0x1f || b[1] !== 0x8b) return json(400, { error: "The file is not a .tar.gz" });
+    if (b.length > 50 * 1024 * 1024) return json(400, { error: "File too large (50 MB max)" });
     await env.R2.put("importar/historial.tar.gz", buf, { httpMetadata: { contentType: "application/gzip" } });
     const lanzado = await dispatch(env, { modo: "ciclo" });
     return json(200, { ok: true, bytes: b.length, lanzado });
   }
   if (p === "/api/admin/historial") {
-    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    if (!me.admin) return json(403, { error: "Administrator only" });
     return historial(req, env, me);
   }
   if (p === "/api/admin/fijos") {
-    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    if (!me.admin) return json(403, { error: "Administrator only" });
     return fijos(req, env, me);
   }
   if (p === "/api/admin/estado") {
-    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    if (!me.admin) return json(403, { error: "Administrator only" });
     return json(200, await estado(env));
   }
   if (p === "/api/admin/lanzar" && req.method === "POST") {
-    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    if (!me.admin) return json(403, { error: "Administrator only" });
     const b = await body(req);
     const ok = b.que === "historial" ? await dispatch(env, b.forzar ? { forzar: "true" } : {}, "historial500.yml")
       : b.que === "ciclo" ? await dispatch(env, { modo: "ciclo" }) : null;
-    if (ok === null) return json(400, { error: "Acción desconocida" });
-    if (!ok) return json(502, { error: "GitHub no ha aceptado el lanzamiento (revisa el token GH_DISPATCH_TOKEN)" });
+    if (ok === null) return json(400, { error: "Unknown action" });
+    if (!ok) return json(502, { error: "GitHub did not accept the launch (check the GH_DISPATCH_TOKEN token)" });
     return json(200, { ok: true });
   }
   if (p === "/api/admin/usuarios") {
-    if (!me.admin) return json(403, { error: "Solo el administrador" });
+    if (!me.admin) return json(403, { error: "Administrator only" });
     return admin(req, env, me);
   }
-  return json(404, { error: "no encontrado" });
+  return json(404, { error: "not found" });
 }
 
 // ------------------------------------------------------------------ entrada
@@ -475,19 +475,19 @@ async function publicApi(req, env, url) {
     const sal = r ? r.sal : (await hmacHex(env.GEX_SETUP_CODE || "gexlab", "sal|" + u)).slice(0, 32);
     return json(200, { sal, iter: ITER });
   }
-  if (req.method !== "POST") return json(405, { error: "Metodo no permitido" });
+  if (req.method !== "POST") return json(405, { error: "Method not allowed" });
   const b = await body(req);
   if (p === "/api/login") {
     const u = String(b.usuario || "").trim().toLowerCase();
     for (const k of [`u:${u}`, `ip:${ip(req)}`]) {
       const w = await blocked(env, k);
-      if (w) return json(429, { error: `Demasiados intentos. Vuelve a probar en ${Math.ceil(w / 60)} min.` });
+      if (w) return json(429, { error: `Too many attempts. Try again in ${Math.ceil(w / 60)} min.` });
     }
     const r = USER_RE.test(u) ? await env.DB.prepare("SELECT verif, inactivo FROM usuarios WHERE usuario = ?").bind(u).first() : null;
     const ok = r && !r.inactivo && HEX64.test(String(b.clave || "")) && eq(await sha256(String(b.clave)), r.verif);
     if (!ok) {
       await fail(env, `u:${u}`); await fail(env, `ip:${ip(req)}`);
-      return json(401, { error: "Usuario o contraseña incorrectos" });
+      return json(401, { error: "Wrong username or password" });
     }
     await env.DB.prepare("DELETE FROM fallos WHERE clave IN (?, ?)").bind(`u:${u}`, `ip:${ip(req)}`).run();
     return json(200, { ok: true }, { "Set-Cookie": await newSession(env, u, req) });
@@ -495,18 +495,18 @@ async function publicApi(req, env, url) {
   if (p === "/api/setup") {
     const k = `setup:${ip(req)}`;
     const w = await blocked(env, k);
-    if (w) return json(429, { error: `Demasiados intentos. Vuelve a probar en ${Math.ceil(w / 60)} min.` });
-    if ((await countUsers(env)) > 0) return json(403, { error: "La cuenta de administrador ya existe" });
+    if (w) return json(429, { error: `Too many attempts. Try again in ${Math.ceil(w / 60)} min.` });
+    if ((await countUsers(env)) > 0) return json(403, { error: "The administrator account already exists" });
     if (!env.GEX_SETUP_CODE || !eq(String(b.codigo || ""), env.GEX_SETUP_CODE)) {
       await fail(env, k);
-      return json(401, { error: "Código de alta incorrecto" });
+      return json(401, { error: "Wrong setup code" });
     }
     const u = String(b.usuario || "").trim().toLowerCase();
     await createUser(env, u, String(b.sal || ""), String(b.clave || ""), "admin");
     await syncConfig(env);
     return json(200, { ok: true }, { "Set-Cookie": await newSession(env, u, req) });
   }
-  return json(404, { error: "no encontrado" });
+  return json(404, { error: "not found" });
 }
 
 // ------------------------------------------------------------------ reloj del motor
@@ -557,7 +557,7 @@ export default {
     try {
       if (req.method === "POST") { // las escrituras solo desde la propia web
         const o = req.headers.get("Origin");
-        if (o && o !== url.origin) return json(403, { error: "Origen no permitido" });
+        if (o && o !== url.origin) return json(403, { error: "Origin not allowed" });
       }
       if (PUBLIC.has(p)) {
         if (p.startsWith("/api/")) return await publicApi(req, env, url);
@@ -570,7 +570,7 @@ export default {
       const me = ses && !ses.closed ? ses : null;
       if (!me) {
         const otro = ses && ses.closed === "otro";
-        const msg = otro ? "Se ha iniciado sesión con tu cuenta en otro dispositivo" : "Sesión caducada: vuelve a iniciar sesión";
+        const msg = otro ? "Your account was signed in on another device" : "Session expired: sign in again";
         if (p.startsWith("/api/")) return json(401, { error: msg, login: true, motivo: otro ? "otro" : "caducada" });
         return redirect((await countUsers(env)) === 0 ? "/setup" : otro ? "/login?motivo=otro" : "/login");
       }

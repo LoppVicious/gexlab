@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,12 +8,15 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-<title>GEX Lab · Acceso</title>
+<title>GEX Lab · Sign in</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { --ink: #0c111a; --surface: #121823; --line: #222b39; --text: #e6e9ef; --muted: #8a93a3; --faint: #5d6676; --call: #e05d57; --focus: #7fb0ff; }
+  :root { --ink: #0f0f12; --surface: #16161a; --line: #2a2a31; --line-strong: #3a3a44; --text: #f1f1f4; --muted: #a3a3ae; --faint: #6c6c78;
+    --call: #ff5a5f; --focus: #3fd9bb; --btn: #1fc8a6; --btn-hover: #3fd9bb; --btn-text: #0f0f12; color-scheme: dark; }
+  :root[data-theme="light"] { --ink: #f2f3f6; --surface: #ffffff; --line: #dde1e7; --line-strong: #c3c9d2; --text: #171b22; --muted: #535b69;
+    --faint: #7a8291; --call: #d33d3d; --focus: #12846e; --btn: #12846e; --btn-hover: #0f735f; --btn-text: #ffffff; color-scheme: light; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
@@ -28,17 +31,18 @@
     width: 100%; background: var(--ink); border: 1px solid var(--line); border-radius: 10px; color: var(--text);
     font: inherit; padding: 11px 13px; margin-bottom: 16px; outline: none;
   }
-  input:focus { border-color: #33415a; }
+  input:focus { border-color: var(--line-strong); }
   button {
     width: 100%; margin-top: 4px; border: 0; border-radius: 10px; padding: 11px 14px; font: inherit; font-weight: 500;
-    background: #26344a; color: var(--text); cursor: pointer;
+    background: var(--btn); color: var(--btn-text); font-weight: 600; cursor: pointer;
   }
-  button:hover { background: #2e3f59; }
+  button:hover { background: var(--btn-hover); }
   button:disabled { opacity: .55; cursor: default; }
   :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   .err { min-height: 20px; color: var(--call); font-size: 13px; margin: 12px 2px 0; }
   .foot { color: var(--faint); font-size: 12px; text-align: center; margin-top: 18px; }
 </style>
+<script>try{if(localStorage.getItem("gexlab.theme")==="light"){document.documentElement.dataset.theme="light";document.querySelector('meta[name="theme-color"]').content="#f2f3f6"}}catch(e){}</script>
 </head>
 <body>
 <main class="card">
@@ -50,32 +54,32 @@
     </svg>
     GEX Lab
   </div>
-  <p class="sub">Acceso privado</p>
+  <p class="sub">Private access</p>
   <form id="f" autocomplete="on">
-    <label for="user">Usuario</label>
+    <label for="user">Username</label>
     <input id="user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-    <label for="pw">Contraseña</label>
+    <label for="pw">Password</label>
     <input id="pw" name="password" type="password" autocomplete="current-password" required>
-    <button id="go" type="submit">Entrar</button>
+    <button id="go" type="submit">Sign in</button>
     <p class="err" id="err" role="alert"></p>
   </form>
-  <p class="foot">Las cuentas las crea el administrador.</p>
+  <p class="foot">Accounts are created by the administrator.</p>
 </main>
 <script>
   "use strict";
   const f = document.getElementById("f"), err = document.getElementById("err"), go = document.getElementById("go");
   f.addEventListener("submit", async (e) => {
     e.preventDefault();
-    err.textContent = ""; go.disabled = true; go.textContent = "Entrando…";
+    err.textContent = ""; go.disabled = true; go.textContent = "Signing in…";
     try {
       const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ user: document.getElementById("user").value, password: document.getElementById("pw").value }) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || "No se pudo iniciar sesión");
+      if (!r.ok) throw new Error(d.error || "Could not sign in");
       location.replace("/");
     } catch (x) {
-      err.textContent = x.message === "Failed to fetch" ? "El servidor no responde." : x.message;
-      go.disabled = false; go.textContent = "Entrar";
+      err.textContent = x.message === "Failed to fetch" ? "The server is not responding." : x.message;
+      go.disabled = false; go.textContent = "Sign in";
       document.getElementById("pw").select();
     }
   });

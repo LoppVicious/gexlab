@@ -97,7 +97,7 @@ def decide(now: datetime, st: dict) -> tuple[str | None, str | None]:
 def _retryable(err: str) -> bool:
     """Solo se reintentan los fallos de conexion o de limite de peticiones, no un ticker sin opciones."""
     e = err.lower()
-    return not ("no hay datos" in e or "no publica" in e or "ticker no valido" in e or "sin precio" in e)
+    return not ("no options data" in e or "does not publish" in e or "invalid ticker" in e or "no underlying price" in e)
 
 
 def _collect_one(sym: str) -> str:

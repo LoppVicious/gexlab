@@ -3,9 +3,23 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-10 — Curva VIX al día la misma tarde
+## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX al día la misma tarde
+
+**Cambiado**
+- **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y
+  administración. Las cifras usan el formato inglés (7,550.25) y las fechas van como «Nov 13»; el spot manual se
+  escribe con punto decimal. Las etiquetas del COT, la forma de la curva VIX y los nombres del calendario de eventos
+  pasan a inglés en el siguiente ciclo del motor. El registro de cambios sigue en español.
+- **Tema claro:** colores con más contraste sobre blanco (acento, ámbar, verde y texto tenue), sombra leve en los
+  paneles, y gráficos con colores propios del tema: líneas del vencimiento mensual, vencimientos del skew, matriz de
+  volatilidad, índices VIX9D–VIX1Y, puntos del Compass, cierre anterior e histórico. La página de acceso respeta el
+  tema elegido.
 
 **Corregido**
+- Al cambiar de tema sin recargar, la curva VIX, el resumen, el COT y el glosario mantenían los colores del tema
+  anterior.
+- En el modo PC, la actualización automática daba un error cada minuto.
+- En el mapa (TRACE), el rótulo de las barras por strike se montaba sobre sus cifras.
 - **Curva VIX:** el cierre de los futuros del día ya aparece en el ciclo de las 18:00 ET (00:00 en España) en vez de al
   día siguiente a las 13:45. Se toma de la liquidación diaria de CBOE hasta que llega a sus archivos históricos, de
   madrugada; mientras tanto, el tooltip de cada vencimiento da el open interest de la sesión anterior y el volumen

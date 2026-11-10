@@ -15,7 +15,7 @@ const vol = {
   hor: store.get("volHor", "3m"),
 };
 const volH = () => ({ "1m": 32, "3m": 100, "6m": 190 }[vol.hor] || 100);   // horizonte en dias
-const MTAG = '<span class="vm" title="Vencimiento mensual">M</span>';
+const MTAG = '<span class="vm" title="Monthly expiration">M</span>';
 const inH = (x) => x.dte <= volH();
 // dias naturales hasta el vencimiento (sin decimales)
 function volDays(x) {
@@ -24,11 +24,11 @@ function volDays(x) {
   return Math.max(0, Math.round((Date.parse(x.exp + "T00:00:00Z") - today) / 86400000));
 }
 function horSeg() {
-  return `<div class="seg boxed" role="radiogroup" id="volHorSeg" aria-label="Horizonte"><button role="radio" data-v="1m" aria-checked="${vol.hor === "1m"}">1 mes</button><button role="radio" data-v="3m" aria-checked="${vol.hor === "3m"}">3 meses</button><button role="radio" data-v="6m" aria-checked="${vol.hor === "6m"}">6 meses</button></div>`;
+  return `<div class="seg boxed" role="radiogroup" id="volHorSeg" aria-label="Horizon"><button role="radio" data-v="1m" aria-checked="${vol.hor === "1m"}">1 month</button><button role="radio" data-v="3m" aria-checked="${vol.hor === "3m"}">3 months</button><button role="radio" data-v="6m" aria-checked="${vol.hor === "6m"}">6 months</button></div>`;
 }
-const VOLC = ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"];
+const volC = (j) => C.vol[j % C.vol.length];   // color de cada vencimiento del skew, segun el tema
 const pct = (v, d = 1) => v == null ? "—" : fmtNum(v * 100, d) + "%";
-const volDate = (iso) => { const d = new Date(iso + "T12:00:00"); return `${d.getDate()} ${MESES[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? " " + String(d.getFullYear()).slice(2) : ""}`; };
+const volDate = (iso) => { const d = new Date(iso + "T12:00:00"); return `${MESES[d.getMonth()]} ${d.getDate()}${d.getFullYear() !== new Date().getFullYear() ? " '" + String(d.getFullYear()).slice(2) : ""}`; };
 
 function volColors() { return { band: document.documentElement.dataset.theme === "light" ? "rgba(124,92,240,.16)" : "rgba(110,100,220,.30)" }; }
 
@@ -39,14 +39,14 @@ function showVol() {
   if (!vol.data || vol.sym !== sym || Date.now() - vol.at > 300000) loadVol(); else { renderVol(); setStatus("", volStatus()); }
 }
 
-function volStatus() { return vol.data ? `Volatilidad · ${nyHHMM(vol.data.generado)}` : ""; }
+function volStatus() { return vol.data ? `Volatility · ${nyHHMM(vol.data.generado)}` : ""; }
 
 async function loadVol(refresh = false) {
   const sym = (state.symbol || "SPX").toUpperCase();
   if (vol.ctrl) vol.ctrl.abort();
   vol.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
-  setStatus("busy", `Cargando la volatilidad de ${sym}…`);
+  setStatus("busy", `Loading ${sym} volatility…`);
   $("volChart").classList.add("loading");
   try {
     const [r, ev] = await Promise.all([
@@ -54,7 +54,7 @@ async function loadVol(refresh = false) {
       vol.events ? Promise.resolve(null) : fetch("/api/eventos", { signal: vol.ctrl.signal }).then((x) => (x.ok ? x.json() : [])).catch(() => []),
     ]);
     const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "No se pudo leer la volatilidad");
+    if (!r.ok) throw new Error(d.error || "Could not read the volatility data");
     if (ev) vol.events = Array.isArray(ev) ? ev : (ev.eventos || []);
     const changed = vol.sym !== d.symbol;
     vol.data = d; vol.sym = d.symbol; vol.at = Date.now();
@@ -110,7 +110,7 @@ function bandAt(d, dte) {
 function renderTerm(W, H) {
   const d = vol.data, sh = vol.show;
   const pts = (d.term || []).filter(inH);
-  if (pts.length < 2) return `<div class="placeholder">Sin vencimientos suficientes para la estructura temporal.</div>`;
+  if (pts.length < 2) return `<div class="placeholder">Not enough expirations for the term structure.</div>`;
   const narrow = W < 640, fs = narrow ? 10.5 : 11.5;
   const evs = sh.ev ? (vol.events || []).filter((e) => e.imp >= 2) : [];
   const L = narrow ? 44 : 58, R = W - (narrow ? 12 : 24), T = 34, B = H - (sh.ev && evs.length ? (narrow ? 120 : 150) : 44);
@@ -168,8 +168,8 @@ function renderTerm(W, H) {
     const cx = Math.min(x, W - 6 - w / 2);
     s += txt(cx, B + fs + 8, lab, { a: "middle", fs });
   }
-  s += txt(R, B + fs * 2 + 14, "Vencimiento", { a: "end", fs, c: C.faint });
-  s += `<text transform="translate(${narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Volatilidad implícita</text>`;
+  s += txt(R, B + fs * 2 + 14, "Expiration", { a: "end", fs, c: C.faint });
+  s += `<text transform="translate(${narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Implied volatility</text>`;
   s += `<line id="vhl" x1="0" x2="0" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-opacity=".6" visibility="hidden"/>`;
   vol.geo = { kind: "term", pts: pts.map((p) => ({ p, x: xOf(p.exp) })), T, B };
   return volFrame(W, H, s);
@@ -202,7 +202,7 @@ function dAxis(dl) { return dl < 0 ? -dl : 1 - dl; }
 function renderSkew(W, H) {
   const d = vol.data, sh = vol.show;
   const sms = vol.sel.map((e) => d.smiles.find((s) => s.exp === e)).filter(Boolean);
-  if (!sms.length) return `<div class="placeholder">Elige al menos un vencimiento.</div>`;
+  if (!sms.length) return `<div class="placeholder">Pick at least one expiration.</div>`;
   const narrow = W < 640, fs = narrow ? 10.5 : 11.5;
   const L = narrow ? 44 : 58, R = W - (narrow ? 12 : 24), T = 30, B = H - 46;
   const byDelta = vol.axis === "delta";
@@ -225,7 +225,7 @@ function renderSkew(W, H) {
     if (p && !byDelta) p.K.forEach((k, i) => { if (inX(k)) ys.push(p.iv[i]); });
     (bands[j] || []).forEach((b) => { if (inX(b.x)) ys.push(b.lo, b.hi); });
   });
-  if (!ys.length) return `<div class="placeholder">Sin datos en este rango.</div>`;
+  if (!ys.length) return `<div class="placeholder">No data in this range.</div>`;
   const yt = niceTicks(Math.min(...ys) * 0.95, Math.max(...ys) * 1.04, 5);
   const yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
   let s = yGrid(yt, yOf, L, R, fs);
@@ -240,7 +240,7 @@ function renderSkew(W, H) {
     s += `<line x1="${sx}" x2="${sx}" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-dasharray="2 4" stroke-opacity=".7"/>` + txt(sx + 5, T + fs, `Spot ${fmtSpot(d.spot)}`, { fs, c: C.muted });
   }
   sms.forEach((sm, j) => {
-    const col = VOLC[j % VOLC.length];
+    const col = volC(j);
     const b = bands[j];
     if (b) {
       const pb = b.filter((q) => inX(q.x));
@@ -255,8 +255,8 @@ function renderSkew(W, H) {
     const pts = xsm.map((x, i) => [x, sm.iv[i]]).filter(([x]) => inX(x)).sort((a, c) => a[0] - c[0]);
     s += `<path d="${pts.map(([x, v], i) => `${i ? "L" : "M"}${xOf(x).toFixed(1)},${yOf(v).toFixed(1)}`).join("")}" fill="none" stroke="${col}" stroke-width="2.2"/>`;
   });
-  s += txt(R, B + fs * 2 + 14, byDelta ? "Delta (puts a la izquierda, calls a la derecha)" : "Strike", { a: "end", fs, c: C.faint });
-  s += `<text transform="translate(${narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Volatilidad implícita</text>`;
+  s += txt(R, B + fs * 2 + 14, byDelta ? "Delta (puts on the left, calls on the right)" : "Strike", { a: "end", fs, c: C.faint });
+  s += `<text transform="translate(${narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Implied volatility</text>`;
   s += `<line id="vhl" x1="0" x2="0" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-opacity=".6" visibility="hidden"/>`;
   vol.geo = { kind: "skew", sms, xOf, lo, hi, L, R, T, B, byDelta, prevOf };
   return volFrame(W, H, s);
@@ -265,7 +265,7 @@ function renderSkew(W, H) {
 /* ------------------------------------------------------------ matriz */
 function renderMatrix() {
   const m = vol.data.matrix;
-  if (!m || !m.rows || !m.rows.length) return `<div class="placeholder">Sin datos para la matriz.</div>`;
+  if (!m || !m.rows || !m.rows.length) return `<div class="placeholder">No data for the matrix.</div>`;
   const chgMax = Math.max(0.005, ...m.rows.flatMap((r) => r.chg.filter((x) => x != null).map(Math.abs)));
   const showChg = vol.mshow === "chg";
   const cell = (iv, ch) => {
@@ -273,13 +273,13 @@ function renderMatrix() {
     let bg = "";
     if (ch != null) {
       const a = Math.min(1, Math.abs(ch) / chgMax) * 0.55;
-      bg = ` style="background:${ch > 0 ? `rgba(31,200,166,${a.toFixed(3)})` : `rgba(255,47,124,${a.toFixed(3)})`}"`;
+      bg = ` style="background:color-mix(in srgb, ${ch > 0 ? C.accent : C.neg} ${(a * 100).toFixed(1)}%, transparent)"`;
     }
     const v = showChg ? (ch == null ? "—" : (ch > 0 ? "+" : ch < 0 ? "−" : "") + fmtNum(Math.abs(ch * 100), 2)) : fmtNum(iv * 100, 1);
-    return `<td${bg} title="IV ${pct(iv, 2)}${ch != null ? `, ${ch > 0 ? "+" : ""}${fmtNum(ch * 100, 2)} pts frente a la sesión anterior` : ""}">${v}</td>`;
+    return `<td${bg} title="IV ${pct(iv, 2)}${ch != null ? `, ${ch > 0 ? "+" : ""}${fmtNum(ch * 100, 2)} pts vs. the previous session` : ""}">${v}</td>`;
   };
   const spotIdx = m.strikes.reduce((bi, k, i) => (Math.abs(k - vol.data.spot) < Math.abs(m.strikes[bi] - vol.data.spot) ? i : bi), 0);
-  return `<table class="scan vmat"><thead><tr><th class="l">Vencimiento</th>${m.strikes.map((k, i) => `<th class="${i === spotIdx ? "atm" : ""}">${fmtNum(k, k < 100 ? 1 : 0)}</th>`).join("")}</tr></thead>
+  return `<table class="scan vmat"><thead><tr><th class="l">Expiration</th>${m.strikes.map((k, i) => `<th class="${i === spotIdx ? "atm" : ""}">${fmtNum(k, k < 100 ? 1 : 0)}</th>`).join("")}</tr></thead>
     <tbody>${m.rows.filter(inH).map((r) => `<tr><td class="l"><b>${volDate(r.exp)}</b>${r.monthly ? MTAG : ""}<span class="ds">${volDays(r)} d</span></td>${r.iv.map((v, i) => cell(v, r.chg[i])).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
@@ -289,29 +289,29 @@ function volControls() {
   const hasPrev = d.prev && d.prev["1d"], hasW = d.prev && d.prev["1w"];
   const bandOk = d.bands && d.bands.days >= 15;
   if (vol.tab === "term") {
-    return `<div class="vrow">${horSeg()}${chip("atm", "Hoy", true, C.accent)}${chip("fwd", "IV forward", sh.fwd, C.accent)}${hasPrev ? chip("d1", `Sesión anterior (${ddmm(d.prev["1d"].date)})`, sh.d1, C.muted) : ""}${hasW ? chip("w1", `Hace una semana (${ddmm(d.prev["1w"].date)})`, sh.w1, C.faint) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}${chip("ev", "Eventos", sh.ev, C.axis)}</div>`;
+    return `<div class="vrow">${horSeg()}${chip("atm", "Today", true, C.accent)}${chip("fwd", "Forward IV", sh.fwd, C.accent)}${hasPrev ? chip("d1", `Previous session (${ddmm(d.prev["1d"].date)})`, sh.d1, C.muted) : ""}${hasW ? chip("w1", `1 week ago (${ddmm(d.prev["1w"].date)})`, sh.w1, C.faint) : ""}${chip("band", "10th–90th percentile", sh.band && bandOk, volColors().band)}${chip("ev", "Events", sh.ev, C.muted)}</div>`;
   }
   if (vol.tab === "skew") {
     const ex = d.smiles.filter(inH).map((s) => {
       const k = vol.sel.indexOf(s.exp);
-      return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${VOLC[k % VOLC.length]}"` : ""}>${volDate(s.exp)}${s.monthly ? MTAG : ""}<small>${volDays(s)}d</small></button>`;
+      return `<button class="vexp${k >= 0 ? " on" : ""}" data-e="${s.exp}"${k >= 0 ? ` style="--c:${volC(k)}"` : ""}>${volDate(s.exp)}${s.monthly ? MTAG : ""}<small>${volDays(s)}d</small></button>`;
     }).join("");
     return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volAxisSeg"><button role="radio" data-v="strike" aria-checked="${vol.axis === "strike"}">Strike</button><button role="radio" data-v="delta" aria-checked="${vol.axis === "delta"}">Delta</button></div>
-      ${hasPrev ? chip("d1", "Sesión anterior (discontinua)", sh.d1, C.muted) : ""}${chip("band", "Percentil 10–90", sh.band && bandOk, volColors().band)}</div>
-      <div class="vrow vexps" aria-label="Vencimientos (hasta 5)">${ex}</div>`;
+      ${hasPrev ? chip("d1", "Previous session (dashed)", sh.d1, C.muted) : ""}${chip("band", "10th–90th percentile", sh.band && bandOk, volColors().band)}</div>
+      <div class="vrow vexps" aria-label="Expirations (up to 5)">${ex}</div>`;
   }
-  return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volMatSeg"><button role="radio" data-v="iv" aria-checked="${vol.mshow === "iv"}">IV (%)</button><button role="radio" data-v="chg" aria-checked="${vol.mshow === "chg"}">Cambio diario (pts)</button></div>
-    <span class="vleg"><i class="up"></i>Sube frente a la sesión anterior <i class="dn"></i>Baja</span></div>`;
+  return `<div class="vrow">${horSeg()}<div class="seg boxed" role="radiogroup" id="volMatSeg"><button role="radio" data-v="iv" aria-checked="${vol.mshow === "iv"}">IV (%)</button><button role="radio" data-v="chg" aria-checked="${vol.mshow === "chg"}">Daily change (pts)</button></div>
+    <span class="vleg"><i class="up"></i>Up vs. the previous session <i class="dn"></i>Down</span></div>`;
 }
 
 function volNote() {
   const d = vol.data, b = d.bands || {};
-  const band = b.days >= 15 ? `La banda es el rango entre los percentiles 10 y 90 de las últimas ${b.days} sesiones.` :
-    `La banda de percentiles aparecerá con 15 sesiones guardadas (hoy hay ${b.days || 0}).`;
-  if (vol.tab === "term") return `IV ATM de cada vencimiento (la de la opción fuera de dinero en cada strike, interpolada en el spot). La IV forward es la volatilidad implícita entre un vencimiento y el anterior: aísla lo que el mercado descuenta para ese tramo, por ejemplo un evento. ${band} Eventos: Fed, BEA, Census y la semana en curso de ForexFactory.`;
-  const vixNote = vol.data && vol.data.smiles.some((s) => s.fwd) ? " En el VIX, las opciones van sobre el futuro de su vencimiento: fuera de dinero respecto a ese futuro y con su IV calculada sobre él (Black-76)." : "";
-  if (vol.tab === "skew") return `Volatilidad implícita de la opción fuera de dinero de cada strike (puts por debajo del spot, calls por encima).${vixNote} La línea discontinua es la sesión anterior; la banda, el percentil 10–90 del mismo plazo y delta. ${band}`;
-  return "IV de cada vencimiento en strikes fijos alrededor del spot. El color indica el cambio frente a la última copia de la cadena de la sesión anterior: verde, sube; magenta, baja.";
+  const band = b.days >= 15 ? `The band is the range between the 10th and 90th percentiles of the last ${b.days} sessions.` :
+    `The percentile band will appear once 15 sessions are saved (there are ${b.days || 0} today).`;
+  if (vol.tab === "term") return `ATM IV for each expiration (that of the out-of-the-money option at each strike, interpolated at the spot). Forward IV is the implied volatility between one expiration and the previous one: it isolates what the market prices for that stretch, for example an event. ${band} Events: Fed, BEA, Census and the current week from ForexFactory.`;
+  const vixNote = vol.data && vol.data.smiles.some((s) => s.fwd) ? " For the VIX, options are on the future of their expiration: out of the money relative to that future, with IV calculated on it (Black-76)." : "";
+  if (vol.tab === "skew") return `Implied volatility of the out-of-the-money option at each strike (puts below the spot, calls above).${vixNote} The dashed line is the previous session; the band, the 10th–90th percentile for the same tenor and delta. ${band}`;
+  return "IV of each expiration at fixed strikes around the spot. The color shows the change from the last copy of the chain in the previous session: green, up; magenta, down.";
 }
 
 function renderVol() {
@@ -343,15 +343,15 @@ function volTip(e) {
     const prev = (k) => { const q = vol.data.prev && vol.data.prev[k]; const t = q && q.term.find((z) => z.exp === p.exp); return t ? t.atm : null; };
     const ev = (vol.events || []).filter((z) => z.date === p.exp);
     const smp = vol.data.smiles.find((s) => s.exp === p.exp) || {}, mens = smp.monthly;
-    html = `<div class="t">Vencimiento ${volDate(p.exp)}${mens ? " (mensual)" : ""}</div>
-      <div class="r">Días al vencimiento <b>${volDays(p)}</b></div>
-      ${smp.fwd ? `<div class="r">Futuro (forward) <b>${fmtNum(smp.fwd, 2)}</b></div>` : ""}
-      ${b ? `<div class="r">Percentil 10 <b>${pct(b[0], 2)}</b></div><div class="r">Percentil 90 <b>${pct(b[1], 2)}</b></div>` : ""}
-      <div class="r">Hoy <b style="color:${C.accent}">${pct(p.atm, 2)}</b></div>
-      ${p.fwd != null ? `<div class="r">IV forward <b>${pct(p.fwd, 2)}</b></div>` : ""}
-      ${prev("1d") != null ? `<div class="r">Sesión anterior <b>${pct(prev("1d"), 2)}</b></div>` : ""}
-      ${prev("1w") != null ? `<div class="r">Hace una semana <b>${pct(prev("1w"), 2)}</b></div>` : ""}
-      ${ev.length ? `<div class="r">Ese día <b>${esc(ev.map((z) => z.name).join(", "))}</b></div>` : ""}`;
+    html = `<div class="t">Expiration ${volDate(p.exp)}${mens ? " (monthly)" : ""}</div>
+      <div class="r">Days to expiration <b>${volDays(p)}</b></div>
+      ${smp.fwd ? `<div class="r">Future (forward) <b>${fmtNum(smp.fwd, 2)}</b></div>` : ""}
+      ${b ? `<div class="r">10th percentile <b>${pct(b[0], 2)}</b></div><div class="r">90th percentile <b>${pct(b[1], 2)}</b></div>` : ""}
+      <div class="r">Today <b style="color:${C.accent}">${pct(p.atm, 2)}</b></div>
+      ${p.fwd != null ? `<div class="r">Forward IV <b>${pct(p.fwd, 2)}</b></div>` : ""}
+      ${prev("1d") != null ? `<div class="r">Previous session <b>${pct(prev("1d"), 2)}</b></div>` : ""}
+      ${prev("1w") != null ? `<div class="r">1 week ago <b>${pct(prev("1w"), 2)}</b></div>` : ""}
+      ${ev.length ? `<div class="r">That day <b>${esc(ev.map((z) => z.name).join(", "))}</b></div>` : ""}`;
     if (hl) { hl.setAttribute("x1", best.x); hl.setAttribute("x2", best.x); hl.setAttribute("visibility", "visible"); }
   } else {
     if (x < g.L || x > g.R) { $("volTip").hidden = true; if (hl) hl.setAttribute("visibility", "hidden"); return; }
@@ -361,10 +361,10 @@ function volTip(e) {
       let bi = 0; xs.forEach((z, i) => { if (Math.abs(z - v) < Math.abs(xs[bi] - v)) bi = i; });
       const p = vol.show.d1 && g.prevOf(sm);
       const pi = p ? p.K.indexOf(sm.K[bi]) : -1;
-      return `<div class="r"><span style="color:${VOLC[j % VOLC.length]}">${volDate(sm.exp)}</span><b>${pct(sm.iv[bi], 2)}${pi >= 0 ? ` <span class="vt-prev">(${pct(p.iv[pi], 2)})</span>` : ""}</b></div>
+      return `<div class="r"><span style="color:${volC(j)}">${volDate(sm.exp)}</span><b>${pct(sm.iv[bi], 2)}${pi >= 0 ? ` <span class="vt-prev">(${pct(p.iv[pi], 2)})</span>` : ""}</b></div>
         <div class="r vt-sub">Strike ${fmtNum(sm.K[bi], sm.K[bi] < 100 ? 1 : 0)} · Δ ${fmtNum(sm.delta[bi], 2)}</div>`;
     }).join("");
-    html = `<div class="t">${g.byDelta ? "IV por delta" : "IV por strike"}</div>${rows}`;
+    html = `<div class="t">${g.byDelta ? "IV by delta" : "IV by strike"}</div>${rows}`;
     if (hl) { hl.setAttribute("x1", x); hl.setAttribute("x2", x); hl.setAttribute("visibility", "visible"); }
   }
   macroTip("volTip", el, e, html);

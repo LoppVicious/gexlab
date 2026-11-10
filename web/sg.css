@@ -26,30 +26,36 @@
   --mono: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;  /* cifras: la misma, con numeros tabulares */
   color-scheme: dark;
 }
+/* tema claro: los colores de texto y de nivel pasan 4,5:1 (o casi) sobre blanco; el acento lleva texto blanco encima */
 :root[data-theme="light"] {
-  --ink: #f4f5f7;
+  --ink: #f2f3f6;
   --surface: #ffffff;
-  --surface-2: #f7f8fa;
-  --line: #e2e5ea;
-  --line-soft: #eceef2;
-  --line-strong: #c9ced6;
-  --text: #1b1f27;
-  --muted: #5d6573;
-  --faint: #959cab;
-  --accent: #1fa98f;
-  --accent-soft: rgba(31, 169, 143, .10);
-  --pos: #7c5cf0;
-  --neg: #e5336f;
-  --put: #13a874;
-  --call: #e04848;
-  --amber: #c98a00;
-  --focus: #1fa98f;
-  --btn: #eef0f3; --btn-hover: #e4e7ec; --pop: #ffffff; --hover: #f4f6f9;
-  --seg-on: #ffffff; --knob: #ffffff; --scroll: #cdd2da; --shadow: rgba(20, 24, 33, .14);
-  --side: #ffffff; --side-on: rgba(31, 169, 143, .09);
+  --surface-2: #f6f7f9;
+  --line: #dde1e7;
+  --line-soft: #e8ebef;
+  --line-strong: #c3c9d2;
+  --text: #171b22;
+  --muted: #535b69;
+  --faint: #7a8291;
+  --accent: #12846e;
+  --accent-soft: rgba(18, 132, 110, .10);
+  --pos: #6f4fe6;
+  --neg: #d92a66;
+  --put: #0d875c;
+  --call: #d33d3d;
+  --amber: #a66d00;
+  --focus: #12846e;
+  --btn: #eef0f3; --btn-hover: #e4e7ec; --pop: #ffffff; --hover: #f3f5f8;
+  --seg-on: #ffffff; --knob: #ffffff; --scroll: #c8ced7; --shadow: rgba(20, 24, 33, .12);
+  --side: #ffffff; --side-on: rgba(18, 132, 110, .09);
   color-scheme: light;
 }
-
+/* en claro los paneles se separan del fondo con una sombra leve, no solo con el borde */
+:root[data-theme="light"] :is(.stage, .tablewrap, .compass, .cside, .scard, .cotdetail, #vixView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
+:root[data-theme="light"] .chip { color: var(--amber); background: rgba(166, 109, 0, .08); border-color: rgba(166, 109, 0, .30); }
+:root[data-theme="light"] .chip button:hover { background: rgba(166, 109, 0, .14); }
+:root[data-theme="light"] .vleg i.up { background: rgba(18, 132, 110, .45); }
+:root[data-theme="light"] .vleg i.dn { background: rgba(217, 42, 102, .45); }
 body { font-family: var(--sans); font-size: 13.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .price, .scard .sp, .mstate { letter-spacing: -.03em; }
 
@@ -196,8 +202,7 @@ table.vmat tbody tr:hover td { filter: brightness(1.15); }
 table.vmat td .ds { display: inline; margin-left: 6px; }
 .vleg { display: inline-flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; margin-left: 8px; }
 .vleg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-.vleg i.up { background: rgba(31, 200, 166, .5); } .vleg i.dn { background: rgba(255, 47, 124, .5); margin-left: 8px; }
-.tip .vt-prev { color: var(--faint); font-weight: 400; }
+.vleg i.up { background: rgba(31, 200, 166, .5); } .vleg i.dn { background: rgba(255, 47, 124, .5); margin-left: 8px; }.tip .vt-prev { color: var(--faint); font-weight: 400; }
 .tip .vt-sub { font-size: 11px; margin-top: -2px; margin-bottom: 4px; }
 @media (max-width: 640px) {
   .vhead .tabs { margin-left: 0; width: 100%; overflow-x: auto; }

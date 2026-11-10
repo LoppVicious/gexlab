@@ -23,8 +23,8 @@ import gex_engine as g
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/130.0 Safari/537.36")
 STATE = os.path.join(g.CACHE_DIR, "eventos.json")
-VERSION = 2  # al cambiar las fuentes, se fuerza una actualizacion en el siguiente ciclo
-MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+VERSION = 3  # al cambiar las fuentes o las etiquetas, se fuerza una actualizacion y se descarta lo guardado con otra version
+MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 MONTHS = {m: i + 1 for i, m in enumerate(["January", "February", "March", "April", "May", "June", "July",
                                            "August", "September", "October", "November", "December"])}
 
@@ -78,15 +78,15 @@ def bea() -> list[dict]:
         summ = s.group(1).replace("\\,", ",").replace("\r\n ", "").replace("\n ", "")
         dt = _ny(datetime.strptime(d.group(1), "%Y%m%dT%H%M%S"))
         if summ.startswith(("Gross Domestic Product", "GDP")):
-            kind = "avance" if "Advance" in summ else "2.ª est." if "Second" in summ else "3.ª est." if "Third" in summ else ""
-            out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"PIB {kind}".strip(), "imp": 2})
+            kind = "advance" if "Advance" in summ else "2nd est." if "Second" in summ else "3rd est." if "Third" in summ else ""
+            out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"GDP {kind}".strip(), "imp": 2})
         elif summ.startswith("Personal Income and Outlays"):
             out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"PCE ({_ref_month(dt)})", "imp": 3})
     return out
 
 
-CENSUS = [("Advance Monthly Sales for Retail", "Ventas minoristas", 2), ("Advance Report on Durable Goods", "Bienes duraderos", 2),
-          ("New Residential Construction", "Viviendas iniciadas", 1), ("New Residential Sales", "Venta de viviendas nuevas", 1)]
+CENSUS = [("Advance Monthly Sales for Retail", "Retail sales", 2), ("Advance Report on Durable Goods", "Durable goods", 2),
+          ("New Residential Construction", "Housing starts", 1), ("New Residential Sales", "New home sales", 1)]
 
 
 def census() -> list[dict]:
@@ -111,12 +111,12 @@ def census() -> list[dict]:
 
 
 FF_NAMES = [
-    (r"^CPI m/m", "IPC", 3), (r"^Core CPI m/m", None, 0), (r"^Non-Farm Employment Change", "Empleo (NFP)", 3),
-    (r"^PPI m/m", "IPP", 2), (r"^ISM Manufacturing PMI", "ISM manufacturas", 2), (r"^ISM Services PMI", "ISM servicios", 2),
-    (r"^Unemployment Claims", "Peticiones de desempleo", 1), (r"^(Prelim|Revised) UoM Consumer Sentiment", "Michigan", 1),
-    (r"^JOLTS Job Openings", "JOLTS", 2), (r"^Retail Sales m/m", "Ventas minoristas", 2), (r"^Core PCE Price Index m/m", "PCE", 3),
-    (r"^FOMC Statement", "FOMC", 3), (r"^(Advance|Prelim|Final) GDP q/q", "PIB", 2), (r"^FOMC Meeting Minutes", "Actas FOMC", 2),
-    (r"^Fed Chair .* Speaks", "Habla el presidente de la Fed", 2), (r"^CB Consumer Confidence", "Confianza del consumidor", 1),
+    (r"^CPI m/m", "CPI", 3), (r"^Core CPI m/m", None, 0), (r"^Non-Farm Employment Change", "Payrolls (NFP)", 3),
+    (r"^PPI m/m", "PPI", 2), (r"^ISM Manufacturing PMI", "ISM manufacturing", 2), (r"^ISM Services PMI", "ISM services", 2),
+    (r"^Unemployment Claims", "Jobless claims", 1), (r"^(Prelim|Revised) UoM Consumer Sentiment", "Michigan", 1),
+    (r"^JOLTS Job Openings", "JOLTS", 2), (r"^Retail Sales m/m", "Retail sales", 2), (r"^Core PCE Price Index m/m", "PCE", 3),
+    (r"^FOMC Statement", "FOMC", 3), (r"^(Advance|Prelim|Final) GDP q/q", "GDP", 2), (r"^FOMC Meeting Minutes", "FOMC minutes", 2),
+    (r"^Fed Chair .* Speaks", "Fed Chair speaks", 2), (r"^CB Consumer Confidence", "Consumer confidence", 1),
 ]
 
 
@@ -135,15 +135,15 @@ def forexfactory() -> list[dict]:
             continue
         ny = _ny(dt)
         nm = name[0]
-        if nm in ("IPC", "IPP", "Empleo (NFP)", "PCE", "Ventas minoristas", "JOLTS"):
+        if nm in ("CPI", "PPI", "Payrolls (NFP)", "PCE", "Retail sales", "JOLTS"):
             nm = f"{nm} ({_ref_month(ny, 2 if nm == 'JOLTS' else 1)})"
         out.append({"date": ny.strftime("%Y-%m-%d"), "time": ny.strftime("%H:%M"), "name": nm, "imp": name[1]})
     return out
 
 
 # id de cada publicacion en FRED: (etiqueta, importancia, meses de retraso del dato)
-FRED_RELEASES = {10: ("IPC", 3, 1), 50: ("Empleo (NFP)", 3, 1), 46: ("IPP", 2, 1), 192: ("JOLTS", 2, 2),
-                 91: ("Michigan", 1, None), 180: ("Peticiones de desempleo", 1, None)}
+FRED_RELEASES = {10: ("CPI", 3, 1), 50: ("Payrolls (NFP)", 3, 1), 46: ("PPI", 2, 1), 192: ("JOLTS", 2, 2),
+                 91: ("Michigan", 1, None), 180: ("Jobless claims", 1, None)}
 
 
 def fred() -> list[dict]:
@@ -171,7 +171,8 @@ def fred() -> list[dict]:
 def actualizar() -> tuple[list[dict], dict]:
     """Junta las fuentes, conserva lo visto antes (estado) y devuelve los eventos y un resumen por fuente."""
     prev = g.read_json(STATE, {}) or {}
-    known = {f"{e['date']}|{e['name']}": e for e in prev.get("eventos", [])}
+    # lo guardado con otra version (otras etiquetas) se descarta: si no, quedarian eventos repetidos con el nombre viejo
+    known = {f"{e['date']}|{e['name']}": e for e in prev.get("eventos", [])} if prev.get("version") == VERSION else {}
     res = {}
     for name, fn in (("fomc", fomc), ("bea", bea), ("census", census), ("forexfactory", forexfactory), ("fred", fred)):
         try:

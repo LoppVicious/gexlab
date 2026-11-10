@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,37 +14,37 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="sg.css">
-<script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
+<script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f6"</script>
 </head>
 <body>
 <div class="app">
-<aside class="side" id="side" aria-label="Navegación">
+<aside class="side" id="side" aria-label="Navigation">
   <div class="brand"><svg width="24" height="24" viewBox="0 0 22 22" aria-hidden="true">
       <rect x="2" y="11" width="3" height="8" rx="1" fill="var(--neg)"/><rect x="7" y="11" width="3" height="5" rx="1" fill="var(--neg)"/>
       <rect x="12" y="6" width="3" height="5" rx="1" fill="var(--pos)"/><rect x="17" y="3" width="3" height="8" rx="1" fill="var(--pos)"/>
       <line x1="1" y1="11" x2="21" y2="11" stroke="var(--accent)" stroke-width="1.2"/></svg><span>GEX Lab</span></div>
   <nav>
-    <div class="sec">Mercado</div>
-      <button class="item" id="navSummary" data-title="Resumen" title="Resumen"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z"/></svg><span class="lbl">Resumen</span></button>
-    <div class="sec">Señales</div>
+    <div class="sec">Market</div>
+      <button class="item" id="navSummary" data-title="Summary" title="Summary"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z"/></svg><span class="lbl">Summary</span></button>
+    <div class="sec">Signals</div>
       <button class="item" id="navTrace" data-title="TRACE" title="TRACE"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M3 8h14M3 12.5h14" opacity=".55"/><path d="M6 14l2.5-3 2 1.5L14 7"/></svg><span class="lbl">TRACE</span></button>
       <button class="item" id="navHub" data-title="Equity Hub" title="Equity Hub"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V9M8 16V5M12 16v-6M16 16V7"/></svg><span class="lbl">Equity Hub</span></button>
-    <div class="sec">Volatilidad</div>
-      <button class="item" id="navVol" data-title="Panel de volatilidad" title="Panel de volatilidad"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Panel de volatilidad</span></button>
-      <button class="item" id="navVix" data-title="Curva VIX" title="Curva VIX"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">Curva VIX</span></button>
-    <div class="sec">Consola</div>
-      <button class="item" id="navScan" data-title="Escáner" title="Escáner"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg><span class="lbl">Escáner</span></button>
+    <div class="sec">Volatility</div>
+      <button class="item" id="navVol" data-title="Volatility dashboard" title="Volatility dashboard"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Volatility dashboard</span></button>
+      <button class="item" id="navVix" data-title="VIX curve" title="VIX curve"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">VIX curve</span></button>
+    <div class="sec">Console</div>
+      <button class="item" id="navScan" data-title="Scanner" title="Scanner"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg><span class="lbl">Scanner</span></button>
       <button class="item" id="navCompass" data-title="Compass" title="Compass"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z"/></svg><span class="lbl">Compass</span></button>
-      <button class="item" id="navValid" data-title="Validación" title="Validación"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg><span class="lbl">Validación</span></button>
-    <div class="sec">Posicionamiento</div>
+      <button class="item" id="navValid" data-title="Validation" title="Validation"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg><span class="lbl">Validation</span></button>
+    <div class="sec">Positioning</div>
       <button class="item" id="navCot" data-title="COT" title="COT"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V4M4 16h12"/><path d="M7 12l3-3 2 2 4-5"/></svg><span class="lbl">COT</span></button>
   </nav>
   <div class="foot-side">
-    <button class="item" id="themeBtn" title="Cambiar entre tema oscuro y claro"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg><span class="lbl" id="themeLbl">Tema claro</span></button>
-    <button class="item" id="usersNav" title="Administración: estado, usuarios y ajustes" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3"/><path d="M2.5 16c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M13.5 4.2a3 3 0 0 1 0 5.6M15.5 11.8c1.3.6 2.1 2 2.4 4.2"/></svg><span class="lbl">Administración</span></button>
-    <button class="item" id="sideMin" title="Plegar la barra lateral"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 5 7.5 10l5 5"/></svg><span class="lbl">Plegar</span></button>
+    <button class="item" id="themeBtn" title="Switch between dark and light theme"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg><span class="lbl" id="themeLbl">Light theme</span></button>
+    <button class="item" id="usersNav" title="Admin: status, users and settings" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3"/><path d="M2.5 16c.6-3 2.8-4.5 5.5-4.5s4.9 1.5 5.5 4.5"/><path d="M13.5 4.2a3 3 0 0 1 0 5.6M15.5 11.8c1.3.6 2.1 2 2.4 4.2"/></svg><span class="lbl">Admin</span></button>
+    <button class="item" id="sideMin" title="Collapse the sidebar"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 5 7.5 10l5 5"/></svg><span class="lbl">Collapse</span></button>
     <div class="who" id="whoBox" hidden><span class="av" id="whoAv"></span><span class="nm" id="whoName"></span></div>
-    <button class="item" id="logoutNav" title="Cerrar sesión" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 6.5 15.5 10 12 13.5M15.5 10H8"/></svg><span class="lbl">Salir</span></button>
+    <button class="item" id="logoutNav" title="Sign out" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M12 6.5 15.5 10 12 13.5M15.5 10H8"/></svg><span class="lbl">Sign out</span></button>
   </div>
 </aside>
 <div class="side-back" id="sideBack"></div>
@@ -61,46 +61,46 @@
     <span>GEX Lab</span>
   </div>
 
-  <button class="iconbtn burger" id="burger" aria-label="Abrir el menú" aria-controls="side">
+  <button class="iconbtn burger" id="burger" aria-label="Open the menu" aria-controls="side">
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
   </button>
   <div class="pagetitle" id="pageTitle"></div>
-  <div class="modes" role="tablist" aria-label="Sección">
-    <button role="tab" id="modeSummary" aria-selected="false">Resumen</button>
-    <button role="tab" id="modeAnalysis" aria-selected="true">Análisis</button>
-    <button role="tab" id="modeScanner" aria-selected="false">Escáner</button>
-    <button role="tab" id="modeVix" aria-selected="false">Curva VIX</button>
+  <div class="modes" role="tablist" aria-label="Section">
+    <button role="tab" id="modeSummary" aria-selected="false">Summary</button>
+    <button role="tab" id="modeAnalysis" aria-selected="true">Analysis</button>
+    <button role="tab" id="modeScanner" aria-selected="false">Scanner</button>
+    <button role="tab" id="modeVix" aria-selected="false">VIX curve</button>
     <button role="tab" id="modeCot" aria-selected="false">COT</button>
   </div>
 
   <form class="ticker" id="tickerForm" autocomplete="off">
     <label for="symbol" class="sr">Ticker</label>
-    <input id="symbol" name="symbol" value="SPX" spellcheck="false" maxlength="40" role="combobox" aria-autocomplete="list" aria-controls="suggest" aria-expanded="false" placeholder="Ticker o empresa" title="Pulsa / para escribir un ticker">
-    <button type="submit" class="go">Cargar</button>
-    <ul class="suggest" id="suggest" role="listbox" aria-label="Sugerencias" hidden></ul>
+    <input id="symbol" name="symbol" value="SPX" spellcheck="false" maxlength="40" role="combobox" aria-autocomplete="list" aria-controls="suggest" aria-expanded="false" placeholder="Ticker or company" title="Press / to type a ticker">
+    <button type="submit" class="go">Load</button>
+    <ul class="suggest" id="suggest" role="listbox" aria-label="Suggestions" hidden></ul>
   </form>
 
-  <nav class="quick" id="quick" aria-label="Tickers rápidos">
+  <nav class="quick" id="quick" aria-label="Quick tickers">
     <button data-s="SPX">SPX</button><button data-s="NDX">NDX</button><button data-s="RUT">RUT</button>
     <button data-s="SPY">SPY</button><button data-s="QQQ">QQQ</button><button data-s="IWM">IWM</button>
   </nav>
 
   <div class="statusbox">
     <div class="status" id="status" aria-live="polite"></div>
-    <button class="iconbtn" id="refreshBtn" title="Volver a descargar los datos de CBOE" aria-label="Actualizar datos">
+    <button class="iconbtn" id="refreshBtn" title="Download the data again" aria-label="Refresh data">
       <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
-    <span class="userbox" id="userBox" hidden><span id="userName"></span><button class="linkbtn" id="logoutBtn" title="Cerrar sesión">Salir</button></span>
-    <button class="switch" id="autoToggle" role="switch" aria-checked="false" title="Recalcula cada 5 minutos y avisa cuando el precio cruza un nivel">
+    <span class="userbox" id="userBox" hidden><span id="userName"></span><button class="linkbtn" id="logoutBtn" title="Sign out">Sign out</button></span>
+    <button class="switch" id="autoToggle" role="switch" aria-checked="false" title="Reloads new data as soon as it is published and alerts you when the price crosses a level">
       <span class="track"><span class="knob"></span></span><span class="sw-label">Auto</span>
     </button>
   </div>
 </header>
 
-<section class="controls" aria-label="Ajustes">
+<section class="controls" aria-label="Settings">
   <div class="ctl dtectl">
-    <span class="cap" id="capDte">Vencimientos</span>
-    <div class="dteslider" id="dteSlider" title="Vencimientos incluidos (acumulados): 0DTE, el más próximo; 1DTE, ese y el de la sesión siguiente; N DTE, hasta N días; Todos, la cadena completa">
+    <span class="cap" id="capDte">Expirations</span>
+    <div class="dteslider" id="dteSlider" title="Expirations included (cumulative): 0DTE, the nearest one; 1DTE, that one and the next session's; N DTE, up to N days; All, the full chain">
       <input type="range" id="dteRange" min="0" max="6" step="1" value="5" aria-labelledby="capDte">
       <div class="dteticks" id="dteTicks">
         <button type="button" tabindex="-1" data-i="0">0DTE</button>
@@ -109,58 +109,58 @@
         <button type="button" tabindex="-1" data-i="3">14DTE</button>
         <button type="button" tabindex="-1" data-i="4">30DTE</button>
         <button type="button" tabindex="-1" data-i="5">45DTE</button>
-        <button type="button" tabindex="-1" data-i="6">Todos</button>
+        <button type="button" tabindex="-1" data-i="6">All</button>
       </div>
     </div>
   </div>
   <div class="ctl only-analysis">
-    <span class="cap" id="capRange">Rango</span>
+    <span class="cap" id="capRange">Range</span>
     <div class="rangebox">
       <div class="seg boxed" role="radiogroup" aria-labelledby="capRange" id="rangeSeg">
-        <button role="radio" data-v="auto" id="rangeAuto" title="Se adapta a la volatilidad: 1 desviación típica (≈68%): en 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa o, con el mercado cerrado, de la próxima. Útil con 0DTE">Auto</button>
+        <button role="radio" data-v="auto" id="rangeAuto" title="Adapts to volatility: 1 standard deviation (≈68%) of what is left of the session in 0DTE; with the other filters, of a full session or, with the market closed, of the next one. Useful with 0DTE">Auto</button>
         <button role="radio" data-v="3">±3%</button>
         <button role="radio" data-v="5">±5%</button>
         <button role="radio" data-v="8">±8%</button>
       </div>
-      <label class="rangein" title="Rango manual: escribe el % y pulsa Enter (0,3 a 75)">±<input id="rangeInput" inputmode="decimal" placeholder="otro" maxlength="5" aria-label="Rango manual en %">%</label>
+      <label class="rangein" title="Manual range: type the % and press Enter (0.3 to 75)">±<input id="rangeInput" inputmode="decimal" placeholder="other" maxlength="5" aria-label="Manual range in %">%</label>
     </div>
   </div>
   <div class="ctl only-analysis model">
-    <span class="cap">Modelo</span>
+    <span class="cap">Model</span>
     <div class="modelrow">
       <button class="setbtn" id="settingsBtn" aria-expanded="false" aria-controls="settingsPanel">
         <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 12h3M8 12h6M9 2.5v3M5 10.5v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="6.5" cy="12" r="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-        Ajustes
+        Settings
       </button>
-      <div class="chips" id="chips"><span class="chip-default" id="chipDefault">Convención estándar</span></div>
+      <div class="chips" id="chips"><span class="chip-default" id="chipDefault">Standard convention</span></div>
     </div>
 
-    <div class="panel" id="settingsPanel" role="dialog" aria-label="Ajustes del modelo" hidden>
+    <div class="panel" id="settingsPanel" role="dialog" aria-label="Model settings" hidden>
       <div class="prow">
         <div class="ptext">
-          <div class="ptitle">Motor de cálculo</div>
-          <p>Neto: muros por GEX neta y flip por el cambio de signo de las barras por strike. Perfil: Call Wall de calls por encima del precio, Put Wall de puts por debajo, flip donde la gamma total recalculada cruza cero, con tiempo natural y dividendo implícito. Auto usa Neto en 0DTE y Perfil en el resto. Escáner, Compass y Validación usan siempre Perfil.</p>
+          <div class="ptitle">Calculation engine</div>
+          <p>Net: walls from net GEX and the flip where the by-strike bars change sign. Profile: Call Wall from calls above the price, Put Wall from puts below, flip where the recalculated total gamma crosses zero, with calendar time and implied dividend. Auto uses Net for 0DTE and Profile for everything else. Scanner, Compass and Validation always use Profile.</p>
         </div>
-        <div class="seg boxed" role="radiogroup" aria-label="Motor de cálculo" id="modelSeg">
-          <button role="radio" data-v="auto" title="Neto en 0DTE, Perfil en el resto">Auto</button>
-          <button role="radio" data-v="gexbot">Neto</button>
-          <button role="radio" data-v="spotgamma">Perfil</button>
+        <div class="seg boxed" role="radiogroup" aria-label="Calculation engine" id="modelSeg">
+          <button role="radio" data-v="auto" title="Net for 0DTE, Profile for everything else">Auto</button>
+          <button role="radio" data-v="gexbot">Net</button>
+          <button role="radio" data-v="spotgamma">Profile</button>
         </div>
       </div>
       <div class="prow">
         <div class="ptext">
-          <div class="ptitle">Posición de los dealers</div>
-          <p>Estándar: largos de calls y cortos de puts. Flujo: estimada con el cambio de open interest y el lado de las operaciones de cada día (beta).</p>
+          <div class="ptitle">Dealer positioning</div>
+          <p>Standard: long calls and short puts. Flow: estimated from the change in open interest and the side of each day's trades (beta).</p>
         </div>
-        <div class="seg boxed" role="radiogroup" aria-label="Posición de los dealers" id="posSeg">
-          <button role="radio" data-v="standard">Estándar</button>
-          <button role="radio" data-v="flow">Flujo</button>
+        <div class="seg boxed" role="radiogroup" aria-label="Dealer positioning" id="posSeg">
+          <button role="radio" data-v="standard">Standard</button>
+          <button role="radio" data-v="flow">Flow</button>
         </div>
       </div>
       <div class="prow" id="comboRow">
         <div class="ptext">
-          <div class="ptitle" id="comboTitle">Sumar el ETF</div>
-          <p id="comboHelp">Añade las opciones del ETF al índice, convertidas a sus unidades, como los niveles combo.</p>
+          <div class="ptitle" id="comboTitle">Add the ETF</div>
+          <p id="comboHelp">Adds the ETF options to the index, converted to its units, like combo levels.</p>
         </div>
         <button class="switch" id="comboToggle" role="switch" aria-checked="false" aria-labelledby="comboTitle">
           <span class="track"><span class="knob"></span></span>
@@ -168,17 +168,17 @@
       </div>
       <div class="prow">
         <div class="ptext">
-          <div class="ptitle"><label for="spotInput">Spot manual</label></div>
-          <p>Recalcula los niveles con otro precio, por ejemplo el implícito por futuros. Vacío para usar el de mercado.</p>
+          <div class="ptitle"><label for="spotInput">Manual spot</label></div>
+          <p>Recalculates the levels with another price, for example the one implied by futures. Leave empty to use the market price.</p>
         </div>
-        <input id="spotInput" class="spotin" inputmode="decimal" placeholder="mercado">
+        <input id="spotInput" class="spotin" inputmode="decimal" placeholder="market">
       </div>
     </div>
   </div>
 </section>
 
 <main class="stage">
-  <aside class="ladder" aria-label="Niveles">
+  <aside class="ladder" aria-label="Levels">
     <div class="headline">
       <div class="sym" id="hSym">—</div>
       <div class="cname" id="hName"></div>
@@ -190,7 +190,7 @@
     <ol class="levels" id="levels"></ol>
 
     <div class="split" id="split" hidden>
-      <div class="split-head"><span data-g="gex1">GEX neta por 1%</span><strong id="netPct">—</strong></div>
+      <div class="split-head"><span data-g="gex1">Net GEX per 1%</span><strong id="netPct">—</strong></div>
       <div class="split-prev" id="netPrev"></div>
       <div class="split-bar"><i class="c" id="splitC"></i><i class="p" id="splitP"></i></div>
       <div class="split-foot"><span id="callPct"></span><span id="putPct"></span></div>
@@ -200,24 +200,24 @@
 
     <div class="facts" id="facts" hidden>
       <div class="fact">
-        <span class="fl" id="emLabel" data-g="range1s">Rango 1σ, 1 sesión</span>
+        <span class="fl" id="emLabel" data-g="range1s">1σ range, 1 session</span>
         <strong id="emVal">—</strong>
         <span class="fs" id="emRange"></span>
       </div>
       <div class="fact">
-        <span class="fl" data-g="vanna">Vanna, si la IV cae 1 pt</span>
+        <span class="fl" data-g="vanna">Vanna, if IV drops 1 pt</span>
         <strong id="vannaVal">—</strong>
         <span class="fs" id="vannaSub"></span>
       </div>
       <div class="fact">
-        <span class="fl" data-g="charm" id="charmLabel">Charm, por un día</span>
+        <span class="fl" data-g="charm" id="charmLabel">Charm, per day</span>
         <strong id="charmVal">—</strong>
         <span class="fs" id="charmSub"></span>
       </div>
       <div class="fact">
-        <span class="fl" id="frontLabel" data-g="front">Próximo vencimiento</span>
+        <span class="fl" id="frontLabel" data-g="front">Next expiration</span>
         <strong id="frontVal">—</strong>
-        <span class="fs">de la gamma total del filtro</span>
+        <span class="fs">of the filter's total gamma</span>
       </div>
     </div>
 
@@ -227,39 +227,39 @@
 
   <section class="chartwrap">
     <div class="chart-head">
-      <div class="tabs" role="tablist" aria-label="Vista">
-        <button role="tab" id="tabImpact" aria-selected="false" title="Gamma total, gamma del próximo vencimiento y gamma por strike">Impacto calls y puts</button>
-        <button role="tab" id="tabStrike" aria-selected="true">Por strike</button>
-        <button role="tab" id="tabProfile" aria-selected="false">Perfil</button>
-        <button role="tab" id="tabHistory" aria-selected="false" title="Niveles de cada sesión guardada con el precio">Histórico</button>
-        <button role="tab" id="tabMap" aria-selected="false">Mapa</button>
+      <div class="tabs" role="tablist" aria-label="View">
+        <button role="tab" id="tabImpact" aria-selected="false" title="Total gamma, next-expiration gamma and gamma by strike">Call &amp; put impact</button>
+        <button role="tab" id="tabStrike" aria-selected="true">By strike</button>
+        <button role="tab" id="tabProfile" aria-selected="false">Profile</button>
+        <button role="tab" id="tabHistory" aria-selected="false" title="Levels of each saved session, with the price">History</button>
+        <button role="tab" id="tabMap" aria-selected="false">Map</button>
       </div>
       <p class="chart-caption" id="caption"></p>
       <div class="chead-r">
-        <button class="kl-tg" id="levelsTg" role="switch" aria-checked="true" title="Etiquetas y líneas de Call Wall, Put Wall, Gamma Flip y el resto de niveles"><i aria-hidden="true"></i><span>Niveles clave</span></button>
+        <button class="kl-tg" id="levelsTg" role="switch" aria-checked="true" title="Labels and lines for Call Wall, Put Wall, Gamma Flip and the other levels"><i aria-hidden="true"></i><span>Key levels</span></button>
         <div class="popw">
-          <button class="ghost csbtn" id="setBtn" aria-haspopup="dialog" aria-expanded="false" title="Opciones del gráfico"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h8M15 5h2M3 10h2M9 10h8M3 15h10"/><circle cx="13" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="15" cy="15" r="2"/></svg><span id="setLab">Gráfico</span></button>
-          <div class="cset" id="chartSet" role="dialog" aria-label="Opciones del gráfico" hidden></div>
+          <button class="ghost csbtn" id="setBtn" aria-haspopup="dialog" aria-expanded="false" title="Chart options"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h8M15 5h2M3 10h2M9 10h8M3 15h10"/><circle cx="13" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="15" cy="15" r="2"/></svg><span id="setLab">Chart</span></button>
+          <div class="cset" id="chartSet" role="dialog" aria-label="Chart options" hidden></div>
         </div>
         <div class="popw">
-          <button class="ghost" id="expBtn" aria-haspopup="menu" aria-expanded="false">Exportar <span aria-hidden="true">&#9662;</span></button>
+          <button class="ghost" id="expBtn" aria-haspopup="menu" aria-expanded="false">Export <span aria-hidden="true">&#9662;</span></button>
           <div class="cmenu" id="expMenu" role="menu" hidden>
-            <button role="menuitem" id="copyBtn" title="Para pegarla con Ctrl+V">Copiar imagen</button>
-            <button role="menuitem" id="reportBtn" title="Imagen con los niveles, el gráfico por strike y el mapa">Informe completo</button>
-            <button role="menuitem" id="tvBtn" title="En el formato del indicador de TradingView (precio, etiqueta), para pegarlos en Ajustes, Entradas">Niveles para TradingView</button>
+            <button role="menuitem" id="copyBtn" title="To paste it with Ctrl+V">Copy image</button>
+            <button role="menuitem" id="reportBtn" title="Image with the levels, the by-strike chart and the map">Full report</button>
+            <button role="menuitem" id="tvBtn" title="In the TradingView indicator format (price, label), to paste into Settings, Inputs">Levels for TradingView</button>
           </div>
         </div>
       </div>
     </div>
-    <div class="chart" id="chart" role="img" aria-label="Exposición gamma por strike">
-      <div class="placeholder" id="placeholder">Escribe un ticker y pulsa Cargar.</div>
+    <div class="chart" id="chart" role="img" aria-label="Gamma exposure by strike">
+      <div class="placeholder" id="placeholder">Type a ticker and press Load.</div>
     </div>
     <div class="zoombar" id="zoomBar" hidden>
-      <div class="zb-track" id="zbTrack" title="Arrastra la ventana o sus extremos para acercar o alejar. Doble clic: todo el rango. En el gráfico, Ctrl + rueda.">
+      <div class="zb-track" id="zbTrack" title="Drag the window or its edges to zoom in or out. Double-click: full range. On the chart, Ctrl + wheel.">
         <div class="zb-win" id="zbWin"><span class="zb-h l"></span><span class="zb-h r"></span></div>
       </div>
       <span class="zb-lab" id="zbLab"></span>
-      <button class="ghost zb-reset" id="zbReset" style="visibility:hidden">Todo</button>
+      <button class="ghost zb-reset" id="zbReset" style="visibility:hidden">All</button>
     </div>
     <div class="tip" id="tip" hidden></div>
   </section>
@@ -268,35 +268,35 @@
 <main class="scanner" id="scanner" hidden>
   <div class="scan-bar">
     <form class="addbox" id="addForm" autocomplete="off">
-      <label for="addInput" class="sr">Añadir ticker</label>
-      <input id="addInput" placeholder="Añadir ticker" spellcheck="false" maxlength="10">
-      <button type="submit" class="ghost">Añadir</button>
+      <label for="addInput" class="sr">Add ticker</label>
+      <input id="addInput" placeholder="Add ticker" spellcheck="false" maxlength="10">
+      <button type="submit" class="ghost">Add</button>
     </form>
-    <div class="modes small" role="tablist" aria-label="Vista del escáner">
-      <button role="tab" id="svTable" aria-selected="true">Tabla</button>
+    <div class="modes small" role="tablist" aria-label="Scanner view">
+      <button role="tab" id="svTable" aria-selected="true">Table</button>
       <button role="tab" id="svCompass" aria-selected="false">Compass</button>
-      <button role="tab" id="svValid" aria-selected="false">Validación</button>
+      <button role="tab" id="svValid" aria-selected="false">Validation</button>
     </div>
-    <div class="seg only-table" role="radiogroup" aria-label="Filtro de régimen" id="regimeSeg">
-      <button role="radio" data-v="all">Todos</button>
-      <button role="radio" data-v="negative">Gamma negativa</button>
-      <button role="radio" data-v="positive">Gamma positiva</button>
+    <div class="seg only-table" role="radiogroup" aria-label="Regime filter" id="regimeSeg">
+      <button role="radio" data-v="all">All</button>
+      <button role="radio" data-v="negative">Negative gamma</button>
+      <button role="radio" data-v="positive">Positive gamma</button>
     </div>
     <div class="spacer"></div>
     <span class="collector" id="collector"></span>
     <span class="scan-status" id="scanStatus"></span>
-    <button class="ghost" id="scanBtn">Actualizar escáner</button>
+    <button class="ghost" id="scanBtn">Refresh scanner</button>
   </div>
   <div class="compasswrap" id="compassWrap" hidden>
     <div class="cgrid">
-      <div class="compass" id="compass" role="img" aria-label="Compass de volatilidad"></div>
-      <aside class="cside" id="cside" aria-label="Tickers del Compass">
+      <div class="compass" id="compass" role="img" aria-label="Volatility Compass"></div>
+      <aside class="cside" id="cside" aria-label="Compass tickers">
         <div class="cside-top">
-          <input id="cFind" placeholder="Buscar ticker" spellcheck="false" autocomplete="off" aria-label="Buscar ticker en el Compass">
-          <button class="linkbtn" id="cShowAll">Mostrar todos</button>
-          <button class="linkbtn" id="cHideAll">Ocultar todos</button>
+          <input id="cFind" placeholder="Find ticker" spellcheck="false" autocomplete="off" aria-label="Find a ticker in the Compass">
+          <button class="linkbtn" id="cShowAll">Show all</button>
+          <button class="linkbtn" id="cHideAll">Hide all</button>
         </div>
-        <div class="cside-list"><table class="scan ctab"><thead><tr><th class="x"></th><th class="l">Ticker</th><th title="IV a 30 días">IV 30d</th><th title="Risk reversal rank (eje X)">X</th><th title="IV rank (eje Y)">Y</th></tr></thead><tbody id="cBody"></tbody></table></div>
+        <div class="cside-list"><table class="scan ctab"><thead><tr><th class="x"></th><th class="l">Ticker</th><th title="30-day IV">IV 30d</th><th title="Risk reversal rank (X axis)">X</th><th title="IV rank (Y axis)">Y</th></tr></thead><tbody id="cBody"></tbody></table></div>
         <p class="cside-foot" id="cCount"></p>
       </aside>
     </div>
@@ -305,53 +305,53 @@
   </div>
   <div class="validwrap" id="validWrap" hidden>
     <div class="validbar">
-      <span class="cap" id="capValid">Posición de los dealers</span>
+      <span class="cap" id="capValid">Dealer positioning</span>
       <div class="seg boxed" role="radiogroup" aria-labelledby="capValid" id="validModeSeg">
-        <button role="radio" data-v="standard">Estándar</button>
-        <button role="radio" data-v="flow">Flujo</button>
+        <button role="radio" data-v="standard">Standard</button>
+        <button role="radio" data-v="flow">Flow</button>
       </div>
     </div>
     <div class="tablewrap">
       <table class="scan" id="validTable">
         <thead><tr>
           <th class="l">Ticker</th>
-          <th title="Sesiones con niveles guardados y precio disponible">Sesiones</th>
-          <th title="Rango medio (máximo − mínimo) en sesiones con GEX neta positiva">Rango, gamma +</th>
-          <th title="Rango medio en sesiones con GEX neta negativa">Rango, gamma −</th>
-          <th title="Sesiones en que el máximo no superó el Call Wall">Call Wall respetado</th>
-          <th title="Sesiones en que el mínimo no perforó el Put Wall">Put Wall respetado</th>
-          <th title="Sesiones en que el cierre quedó dentro del rango de 1 desviación típica de 1 sesión (68,3% en teoría)">Dentro del rango 1σ</th>
+          <th title="Sessions with saved levels and an available price">Sessions</th>
+          <th title="Average range (high − low) in sessions with positive net GEX">Range, gamma +</th>
+          <th title="Average range in sessions with negative net GEX">Range, gamma −</th>
+          <th title="Sessions in which the high did not exceed the Call Wall">Call Wall held</th>
+          <th title="Sessions in which the low did not break the Put Wall">Put Wall held</th>
+          <th title="Sessions in which the close stayed inside the 1-session, 1 standard deviation range (68.3% in theory)">Inside 1σ range</th>
         </tr></thead>
         <tbody id="validBody"></tbody>
       </table>
     </div>
-    <p class="scan-note">Cada sesión se evalúa solo con niveles conocidos antes de que empezara: los calculados antes de la apertura (el recolector los guarda en la hora y cuarto previa a la apertura de Wall Street, de 14:30 a 15:45 en España) o, si no los hay, los del cierre de la sesión anterior. Se comparan con el máximo, el mínimo y el cierre reales. Con pocas sesiones los porcentajes no son significativos.</p>
+    <p class="scan-note">Each session is evaluated only with levels known before it started: those calculated before the open (the collector saves them in the 75 minutes before the Wall Street open) or, if there are none, those from the previous session's close. They are compared with the actual high, low and close. With few sessions the percentages are not meaningful.</p>
   </div>
   <div class="tablewrap" id="tableWrap">
     <table class="scan" id="scanTable">
       <thead><tr>
         <th data-k="symbol" class="l">Ticker</th>
-        <th data-k="spot">Precio</th>
-        <th data-k="chg">Var.</th>
-        <th data-k="regime" class="l">Régimen</th>
-        <th data-k="flip_dist" title="Gamma Flip y distancia desde el precio">Gamma Flip</th>
-        <th data-k="call_dist" title="Call Wall y distancia desde el precio">Call Wall</th>
-        <th data-k="put_dist" title="Put Wall y distancia desde el precio">Put Wall</th>
-        <th data-k="net_per_pct" title="GEX neta por cada 1% de movimiento">GEX 1%</th>
-        <th data-k="em_pct" title="Rango de 1 desviación típica (68,3%) para la próxima sesión, implícito en las opciones">Rango 1σ</th>
-        <th data-k="front_share" title="Parte de la gamma que vence en el próximo vencimiento">Próx. venc.</th>
-        <th class="x"><span class="sr">Quitar</span></th>
+        <th data-k="spot">Price</th>
+        <th data-k="chg">Chg.</th>
+        <th data-k="regime" class="l">Regime</th>
+        <th data-k="flip_dist" title="Gamma Flip and distance from the price">Gamma Flip</th>
+        <th data-k="call_dist" title="Call Wall and distance from the price">Call Wall</th>
+        <th data-k="put_dist" title="Put Wall and distance from the price">Put Wall</th>
+        <th data-k="net_per_pct" title="Net GEX per 1% move">GEX 1%</th>
+        <th data-k="em_pct" title="1 standard deviation range (68.3%) for the next session, implied by options">1σ range</th>
+        <th data-k="front_share" title="Share of gamma that expires at the next expiration">Next exp.</th>
+        <th class="x"><span class="sr">Remove</span></th>
       </tr></thead>
       <tbody id="scanBody"></tbody>
     </table>
   </div>
-  <p class="scan-note only-table" id="tableNote">Haz clic en una fila para abrir el análisis completo. Las flechas indican cambios respecto a la sesión anterior guardada.</p>
+  <p class="scan-note only-table" id="tableNote">Click a row to open the full analysis. Arrows show changes from the previous saved session.</p>
 </main>
 
 <main class="macro" id="sumView" hidden>
   <div class="sumhead">
     <div>
-      <h1 class="sumtitle">Resumen de mercado</h1>
+      <h1 class="sumtitle">Market summary</h1>
       <p class="sumsub" id="sumSub"></p>
     </div>
     <p class="sumsess" id="sumSess"></p>
@@ -361,22 +361,22 @@
     <section class="scard link" id="sumVix" data-go="vix"></section>
     <section class="scard link" id="sumCot" data-go="cot"></section>
   </div>
-  <p class="scan-note">Índices con vencimientos de hasta 45 días y convención estándar de dealers. Haz clic en una tarjeta para abrir su detalle.</p>
+  <p class="scan-note">Indices with expirations up to 45 days and the standard dealer convention. Click a card to open its detail.</p>
 </main>
 
 <main class="macro" id="volView" hidden>
   <div class="vhead">
     <div class="vtitle"><span class="vsym" id="vSym">—</span><span class="vname" id="vName"></span><span class="vspot" id="vSpot"></span></div>
-    <div class="tabs" role="tablist" aria-label="Vista de volatilidad" id="volTabs">
-      <button role="tab" data-v="matrix" aria-selected="false">Matriz por strike fijo</button>
-      <button role="tab" data-v="term" aria-selected="true">Estructura temporal</button>
+    <div class="tabs" role="tablist" aria-label="Volatility view" id="volTabs">
+      <button role="tab" data-v="matrix" aria-selected="false">Fixed-strike matrix</button>
+      <button role="tab" data-v="term" aria-selected="true">Term structure</button>
       <button role="tab" data-v="skew" aria-selected="false">Skew</button>
     </div>
     <span class="scan-status" id="volStatus"></span>
   </div>
   <div class="vpanel">
     <div class="vctl" id="volCtl"></div>
-    <div class="vchart" id="volChart" role="img" aria-label="Volatilidad implícita"></div>
+    <div class="vchart" id="volChart" role="img" aria-label="Implied volatility"></div>
     <div class="vmatrix" id="volMatrix" hidden></div>
     <div class="tip" id="volTip" hidden></div>
   </div>
@@ -384,27 +384,27 @@
 </main>
 
 <main class="macro" id="vixView" hidden>
-  <aside class="mside" aria-label="Resumen de la curva">
+  <aside class="mside" aria-label="Curve summary">
     <div class="mhead">
-      <div class="sym">Futuros del VIX</div>
+      <div class="sym">VIX futures</div>
       <div class="mstate" id="vxState">—</div>
       <div class="msub" id="vxSub"></div>
     </div>
     <p class="regime" id="vxRead"></p>
     <div class="facts" id="vxFacts"></div>
-    <p class="mnote"><b>Contango:</b> los vencimientos lejanos cotizan por encima de los cercanos; lo normal con el mercado tranquilo. <b>Backwardation:</b> los cercanos cotizan más caros; se paga por protección inmediata y suele coincidir con caídas.</p>
+    <p class="mnote"><b>Contango:</b> later expirations trade above nearer ones; the norm in a calm market. <b>Backwardation:</b> nearer expirations trade richer; traders pay up for immediate protection, and it tends to coincide with selloffs.</p>
   </aside>
   <section class="mcharts">
     <div class="mchart-head">
-      <span class="mtitle">Estructura temporal</span>
+      <span class="mtitle">Term structure</span>
       <p class="chart-caption" id="vxCap"></p>
     </div>
-    <div class="mchart" id="vxCurve" role="img" aria-label="Curva de futuros del VIX"></div>
+    <div class="mchart" id="vxCurve" role="img" aria-label="VIX futures curve"></div>
     <div class="mchart-head">
-      <span class="mtitle">Contango del M2 sobre el M1, último año</span>
-      <p class="chart-caption">Verde, contango; rojo, backwardation; gris, plano (menos del 0,5%). La línea es el VIX al cierre.</p>
+      <span class="mtitle">M2 over M1 contango, last year</span>
+      <p class="chart-caption">Green, contango; red, backwardation; gray, flat (under 0.5%). The line is the VIX at the close.</p>
     </div>
-    <div class="mchart short" id="vxHist" role="img" aria-label="Historia del contango"></div>
+    <div class="mchart short" id="vxHist" role="img" aria-label="Contango history"></div>
     <div class="tip" id="vxTip" hidden></div>
   </section>
 </main>
@@ -413,10 +413,10 @@
   <div class="scan-bar">
     <span class="cotdate" id="cotDate"></span>
     <div class="ctl inline">
-      <span class="cap" id="capCotWin">Índice COT</span>
+      <span class="cap" id="capCotWin">COT index</span>
       <div class="seg boxed" role="radiogroup" aria-labelledby="capCotWin" id="cotWinSeg">
-        <button role="radio" data-v="3y" title="Posición de la neta actual dentro de su rango de 3 años">3 años</button>
-        <button role="radio" data-v="1y" title="Posición de la neta actual dentro de su rango de 1 año">1 año</button>
+        <button role="radio" data-v="3y" title="Where the current net sits within its 3-year range">3 years</button>
+        <button role="radio" data-v="1y" title="Where the current net sits within its 1-year range">1 year</button>
       </div>
     </div>
     <div class="spacer"></div>
@@ -425,11 +425,11 @@
   <div class="tablewrap">
     <table class="scan cottable" id="cotTable">
       <thead>
-        <tr class="grp"><th class="l" rowspan="2">Mercado</th><th rowspan="2" title="Contratos abiertos y cambio semanal">Open interest</th>
-          <th colspan="2" class="gh"><span data-g="asset_mgr">Gestoras</span></th>
-          <th colspan="2" class="gh"><span data-g="lev_money">Fondos apalancados</span></th>
+        <tr class="grp"><th class="l" rowspan="2">Market</th><th rowspan="2" title="Open contracts and weekly change">Open interest</th>
+          <th colspan="2" class="gh"><span data-g="asset_mgr">Asset managers</span></th>
+          <th colspan="2" class="gh"><span data-g="lev_money">Leveraged funds</span></th>
           <th colspan="2" class="gh"><span data-g="dealer">Dealers</span></th></tr>
-        <tr class="sub"><th>Neta (Δ semana)</th><th class="l"><span data-g="cot_index">Índice</span></th><th>Neta (Δ semana)</th><th class="l"><span data-g="cot_index">Índice</span></th><th>Neta (Δ semana)</th><th class="l"><span data-g="cot_index">Índice</span></th></tr>
+        <tr class="sub"><th>Net (Δ week)</th><th class="l"><span data-g="cot_index">Index</span></th><th>Net (Δ week)</th><th class="l"><span data-g="cot_index">Index</span></th><th>Net (Δ week)</th><th class="l"><span data-g="cot_index">Index</span></th></tr>
       </thead>
       <tbody id="cotBody"></tbody>
     </table>
@@ -439,14 +439,14 @@
       <span class="mtitle" id="cotTitle"></span>
       <p class="chart-caption" id="cotCap"></p>
     </div>
-    <div class="mchart" id="cotChart" role="img" aria-label="Historia del posicionamiento"></div>
+    <div class="mchart" id="cotChart" role="img" aria-label="Positioning history"></div>
     <div class="tip" id="cotTip" hidden></div>
   </div>
-  <p class="scan-note">Informe Traders in Financial Futures de la CFTC, solo futuros. Posiciones a cierre del martes, publicadas el viernes a las 15:30 ET (21:30 en Barcelona; 20:30 en las semanas en que los cambios de hora de Europa y EE. UU. no coinciden). Neta = largos − cortos, en contratos. El índice sitúa la neta actual dentro de su rango (0 = la más corta del periodo, 100 = la más larga); por encima de 90 o por debajo de 10 se marca como extremo. En los bonos, los fondos apalancados están cortos de forma estructural por el basis trade (compran el bono al contado y venden el futuro) y las gestoras largas: compara cada grupo con su propio rango, no el signo. Haz clic en un mercado para ver su historia.</p>
+  <p class="scan-note">CFTC Traders in Financial Futures report, futures only. Positions as of Tuesday's close, published Friday at 15:30 ET (21:30 in Barcelona; 20:30 in the weeks when the European and US clock changes don't line up). Net = longs − shorts, in contracts. The index places the current net within its range (0 = the shortest of the period, 100 = the longest); above 90 or below 10 it is flagged as extreme. In bonds, leveraged funds are structurally short because of the basis trade (they buy the cash bond and sell the future) and asset managers are long: compare each group with its own range, not with its sign. Click a market to see its history.</p>
 </main>
 
 <footer class="foot">
-  Opciones de Tradier en tiempo real: SPX, NDX, RUT, SPY, QQQ e IWM se recalculan cada 5 minutos con el mercado abierto, con velas de 5 minutos en el TRACE; el resto, cada 15 minutos, con velas de CBOE (~15 min de retraso). Si Tradier falla, se usa CBOE. El open interest es el del cierre anterior. Signo de dealer según la convención estándar: largos de calls, cortos de puts. El Volatility Trigger (Hedge Wall en acciones) es una aproximación propia, no el nivel de SpotGamma.
+  Real-time Tradier options: SPX, NDX, RUT, SPY, QQQ and IWM are recalculated every 5 minutes while the market is open, with 5-minute candles in TRACE; everything else every 15 minutes, with CBOE candles (~15 min delay). If Tradier fails, CBOE is used. Open interest is from the previous close. Dealer sign follows the standard convention: long calls, short puts. The Volatility Trigger (Hedge Wall for stocks) is our own approximation, not the SpotGamma level.
 </footer>
 </div>
 </div>

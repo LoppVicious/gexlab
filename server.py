@@ -66,7 +66,7 @@ class Handler(SimpleHTTPRequestHandler):
     def _body(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
         if n > MAX_BODY:
-            raise ValueError("Peticion demasiado grande")
+            raise ValueError("Request too large")
         return json.loads(self.rfile.read(n).decode("utf-8") or "{}") if n else {}
 
     def _guard(self, path: str) -> str | None:
@@ -75,7 +75,7 @@ class Handler(SimpleHTTPRequestHandler):
         if user or path in PUBLIC_PATHS:
             return user or ""
         if path.startswith("/api/"):
-            self._json(401, {"error": "Sesion caducada: vuelve a iniciar sesion", "login": True})
+            self._json(401, {"error": "Session expired: sign in again", "login": True})
         else:
             self.send_response(302)
             self.send_header("Location", "/login.html")
@@ -140,7 +140,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(200, {"rows": rows, "computed_at": gex_engine.now_ny().strftime("%Y-%m-%d %H:%M")})
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                return self._json(500, {"error": f"Error interno: {e}"})
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/heatmap":
             try:
                 dte = q.get("dte", "45")
@@ -157,7 +157,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": str(e)})
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                return self._json(500, {"error": f"Error interno: {e}"})
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/validation":
             clean = []
             for x in q.get("symbols", "").split(",")[:40]:
@@ -170,7 +170,7 @@ class Handler(SimpleHTTPRequestHandler):
                                                                    "gexbot" if q.get("model") == "gexbot" else "spotgamma"))
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                return self._json(500, {"error": f"Error interno: {e}"})
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/watchlist":
             return self._json(200, gex_engine.load_watchlist(self._wl_path(user)))
         if url.path == "/api/collector":
@@ -192,7 +192,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(200, gex_engine.compass(clean))
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                return self._json(500, {"error": f"Error interno: {e}"})
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/vol":
             try:
                 import volatilidad
@@ -201,7 +201,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": str(e)})
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                return self._json(500, {"error": f"Error interno: {e}"})
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/eventos":
             try:
                 import eventos
@@ -227,7 +227,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {"error": str(e)})
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
-                return self._json(500, {"error": f"Error interno: {e}"})
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path != "/api/gex":
             return super().do_GET()
         try:
@@ -248,7 +248,7 @@ class Handler(SimpleHTTPRequestHandler):
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
             traceback.print_exc()
-            self._json(500, {"error": f"Error interno: {e}"})
+            self._json(500, {"error": f"Internal error: {e}"})
 
 
 def _do_post(self):
@@ -288,7 +288,7 @@ def _do_post(self):
             if not auth.enabled():
                 return self._json(200, {})
             return self._json(200, auth.save_prefs(user, self._body().get("prefs", {})))
-        return self._json(404, {"error": "no encontrado"})
+        return self._json(404, {"error": "not found"})
     except Exception as e:  # noqa: BLE001
         return self._json(400, {"error": str(e)})
 

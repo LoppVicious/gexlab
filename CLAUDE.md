@@ -28,6 +28,8 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 
 ## Reglas
 - Escribe en español, directo, sin emojis. Resultado pulido en tema claro y oscuro.
+- La web está en inglés (textos, mensajes de error del motor y del Worker, formato de cifras en-US). Código,
+  comentarios, docs y CHANGELOG siguen en español. Colores de gráficos: siempre de `C` (tema), nunca fijos.
 - Comprueba con datos reales antes de dar algo por hecho.
 - **Repo público:** nunca subir datos, historial, claves ni tokens; secretos solo en GitHub Secrets (nombres en ARQUITECTURA).
   No pidas secretos en el chat; si el usuario los pega, recomienda regenerarlos. Las contraseñas las crea el admin en la web.

@@ -58,9 +58,9 @@ function writePaquete(p) {
 }
 
 function pyError(e) {
-  // de la traza de Python, la ultima linea ("LookupError: No hay contratos ...") sin el tipo
+  // de la traza de Python, la ultima linea ("LookupError: No contracts ...") sin el tipo
   const lines = String((e && e.message) || e).trim().split("\n").filter(Boolean);
-  const last = lines[lines.length - 1] || "Error en el motor del navegador";
+  const last = lines[lines.length - 1] || "In-browser engine error";
   return last.replace(/^[A-Za-z_.]*(Error|Exception):\s*/, "");
 }
 

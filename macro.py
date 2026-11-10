@@ -51,7 +51,7 @@ def fetch_text(url: str, retries: int = 3) -> str:
             break
         if attempt < retries:
             time.sleep(3 * 2 ** attempt)
-    raise ConnectionError(str(last) if last else "Demasiadas peticiones seguidas")
+    raise ConnectionError(str(last) if last else "Too many requests in a row")
 
 
 # ---------------------------------------------------------------- calendario de vencimientos VX
@@ -226,8 +226,8 @@ def _shape(spot: float | None, m1: float, m2: float) -> dict:
         code = "front_inverted"
     else:
         code = "hump"
-    labels = {"contango": "Contango", "backwardation": "Backwardation", "flat": "Plana",
-              "front_inverted": "Invertida en el tramo corto", "hump": "Joroba en el tramo corto"}
+    labels = {"contango": "Contango", "backwardation": "Backwardation", "flat": "Flat",
+              "front_inverted": "Inverted front end", "hump": "Front-end hump"}
     return {"code": code, "label": labels[code], "s1": s1, "s2": s2}
 
 
@@ -253,7 +253,7 @@ def _vix_curve() -> dict:
         if rows:
             contracts[e.strftime("%Y-%m-%d")] = rows
     if not contracts:
-        raise ConnectionError("No se pudieron descargar los futuros del VIX de CBOE")
+        raise ConnectionError("Could not download VIX futures from CBOE")
     _completar_ultimo_cierre(contracts, now)
     exp_keys = sorted(contracts)
 
@@ -295,7 +295,7 @@ def _vix_curve() -> dict:
                      "basis": (m1 / spot - 1) if spot else None, "cm30": cm30,
                      "shape": _shape(spot, m1, m2)["code"]})
     if not hist:
-        raise LookupError("No hay suficientes contratos con cierre")
+        raise LookupError("Not enough contracts with a settlement")
 
     last = hist[-1]["date"]
     cur = curve_on(last)
@@ -360,24 +360,24 @@ def _vix_curve() -> dict:
 COT_URL = "https://publicreporting.cftc.gov/resource/gpe5-46if.json"
 COT_MARKETS = [
     # clave, nombre, codigo CFTC, grupo, precio de referencia (CBOE), nota del precio
-    ("ES", "S&P 500", "13874+", "Índices y VIX", "SPX", "E-mini y Micro E-mini combinados"),
-    ("NQ", "Nasdaq 100", "20974+", "Índices y VIX", "NDX", "E-mini y Micro E-mini combinados"),
-    ("RTY", "Russell 2000", "239742", "Índices y VIX", "RUT", "E-mini"),
-    ("YM", "Dow Jones", "12460+", "Índices y VIX", "DJX", "E-mini y Micro combinados"),
-    ("VX", "VIX", "1170E1", "Índices y VIX", "VIX", "Futuros VIX de CFE"),
-    ("ZT", "Bono 2 años", "042601", "Bonos del Tesoro", "SHY", ""),
-    ("ZF", "Bono 5 años", "044601", "Bonos del Tesoro", "IEI", ""),
-    ("ZN", "Bono 10 años", "043602", "Bonos del Tesoro", "IEF", ""),
-    ("TN", "Ultra 10 años", "043607", "Bonos del Tesoro", "IEF", ""),
-    ("ZB", "T-Bond", "020601", "Bonos del Tesoro", "TLT", ""),
-    ("UB", "Ultra T-Bond", "020604", "Bonos del Tesoro", "TLT", ""),
+    ("ES", "S&P 500", "13874+", "Indices and VIX", "SPX", "E-mini and Micro E-mini combined"),
+    ("NQ", "Nasdaq 100", "20974+", "Indices and VIX", "NDX", "E-mini and Micro E-mini combined"),
+    ("RTY", "Russell 2000", "239742", "Indices and VIX", "RUT", "E-mini"),
+    ("YM", "Dow Jones", "12460+", "Indices and VIX", "DJX", "E-mini and Micro combined"),
+    ("VX", "VIX", "1170E1", "Indices and VIX", "VIX", "CFE VIX futures"),
+    ("ZT", "2-year note", "042601", "Treasuries", "SHY", ""),
+    ("ZF", "5-year note", "044601", "Treasuries", "IEI", ""),
+    ("ZN", "10-year note", "043602", "Treasuries", "IEF", ""),
+    ("TN", "Ultra 10-year", "043607", "Treasuries", "IEF", ""),
+    ("ZB", "T-Bond", "020601", "Treasuries", "TLT", ""),
+    ("UB", "Ultra T-Bond", "020604", "Treasuries", "TLT", ""),
 ]
 COT_GROUPS = [
-    ("asset_mgr", "Gestoras", "asset_mgr_positions_long", "asset_mgr_positions_short"),
-    ("lev_money", "Fondos apalancados", "lev_money_positions_long", "lev_money_positions_short"),
+    ("asset_mgr", "Asset managers", "asset_mgr_positions_long", "asset_mgr_positions_short"),
+    ("lev_money", "Leveraged funds", "lev_money_positions_long", "lev_money_positions_short"),
     ("dealer", "Dealers", "dealer_positions_long_all", "dealer_positions_short_all"),
-    ("other", "Otros declarantes", "other_rept_positions_long", "other_rept_positions_short"),
-    ("nonrept", "No declarantes", "nonrept_positions_long_all", "nonrept_positions_short_all"),
+    ("other", "Other reportables", "other_rept_positions_long", "other_rept_positions_short"),
+    ("nonrept", "Non-reportables", "nonrept_positions_long_all", "nonrept_positions_short_all"),
 ]
 COT_YEARS = 3
 _cot_mem: dict[str, tuple[float, dict]] = {}
@@ -416,7 +416,7 @@ def _cot_raw(force: bool = False) -> dict:
         except Exception as e:  # noqa: BLE001
             if cached:
                 return cached
-            raise ConnectionError(f"No se pudo descargar el COT de la CFTC: {e}") from e
+            raise ConnectionError(f"Could not download the CFTC COT report: {e}") from e
     data: dict[str, dict] = {}
     for r in rows:
         code = r.get("cftc_contract_market_code")
@@ -455,7 +455,7 @@ def cot(force: bool = False) -> dict:
         ser = raw["data"].get(code) or {}
         dates = sorted(ser)[-int(COT_YEARS * 52.2):]
         if len(dates) < 2:
-            markets.append({"key": key, "name": name, "group": group, "error": "Sin datos"})
+            markets.append({"key": key, "name": name, "group": group, "error": "No data"})
             continue
         last, prev = ser[dates[-1]], ser[dates[-2]]
         groups = {}
@@ -488,7 +488,7 @@ def _release_of(report: str | None) -> str | None:
 def cot_history(key: str) -> dict:
     m = next((x for x in COT_MARKETS if x[0] == key), None)
     if not m:
-        raise LookupError("Mercado desconocido")
+        raise LookupError("Unknown market")
     raw = _cot_raw()
     ser = raw["data"].get(m[2]) or {}
     dates = sorted(ser)[-int(COT_YEARS * 52.2):]

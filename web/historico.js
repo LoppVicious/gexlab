@@ -128,18 +128,18 @@ function bindZoomBar() {
 
 /* ============================================================ Historico de niveles */
 const HIST_SERIES = [
-  { k: "px", name: "Precio", c: () => C.text, w: 1.6 },
+  { k: "px", name: "Price", c: () => C.text, w: 1.6 },
   { k: "cw", name: "Call Wall", c: () => C.call, w: 1.8, step: true },
   { k: "pw", name: "Put Wall", c: () => C.put, w: 1.8, step: true },
   { k: "flip", name: "Gamma Flip", c: () => C.amber, w: 1.6, step: true },
-  { k: "vt", name: "Vol Trigger", c: () => "#d08a3a", w: 1.4, step: true, dash: "5 4" },
-  { k: "abs", name: "Gamma absoluta", c: () => C.muted, w: 1.2, step: true, dash: "2 4" },
+  { k: "vt", name: "Vol Trigger", c: () => C.vtHist, w: 1.4, step: true, dash: "5 4" },
+  { k: "abs", name: "Absolute gamma", c: () => C.muted, w: 1.2, step: true, dash: "2 4" },
 ];
 function histShown() {
   try { const v = JSON.parse(store.get("histShow", "null")); if (Array.isArray(v)) return new Set(v); } catch { /* */ }
   return new Set(["px", "cw", "pw", "flip", "vt"]);
 }
-function histDate(iso) { return iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : ""; }
+function histDate(iso) { return iso ? `${ddmm(iso)} '${iso.slice(2, 4)}` : ""; }
 
 // filas con el precio de cierre (o el spot guardado si no hay cierre de ese dia)
 function histRows(d) {
@@ -151,9 +151,9 @@ function histRows(d) {
 
 function renderHistory(d0, W, H, exp = false) {
   const d = d0, all = histRows(d);
-  const model = d.model === "gexbot" ? "Neto" : "Perfil";
+  const model = d.model === "gexbot" ? "Net" : "Profile";
   if (all.length < 2) {
-    return `<div class="placeholder"><div><b>Histórico en construcción</b><br>Se guarda una foto de los niveles al cierre de cada sesión, con este filtro de vencimientos y el motor ${model}.<br>Hay ${all.length} ${all.length === 1 ? "sesión guardada" : "sesiones guardadas"}: el gráfico aparece a partir de la segunda.</div></div>`;
+    return `<div class="placeholder"><div><b>History being built</b><br>A snapshot of the levels is saved at the close of each session, with this expiration filter and the ${model} engine.<br>There ${all.length === 1 ? "is 1 saved session" : `are ${all.length} saved sessions`}: the chart appears from the second one.</div></div>`;
   }
   const [i0, i1] = d._hzoom || [0, all.length - 1];
   const rows = all.slice(Math.max(0, i0), Math.min(all.length, i1 + 1));
@@ -207,7 +207,7 @@ function renderHistory(d0, W, H, exp = false) {
   s += `<g id="hcross" visibility="hidden"><line id="hcrossL" y1="${T}" y2="${B}" stroke="${C.muted}" stroke-dasharray="2 3"/></g>`;
   s += watermark(d, L, B, small, exp);
   if (!exp) state.geo = { kind: "history", left: L, right: R, top: T, bottom: B, rows, xOf };
-  return frame(W, H, s, d, exp, `Histórico de niveles (${model})`);
+  return frame(W, H, s, d, exp, `Level history (${model})`);
 }
 
 function historyTip(d, g, x, svg) {

@@ -6,7 +6,7 @@
    - Ficha del ticker a la derecha y la lista de seguimiento con precio y variacion. */
 
 const hub = { scan: null, scanAt: 0, cmp: null, cmpAt: 0, busy: false };
-const HUB_LAST = "#5b9dff";
+
 
 /* ------------------------------------------------------------ grafico */
 function impactRange(d) {
@@ -18,16 +18,16 @@ function impactRange(d) {
 
 function renderImpact(d, W, H, exp = false) {
   const P = d.profile;
-  if (!P || !P.x || !P.x.length) return `<div class="placeholder">Sin perfil de gamma.</div>`;
+  if (!P || !P.x || !P.x.length) return `<div class="placeholder">No gamma profile.</div>`;
   const narrow = !exp && W < 640, fs = exp ? 15 : narrow ? 10.5 : 11.5;
   const titleH = exp ? 62 : 0;
   const L = exp ? 104 : narrow ? 50 : 64, R = W - (exp ? 104 : narrow ? 46 : 64), B = H - (exp ? 70 : 44);
   const [x0, x1] = impactRange(d);
   const idx = P.x.map((x, i) => i).filter((i) => P.x[i] >= x0 - 1e-9 && P.x[i] <= x1 + 1e-9);
-  if (idx.length < 3) return `<div class="placeholder">Sin perfil de gamma en este rango.</div>`;
+  if (idx.length < 3) return `<div class="placeholder">No gamma profile in this range.</div>`;
   const X = idx.map((i) => P.x[i]), Y = idx.map((i) => P.y[i]), Wk = P.week ? idx.map((i) => P.week[i]) : null;
   const hb = d.hub || {};
-  const labs = [[hb.low_vol_point, C.put, "Baja volatilidad"], [hb.high_vol_point, C.amber, "Alta volatilidad"], [d.prev_close, HUB_LAST, "Cierre anterior"]]
+  const labs = [[hb.low_vol_point, C.put, "Low volatility"], [hb.high_vol_point, C.amber, "High volatility"], [d.prev_close, C.prevClose, "Previous close"]]
     .filter(([v]) => v != null && v >= x0 && v <= x1);
   const legRows = narrow ? 3 : 1;
   const T = titleH + 12 + legRows * (fs + 8) + labs.length * (fs + 8) + 10;
@@ -70,8 +70,8 @@ function renderImpact(d, W, H, exp = false) {
   const xt = niceTicks(x0, x1, exp ? 12 : narrow ? 4 : Math.max(5, Math.floor((R - L) / 95)));
   for (const v of xt.ticks) if (v >= x0 && v <= x1) s += txt(xOf(v), B + fs + 9, fmtSpot(v), { a: "middle", fs, c: C.muted });
   s += txt((L + R) / 2, H - (exp ? 18 : 6), "Strike", { a: "middle", fs, c: C.faint });
-  s += `<text transform="translate(${exp ? 30 : narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma total ($ por $1, líneas)</text>`;
-  s += `<text transform="translate(${W - (exp ? 30 : narrow ? 6 : 10)},${(T + B) / 2}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Gamma neta por strike (barras)</text>`;
+  s += `<text transform="translate(${exp ? 30 : narrow ? 10 : 14},${(T + B) / 2}) rotate(-90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Total gamma ($ per $1, lines)</text>`;
+  s += `<text transform="translate(${W - (exp ? 30 : narrow ? 6 : 10)},${(T + B) / 2}) rotate(90)" text-anchor="middle" font-family="${SANS}" font-size="${fs}" fill="${C.faint}">Net gamma by strike (bars)</text>`;
 
   // barras
   const step = bk.step || (ks.length > 1 ? ks[1] - ks[0] : 1);
@@ -88,7 +88,7 @@ function renderImpact(d, W, H, exp = false) {
   // puntos de volatilidad y cierre anterior (con su etiqueta en filas sobre el grafico)
   labs.forEach(([v, col, lab], row) => {
     const x = xOf(v), y = T - 10 - row * (fs + 8);
-    const t = `${lab} ${lab === "Cierre anterior" ? fmtSpot(v) : fmtLevel(v)}`;
+    const t = `${lab} ${lab === "Previous close" ? fmtSpot(v) : fmtLevel(v)}`;
     const tx = Math.min(x + 5, R - textW(t, fs) - 2);
     s += `<line x1="${x}" x2="${x}" y1="${y + 4}" y2="${B}" stroke="${col}" stroke-width="1.6"/>` +
       `<text x="${tx}" y="${y}" font-family="${SANS}" font-size="${fs}" font-weight="600" fill="${col}">${t}</text>`;
@@ -109,12 +109,12 @@ function renderImpact(d, W, H, exp = false) {
   }
   // lineas
   const path = (A) => A.map((v, i) => `${i ? "L" : "M"}${xOf(X[i]).toFixed(1)},${yOf(v).toFixed(1)}`).join("");
-  const wkLab = `Vencimiento ${expText(d, P.week_exp || d.front_expiry)}`;
+  const wkLab = `Expiration ${expText(d, P.week_exp || d.front_expiry)}`;
   s += `<g clip-path="url(#impclip${exp ? "e" : ""})">`;
   if (Wk) s += `<path d="${path(Wk)}" fill="none" stroke="${C.neg}" stroke-width="2"/>`;
   s += `<path d="${path(Y)}" fill="none" stroke="${C.pos}" stroke-width="2.4"/></g>`;
   // leyenda
-  const leg = [["Gamma total, todos los vencimientos del filtro", C.pos], [wkLab, C.neg], ["Gamma neta por strike", C.pos, "bar"]];
+  const leg = [["Total gamma, all expirations in the filter", C.pos], [wkLab, C.neg], ["Net gamma by strike", C.pos, "bar"]];
   let lx = L, ly = titleH + 16;
   for (const [lab, c, kind] of leg) {
     const w = textW(lab, fs) + 30;
@@ -126,7 +126,7 @@ function renderImpact(d, W, H, exp = false) {
   if (!exp) s += `<g id="cross" visibility="hidden"><line id="crossL" y1="${T}" y2="${B}" stroke="${C.muted}" stroke-dasharray="2 3"/><circle id="crossC" r="4" fill="${C.pos}"/><circle id="crossF" r="3.5" fill="${C.neg}"/></g>`;
   s += watermark(d, L, B, fs, exp);
   if (!exp) state.geo = { kind: "impact", left: L, right: R, top: T, bottom: B, xOf, yOf, x0, x1, ks, vs, X, Y, Wk, wkLab };
-  return frame(W, H, s, d, exp, "Impacto calls y puts");
+  return frame(W, H, s, d, exp, "Call & put impact");
 }
 
 function impactTip(d, g, x, svg) {
@@ -143,10 +143,10 @@ function impactTip(d, g, x, svg) {
   svg.querySelector("#crossL").setAttribute("x1", x); svg.querySelector("#crossL").setAttribute("x2", x);
   svg.querySelector("#crossC").setAttribute("cx", x); svg.querySelector("#crossC").setAttribute("cy", g.yOf(yv));
   if (fv != null) { svg.querySelector("#crossF").setAttribute("cx", x); svg.querySelector("#crossF").setAttribute("cy", g.yOf(fv)); }
-  return `<div class="t">Precio ${fmtSpot(v)} <span style="color:var(--faint);font-weight:400">(${fmtPct((v / d.spot - 1) * 100)})</span></div>
-    <div class="r"><span style="color:${C.pos}">Gamma total</span><b>${fmtBig(yv, true)}</b></div>
+  return `<div class="t">Price ${fmtSpot(v)} <span style="color:var(--faint);font-weight:400">(${fmtPct((v / d.spot - 1) * 100)})</span></div>
+    <div class="r"><span style="color:${C.pos}">Total gamma</span><b>${fmtBig(yv, true)}</b></div>
     ${fv != null ? `<div class="r"><span style="color:${C.neg}">${g.wkLab}</span><b>${fmtBig(fv, true)}</b></div>` : ""}
-    ${bi >= 0 ? `<div class="r">Barra del strike ${fmtLevel(g.ks[bi])}<b>${fmtBig(g.vs[bi], true)}</b></div>` : ""}`;
+    ${bi >= 0 ? `<div class="r">Strike ${fmtLevel(g.ks[bi])} bar<b>${fmtBig(g.vs[bi], true)}</b></div>` : ""}`;
 }
 
 /* ------------------------------------------------------------ ficha y lista */
@@ -168,7 +168,7 @@ function hubFetchExtras() {
 
 function volPt(v, edge, range, none) {
   if (v != null) return fmtLevel(v);
-  if (edge && range) return edge === "up" ? `por encima de ${fmtSpot(range[1])}` : `por debajo de ${fmtSpot(range[0])}`;
+  if (edge && range) return edge === "up" ? `above ${fmtSpot(range[1])}` : `below ${fmtSpot(range[0])}`;
   return none;
 }
 
@@ -182,31 +182,31 @@ function paintHub(d) {
   const hb = d.hub || {};
   const cr = (hub.cmp || (cmp.data && cmp.data.rows) || []).find((r) => r.symbol === d.symbol);
   const m1 = d.moves && d.moves.d1;
-  const ex = (iso) => (iso ? `${ddmm(iso)}/${iso.slice(2, 4)}` : "—");
+  const ex = (iso) => (iso ? fullDate(iso) : "—");
   const k = (v) => (v == null ? "—" : fmtBig(v));
   const p = (v) => (v == null ? "—" : fmtNum(v * 100, 1) + "%");
-  card.innerHTML = `<div class="htitle">Ficha</div>
-    ${hubRow("Cierre anterior", fmtSpot(d.prev_close))}
-    ${hubRow("IV rank", cr && cr.y != null ? fmtNum(cr.y, 0) + "%" : "—", cr && cr.y_src ? (cr.y_src === "provisional" ? "provisional" : cr.y_src === "propio" ? "histórico propio" : cr.y_src) : "")}
-    ${hubRow("IV 30 días", p(hb.iv30))}
-    ${hubRow("Vol. realizada 20 días", p(hb.rv20))}
-    ${hubRow("Movimiento implícito", m1 ? "±" + fmtSpot(d.spot * m1.pct / 100) : "—", m1 ? "±" + fmtNum(m1.pct, 2) + "%" : "", "range1s")}
-    ${hubRow("Punto de baja volatilidad", volPt(hb.low_vol_point, hb.low_vol_edge, hb.range, "no hay gamma positiva en el rango"), hb.low_vol_edge ? "amplía el rango para verlo" : "", "lowvol")}
-    ${hubRow("Punto de alta volatilidad", volPt(hb.high_vol_point, hb.high_vol_edge, hb.range, "no hay gamma negativa en el rango"), hb.high_vol_edge ? "amplía el rango para verlo" : "", "highvol")}
-    ${hubRow("Gamma de calls", fmtBig(d.totals.call_per_pct, true), "por 1%")}
-    ${hubRow("Gamma de puts", fmtBig(d.totals.put_per_pct, true), "por 1%")}
-    ${hubRow("Venc. con más gamma", ex(hb.top_gamma_exp))}
-    ${hubRow("Venc. con más delta", ex(hb.top_delta_exp))}
-    ${hubRow("Volumen de calls", k(hb.call_vol))}
-    ${hubRow("Volumen de puts", k(hb.put_vol))}
-    ${hubRow("Ratio put/call (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—")}
-    ${d.model === "spotgamma" ? hubRow("Dividendo implícito", d.dividend && d.dividend.ref != null ? fmtNum(d.dividend.ref * 100, 2) + "%" : "sin medir", d.dividend && d.dividend.n ? `paridad put-call, ${d.dividend.n} venc.` : "solo en índices europeos") : ""}`;
+  card.innerHTML = `<div class="htitle">Profile</div>
+    ${hubRow("Previous close", fmtSpot(d.prev_close))}
+    ${hubRow("IV rank", cr && cr.y != null ? fmtNum(cr.y, 0) + "%" : "—", cr && cr.y_src ? (cr.y_src === "provisional" ? "provisional" : cr.y_src === "propio" ? "own history" : cr.y_src) : "")}
+    ${hubRow("30-day IV", p(hb.iv30))}
+    ${hubRow("20-day realized vol", p(hb.rv20))}
+    ${hubRow("Implied move", m1 ? "±" + fmtSpot(d.spot * m1.pct / 100) : "—", m1 ? "±" + fmtNum(m1.pct, 2) + "%" : "", "range1s")}
+    ${hubRow("Low volatility point", volPt(hb.low_vol_point, hb.low_vol_edge, hb.range, "no positive gamma in range"), hb.low_vol_edge ? "widen the range to see it" : "", "lowvol")}
+    ${hubRow("High volatility point", volPt(hb.high_vol_point, hb.high_vol_edge, hb.range, "no negative gamma in range"), hb.high_vol_edge ? "widen the range to see it" : "", "highvol")}
+    ${hubRow("Call gamma", fmtBig(d.totals.call_per_pct, true), "per 1%")}
+    ${hubRow("Put gamma", fmtBig(d.totals.put_per_pct, true), "per 1%")}
+    ${hubRow("Exp. with most gamma", ex(hb.top_gamma_exp))}
+    ${hubRow("Exp. with most delta", ex(hb.top_delta_exp))}
+    ${hubRow("Call volume", k(hb.call_vol))}
+    ${hubRow("Put volume", k(hb.put_vol))}
+    ${hubRow("Put/call ratio (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—")}
+    ${d.model === "spotgamma" ? hubRow("Implied dividend", d.dividend && d.dividend.ref != null ? fmtNum(d.dividend.ref * 100, 2) + "%" : "not measured", d.dividend && d.dividend.n ? `put-call parity, ${d.dividend.n} exp.` : "European indices only") : ""}`;
   card.hidden = false;
   const rows = (hub.scan || []).filter((r) => !r.error);
-  wl.innerHTML = `<div class="htitle">Lista de seguimiento</div>` + (rows.length
-    ? `<table class="hwl"><thead><tr><th class="l">Ticker</th><th>Precio</th><th>Var.</th></tr></thead><tbody>${rows.map((r) =>
+  wl.innerHTML = `<div class="htitle">Watchlist</div>` + (rows.length
+    ? `<table class="hwl"><thead><tr><th class="l">Ticker</th><th>Price</th><th>Chg.</th></tr></thead><tbody>${rows.map((r) =>
       `<tr data-s="${esc(r.symbol)}" class="${r.symbol === d.symbol ? "on" : ""}"><td class="l">${esc(r.symbol)}</td><td>${fmtSpot(r.spot)}</td><td class="${r.chg > 0 ? "up" : r.chg < 0 ? "dn" : ""}">${r.chg != null ? fmtPct(r.chg) : "—"}</td></tr>`).join("")}</tbody></table>`
-    : `<p class="hempty">Cargando…</p>`);
+    : `<p class="hempty">Loading…</p>`);
   wl.hidden = false;
   hubFetchExtras();
 }

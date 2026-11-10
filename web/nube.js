@@ -46,7 +46,7 @@
         pending.delete(e.data.id);
         e.data.ok ? p.resolve(e.data.json) : p.reject(new Error(e.data.error));
       };
-      worker.onerror = (e) => { for (const p of pending.values()) p.reject(new Error("El motor del navegador no ha podido arrancar")); pending.clear(); worker = null; console.error(e); };
+      worker.onerror = (e) => { for (const p of pending.values()) p.reject(new Error("The in-browser engine could not start")); pending.clear(); worker = null; console.error(e); };
     }
     const id = ++seq;
     return new Promise((resolve, reject) => {
@@ -112,22 +112,22 @@
         if (viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
         return data;
       }
-      if (r.status !== 404) throw new Error((await r.json().catch(() => ({}))).error || "No se pudieron leer los datos");
+      if (r.status !== 404) throw new Error((await r.json().catch(() => ({}))).error || "Could not read the data");
       if (!pedido) {
         const pr = await realFetch("/api/pedir", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbols: [sym] }), signal });
         const d = await pr.json().catch(() => ({}));
-        if (!pr.ok || d.ok === false) throw new Error(d.error || "No se pudo pedir el cálculo en la nube");
+        if (!pr.ok || d.ok === false) throw new Error(d.error || "Could not request the calculation in the cloud");
         pedido = true;
       }
-      if (Date.now() - t0 > 240000) throw new Error(`El cálculo de ${sym} en la nube está tardando más de lo normal. Vuelve a intentarlo en un par de minutos.`);
-      status(`Descargando ${sym} en la nube (la primera vez tarda 1–2 min)…`);
+      if (Date.now() - t0 > 240000) throw new Error(`The cloud calculation for ${sym} is taking longer than usual. Try again in a couple of minutes.`);
+      status(`Downloading ${sym} in the cloud (the first time takes 1–2 min)…`);
       await sleep(8000, signal);
     }
   }
 
   async function analisis(kind, q, signal) {
     const sym = normalize(q.get("symbol"));
-    if (!sym) return json(400, { error: "Ticker no valido" });
+    if (!sym) return json(400, { error: "Invalid ticker" });
     const v = vista(q, sym);
     const spot = q.get("spot");
     const refresh = q.get("refresh") === "1";
@@ -147,7 +147,7 @@
       spot_override: spot ? parseFloat(spot) : null, combine: v.combo === "1", positioning: v.pos, model: v.model,
     };
     if (kind === "heat") args.which = v.sess;
-    if (!warmed) status("Preparando el cálculo en el navegador (solo la primera vez)…");
+    if (!warmed) status("Preparing the in-browser calculation (first time only)…");
     try {
       const out = await motor(kind === "heat" ? "heatmap" : "compute", args, paqs);
       warmed = true;
@@ -161,7 +161,7 @@
 
   async function lista(file, signal, what) {
     const r = await realFetch(`/api/lista/${file}`, { signal });
-    if (r.status === 404) return json(503, { error: `${what}: se calcula con tu lista en el próximo ciclo del motor (como mucho 15 min).` });
+    if (r.status === 404) return json(503, { error: `${what}: it is calculated with your list in the next engine cycle (15 min at most).` });
     return r;
   }
   // Escaner: el archivo del ultimo ciclo y, para los tickers de la lista que aun no estan (recien anadidos), su fila
@@ -176,7 +176,7 @@
     const have = new Set(d.rows.map((x) => x.symbol));
     for (const sym of want.filter((x) => !have.has(x))) {
       try {
-        status(`Escáner: calculando ${sym}…`);
+        status(`Scanner: calculating ${sym}…`);
         const p = await paquete(sym, signal, false);
         const out = await motor("scan_row", { symbol: sym, max_dte: dte === "all" ? null : parseInt(dte, 10) }, [p]);
         d.rows.push(JSON.parse(out));
@@ -189,7 +189,7 @@
   }
   async function pub(file, signal, what) {
     const r = await realFetch(`/api/pub/${file}`, { signal });
-    if (r.status === 404) return json(503, { error: `${what}: todavía no hay datos del motor.` });
+    if (r.status === 404) return json(503, { error: `${what}: no engine data yet.` });
     return r;
   }
 
@@ -201,16 +201,16 @@
       case "/api/gex": return analisis("gex", q, s);
       case "/api/heatmap": return analisis("heat", q, s);
       case "/api/scan": return escaner(q, s);
-      case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validación");
+      case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validation");
       case "/api/compass": return lista("compass.json", s, "Compass");
-      case "/api/vix": return pub("vix.json", s, "Curva VIX");
+      case "/api/vix": return pub("vix.json", s, "VIX curve");
       case "/api/cot": return pub("cot.json", s, "COT");
       case "/api/cot_history": return pub(`cot_hist/${encodeURIComponent(q.get("key") || "ES")}.json`, s, "COT");
-      case "/api/summary": return pub("resumen.json", s, "Resumen");
-      case "/api/eventos": return pub("eventos.json", s, "Calendario");
+      case "/api/summary": return pub("resumen.json", s, "Summary");
+      case "/api/eventos": return pub("eventos.json", s, "Calendar");
       case "/api/vol": {
         const sym = normalize(q.get("symbol"));
-        if (!sym) return json(400, { error: "Ticker no valido" });
+        if (!sym) return json(400, { error: "Invalid ticker" });
         const url = `/api/pub/t/${encodeURIComponent(sym)}/vol.json`;
         let r = await realFetch(url, { signal: s });
         if (r.status === 404) {
@@ -220,7 +220,7 @@
         if (r.ok && viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
         return r;
       }
-      case "/api/collector": return pub("recolector.json", s, "Recolector");
+      case "/api/collector": return pub("recolector.json", s, "Collector");
       default: return realFetch(input, init);
     }
   };

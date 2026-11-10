@@ -277,7 +277,7 @@ def vol_data(sym: str, save: bool = True) -> dict:
         spot = implied["value"]
     sm = smiles_from_chain(ch, spot, now)
     if not sm:
-        raise LookupError("Sin vencimientos con volatilidad implÃ­cita")
+        raise LookupError("No expirations with implied volatility")
     today = g.now_ny().strftime("%Y-%m-%d")
     snap = grid_snapshot(sm, spot)
     h = history(sym, today, snap if save and g.is_trading_day(now) else None)

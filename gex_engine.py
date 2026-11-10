@@ -507,7 +507,7 @@ def _fetch_system(url: str) -> bytes:
     """Respaldo: descarga con curl.exe (Windows 10+, macOS) usando la red y los certificados del sistema."""
     curl = shutil.which("curl.exe") or shutil.which("curl")
     if not curl:
-        raise OSError("curl no disponible")
+        raise OSError("curl not available")
     fd, tmp = tempfile.mkstemp(suffix=".json")
     os.close(fd)
     try:
@@ -564,24 +564,24 @@ def _fetch_json(path: str, retries: int = 4) -> dict:
             raise ConnectionError(" | ".join(dict.fromkeys(errors)))
         if attempt < retries:
             time.sleep(3 * 2 ** attempt)
-    raise ConnectionError("CBOE limita las peticiones (429). Prueba de nuevo en un minuto.")
+    raise ConnectionError("CBOE is rate limiting requests (429). Try again in a minute.")
 
 
 def _explain(detail: str) -> str:
     d = detail.upper()
     if "CERTIFICATE" in d:
-        hint = "Un antivirus o proxy esta interceptando HTTPS."
+        hint = "An antivirus or proxy is intercepting HTTPS."
     elif "10013" in d or "PERMISSIONS" in d:
-        hint = "El firewall esta bloqueando a Python: permite python.exe en el Firewall de Windows."
+        hint = "The firewall is blocking Python: allow python.exe in Windows Firewall."
     elif "GETADDRINFO" in d or "RESOLVE" in d:
-        hint = "No se resuelve el dominio de CBOE: revisa la conexion o el DNS."
+        hint = "The CBOE domain does not resolve: check the connection or the DNS."
     elif "UNKNOWN URL TYPE" in d or "SSL" in d and "MODULE" in d:
-        hint = "Este Python no tiene soporte SSL (pasa con algunos entornos de Anaconda)."
-    elif "429" in d or "LIMITA" in d:
+        hint = "This Python has no SSL support (happens with some Anaconda environments)."
+    elif "429" in d or "RATE LIMIT" in d:
         return detail
     else:
-        hint = "No se pudo conectar con CBOE."
-    return f"{hint} Detalle: {detail}"
+        hint = "Could not connect to CBOE."
+    return f"{hint} Detail: {detail}"
 
 
 # ---------------------------------------------------------------- buscador de tickers
@@ -688,7 +688,7 @@ def name_of(symbol: str) -> str:
 def normalize(symbol: str) -> str:
     s = symbol.upper().strip().lstrip("_^$").replace("-", ".").replace("/", ".")
     if not re.fullmatch(r"[A-Z][A-Z0-9.]{0,9}", s):
-        raise ValueError("Ticker no valido")
+        raise ValueError("Invalid ticker")
     return s
 
 
@@ -822,7 +822,7 @@ def fetch_chain(symbol: str, force: bool = False) -> dict:
             with open(path, encoding="utf-8") as f:
                 raw = json.load(f)
         else:
-            raise LookupError(f"No hay datos de opciones para {symbol}")
+            raise LookupError(f"No options data for {symbol}")
     else:
         raw = _fetch_tradier(symbol)  # tiempo real si hay token; None -> CBOE (15 min de retraso)
         candidates = [] if raw else ([f"_{symbol}"] if symbol in INDEX_SYMBOLS else [symbol, f"_{symbol}"])
@@ -837,7 +837,7 @@ def fetch_chain(symbol: str, force: bool = False) -> dict:
                 break
             raw = None
         if raw is None:
-            raise LookupError(f"CBOE no publica opciones para {symbol}")
+            raise LookupError(f"CBOE does not publish options for {symbol}")
 
     _cache[symbol] = (time.time(), raw)
     return raw
@@ -1585,7 +1585,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     else:
         spot = spot_mkt
     if spot <= 0:
-        raise ValueError("Sin precio del subyacente")
+        raise ValueError("No underlying price")
 
     now_dt = now_ny().replace(second=0, microsecond=0)
     q_dt = quote_time(now_dt)  # instante de las IV (ahora, o el ultimo cierre si el mercado esta cerrado)
@@ -1600,7 +1600,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     reach = max(0.35, min(window_pct * 1.2, 95.0) / 100)
     m = alive & exp_mask & (cc["oi"] > 0) & (cc["iv"] > 0.01) & (np.abs(cc["K"] / spot - 1) < reach)
     if not m.any():
-        raise LookupError("No hay contratos con open interest en ese filtro")
+        raise LookupError("No contracts with open interest in that filter")
 
     K, C, OI, IV = cc["K"][m], cc["call"][m], cc["oi"][m], cc["iv"][m]
     EXP = cc["exp"][m]
@@ -2019,7 +2019,7 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     f = expiry_filter(ch["exp"], alive, np.datetime64(sess.date()), max_dte)
     m = alive & f & (ch["oi"] > 0) & (ch["iv"] > 0.01) & (np.abs(ch["K"] / spot - 1) < max(0.2, window_pct * 3 / 100))
     if not m.any():
-        raise LookupError("No hay contratos con open interest en ese filtro")
+        raise LookupError("No contracts with open interest in that filter")
     K, C, OI, IV, EXP = ch["K"][m], ch["call"][m], ch["oi"][m], ch["iv"][m], ch["exp"][m]
     if model == "spotgamma":  # IV de cada contrato (la de la cadena guardada si es una sesion anterior)
         ivr = ch.get("iv_raw")
@@ -2194,7 +2194,7 @@ def vol_metrics(symbol: str) -> dict:
     alive = (ch["exp"] > now) & (ch["iv"] > 0.01) & (ch["delta"] != 0)
     exps = np.unique(ch["exp"][alive])
     if exps.size == 0:
-        raise LookupError("Sin vencimientos validos")
+        raise LookupError("No valid expirations")
     dtes = (exps - now).astype("timedelta64[m]").astype(float) / (24 * 60)
     ex = exps[np.argmin(np.abs(dtes - 30))]
     sel = alive & (ch["exp"] == ex)

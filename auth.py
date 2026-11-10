@@ -73,15 +73,15 @@ def list_users() -> dict:
 
 def set_password(user: str, password: str, create: bool = False) -> None:
     if not USER_RE.match(user):
-        raise ValueError("Usuario no valido: minusculas, numeros, punto, guion o guion bajo (2-32 caracteres)")
+        raise ValueError("Invalid username: lowercase letters, digits, dot, hyphen or underscore (2-32 characters)")
     if len(password) < 10:
-        raise ValueError("La contrasena debe tener al menos 10 caracteres")
+        raise ValueError("The password must be at least 10 characters long")
     with _lock:
         users = list_users()
         if create and user in users:
-            raise ValueError(f"El usuario {user} ya existe")
+            raise ValueError(f"User {user} already exists")
         if not create and user not in users:
-            raise ValueError(f"El usuario {user} no existe")
+            raise ValueError(f"User {user} does not exist")
         salt = secrets.token_bytes(16)
         rec = users.get(user, {"created": time.strftime("%Y-%m-%d %H:%M")})
         rec.update(salt=salt.hex(), hash=_hash(password, salt), disabled=False,
@@ -96,7 +96,7 @@ def set_disabled(user: str, disabled: bool) -> None:
     with _lock:
         users = list_users()
         if user not in users:
-            raise ValueError(f"El usuario {user} no existe")
+            raise ValueError(f"User {user} does not exist")
         users[user]["disabled"] = disabled
         _write(USERS_PATH, users)
     if disabled:
@@ -146,7 +146,7 @@ def login(user: str, password: str, ip: str) -> tuple[str | None, str]:
     for key in (f"u:{user}", f"ip:{ip}"):
         wait = _blocked(key)
         if wait:
-            return None, f"Demasiados intentos. Vuelve a probar en {int(wait // 60) + 1} min."
+            return None, f"Too many attempts. Try again in {int(wait // 60) + 1} min."
     rec = list_users().get(user)
     ok = False
     if rec and not rec.get("disabled"):
@@ -156,7 +156,7 @@ def login(user: str, password: str, ip: str) -> tuple[str | None, str]:
     if not ok:
         _fail(f"u:{user}")
         _fail(f"ip:{ip}")
-        return None, "Usuario o contrasena incorrectos"
+        return None, "Wrong username or password"
     _fails.pop(f"u:{user}", None)
     _fails.pop(f"ip:{ip}", None)
     token = secrets.token_urlsafe(32)
@@ -209,7 +209,7 @@ def prefs(user: str) -> dict:
 def save_prefs(user: str, data: dict) -> dict:
     clean = {str(k)[:40]: str(v)[:2000] for k, v in (data or {}).items()}
     if len(json.dumps(clean)) > 50_000:
-        raise ValueError("Preferencias demasiado grandes")
+        raise ValueError("Preferences too large")
     _write(os.path.join(user_dir(user), "prefs.json"), clean)
     return clean
 

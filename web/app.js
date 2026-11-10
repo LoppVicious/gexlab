@@ -693,7 +693,7 @@ function frame(W, H, inner, d, exp, title) {
     const dte = DTE_LABEL[state.dte] || "";
     head = `<rect x="0" y="0" width="${W}" height="${H}" rx="22" fill="${C.surface}"/>
       <text x="92" y="44" font-family="${SANS}" font-size="22" font-weight="600" fill="${C.text}">${esc(d.symbol)}</text>
-      <text x="${92 + d.symbol.length * 14 + 14}" y="44" font-family="${SANS}" font-size="18" fill="${C.muted}">${title}, ${dte}</text>`;
+      <text x="${92 + d.symbol.length * 14 + 14}" y="44" font-family="${SANS}" font-size="18" fill="${C.muted}">${esc(title)}, ${dte}</text>`;
     if (!state.inReport) {
       // marca de agua: firma arriba a la derecha y el logo grande y muy tenue en el centro, detras del grafico
       const z = Math.min(W, H) * 0.42;

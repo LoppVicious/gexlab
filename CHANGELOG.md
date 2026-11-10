@@ -68,6 +68,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   desde las 16:00 ET, 22:00 en España) en vez de al día siguiente a las 13:45. Se toma de la liquidación diaria de CBOE hasta que llega a sus archivos históricos, de
   madrugada; mientras tanto, el tooltip de cada vencimiento da el open interest de la sesión anterior y el volumen
   como pendiente.
+- **Informe (Export ▸ Report):** fallaba con «Could not create the image» porque el título «Call & put impact»
+  llevaba un `&` sin escapar y el SVG del informe dejaba de ser XML válido. Afectaba también a copiar o descargar
+  la imagen de la vista Impact.
 
 ## 2026-11-09 — Menú Exportar más corto
 

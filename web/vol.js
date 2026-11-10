@@ -39,7 +39,7 @@ function showVol() {
   if (!vol.data || vol.sym !== sym || Date.now() - vol.at > 300000) loadVol(); else { renderVol(); setStatus("", volStatus()); }
 }
 
-function volStatus() { return vol.data ? `Volatility · ${nyHHMM(vol.data.generado)}` : ""; }
+function volStatus() { return vol.data ? `Volatility at ${nyHHMM(vol.data.generado)}` : ""; }
 
 async function loadVol(refresh = false) {
   const sym = (state.symbol || "SPX").toUpperCase();
@@ -362,7 +362,7 @@ function volTip(e) {
       const p = vol.show.d1 && g.prevOf(sm);
       const pi = p ? p.K.indexOf(sm.K[bi]) : -1;
       return `<div class="r"><span style="color:${volC(j)}">${volDate(sm.exp)}</span><b>${pct(sm.iv[bi], 2)}${pi >= 0 ? ` <span class="vt-prev">(${pct(p.iv[pi], 2)})</span>` : ""}</b></div>
-        <div class="r vt-sub">Strike ${fmtNum(sm.K[bi], sm.K[bi] < 100 ? 1 : 0)} · Δ ${fmtNum(sm.delta[bi], 2)}</div>`;
+        <div class="r vt-sub">Strike ${fmtNum(sm.K[bi], sm.K[bi] < 100 ? 1 : 0)}, Δ ${fmtNum(sm.delta[bi], 2)}</div>`;
     }).join("");
     html = `<div class="t">${g.byDelta ? "IV by delta" : "IV by strike"}</div>${rows}`;
     if (hl) { hl.setAttribute("x1", x); hl.setAttribute("x2", x); hl.setAttribute("visibility", "visible"); }

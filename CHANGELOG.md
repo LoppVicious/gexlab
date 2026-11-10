@@ -45,6 +45,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   incluidos los vencimientos semanales; el último cierre oficial pasa a ser la sesión anterior. Cuando CBOE publica
   la liquidación, la principal vuelve a ser el cierre oficial («Last close» con su fecha). El panel de la izquierda
   (forma, VIX, M1, M2, pendiente, futuro a 30 días y racha) también pasa a directo mientras exista esa curva.
+- **Sin el separador «·» en la web:** los textos de estado, tooltips, títulos de pestaña, la imagen exportada y
+  la administración usan comas, paréntesis o guion (por ejemplo «Live 17:04, implied by VIX options»).
 
 **Corregido**
 - **Saltos del skew en el spot:** la IV se calculaba con el spot, y antes de la apertura (o con dividendos en los ETF)

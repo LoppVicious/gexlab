@@ -57,7 +57,7 @@
     // arriba el ciclo completo (cada 15 min), abajo el ligero de los indices en tiempo real (cada 5 min)
     const okN = delDia.filter((r) => r.resultado === "success").length, badN = delDia.filter((r) => r.resultado && r.resultado !== "success" && r.resultado !== "cancelled").length;
     $("dayS").textContent = e.ejecuciones.motor == null ? "GitHub did not return the runs" :
-      `${delDia.length - nRap} full and ${nRap} index runs · ${okN} finished${badN ? ` · ${badN} failed` : ""} · New York time`;
+      `${delDia.length - nRap} full and ${nRap} index runs, ${okN} finished${badN ? `, ${badN} failed` : ""} (New York time)`;
     const hist = e.historial && e.historial.session === dia;
     let h = `<div class="mkt" style="left:${xp(570)};right:calc(100% - ${xp(960)})" title="Market open 09:30–16:00 ET"></div>`;
     h += `<div class="hist${hist ? " done" : ""}" style="left:${xp(990)}" title="${hist ? `Daily history saved (${esc(e.historial.saved || "")})` : "Daily history: 16:30 ET"}"></div>`;
@@ -65,7 +65,7 @@
       const a = et(r.inicio), b = r.fin ? et(r.fin) : et(Date.now());
       const cls = r.estado !== "completed" ? "live" : r.resultado === "success" ? "" : r.resultado === "cancelled" ? "" : "err";
       const w = Math.max(0, b.min - a.min);
-      const tip = `${esRap(r) ? "Real-time indices" : "Full cycle"} · ${a.hm} ET · ${r.estado !== "completed" ? "running" : r.resultado === "success" ? "finished" : r.resultado} · ${durTxt(durS(r.inicio, r.fin))}${r.evento === "workflow_dispatch" ? " · launched from the web" : ""}`;
+      const tip = `${esRap(r) ? "Real-time indices" : "Full cycle"}, ${a.hm} ET, ${r.estado !== "completed" ? "running" : r.resultado === "success" ? "finished" : r.resultado}, ${durTxt(durS(r.inicio, r.fin))}${r.evento === "workflow_dispatch" ? ", launched from the web" : ""}`;
       h += `<a class="run ${cls}${esRap(r) ? " rap" : ""}" href="${esc(r.url)}" target="_blank" rel="noopener" style="left:${xp(a.min)};width:calc(${(w / (T1 - T0) * 100).toFixed(2)}% )" title="${esc(tip)}" aria-label="${esc(tip)}"></a>`;
     }
     if (dia === hoy) { const n = et(Date.now()).min; if (n > T0 && n < T1) h += `<div class="now" style="left:${xp(n)}" title="Now (${et(Date.now()).hm} ET)"></div>`; }
@@ -90,7 +90,7 @@
       <dt>Errors</dt><dd>${nerr}</dd>
       <dt>Saved views</dt><dd>${e.config ? e.config.vistas : "—"}</dd>
       <dt title="Light cycle for SPX, NDX, RUT, SPY, QQQ and IWM every 5 min while the market is open">Real-time indices</dt><dd>${
-        e.rapido ? `${esc(e.rapido.ultimo_ciclo.slice(11, 16))} · ${(e.rapido.tickers || []).length}/6${(e.rapido.errores || []).length ? ` · ${e.rapido.errores.length} err.` : ""}` : "—"}</dd></dl></div>`;
+        e.rapido ? `${esc(e.rapido.ultimo_ciclo.slice(11, 16))}, ${(e.rapido.tickers || []).length}/6${(e.rapido.errores || []).length ? `, ${e.rapido.errores.length} err.` : ""}` : "—"}</dd></dl></div>`;
     const hOk = hi ? (hi.ok || []).length : 0, hBad = hi ? (hi.errores || []).length : 0;
     const hState = !hi ? "err" : hBad ? "warn" : "ok";
     const fH = `<div class="kf"><h3><span class="state ${hState}"></span>Daily history</h3>
@@ -107,12 +107,12 @@
     const fU = `<div class="kf"><h3><span class="state ${uState}"></span>Storage</h3>
       <div class="big">${u ? fmtN(u.total / 1e9, 2) : "—"}<small>GB of 10 free</small></div>
       <div class="meter" role="img" aria-label="${fmtN(pct, 0)}% of the free space"><i style="width:${pct.toFixed(1)}%"></i></div>
-      <dl>${top.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${bytes(v.bytes)} · ${fmtN(v.n)}</dd>`).join("") ||
+      <dl>${top.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${bytes(v.bytes)} in ${fmtN(v.n)} files</dd>`).join("") ||
         "<dt>Not measured</dt><dd>measured when the daily history is saved</dd>"}
       ${u ? `<dt>Measured</dt><dd>${esc(u.fecha || "")}</dd>` : ""}</dl></div>`;
     $("facts").innerHTML = fM + fH + fU;
     const us = e.usuarios || {};
-    $("usuSum").textContent = `${us.activos || 0} active of ${us.total || 0} · ${us.conectados || 0} signed in`;
+    $("usuSum").textContent = `${us.activos || 0} active of ${us.total || 0}, ${us.conectados || 0} signed in`;
   }
 
   function drawErrs(e) {

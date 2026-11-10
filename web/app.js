@@ -133,7 +133,7 @@ function trimZ(x) { return fmtNum(x, x % 1 === 0 ? 0 : 1).replace("−", ""); }
 const MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 function ddmm(iso) { return iso ? `${MESES[+iso.slice(5, 7) - 1]} ${+iso.slice(8, 10)}` : ""; }
 function fullDate(iso) { return iso ? `${ddmm(iso)}, ${iso.slice(0, 4)}` : ""; }
-// vencimientos: "Fri Nov 13 · weekly · 5 d" (tipo segun el motor: diario, semanal o mensual)
+// vencimientos: "Fri Nov 13, weekly, 5 d" (tipo segun el motor: diario, semanal o mensual)
 const DIAS_SEM = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const KIND_EN = { diario: "daily", semanal: "weekly", mensual: "monthly" };
 function expDays(d, iso) {
@@ -146,7 +146,7 @@ function expText(d, iso, withKind = true) {
   const e = (d.expiries || []).find((x) => x.date === iso);
   const n = expDays(d, iso);
   const wd = DIAS_SEM[new Date(iso + "T12:00:00Z").getUTCDay()];
-  return `${wd} ${ddmm(iso)}${withKind && e ? ` · ${KIND_EN[e.kind] || e.kind}` : ""}${n == null ? "" : n <= 0 ? " · today" : ` · ${n} d`}`;
+  return `${wd} ${ddmm(iso)}${withKind && e ? `, ${KIND_EN[e.kind] || e.kind}` : ""}${n == null ? "" : n <= 0 ? ", today" : `, ${n} d`}`;
 }
 function restText(d) {
   const rest = (d.expiries || []).filter((x) => x.date !== d.front_expiry);
@@ -156,7 +156,7 @@ function restText(d) {
   const parts = [c.mensual && `${c.mensual} monthly`, c.semanal && `${c.semanal} weekly`,
     c.diario && `${c.diario} daily`].filter(Boolean).join(", ");
   const share = rest.reduce((a, x) => a + (x.share || 0), 0);
-  return `Other: ${ddmm(rest[0].date)}–${ddmm(rest[rest.length - 1].date)} (${parts}) · ${Math.round(share * 100)}% of gamma`;
+  return `Other: ${ddmm(rest[0].date)}–${ddmm(rest[rest.length - 1].date)} (${parts}), ${Math.round(share * 100)}% of gamma`;
 }
 function ordinal(n) { const k = Math.round(n), t = k % 100, u = k % 10; return k + (t >= 11 && t <= 13 ? "th" : u === 1 ? "st" : u === 2 ? "nd" : u === 3 ? "rd" : "th"); }
 function fmtPct(v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 2) + "%"; }
@@ -959,9 +959,9 @@ function expiryCaption(d) {
     const nf = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
     const sum = (a) => a.reduce((x, v) => x + (v || 0), 0), f = (v) => (state.oiMode === "chg" && v > 0 ? "+" : "") + nf.format(v);
     if (state.oiMode === "pos") return o.net_pos ? `Estimated dealer net position at each strike, in contracts: ${state.pos === "flow" ? "as estimated by flow mode" : "standard convention, long calls and short puts"}. Total in range: <b>${f(sum(o.net_pos))}</b>` : "";
-    if (state.oiMode !== "chg") return `Open contracts in range (previous close): calls <b>${f(sum(o.calls))}</b> · puts <b>${f(sum(o.puts))}</b> · put/call ratio <b>${fmtNum(sum(o.puts) / Math.max(1, sum(o.calls)), 2)}</b>`;
+    if (state.oiMode !== "chg") return `Open contracts in range (previous close): calls <b>${f(sum(o.calls))}</b>, puts <b>${f(sum(o.puts))}</b>, put/call ratio <b>${fmtNum(sum(o.puts) / Math.max(1, sum(o.calls)), 2)}</b>`;
     if (!o.chg_calls) return "";
-    return `Change in the ${ddmm(o.prev_date)} session (the OCC publishes it every morning): calls <b>${f(sum(o.chg_calls))}</b> · puts <b>${f(sum(o.chg_puts))}</b>. Up, new contracts; down, closed ones`;
+    return `Change in the ${ddmm(o.prev_date)} session (the OCC publishes it every morning): calls <b>${f(sum(o.chg_calls))}</b>, puts <b>${f(sum(o.chg_puts))}</b>. Up, new contracts; down, closed ones`;
   }
   if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
   const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
@@ -970,7 +970,7 @@ function expiryCaption(d) {
     return labs.map((l, j) => `<span class="capexp">${sw(cols[j])}${esc(l)}${sh[j] != null ? ` <b>${Math.round(sh[j] * 100)}%</b>` : ""}</span>`).join("");
   }
   const f = (d.expiries || []).find((x) => x.date === d.front_expiry);
-  let h = `${sw(C.posFront)}<b>Next expiration:</b> ${esc(expText(d, d.front_expiry))}${f ? ` · ${Math.round(f.share * 100)}% of gamma` : ""}`;
+  let h = `${sw(C.posFront)}<b>Next expiration:</b> ${esc(expText(d, d.front_expiry))}${f ? `, ${Math.round(f.share * 100)}% of gamma` : ""}`;
   if (!d.expiries || d.expiries.length > 1) h += `<span class="capsep"></span>${sw(C.pos)}${esc(restText(d))}`;
   return h;
 }
@@ -1047,7 +1047,7 @@ function paintSide(d) {
   $("facts").hidden = false;
   $("emLabel").textContent = `1σ range, ${rangeLabel(em)}`;
   $("emVal").textContent = em ? `±${fmtNum(em.pct, 2)}%` : "—";
-  $("emRange").textContent = em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}${m5 ? ` · 5 sessions ±${fmtNum(m5.pct, 2)}%` : ""}` : "no ATM IV";
+  $("emRange").textContent = em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}${m5 ? ` (5 sessions ±${fmtNum(m5.pct, 2)}%)` : ""}` : "no ATM IV";
   $("emRange").title = `1 standard deviation range (68.3%) implied by options: ATM variance interpolated over market hours.` +
     (st ? ` ATM straddle for ${ddmm(st.expiry)}: ±${fmtNum(st.pct, 2)}% (average move, ≈ 0.8σ).` : "");
   const vf = t.vanna_flow, cf = t.charm_flow;
@@ -1072,7 +1072,7 @@ function paintSide(d) {
         : d.flow_info.days === 1 ? `flow: only the last session's volume (${fmtNum(d.flow_info.share_flipped * 100, 0)}% of the position adjusted)`
         : `flow, ${d.flow_info.days} sessions (${fmtNum(d.flow_info.share_flipped * 100, 0)}% adjusted)`)
       : "standard convention"}</dd>
-    <dt>Risk-free rate</dt><dd title="${d.rate && d.rate.src === "IRX" ? "13-week Treasury bill (CBOE IRX), continuously compounded" : "Fixed value: the Treasury bill rate could not be read"}">${d.rate ? fmtNum(d.rate.r * 100, 2) + "%" + (d.rate.src === "IRX" ? " · 13-wk bill" : " · fixed") : "—"}</dd>
+    <dt>Risk-free rate</dt><dd title="${d.rate && d.rate.src === "IRX" ? "13-week Treasury bill (CBOE IRX), continuously compounded" : "Fixed value: the Treasury bill rate could not be read"}">${d.rate ? fmtNum(d.rate.r * 100, 2) + "%" + (d.rate.src === "IRX" ? " (13-wk bill)" : " (fixed)") : "—"}</dd>
     <dt>Data time</dt><dd>${esc(d.timestamp ? d.timestamp.slice(0, 16) + " UTC" : "—")}</dd>`;
 }
 
@@ -1094,8 +1094,8 @@ function dataClosed(d) {
 function dataStatus(d) {
   if (!d.quote_time || !d.computed_at) return `Data ${nyWhen(d.quote_time || d.computed_at)}`;
   if (!dataClosed(d)) return `Data ${nyWhen(d.computed_at)}`;
-  const pre = d.spot_implied && d.spot_implied.use ? " · pre-market" : "";
-  return `Calculated ${nyWhen(d.computed_at)}${pre} · options: close ${nyWhen(d.quote_time)}`;
+  const pre = d.spot_implied && d.spot_implied.use ? " (pre-market)" : "";
+  return `Calculated ${nyWhen(d.computed_at)}${pre}, options from the close at ${nyWhen(d.quote_time)}`;
 }
 function dataTitle(d) {
   const src = d.source !== "tradier" ? "CBOE (15 min delay)"
@@ -1180,7 +1180,7 @@ async function load(refresh = false, silent = false) {
     $("refreshBtn").classList.remove("spin");
     anaStatus("", dataStatus(d));
     $("status").title = dataTitle(d);
-    document.title = `${d.symbol} ${fmtSpot(d.spot)} · GEX Lab`;
+    document.title = `${d.symbol} ${fmtSpot(d.spot)} - GEX Lab`;
   } catch (e) {
     if (e.name === "AbortError") return;
     $("refreshBtn").classList.remove("spin");
@@ -1299,8 +1299,8 @@ function syncSet() {
   const BN = { net: "Total", split: "Calls and puts", expiry: "By expiration" };
   const nl = (state.greek === "gamma" || state.greek === "delta") ? state.lines.size : 0;
   $("setLab").textContent = strike ? GREEK_N[state.greek] +
-    (state.greek === "gamma" ? ` · ${BN[state.bars]}` : state.greek === "delta" ? ` · ${BN[state.dbars]}` : state.greek === "oi" ? ` · ${{ chg: "Daily change", pos: "Dealer net" }[state.oiMode] || "Total"}` : "") +
-    (nl ? ` · ${nl} line${nl > 1 ? "s" : ""}` : "")
+    (state.greek === "gamma" ? `, ${BN[state.bars]}` : state.greek === "delta" ? `, ${BN[state.dbars]}` : state.greek === "oi" ? `, ${{ chg: "Daily change", pos: "Dealer net" }[state.oiMode] || "Total"}` : "") +
+    (nl ? `, ${nl} line${nl > 1 ? "s" : ""}` : "")
     : v === "map" ? (state.mapMode === "total" ? "Total map" : "Map by strike") : "Levels";
   if (!$("chartSet").hidden) renderSet();
 }
@@ -1698,7 +1698,7 @@ async function exportReport() {
   const date = fullDate(d.session || (d.computed_at || "").slice(0, 10));
   s += T(56, 74, esc(d.symbol), { fs: 46, w: 700 });
   s += T(56 + textW(d.symbol, 46) * 1.05 + 20, 74, `${esc(d.name || "")}${d.combo ? ` + ${esc(d.combo.proxy)}` : ""}`, { fs: 22, c: C.muted });
-  s += T(56, 112, `${dte} · ${date} · ${state.pos === "flow" ? "dealers from flow" : "standard convention"}`, { fs: 19, c: C.faint });
+  s += T(56, 112, `${dte}, ${date}, ${state.pos === "flow" ? "dealers from flow" : "standard convention"}`, { fs: 19, c: C.faint });
   s += T(56, 200, fmtSpot(d.spot), { fs: 76, w: 600 });
   const chg = d.chg_pct;
   if (chg != null && !d.spot_manual) s += T(56 + textW(fmtSpot(d.spot), 76) * 1.02 + 22, 200, fmtPct(chg), { fs: 28, w: 500, c: chg >= 0 ? C.put : C.call });
@@ -1780,7 +1780,7 @@ async function exportReport() {
 
   // --- pie
   s += brandSign(W - 56, 74, 26);
-  s += T(56, H - 28, `GEX Lab · options from ${d.source === "tradier" ? "Tradier (real time at calculation)" : "CBOE (~15 min delay)"} · open interest from the previous close · not financial advice`, { fs: 17, c: C.faint });
+  s += T(56, H - 28, `GEX Lab. Options from ${d.source === "tradier" ? "Tradier (real time at calculation)" : "CBOE (~15 min delay)"}, open interest from the previous close. Not financial advice`, { fs: 17, c: C.faint });
   s += T(W - 56, H - 28, `Generated ${fullDate(new Date().toISOString().slice(0, 10))} ${hhmm(new Date())}`, { a: "end", fs: 17, c: C.faint });
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}${impSvg}${strikeSvg}${mapSvg}</svg>`;
@@ -2326,7 +2326,7 @@ function macroTip(tipId, wrapEl, e, html) {
 function vixStatus() {
   const d = vx.data;
   if (!d) return "";
-  const t = d.term_time ? ` · indices ${hhmm(utcDate(d.term_time))}` : "";
+  const t = d.term_time ? `, indices ${hhmm(utcDate(d.term_time))}` : "";
   return `Close ${ddmm(d.date)}${t}`;
 }
 
@@ -2365,7 +2365,7 @@ function renderVix() {
   const m1x = lv ? { expiry: lv.m1_exp, days: lv.m1_days } : d.points[0], m2x = lv ? { expiry: lv.m2_exp, days: lv.m2_days } : d.points[1];
   const st = $("vxState");
   st.textContent = SHAPE_LABEL[sh] || v.shape.label; st.className = "mstate " + SHAPE_CLASS[sh];
-  $("vxSub").textContent = lv ? `Live ${hhmm(utcDate(lv.time))} · implied by VIX options` : `Official close, ${longDate(d.date)}`;
+  $("vxSub").textContent = lv ? `Live ${hhmm(utcDate(lv.time))}, implied by VIX options` : `Official close, ${longDate(d.date)}`;
   const spr = `<b>${sgnPct(v.spread)}</b>`, bas = `<b>${sgnPct(v.basis)}</b>`;
   const reads = {
     contango: `The second expiration trades ${spr} over the first, and the first ${bas} over the VIX. Normal structure: the market isn't pricing immediate stress and futures tend to converge down toward the VIX.`,
@@ -2379,14 +2379,14 @@ function renderVix() {
   const ratio = d.vix_vix3m;
   const fact = (l, v, s, warn, g) => `<div class="fact"><span class="fl"${g ? ` data-g="${g}"` : ""}>${l}</span><strong>${v}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
   $("vxFacts").innerHTML = [
-    lv && lv.vix ? fact("VIX", fmtNum(lv.vix, 2), `now · close ${fmtNum(d.vix_close, 2)}`, false, "vix")
-      : fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `at the close · now ${fmtNum(live.value, 2)}` : "at the close", false, "vix"),
-    fact(`M1 · ${monLabel(m1x.expiry)}`, fmtNum(v.m1, 2), `${m1x.days} days · ${sgnPct(v.basis)} over the VIX`, false, "m1"),
-    fact(`M2 · ${monLabel(m2x.expiry)}`, fmtNum(v.m2, 2), `${m2x.days} days`, false, "m2"),
+    lv && lv.vix ? fact("VIX", fmtNum(lv.vix, 2), `now (close ${fmtNum(d.vix_close, 2)})`, false, "vix")
+      : fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `at the close (now ${fmtNum(live.value, 2)})` : "at the close", false, "vix"),
+    fact(`M1 ${monLabel(m1x.expiry)}`, fmtNum(v.m1, 2), `${m1x.days} days, ${sgnPct(v.basis)} over the VIX`, false, "m1"),
+    fact(`M2 ${monLabel(m2x.expiry)}`, fmtNum(v.m2, 2), `${m2x.days} days`, false, "m2"),
     fact("M2 / M1 slope", sgnPct(v.spread), `${ordinal(v.spread_pct_rank)} percentile of the last year`, false, "slope"),
     fact("30-day future", fmtNum(v.cm30, 2), "interpolated between expirations", false, "cm30"),
     fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "above 1: short-term stress" : "below 1: normal structure") : "no data", ratio >= 1, "vix3m"),
-    fact("Streak", `${v.streak} ${v.streak === 1 ? "session" : "sessions"}`, `${lv ? "counting today, " : ""}in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
+    fact("Streak", `${v.streak} ${v.streak === 1 ? "session" : "sessions"}`, `${lv ? "counting today, " : ""}in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1), ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
   const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
   const lvNote = d.live ? " Today: each future implied by VIX options (put-call parity) until the settlement is published; small points, weekly expirations." : "";
@@ -2605,7 +2605,7 @@ function renderCot() {
   const d = cot.data;
   if (!d) return;
   $("cotDate").innerHTML = d.report_date
-    ? `Positions as of <b>${longDate(d.report_date)}</b> · published ${longDate(d.release)}`
+    ? `Positions as of <b>${longDate(d.report_date)}</b>, published ${longDate(d.release)}`
     : "No report";
   $("cotWinSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cot.win)));
   let html = "", grp = "";
@@ -2615,9 +2615,9 @@ function renderCot() {
     const cells = COT_SHOW.map(([k]) => {
       const g = m.groups[k];
       const dc = g.chg > 0 ? "up" : g.chg < 0 ? "dn" : "";
-      return `<td class="gs" title="Long ${fmtNum(g.long)} · short ${fmtNum(g.short)} · net ${fmtNum(g.net)} (${g.pct_oi != null ? sgnPct(g.pct_oi) : "—"} of open interest)"><span class="lv">${fmtBig(g.net)}</span><span class="dl ${dc}">${g.chg > 0 ? "+" : ""}${fmtBig(g.chg)}</span></td><td class="l">${cotIdx(g)}</td>`;
+      return `<td class="gs" title="Long ${fmtNum(g.long)}, short ${fmtNum(g.short)}, net ${fmtNum(g.net)} (${g.pct_oi != null ? sgnPct(g.pct_oi) : "—"} of open interest)"><span class="lv">${fmtBig(g.net)}</span><span class="dl ${dc}">${g.chg > 0 ? "+" : ""}${fmtBig(g.chg)}</span></td><td class="l">${cotIdx(g)}</td>`;
     }).join("");
-    html += `<tr data-k="${m.key}" class="${m.key === cot.sel ? "sel" : ""}"><td class="l"><span class="tk">${esc(m.name)}</span><span class="nm">${esc(m.key)}${m.note ? " · " + esc(m.note) : ""}</span></td>
+    html += `<tr data-k="${m.key}" class="${m.key === cot.sel ? "sel" : ""}"><td class="l"><span class="tk">${esc(m.name)}</span><span class="nm">${esc(m.key)}${m.note ? " (" + esc(m.note) + ")" : ""}</span></td>
       <td><span class="lv">${fmtBig(m.oi)}</span><span class="dl ${m.oi_chg > 0 ? "up" : m.oi_chg < 0 ? "dn" : ""}">${m.oi_chg > 0 ? "+" : ""}${fmtBig(m.oi_chg)}</span></td>${cells}</tr>`;
   }
   $("cotBody").innerHTML = html;
@@ -2730,7 +2730,7 @@ function bindMacro() {
 /* ============================================================ resumen */
 const sm = { data: null, at: 0, ctrl: null };
 const SUM_LV = [["call_wall", "Call Wall", "call"], ["flip", "Gamma Flip", "amber"], ["vt", "Vol Trigger", "vt"], ["put_wall", "Put Wall", "put"]];
-function sumStatus() { const d = sm.data; return d ? `Summary · ${nyHHMM(d.computed_at)}` : ""; }
+function sumStatus() { const d = sm.data; return d ? `Summary at ${nyHHMM(d.computed_at)}` : ""; }
 
 async function loadSummary(refresh = false) {
   if (sm.ctrl) sm.ctrl.abort();
@@ -2796,7 +2796,7 @@ function sumIndexCard(c) {
     <ul class="slv">${li}</ul>
     <div class="sfoot"><span data-g="range1s">1σ range, ${rangeLabel(em)}</span><b>${emTxt}</b></div>
     <div class="sfoot"><span data-g="range1s">1σ range, 5 sessions</span><b>${m5Txt}</b></div>
-    <div class="sfoot"><span data-g="gex1">GEX per 1%</span><b>${fmtBig(c.net_per_pct, true)}${c.prev_net != null ? ` <span style="color:var(--faint);font-weight:400">· ${ddmm(c.prev_date)} ${fmtBig(c.prev_net, true)}</span>` : ""}</b></div>
+    <div class="sfoot"><span data-g="gex1">GEX per 1%</span><b>${fmtBig(c.net_per_pct, true)}${c.prev_net != null ? ` <span style="color:var(--faint);font-weight:400">(${ddmm(c.prev_date)}: ${fmtBig(c.prev_net, true)})</span>` : ""}</b></div>
   </section>`;
 }
 
@@ -2816,8 +2816,8 @@ function renderSummary() {
   if (!d) return;
   const s = d.session;
   const dateTxt = d.indices.find((c) => !c.error);
-  $("sumSub").textContent = dateTxt ? `Options data from ${nyHHMM(dateTxt.quote_time)} on ${longDate(dateTxt.quote_time.slice(0, 10))} · risk-free rate ${fmtNum(d.rate.r * 100, 2)}%` : "";
-  $("sumSess").innerHTML = s.open ? `Market open · closes at <b>${localTime(s.close_utc)}</b>` : `Market closed · opens <b>${localTime(s.next_open_utc, true)}</b>`;
+  $("sumSub").textContent = dateTxt ? `Options data from ${nyHHMM(dateTxt.quote_time)} on ${longDate(dateTxt.quote_time.slice(0, 10))}, risk-free rate ${fmtNum(d.rate.r * 100, 2)}%` : "";
+  $("sumSess").innerHTML = s.open ? `Market open, closes at <b>${localTime(s.close_utc)}</b>` : `Market closed, opens <b>${localTime(s.next_open_utc, true)}</b>`;
   $("sumIdx").innerHTML = d.indices.map(sumIndexCard).join("");
 
   const v = d.vix;
@@ -2827,7 +2827,7 @@ function renderSummary() {
       <div class="sspark" id="sumSpark"></div>
       <div class="sfacts">
         <div><span data-g="vix">VIX</span><b>${fmtNum(v.vix_close, 2)}</b></div>
-        <div><span data-g="m1">M1 · ${monLabel(v.m1_exp)}</span><b>${fmtNum(v.m1, 2)}</b></div>
+        <div><span data-g="m1">M1 ${monLabel(v.m1_exp)}</span><b>${fmtNum(v.m1, 2)}</b></div>
         <div><span data-g="slope">M2 / M1</span><b>${sgnPct(v.spread)}</b></div>
         <div><span data-g="vix3m">VIX / VIX3M</span><b style="color:${v.vix_vix3m >= 1 ? C.amber : C.text}">${v.vix_vix3m ? fmtNum(v.vix_vix3m, 2) : "—"}</b></div>
       </div>
@@ -2837,8 +2837,8 @@ function renderSummary() {
   const c = d.cot;
   if (c.error) $("sumCot").innerHTML = `<div class="st">COT</div><p class="empty">${esc(c.error)}</p>`;
   else {
-    const list = c.extremes.slice(0, 7).map((x) => `<li data-k="${x.key}"><span>${esc(x.name)} · ${esc(x.group)}</span><em>net ${fmtBig(x.net)} (${x.chg > 0 ? "+" : ""}${fmtBig(x.chg)})</em><b>${fmtNum(x.index, 0)}</b></li>`).join("");
-    $("sumCot").innerHTML = `<div class="sh"><span class="st">COT extremes<small>3-year index · ${c.report_date ? ddmm(c.report_date) : ""}</small></span><span class="pill"><i style="background:var(--amber)"></i>${c.extremes.length} ${c.extremes.length === 1 ? "extreme" : "extremes"}</span></div>
+    const list = c.extremes.slice(0, 7).map((x) => `<li data-k="${x.key}"><span>${esc(x.name)} (${esc(x.group)})</span><em>net ${fmtBig(x.net)} (${x.chg > 0 ? "+" : ""}${fmtBig(x.chg)})</em><b>${fmtNum(x.index, 0)}</b></li>`).join("");
+    $("sumCot").innerHTML = `<div class="sh"><span class="st">COT extremes<small>3-year index, ${c.report_date ? ddmm(c.report_date) : ""}</small></span><span class="pill"><i style="background:var(--amber)"></i>${c.extremes.length} ${c.extremes.length === 1 ? "extreme" : "extremes"}</span></div>
       ${list ? `<ul class="sext">${list}</ul>` : `<p class="empty">No group is above 90 or below 10 in its 3-year range.</p>`}
       <p class="sread">Above 90, the longest net position of the period; below 10, the shortest. At extremes, speculative positioning is usually read as a contrarian signal.</p>`;
   }
@@ -2996,7 +2996,7 @@ function syncNav() {
   const id = currentNav();
   for (const k of Object.keys(NAV)) { const b = $(k); if (b) { if (k === id) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); } }
   const b = $(id), pt = $("pageTitle");
-  if (pt && b) { pt.innerHTML = b.querySelector("svg").outerHTML + `<span>${esc(NAV[id].t)}</span>`; document.title = `${NAV[id].t} · GEX Lab`; }
+  if (pt && b) { pt.innerHTML = b.querySelector("svg").outerHTML + `<span>${esc(NAV[id].t)}</span>`; document.title = `${NAV[id].t} - GEX Lab`; }
 }
 function applyTheme(t) {
   t = t === "light" ? "light" : "dark";

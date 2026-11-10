@@ -339,7 +339,7 @@ def _vix_curve() -> dict:
         "date": last,
         "vix_close": spot_last,
         "points": cur,
-        "week": back(5), "month": back(21),
+        "prev": back(1), "week": back(5),
         "shape": _shape(spot_last, m1, m2),
         "m1": m1, "m2": m2,
         "spread": cur_sp, "spread_pct_rank": pct,

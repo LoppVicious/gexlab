@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX al día la misma tarde
+## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX al día y frente a la sesión anterior
 
 **Cambiado**
 - **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y
@@ -18,6 +18,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   lateral, las etiquetas y las cifras. En el Impacto calls y puts las barras por strike van en gris para no
   confundirse con la línea de gamma total.
 - **Vol Trigger / Hedge Wall** en naranja (antes ámbar como el Gamma Flip) en los dos temas.
+- **Curva VIX:** compara con la sesión anterior y con hace una semana, como el Volatility dashboard; se quita la
+  curva de hace un mes. La sesión anterior aparece en el gráfico, la leyenda y los tooltips.
 
 **Corregido**
 - **Call Wall y Put Wall (motor Perfil)** dependían del rango visible: en BABA el Hub a ±20 % daba la Call Wall en

@@ -2393,9 +2393,9 @@ function renderVixCurve() {
   const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
   const series = (c) => (c ? [...(c.vix ? [{ days: 0, v: c.vix }] : []), ...c.points.map((x) => ({ days: x.days, v: x.settle }))] : []);
   const today = [{ days: 0, v: d.vix_close, spot: true }, ...d.points.map((x) => ({ days: x.days, v: x.settle, x }))];
-  const week = series(d.week), month = series(d.month);
+  const prev = series(d.prev), week = series(d.week);
   const term = (d.term || []).map((t) => ({ days: t.days, v: t.value, sym: t.symbol }));
-  const all = [...today, ...week, ...month, ...term].map((x) => x.v).filter((v) => v != null);
+  const all = [...today, ...prev, ...week, ...term].map((x) => x.v).filter((v) => v != null);
   const xmax = Math.max(...[...today, ...term].map((x) => x.days)) * 1.04 + 4;
   const yt = niceTicks(Math.min(...all) - 0.4, Math.max(...all) + 0.4, Math.max(3, Math.round((B - T) / 55)));
   const xOf = (v) => L + (v / xmax) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
@@ -2415,8 +2415,8 @@ function renderVixCurve() {
   }
   s += `<line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="${C.axis}"/>`;
   const path = (arr) => arr.map((q, k) => `${k ? "L" : "M"}${xOf(q.days).toFixed(1)},${yOf(q.v).toFixed(1)}`).join("");
-  if (month.length) s += `<path d="${path(month)}" fill="none" stroke="${C.faint}" stroke-width="1.4" stroke-dasharray="2 4"/>`;
-  if (week.length) s += `<path d="${path(week)}" fill="none" stroke="${C.muted}" stroke-width="1.4" stroke-dasharray="6 4" stroke-opacity="0.8"/>`;
+  if (week.length) s += `<path d="${path(week)}" fill="none" stroke="${C.faint}" stroke-width="1.4" stroke-dasharray="2 4"/>`;
+  if (prev.length) s += `<path d="${path(prev)}" fill="none" stroke="${C.muted}" stroke-width="1.6" stroke-opacity="0.75"/>`;
   if (term.length) {
     s += `<path d="${path(term)}" fill="none" stroke="${C.purple}" stroke-width="1.5" stroke-opacity="0.85"/>`;
     for (const q of term) {
@@ -2440,8 +2440,8 @@ function renderVixCurve() {
   });
   for (const q of term) vx.curveGeo.push({ x: xOf(q.days), y: yOf(q.v), term: q });
   // leyenda
-  const items = [["Today", col, ""], ["1 week ago", C.muted, "6 4"], ["1 month ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
-    .filter((it, k) => (k === 1 ? week.length : k === 2 ? month.length : k === 3 ? term.length : true));
+  const items = [["Today", col, ""], [d.prev ? `Previous session (${ddmm(d.prev.date)})` : "", C.muted, ""], ["1 week ago", C.faint, "2 4"], ["VIX9D–VIX1Y indices", C.purple, ""]]
+    .filter((it, k) => (k === 1 ? prev.length : k === 2 ? week.length : k === 3 ? term.length : true));
   s += legendRows(items, W < 640 ? 8 : L, R, 14);
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
 }
@@ -2498,17 +2498,17 @@ function vixCurveTip(e) {
       (t.prev ? `<div class="r">Previous close <b>${fmtNum(t.prev, 2)}</b></div>` : "");
   } else if (best.q.spot) {
     html = `<div class="t">Spot VIX</div><div class="r">Close <b>${fmtNum(d.vix_close, 2)}</b></div>` +
-      (d.week && d.week.vix ? `<div class="r">1 week ago <b>${fmtNum(d.week.vix, 2)}</b></div>` : "") +
-      (d.month && d.month.vix ? `<div class="r">1 month ago <b>${fmtNum(d.month.vix, 2)}</b></div>` : "");
+      (d.prev && d.prev.vix ? `<div class="r">Previous session <b>${fmtNum(d.prev.vix, 2)}</b></div>` : "") +
+      (d.week && d.week.vix ? `<div class="r">1 week ago <b>${fmtNum(d.week.vix, 2)}</b></div>` : "");
   } else {
     const c = best.q.x;
     const old = (b) => (b ? (b.points.find((z) => z.expiry === c.expiry) || {}).settle : null);
-    const w = old(d.week), m = old(d.month);
+    const p = old(d.prev), w = old(d.week);
     html = `<div class="t">${monLabel(c.expiry)} future <span style="color:var(--muted);font-weight:400">expires ${ddmm(c.expiry)}</span></div>
       <div class="r">Settle <b>${fmtNum(c.settle, 2)}</b></div>
       <div class="r">Days to expiration <b>${c.days}</b></div>
+      ${p ? `<div class="r">Previous session <b>${fmtNum(p, 2)}</b></div>` : ""}
       ${w ? `<div class="r">1 week ago <b>${fmtNum(w, 2)}</b></div>` : ""}
-      ${m ? `<div class="r">1 month ago <b>${fmtNum(m, 2)}</b></div>` : ""}
       <div class="r">Open interest${c.oi_prev ? " (previous session)" : ""} <b>${fmtNum(c.oi)}</b></div>
       <div class="r">Volume <b>${c.vol == null ? "pending" : fmtNum(c.vol)}</b></div>`;
   }

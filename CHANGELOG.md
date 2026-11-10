@@ -20,9 +20,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Vol Trigger / Hedge Wall** en naranja (antes ámbar como el Gamma Flip) en los dos temas.
 - **Curva VIX:** compara con la sesión anterior y con hace una semana, como el Volatility dashboard; se quita la
   curva de hace un mes. La sesión anterior aparece en el gráfico, la leyenda y los tooltips.
-- **Curva VIX en directo:** durante la sesión, una línea con el precio de cada futuro VX implícito en las opciones del
-  VIX (paridad put-call), actualizada en cada ciclo del motor e incluidos los vencimientos semanales. Se ve desde la
-  apertura hasta que CBOE publica la liquidación del día; la curva oficial lleva en la leyenda la fecha de su cierre (p. ej. «Close (Nov 9)»).
+- **Curva VIX en directo:** con el mercado abierto, la línea principal («Today») es la curva de hoy: el precio de
+  cada futuro VX implícito en las opciones del VIX (paridad put-call), actualizado en cada ciclo del motor e
+  incluidos los vencimientos semanales; el último cierre oficial pasa a ser la sesión anterior. Cuando CBOE publica
+  la liquidación, la principal vuelve a ser el cierre oficial («Last close» con su fecha).
 
 **Corregido**
 - **Call Wall y Put Wall (motor Perfil)** dependían del rango visible: en BABA el Hub a ±20 % daba la Call Wall en

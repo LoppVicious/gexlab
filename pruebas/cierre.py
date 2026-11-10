@@ -14,11 +14,12 @@ import almacen  # noqa: E402
 import gex_engine as g  # noqa: E402
 import motor  # noqa: E402
 
-real_now = g.now_ny
-hoy = real_now()
-while not g.is_trading_day(hoy):
-    hoy = g.prev_trading_day(hoy)
-fake = g.close_time(hoy) + motor.timedelta(minutes=40)
+# las 16:40 ET de la sesion a la que pertenece la cadena que da CBOE ahora (de madrugada o en tickers con poco
+# volumen sigue siendo la del dia anterior): asi la hora simulada y los datos son coherentes
+from datetime import datetime  # noqa: E402
+ses = g.session_date(g.parse_chain(g.fetch_chain("KWEB"))["timestamp"])
+fake = g.close_time(datetime.strptime(ses, "%Y-%m-%d")) + motor.timedelta(minutes=40)
+g._cache.clear()
 g.now_ny = lambda: fake
 print("hora simulada", fake)
 

@@ -24,6 +24,16 @@ Navegador
 Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
 El motor calcula siempre el VIX (`motor.SIEMPRE`), esté o no en las listas de los usuarios.
 
+**Pasada post-cierre (`motor.fase_cierre`):** los tickers del historial diario (`config/historial500.json`) que no
+están en ninguna lista se calculan una vez por sesión, a partir de las 16:20 ET (cierre + 20 min), dentro de los ciclos
+de 15 min y con el mismo `_ticker` que las listas: historial de niveles, flujo, copia de la cadena (la del cierre:
+`save_chain_snapshot` guarda tras el cierre si la sesión aún no tiene copia), punto de volatilidad (`ivsurf_`),
+paquete y `vol.json`. Va por turnos hasta `CIERRE_PRESUPUESTO_S` del ciclo; los hechos se marcan en
+`history/_cierre.json`. Así el Volatility dashboard (cambio diario de la matriz, sesión anterior, percentiles 10-90),
+el Histórico y el flujo acumulan historia para toda la lista, y la web abre esos tickers al instante con el último
+cierre (y lo renueva en segundo plano en sesión). El cálculo puntual (`motor.py ticker`, al abrir un ticker sin
+paquete) no guarda estado: solo el ciclo lo escribe, en cola.
+
 
 ## R2
 - `estado/estado.tar.gz`: carpetas `history/` y `cache/` (copias diarias en `estado/copias/`, se guardan 14).

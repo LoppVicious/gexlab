@@ -3,7 +3,15 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito
+## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web
+
+**Añadido**
+- **El historial diario alimenta toda la web:** cada día, tras el cierre (desde las 16:20 ET), el motor calcula
+  una vez todos los tickers de la lista del historial diario que no están en ninguna watchlist, igual que los de
+  las listas. Así acumulan historia para el Volatility dashboard (cambio diario de la matriz por strike fijo,
+  sesión anterior y hace una semana, percentiles 10-90 a partir de 15 sesiones), el Histórico y el modo flujo, y
+  se abren al instante con los datos del último cierre en lugar del aviso «Downloading … in the cloud». La pasada
+  se reparte entre los ciclos de después del cierre y no repite los ya hechos en la sesión.
 
 **Cambiado**
 - **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y

@@ -2000,11 +2000,16 @@ def _snap_path(symbol: str, day: str) -> str:
 
 def save_chain_snapshot(symbol: str, ch: dict) -> None:
     """Durante la sesion guarda la cadena (strikes, OI, IV, vencimientos) para poder repetir el mapa
-    despues, cuando CBOE ya haya borrado los contratos vencidos. Como mucho una vez cada 30 min."""
+    despues, cuando CBOE ya haya borrado los contratos vencidos. Como mucho una vez cada 30 min.
+    Tras el cierre del mismo dia solo si esa sesion aun no tiene copia (tickers que se calculan por primera vez
+    despues del cierre, como la pasada del historial diario en el motor: la copia es la del cierre)."""
     now = now_ny()
-    if not market_open(now) or os.environ.get("GEX_FIXTURE_DIR"):
+    if os.environ.get("GEX_FIXTURE_DIR"):
         return
     path = _snap_path(symbol, now.strftime("%Y-%m-%d"))
+    tras_cierre = is_trading_day(now) and now >= close_time(now) and session_date(ch["timestamp"]) == now.strftime("%Y-%m-%d")
+    if not market_open(now) and not (tras_cierre and not os.path.exists(path)):
+        return
     try:
         if os.path.exists(path) and time.time() - os.path.getmtime(path) < 1800:
             return

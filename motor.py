@@ -28,7 +28,7 @@ import sys
 import tarfile
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 os.chdir(ROOT)
@@ -469,6 +469,44 @@ def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
     g._cache.clear(); g._aux_cache.clear(); g._heat_cache.clear(); g._rate["t"] = 0.0
 
 
+CIERRE_ESPERA_MIN = 20     # CBOE publica con 15 min de retraso: antes, la cadena aun no es la del cierre
+CIERRE_PRESUPUESTO_S = 720  # el ciclo entero no pasa de ~12 min: el siguiente llega a los 15 (timeout de 20)
+
+
+def fase_cierre(st, universo: list[str]) -> None:
+    """Tickers del historial diario que no estan en ninguna lista: tras el cierre de cada sesion se calculan una vez,
+    igual que los de las listas (historial de niveles, flujo, copia de la cadena, volatilidad, paquete), para que
+    toda la web tenga su historia. Va por turnos: cada ciclo procesa los pendientes que le caben en el tiempo y los
+    hechos quedan marcados en el estado (history/_cierre.json) hasta la sesion siguiente."""
+    now = g.now_ny()
+    if not (g.is_trading_day(now) and now >= g.close_time(now) + timedelta(minutes=CIERRE_ESPERA_MIN)):
+        return
+    sesion = now.strftime("%Y-%m-%d")
+    path = os.path.join(g.HIST_DIR, "_cierre.json")
+    marca = g.read_json(path, {}) or {}
+    hechos = set(marca.get("hechos") or []) if marca.get("sesion") == sesion else set()
+    import historial500
+    lista, _ = historial500.lista_tickers(st)
+    syms = []
+    for s in lista:
+        try:
+            s = g.normalize(s)
+        except ValueError:
+            continue
+        if s not in syms and s not in universo:
+            syms.append(s)
+    pendientes = [s for s in syms if s not in hechos]
+    n = 0
+    for sym in pendientes:
+        if time.time() - _t0 > CIERRE_PRESUPUESTO_S:
+            break
+        if fase_tickers(st, [sym], []):
+            hechos.add(sym)
+            n += 1
+    g.write_json(path, {"sesion": sesion, "hechos": sorted(hechos)})
+    log(f"cierre: {n} tickers del historial diario, {len(hechos & set(syms))}/{len(syms)} hechos en la sesion {sesion}")
+
+
 def publicar_generales(st) -> None:
     import recolector
     stt = recolector.read_state()
@@ -517,6 +555,10 @@ def ciclo() -> int:
     fase_macro(st)
     fase_vistas(st, [s for s in syms if s in ok], cfg["vistas"], cfg["listas"])
     publicar_generales(st)
+    try:
+        fase_cierre(st, syms)
+    except Exception as e:  # noqa: BLE001
+        err("cierre", e)
     esperar_subidas()
     guardar_estado(st, copia=hubo_cierre)
     subir(st, "pub/motor.json", {

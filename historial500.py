@@ -60,16 +60,19 @@ RANGO = 5.0                     # el mismo rango que usa el historico de la app
 PAUSA = 0.5                     # segundos entre tickers (ademas del limite de gex_engine)
 
 _t0 = time.time()
-
-# sin efectos secundarios: carpeta temporal propia, ni historico, ni copias de la cadena, ni volatilidad realizada.
-# El flujo se guarda a mano (una vez por ticker) y no en cada compute.
-g.HIST_DIR = tempfile.mkdtemp(prefix="hist500_")
 _record_flow = g.record_flow
-g.history_update = lambda *a, **k: None
-g.history_series = lambda *a, **k: {}
-g.record_flow = lambda *a, **k: None
-g.save_chain_snapshot = lambda *a, **k: None
-g._realized_vol = lambda *a, **k: None   # ahorra una peticion a CBOE por ticker
+
+
+def _aislar() -> None:
+    """Sin efectos secundarios: carpeta temporal propia, ni historico, ni copias de la cadena, ni volatilidad
+    realizada. El flujo se guarda a mano (una vez por ticker) y no en cada compute. Solo al ejecutar el script:
+    motor.py importa este modulo para leer la lista y no debe heredar estos cambios."""
+    g.HIST_DIR = tempfile.mkdtemp(prefix="hist500_")
+    g.history_update = lambda *a, **k: None
+    g.history_series = lambda *a, **k: {}
+    g.record_flow = lambda *a, **k: None
+    g.save_chain_snapshot = lambda *a, **k: None
+    g._realized_vol = lambda *a, **k: None   # ahorra una peticion a CBOE por ticker
 
 
 def log(msg: str) -> None:
@@ -209,6 +212,7 @@ def podar(st, sesion: str) -> int:
 
 
 def main(args: list[str]) -> int:
+    _aislar()
     forzar = "--forzar" in args
     pedidos = [a for a in args if not a.startswith("--")]
     sesion = sesion_objetivo(forzar)

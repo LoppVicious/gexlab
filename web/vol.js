@@ -308,9 +308,9 @@ function volNote() {
   const d = vol.data, b = d.bands || {};
   const band = b.days >= 15 ? `The band is the range between the 10th and 90th percentiles of the last ${b.days} sessions.` :
     `The percentile band will appear once 15 sessions are saved (there are ${b.days || 0} today).`;
-  if (vol.tab === "term") return `ATM IV for each expiration (that of the out-of-the-money option at each strike, interpolated at the spot). Forward IV is the implied volatility between one expiration and the previous one: it isolates what the market prices for that stretch, for example an event. ${band} Events: Fed, BEA, Census and the current week from ForexFactory.`;
-  const vixNote = vol.data && vol.data.smiles.some((s) => s.fwd) ? " For the VIX, options are on the future of their expiration: out of the money relative to that future, with IV calculated on it (Black-76)." : "";
-  if (vol.tab === "skew") return `Implied volatility of the out-of-the-money option at each strike (puts below the spot, calls above).${vixNote} The dashed line is the previous session; the band, the 10th–90th percentile for the same tenor and delta. ${band}`;
+  if (vol.tab === "term") return `ATM IV for each expiration (that of the out-of-the-money option at each strike, interpolated at the implied forward). Forward IV is the implied volatility between one expiration and the previous one: it isolates what the market prices for that stretch, for example an event. ${band} Events: Fed, BEA, Census and the current week from ForexFactory.`;
+  const vixNote = vol.data && vol.data.symbol === "VIX" ? " For the VIX, that forward is the future of each expiration." : "";
+  if (vol.tab === "skew") return `Implied volatility of the out-of-the-money option at each strike (puts below the forward, calls above). The forward is the price the options of each expiration imply (put-call parity), and the IV is calculated from the bid/ask midpoint against it (Black-76), so puts and calls agree at the money.${vixNote} The dashed line is the previous session; the band, the 10th–90th percentile for the same tenor and delta. ${band}`;
   return "IV of each expiration at fixed strikes around the spot. The color shows the change from the last copy of the chain in the previous session: green, up; magenta, down.";
 }
 

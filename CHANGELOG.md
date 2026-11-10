@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior
+## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito
 
 **Cambiado**
 - **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y
@@ -27,6 +27,13 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   (forma, VIX, M1, M2, pendiente, futuro a 30 días y racha) también pasa a directo mientras exista esa curva.
 
 **Corregido**
+- **Saltos del skew en el spot:** la IV se calculaba con el spot, y antes de la apertura (o con dividendos en los ETF)
+  ese spot no coincide con el precio que descuentan las opciones, así que puts y calls daban IV distintas en el mismo
+  strike (en NDX, de 27 % a 42 % en el vencimiento de 3 días). Ahora el motor saca el forward de cada vencimiento por
+  paridad put-call y calcula sobre él la IV (punto medio bid/ask, Black-76), la delta y la elección de la opción
+  fuera de dinero, con Tradier y con CBOE. Mejora el skew, la estructura temporal (IV ATM en el forward), la
+  matriz, el risk reversal, el movimiento esperado y las IV que usan los dos motores de gamma; los niveles GEX apenas
+  cambian. La sesión anterior del skew sigue con el método viejo hasta que se guarde una copia nueva (mañana).
 - **Call Wall y Put Wall (motor Perfil)** dependían del rango visible: en BABA el Hub a ±20 % daba la Call Wall en
   120 y el Escáner (5 %) en 110. Ahora se buscan en un rango fijo por activo: ±10 % en índices y sus ETF (SPX, NDX,
   RUT, SPY, QQQ, IWM…), ±20 % en acciones y ±100 % en el VIX. Hub, Escáner, Compass e histórico dan la misma wall;

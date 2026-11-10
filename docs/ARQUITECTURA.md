@@ -80,8 +80,14 @@ Común a los dos:
 Los dos:
 - **Filtro de vencimientos** (barra deslizante, acumulado; `gex_engine.DTE_FILTERS` y `expiry_filter`): 0DTE = primer
   vencimiento vivo; 1DTE = ese y los de la sesión siguiente; 7, 14, 30 y 45 = hasta N días naturales; Todos.
-- **VIX** (`FUTURES_OPTIONS`): sus opciones van sobre el futuro de cada vencimiento. `futures_forwards` saca el forward
-  por paridad put-call y la IV por Black-76; gamma, perfil, mapa y panel de volatilidad usan ese futuro (q = r).
+- **IV, delta y forward** (`parse_chain` → `_iv_forward`, para Tradier y CBOE): forward de cada vencimiento por
+  paridad put-call (`implied_forwards`; sin pares, S·e^(rT)), IV por Black-76 sobre ese forward con el punto medio
+  bid/ask (respaldo: la del proveedor) y delta forward con esa IV. La IV "fuera de dinero" de cada strike se elige
+  respecto al forward. Así put y call cuadran en el dinero aunque el spot esté parado (antes de la apertura) o haya
+  dividendos. El forward viaja en el paquete (`fwds`, uno por vencimiento) y en las copias de la cadena (`F`).
+  La gamma de los dos motores sigue calculándose sobre el spot.
+- **VIX** (`FUTURES_OPTIONS`): sus opciones van sobre el futuro de cada vencimiento, que es su forward implícito;
+  gamma, perfil, mapa y panel de volatilidad usan ese futuro (q = r).
 - **Vol Trigger:** strike más alto por debajo del flip con GEX neta ≤ −25 % del máximo.
 - **Rango Auto:** 1σ implícita. En 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa. Mínimo 0,4 %, máximo 10 %.
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.

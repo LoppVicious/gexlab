@@ -247,7 +247,7 @@ def vix_curve() -> dict:
 
 def _live_curve(now: datetime, last: str, monthly: set[str], vix_now: float | None) -> dict | None:
     """Curva VX de la sesion en curso, implicita en las opciones del VIX: cada opcion va sobre el futuro de su
-    vencimiento y la paridad put-call da su precio (gex_engine.futures_forwards). Solo entre la apertura de hoy y la
+    vencimiento y la paridad put-call da su precio (gex_engine.implied_forwards). Solo entre la apertura de hoy y la
     publicacion de su liquidacion oficial: luego manda el cierre. Incluye los vencimientos semanales."""
     if not g.is_trading_day(now) or now < now.replace(hour=9, minute=30, second=0, microsecond=0):
         return None
@@ -255,7 +255,7 @@ def _live_curve(now: datetime, last: str, monthly: set[str], vix_now: float | No
     if last >= today:
         return None
     ch = g.parse_chain(g.fetch_chain("VIX"))
-    _, _, fwd = g.futures_forwards(ch, g.quote_time(now))
+    _, _, fwd = g.implied_forwards(ch, g.quote_time(now))
     pts = []
     for ek, f in sorted(fwd.items()):
         e = ek[:10]

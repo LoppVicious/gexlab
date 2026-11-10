@@ -66,21 +66,18 @@ def _pick_expiries(exps: list, dtes: list[float], symbol: str = "") -> list[int]
 
 
 def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
-    """Una curva por vencimiento: en cada strike la IV de la opcion fuera de dinero (put por debajo del spot,
+    """Una curva por vencimiento: en cada strike la IV de la opcion fuera de dinero (put por debajo del forward,
     call por encima), que es la que tiene cotizaciones fiables."""
     now64 = np.datetime64(now.replace(second=0, microsecond=0))
     K, C, E, IV = ch["K"], ch["call"], ch["exp"], ch["iv"]
     bid = ch.get("bid")
     sym = str(ch.get("symbol") or "").upper()
     T = np.maximum((E - now64).astype("timedelta64[m]").astype(float), 1.0) / (365 * DAY_MIN)
-    # precio de referencia de cada contrato: el spot o, en el VIX, el futuro de su vencimiento (ver gex_engine.futures_forwards)
-    ref = np.full(K.shape, float(spot))
-    fwd: dict = {}
-    if sym in g.FUTURES_OPTIONS and bid is not None:
-        # el VIX va sobre el futuro de cada vencimiento: referencia e IV (Black-76) respecto a ese futuro
-        Fc, ivc, fwd = g.futures_forwards(ch, now)
-        IV = np.where(np.isfinite(ivc), ivc, 0.0)          # sin forward o sin precio: fuera (no pasa el filtro)
-        ref = np.where(np.isfinite(Fc), Fc, np.nanmedian(Fc) if np.isfinite(Fc).any() else float(spot))
+    # precio de referencia de cada contrato: el forward implicito de su vencimiento (gex_engine.parse_chain; en el VIX,
+    # el futuro), con el que ya esta calculada la IV; en copias antiguas sin forward, el spot
+    Fc = ch.get("fwd")
+    ref = (np.where(np.isfinite(Fc) & (Fc > 0), Fc, float(spot)) if Fc is not None and len(Fc) == len(K)
+           else np.full(K.shape, float(spot)))
     # delta de Black-Scholes con la IV de cada strike (la misma regla para hoy y para las copias de dias
     # anteriores, que no guardan la delta de CBOE)
     sig = np.maximum(IV, 1e-4) * np.sqrt(T)
@@ -118,7 +115,7 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
         if k.size < 5:
             continue
         days = int((exps[i].astype("datetime64[D]") - now64.astype("datetime64[D]")).astype(int))
-        f = fwd.get(str(exps[i]))
+        f = float(ref[m][0]) if Fc is not None else None
         out.append({"exp": str(exps[i])[:10], "dte": round(dtes[i], 3), "days": max(days, 0),
                     **({"fwd": round(f, 4)} if f else {}),
                     "monthly": es_mensual(date.fromisoformat(str(exps[i])[:10]), sym), "K": np.round(k, 3).tolist(),
@@ -231,7 +228,8 @@ def _snapshot_smiles(sym: str, day: str, now: datetime) -> tuple[list[dict], flo
     if not snap:
         return [], None
     ref = snap.get("saved_at") or now
-    ch = {"K": snap["K"], "call": snap["call"], "exp": snap["exp"], "iv": snap["iv"], "oi": snap["oi"]}
+    ch = {"K": snap["K"], "call": snap["call"], "exp": snap["exp"], "iv": snap["iv"], "oi": snap["oi"],
+          **({"fwd": snap["fwd"]} if "fwd" in snap else {})}
     return smiles_from_chain(ch, snap["spot"], ref), snap["spot"]
 
 

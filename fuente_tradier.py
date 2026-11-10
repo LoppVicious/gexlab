@@ -6,8 +6,8 @@ que lee parse_chain: precio del subyacente, cierre anterior, y por contrato el s
 volumen, open interest, delta e IV.
 
 IV: Tradier publica sus griegas (ORATS) aproximadamente cada hora; los precios van en tiempo real. Para que la IV
-sea del mismo instante que el precio, se calcula aqui por Black-Scholes a partir del punto medio bid/ask (como CBOE);
-si no hay precio util o no tiene solucion (p. ej. americanas muy dentro de dinero), se usa la de Tradier.
+sea del mismo instante que el precio, gex_engine.parse_chain la recalcula con el punto medio bid/ask sobre el forward
+implicito de cada vencimiento (igual que con CBOE); la de ORATS queda de respaldo.
 
 Limite de la API: 120 peticiones por minuto. La cadena se pide por vencimiento (SPX tiene ~55), en paralelo,
 respetando las cabeceras X-Ratelimit. El token nunca se escribe en los registros.
@@ -15,7 +15,6 @@ respetando las cabeceras X-Ratelimit. El token nunca se escribe en los registros
 from __future__ import annotations
 
 import json
-import math
 import os
 import threading
 import time
@@ -24,7 +23,6 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
-import numpy as np
 
 BASE = os.environ.get("TRADIER_BASE", "https://api.tradier.com/v1")
 HILOS = 4
@@ -119,7 +117,6 @@ def _opciones(sym: str, exp: str) -> list[dict]:
 
 def cadena(symbol: str) -> dict:
     """Cadena completa de Tradier en el formato de CBOE (lo que espera gex_engine.parse_chain)."""
-    import gex_engine as g
     sym = symbol.upper()
     q = _lista(((_get(f"/markets/quotes?symbols={sym}&greeks=false") or {}).get("quotes") or {}).get("quote"))
     q = q[0] if q else {}
@@ -135,33 +132,15 @@ def cadena(symbol: str) -> dict:
     if not opts:
         raise TradierError(f"Tradier no devuelve contratos de {sym}")
 
-    # IV del instante actual a partir del punto medio
-    now = g.now_ny().replace(second=0, microsecond=0)
-    r = g.risk_free()
-    K, T, call, mid, iv_t = [], [], [], [], []
-    for o in opts:
-        m = g.OCC_RE.match(o["symbol"])
-        root, ymd = (m.group(1), m.group(2)) if m else (o.get("root_symbol") or sym, "")
-        ds = f"20{ymd[:2]}-{ymd[2:4]}-{ymd[4:6]}" if ymd else str(o.get("expiration_date"))
-        hh, mm = (9, 30) if root in g.AM_SETTLED_ROOTS else ((13, 0) if ds in g.NYSE_EARLY_CLOSE else (16, 0))
-        exp = datetime.strptime(ds, "%Y-%m-%d").replace(hour=hh, minute=mm)
-        T.append(max((exp - now).total_seconds() / 60.0, 5.0) / g.YEAR_MIN)
-        K.append(float(o.get("strike") or 0))
-        call.append(o.get("option_type") == "call")
-        b, a = float(o.get("bid") or 0), float(o.get("ask") or 0)
-        mid.append((b + a) / 2 if a > 0 and a >= b else np.nan)
-        gk = o.get("greeks") or {}
-        iv_t.append(float(gk.get("mid_iv") or gk.get("smv_vol") or 0))
-    iv = g.implied_vol(np.array(mid), spot, np.array(K), np.array(T), r, np.array(call))
-    iv = np.where(np.isfinite(iv), iv, np.array(iv_t))
-
+    # IV y delta de ORATS (cada hora) solo como respaldo: gex_engine.parse_chain las recalcula con el punto medio
     options = []
-    for o, v in zip(opts, iv):
+    for o in opts:
         gk = o.get("greeks") or {}
         options.append({
             "option": o["symbol"], "bid": o.get("bid") or 0, "ask": o.get("ask") or 0,
             "last_trade_price": o.get("last") or 0, "volume": o.get("volume") or 0,
-            "open_interest": o.get("open_interest") or 0, "delta": gk.get("delta") or 0, "iv": float(v) if v > 0 else 0,
+            "open_interest": o.get("open_interest") or 0, "delta": gk.get("delta") or 0,
+            "iv": float(gk.get("mid_iv") or gk.get("smv_vol") or 0),
         })
     td = q.get("trade_date") or 0
     ts = datetime.fromtimestamp(td / 1000, tz=timezone.utc) if td else datetime.now(timezone.utc)

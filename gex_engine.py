@@ -294,15 +294,23 @@ def expiry_kind(day, symbol: str = "") -> str:
     return "diario"
 
 
-def futures_forwards(ch: dict, t: datetime) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Opciones del VIX: van sobre el futuro del VIX de su vencimiento, que puede estar lejos del indice (contango o
-    backwardation). Por vencimiento:
-      - forward por paridad put-call con los puntos medios: F = K + e^(rT) (C - P), mediana de los 5 strikes con
-        C y P mas parecidos (los mas cercanos al dinero);
-      - IV de cada contrato por Black-76 sobre ese forward (la de CBOE esta calculada contra el indice).
+FORWARD_MAX_GAP = 0.10   # forward implicito descartado si se aleja mas de un 10 % del spot (salvo el VIX)
+
+
+def implied_forwards(ch: dict, t: datetime) -> tuple[np.ndarray, np.ndarray, dict]:
+    """Forward implicito de cada vencimiento por paridad put-call: el precio del subyacente que descuentan las propias
+    opciones, del mismo instante que sus cotizaciones (incluye tipos y dividendos, y no depende de que el spot este
+    al dia: antes de la apertura el ultimo precio del indice puede estar parado mientras las opciones ya cotizan).
+    En el VIX es el futuro de su vencimiento, que puede estar lejos del indice (contango o backwardation). Por
+    vencimiento:
+      - F = K + e^(rT) (C - P) con los puntos medios, mediana de los 5 strikes con C y P mas parecidos (los mas
+        cercanos al dinero; en las americanas, ETFs y acciones, ahi el ejercicio anticipado apenas pesa);
+      - IV de cada contrato por Black-76 sobre ese forward.
     Devuelve (forward por contrato, IV por contrato, {vencimiento: forward}); NaN donde no se puede calcular."""
     K, C, E = ch["K"], ch["call"], ch["exp"]
     bid, ask = ch.get("bid"), ch.get("ask")
+    S = float(ch.get("spot") or 0)
+    fut = str(ch.get("symbol") or "").upper() in FUTURES_OPTIONS
     F = np.full(K.shape, np.nan)
     iv = np.full(K.shape, np.nan)
     if bid is None or ask is None or not K.size:
@@ -321,7 +329,7 @@ def futures_forwards(ch: dict, t: datetime) -> tuple[np.ndarray, np.ndarray, dic
         if len(pares) < 2:
             continue
         f = float(np.median([v for _, v in pares[:5]]))
-        if f <= 0:
+        if f <= 0 or (not fut and S > 0 and abs(f / S - 1) > FORWARD_MAX_GAP):
             continue
         fwd[str(x)] = f
         F[m] = f
@@ -894,6 +902,10 @@ def chain_to_min(ch: dict) -> dict:
     d = {k: ch.get(k) for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30", "source")}
     d["exps"] = [str(x) for x in exps]
     d["e"] = eidx.astype(int).tolist()
+    if ch.get("fwd") is not None and exps.size:   # forward implicito de cada vencimiento (uno por fecha)
+        fw = np.zeros(exps.size)
+        fw[eidx] = ch["fwd"]
+        d["fwds"] = np.round(fw, 4).tolist()
     d["call"] = ch["call"].astype(int).tolist()
     for k, nd in _MIN_ROUND.items():
         v = np.round(ch[k], nd)
@@ -908,7 +920,40 @@ def chain_from_min(d: dict) -> dict:
     ch["call"] = np.array(d["call"], dtype=bool)
     for k in _MIN_ROUND:
         ch[k] = np.array(d[k], dtype=float)
+    # paquetes anteriores al forward implicito: el spot como referencia
+    fw = d.get("fwds")
+    ch["fwd"] = (np.array(fw, dtype=float)[np.array(d["e"], dtype=int)] if fw and d["e"]
+                 else np.full(ch["K"].shape, float(d.get("spot") or 0)))
     return ch
+
+
+def _iv_forward(sym: str, spot: float, K, C, E, bid, ask, iv_prov, delta_prov):
+    """IV, forward y delta de cada contrato, del mismo instante que sus cotizaciones (sea Tradier o CBOE):
+      - forward de cada vencimiento por paridad put-call (implied_forwards); sin pares suficientes, S e^(rT)
+        (en el VIX, la mediana de los forwards medidos);
+      - IV por Black-76 sobre ese forward con el punto medio bid/ask; sin precio util o sin solucion, la del proveedor;
+      - delta forward (N(d1), N(d1) - 1) con esa IV; sin IV, la del proveedor.
+    El tiempo se cuenta desde quote_time: con el mercado cerrado, desde el ultimo cierre, como en el resto del motor."""
+    if not K.size:
+        return iv_prov.copy(), np.full(K.shape, float(spot)), delta_prov.copy()
+    q = quote_time(now_ny()).replace(second=0, microsecond=0)
+    F, ivf, _ = implied_forwards({"K": K, "call": C, "exp": E, "bid": bid, "ask": ask, "spot": spot, "symbol": sym}, q)
+    r = risk_free()
+    T = np.maximum((E - np.datetime64(q)).astype("timedelta64[m]").astype(float), 5.0) / YEAR_MIN
+    falta = ~np.isfinite(F)
+    if falta.any():
+        if sym.upper() in FUTURES_OPTIONS and (~falta).any():
+            F[falta] = float(np.nanmedian(F))
+        else:
+            F[falta] = spot * np.exp(r * T[falta])
+        mid = np.where((bid > 0) & (ask >= bid), (bid + ask) / 2, np.nan)
+        ivf[falta] = implied_vol(mid[falta], F[falta] * np.exp(-r * T[falta]), K[falta], T[falta], r, C[falta])
+    iv = np.where(np.isfinite(ivf) & (ivf > 0.01), ivf, iv_prov)
+    sw = np.sqrt(np.maximum(iv, 1e-4) ** 2 * T)
+    nd1 = _ncdf((np.log(F / K) + 0.5 * sw * sw) / sw)
+    dl = np.where(C, nd1, nd1 - 1.0)
+    delta = np.where(iv > 0.01, dl, delta_prov)
+    return iv, F, delta
 
 
 def parse_chain(raw: dict) -> dict:
@@ -953,28 +998,32 @@ def parse_chain(raw: dict) -> dict:
         iv = iv / 100.0
 
     spot = float(data.get("current_price") or data.get("close") or 0)
+    sym = data.get("symbol", "").lstrip("^_")
 
-    # IV de la opcion fuera de dinero en cada strike para las dos patas (paridad put-call):
+    K_, C_, E_ = strikes[keep], is_call[keep], expiry[keep]
+    iv_k, F_, delta_k = _iv_forward(sym, spot, K_, C_, E_, bid[keep], ask[keep], iv[keep], delta[keep])
+
+    # IV de la opcion fuera de dinero (respecto al forward) en cada strike para las dos patas (paridad put-call):
     # las IV de opciones dentro de dinero salen de horquillas anchas y son ruido
-    K_, C_, E_, IV_ = strikes[keep], is_call[keep], expiry[keep], iv[keep].copy()
+    IV_ = iv_k.copy()
     if K_.size:
         key = E_.astype("int64") * 10_000_000 + np.round(K_ * 1000).astype("int64")
-        otm = np.where(C_, K_ >= spot, K_ <= spot) & (IV_ > 0.01)
+        otm = np.where(C_, K_ >= F_, K_ <= F_) & (IV_ > 0.01)
         order = np.argsort(key)
         ks = key[order]
         ref = dict(zip(ks[otm[order]], IV_[order][otm[order]]))
         IV_ = np.array([ref.get(k, v) for k, v in zip(key, IV_)])
     chg = data.get("price_change_percent")
     return _reparar_cadena({
-        "symbol": data.get("symbol", "").lstrip("^_"),
+        "symbol": sym,
         "spot": spot,
         "prev_close": float(data.get("prev_day_close") or data.get("close") or spot),
         "chg_pct": float(chg) if chg is not None else None,
         "close": float(data.get("close") or spot),
         "timestamp": raw.get("timestamp") or data.get("last_trade_time"),
         "K": strikes[keep], "call": is_call[keep], "exp": expiry[keep],
-        "oi": oi[keep], "iv": IV_, "iv_raw": iv[keep], "bid": bid[keep], "ask": ask[keep], "delta": delta[keep],
-        "vol": vol[keep], "last": last[keep],
+        "oi": oi[keep], "iv": IV_, "iv_raw": iv_k, "bid": bid[keep], "ask": ask[keep], "delta": delta_k,
+        "vol": vol[keep], "last": last[keep], "fwd": F_,
         "iv30": float(data.get("iv30") or 0) / 100.0,
         "source": raw.get("source") or "cboe",
     })
@@ -1622,7 +1671,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     SX = spot
     fut = normalize(symbol) in FUTURES_OPTIONS
     if fut:
-        Fc, ivc, _ = futures_forwards(cc, q_dt)
+        Fc, ivc, _ = implied_forwards(cc, q_dt)
         Fm, ivm = Fc[m], ivc[m]
         if np.isfinite(Fm).any():
             SX = np.where(np.isfinite(Fm), Fm, np.nanmedian(Fm))
@@ -1963,6 +2012,8 @@ def save_chain_snapshot(symbol: str, ch: dict) -> None:
         data = {"saved_at": now.strftime("%Y-%m-%d %H:%M"), "spot": ch["spot"], "K": ch["K"][keep].tolist(), "C": ch["call"][keep].astype(int).tolist(),
                 "E": [str(x) for x in ch["exp"][keep]], "OI": ch["oi"][keep].tolist(),
                 "IV": np.round(ch["iv"][keep], 5).tolist()}
+        if ch.get("fwd") is not None:
+            data["F"] = np.round(ch["fwd"][keep], 4).tolist()
         write_json(path, data)
         # conserva solo las 10 ultimas sesiones de cada ticker
         pref = os.path.basename(path).rsplit("_", 1)[0] + "_"
@@ -1985,7 +2036,8 @@ def load_chain_snapshot(symbol: str, day: str) -> dict | None:
         except ValueError:
             saved = None
     return {"saved_at": saved, "spot": d["spot"], "K": np.array(d["K"], float), "call": np.array(d["C"], bool),
-            "exp": np.array(d["E"], dtype="datetime64[m]"), "oi": np.array(d["OI"], float), "iv": np.array(d["IV"], float)}
+            "exp": np.array(d["E"], dtype="datetime64[m]"), "oi": np.array(d["OI"], float), "iv": np.array(d["IV"], float),
+            **({"fwd": np.array(d["F"], float)} if d.get("F") else {})}
 
 
 _heat_cache: dict[str, tuple[float, dict]] = {}
@@ -2038,13 +2090,13 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         if ivr is not None and len(ivr) == len(ch["K"]):
             IV = np.where(ivr[m] > 0.01, ivr[m], IV)
     div = implied_dividends(parse_chain(fetch_chain(symbol)), spot, quote_time(now), symbol) if model == "spotgamma" else None
-    # VIX: cada contrato sobre el futuro de su vencimiento (ver futures_forwards); los forwards salen de la cadena
+    # VIX: cada contrato sobre el futuro de su vencimiento (ver implied_forwards); los forwards salen de la cadena
     # de la sesion si trae bid y ask (y entonces tambien la IV de Black-76) o, si no, de la cadena actual
     fut_rel = None
     if normalize(symbol) in FUTURES_OPTIONS:
-        _, ivc, fwd = futures_forwards(ch, q)
+        _, ivc, fwd = implied_forwards(ch, q)
         if not fwd:
-            _, _, fwd = futures_forwards(parse_chain(fetch_chain(symbol)), quote_time(now))
+            _, _, fwd = implied_forwards(parse_chain(fetch_chain(symbol)), quote_time(now))
         if fwd:
             Fm = np.array([fwd.get(str(x), np.nan) for x in EXP])
             Fm = np.where(np.isfinite(Fm), Fm, float(np.median(list(fwd.values()))))

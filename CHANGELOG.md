@@ -73,6 +73,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   la administración usan comas, paréntesis o guion (por ejemplo «Live 17:04, implied by VIX options»).
 
 **Corregido**
+- **TRACE del VIX tras el cierre con Delta o Charm Pressure:** daba «boolean index did not match indexed array». Al
+  repetir una sesión con su copia guardada de la cadena, se mezclaban precios bid/ask de la cadena actual (con otro
+  número de contratos). Ahora la copia se usa sola.
 - **Saltos del skew en el spot:** la IV se calculaba con el spot, y antes de la apertura (o con dividendos en los ETF)
   ese spot no coincide con el precio que descuentan las opciones, así que puts y calls daban IV distintas en el mismo
   strike (en NDX, de 27 % a 42 % en el vencimiento de 3 días). Ahora el motor saca el forward de cada vencimiento por

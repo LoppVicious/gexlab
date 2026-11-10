@@ -2086,7 +2086,10 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     if day < now.strftime("%Y-%m-%d") or (kind == "last" and not market_open(now)):
         snap = load_chain_snapshot(symbol, day)
         if snap is not None:
-            ch = {**ch, **snap}
+            # la copia solo guarda strikes, OI, IV y vencimientos de los contratos con OI: fuera las columnas por
+            # contrato de la cadena actual (bid, ask, delta...), que tienen otra longitud
+            n = ch["K"].size
+            ch = {**{k: v for k, v in ch.items() if not (isinstance(v, np.ndarray) and v.shape[:1] == (n,))}, **snap}
             q = snap.get("saved_at") or q
         elif day < now.strftime("%Y-%m-%d"):
             approx = True  # sin copia de esa sesion: faltan los contratos que vencieron ese dia

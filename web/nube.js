@@ -31,7 +31,8 @@
     const s = q.get("session");
     const sess = ["auto", "last", "next"].includes(s) ? s : "auto";
     const model = q.get("model") === "gexbot" ? "gexbot" : "spotgamma";
-    return { dte, range: rango(q.get("range")), pos, combo, sess, model };
+    const lens = ["delta", "charm"].includes(q.get("lens")) ? q.get("lens") : "gamma";
+    return { dte, range: rango(q.get("range")), pos, combo, sess, model, lens };
   }
 
   // ------------------------------------------------------------ motor del navegador
@@ -125,6 +126,7 @@
     }
   }
 
+  const heatMemo = new Map();
   async function analisis(kind, q, signal) {
     const sym = normalize(q.get("symbol"));
     if (!sym) return json(400, { error: "Invalid ticker" });
@@ -132,7 +134,7 @@
     const spot = q.get("spot");
     const refresh = q.get("refresh") === "1";
     if (!spot && !refresh) {
-      const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (v.model === "gexbot" ? "_gb" : "") + (kind === "heat" ? `_${v.sess}` : "");
+      const key = `${v.dte}_${v.range}_${v.pos}_${v.combo}` + (v.model === "gexbot" ? "_gb" : "") + (kind === "heat" ? `_${v.sess}` + (v.lens !== "gamma" ? `_${v.lens}` : "") : "");
       const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/${kind === "heat" ? "mapa" : "niveles"}/${key}.json`, { signal });
       if (r.ok) {
         // una vista precalculada antigua no se usa: se recalcula aqui con el paquete (y se pide renovarlo)
@@ -146,12 +148,20 @@
       symbol: sym, max_dte: v.dte === "all" ? null : parseInt(v.dte, 10), window_pct: v.range === "auto" ? "auto" : parseFloat(v.range),
       spot_override: spot ? parseFloat(spot) : null, combine: v.combo === "1", positioning: v.pos, model: v.model,
     };
-    if (kind === "heat") args.which = v.sess;
+    if (kind === "heat") { args.which = v.sess; args.lens = v.lens; }
+    // el mapa (sobre todo Delta y Charm, que el motor no precalcula) no se repite con el mismo paquete: la recarga de
+    // cada minuto solo lo recalcula cuando el motor publica datos nuevos
+    const memo = kind === "heat" ? JSON.stringify(args) + "|" + paqs.map((p) => p.generado).join("|") : null;
+    if (memo && heatMemo.has(memo)) return new Response(heatMemo.get(memo), { headers: { "Content-Type": "application/json" } });
     if (!warmed) status("Preparing the in-browser calculation (first time only)…");
     try {
       const out = await motor(kind === "heat" ? "heatmap" : "compute", args, paqs);
       warmed = true;
       if (signal && signal.aborted) throw new DOMException("Aborted", "AbortError");
+      if (memo) {
+        heatMemo.set(memo, out);
+        if (heatMemo.size > 6) heatMemo.delete(heatMemo.keys().next().value);
+      }
       return new Response(out, { headers: { "Content-Type": "application/json" } });
     } catch (e) {
       if (e.name === "AbortError") throw e;

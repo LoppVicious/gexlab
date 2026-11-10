@@ -1,4 +1,4 @@
-"""Prueba (GitHub Actions, prueba_tradier.yml con script=tradier_velas.py): velas de 5 min de Tradier de los indices
+"""Prueba (GitHub Actions, prueba_tradier.yml con script=tradier_velas.py): velas de Tradier (1 min) de los indices
 en tiempo real y su agrupacion en el mapa del TRACE. Solo escribe recuentos y horas, ningun dato de la cuenta."""
 import os
 import sys

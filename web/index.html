@@ -236,6 +236,14 @@
       </div>
       <p class="chart-caption" id="caption"></p>
       <div class="chead-r">
+        <div class="popw map-only">
+          <button class="ghost dd" id="lensBtn" aria-haspopup="menu" aria-expanded="false" title="What the map colors show"></button>
+          <div class="cmenu dd-menu" id="lensMenu" role="menu" aria-label="Map lens" hidden></div>
+        </div>
+        <div class="popw map-only">
+          <button class="ghost dd" id="candleBtn" aria-haspopup="menu" aria-expanded="false" title="Candle interval"></button>
+          <div class="cmenu dd-menu" id="candleMenu" role="menu" aria-label="Candle interval" hidden></div>
+        </div>
         <button class="kl-tg" id="levelsTg" role="switch" aria-checked="true" title="Labels and lines for Call Wall, Put Wall, Gamma Flip and the other levels"><i aria-hidden="true"></i><span>Key levels</span></button>
         <div class="popw">
           <button class="ghost csbtn" id="setBtn" aria-haspopup="dialog" aria-expanded="false" title="Chart options"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h8M15 5h2M3 10h2M9 10h8M3 15h10"/><circle cx="13" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="15" cy="15" r="2"/></svg><span id="setLab">Chart</span></button>
@@ -249,6 +257,19 @@
             <button role="menuitem" id="tvBtn" title="In the TradingView indicator format (price, label), to paste into Settings, Inputs">Levels for TradingView</button>
           </div>
         </div>
+      </div>
+    </div>
+    <div class="maptools" id="mapTools">
+      <div class="mt-l" id="mtBars">
+        <div class="popw">
+          <button class="ghost dd" id="barsBtn" aria-haspopup="menu" aria-expanded="false" title="What the side bars show"></button>
+          <div class="cmenu dd-menu left" id="barsMenu" role="menu" aria-label="Side bars" hidden></div>
+        </div>
+        <button class="kl-tg" id="bars0Tg" role="switch" aria-checked="false" title="Side bars with the nearest expiration only"><i aria-hidden="true"></i><span id="bars0Lab">0DTE</span></button>
+      </div>
+      <div class="mt-r">
+        <span class="mt-hint" id="zoomHint">Drag up or down on the map to zoom</span>
+        <button class="ghost mt-reset" id="zoomReset" hidden title="Back to the full price range (or double-click the map)">Reset zoom</button>
       </div>
     </div>
     <div class="chart" id="chart" role="img" aria-label="Gamma exposure by strike">
@@ -446,7 +467,7 @@
 </main>
 
 <footer class="foot">
-  Real-time Tradier options: SPX, NDX, RUT, SPY, QQQ and IWM are recalculated every 5 minutes from 07:00 ET to the close, with 5-minute candles in TRACE (before the open, the ETF's extended-hours candles, scaled to the index); everything else every 15 minutes, with CBOE candles (~15 min delay). If Tradier fails, CBOE is used. Open interest is from the previous close. Dealer sign follows the standard convention: long calls, short puts. The Volatility Trigger (Hedge Wall for stocks) is our own approximation, not the SpotGamma level.
+  Real-time Tradier options: SPX, NDX, RUT, SPY, QQQ and IWM are recalculated every 5 minutes from 07:00 ET to the close, with 1-minute candles in TRACE, shown at 1, 5 or 15 minutes (before the open, the ETF's extended-hours candles, scaled to the index); everything else every 15 minutes, with CBOE candles (~15 min delay). If Tradier fails, CBOE is used. Open interest is from the previous close. Dealer sign follows the standard convention: long calls, short puts. The Volatility Trigger (Hedge Wall for stocks) is our own approximation, not the SpotGamma level.
 </footer>
 </div>
 </div>

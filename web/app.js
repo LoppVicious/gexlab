@@ -78,6 +78,14 @@ const state = {
   showLevels: store.get("levels", "1") === "1",
   mapMode: store.get("mapMode", "strike"),
   mapSess: "auto",
+  // mapa: lente (gamma, Delta Pressure, Charm Pressure), velas, escala de color, contornos y barras de la izquierda
+  mapLens: store.get("mapLens", "gamma"),
+  mapCandle: store.get("mapCandle", "5"),
+  mapScale: store.get("mapScale", "auto"),
+  mapContour: store.get("mapContour", "1") === "1",
+  mapBars: store.get("mapBars", "gex"),
+  mapBars0: store.get("mapBars0", "0") === "1",
+  mapZoom: null,  // { sym, lo, hi }: zoom vertical del mapa (arrastrar; doble clic para volver)
   greek: store.get("greek", "gamma"),
   oiMode: store.get("oiMode", "total"),
   dbars: store.get("dbars", "net"),
@@ -715,13 +723,46 @@ function heatColor(v, vmax) {
   return a < 0.5 ? lerp(base, mid, a * 2) : lerp(mid, tgt, (a - 0.5) * 2);
 }
 
-function heatZ(hm) { return state.mapMode === "total" || !hm.zk ? hm.z : hm.zk; }
+// lente del mapa que trae el resultado (las vistas precalculadas antiguas no la llevan: gamma)
+function heatLens(hm) { return hm.lens || "gamma"; }
+function heatZ(hm) { return heatLens(hm) !== "gamma" || state.mapMode === "total" || !hm.zk ? hm.z : hm.zk; }
+const LENS_N = { gamma: "Gamma", delta: "Delta Pressure", charm: "Charm Pressure" };
+
+// curvas de nivel (marching squares) de la rejilla Z (filas = precios, columnas = horas) en el valor lev.
+// Devuelve segmentos [c0, r0, c1, r1] en coordenadas de la rejilla (columna y fila fraccionarias)
+function contourSegs(Z, lev) {
+  const out = [], rows = Z.length, cols = rows ? Z[0].length : 0;
+  const cut = (a, b) => (a === b ? 0.5 : (lev - a) / (b - a));
+  for (let r = 0; r < rows - 1; r++) {
+    const z0 = Z[r], z1 = Z[r + 1];
+    for (let c = 0; c < cols - 1; c++) {
+      const a = z0[c], b = z0[c + 1], cc = z1[c + 1], d = z1[c];
+      const A = a > lev, B = b > lev, CC = cc > lev, D = d > lev;
+      if (A === B && B === CC && CC === D) continue;
+      // puntos de corte en los cuatro lados de la celda: abajo (a-b), derecha (b-cc), arriba (d-cc), izquierda (a-d)
+      const p = [];
+      if (A !== B) p.push([c + cut(a, b), r]);
+      if (B !== CC) p.push([c + 1, r + cut(b, cc)]);
+      if (D !== CC) p.push([c + cut(d, cc), r + 1]);
+      if (A !== D) p.push([c, r + cut(a, d)]);
+      if (p.length >= 2) out.push([...p[0], ...p[1]]);
+      if (p.length === 4) out.push([...p[2], ...p[3]]);
+    }
+  }
+  return out;
+}
 
 function buildHeatImage(hm) {
   const Z = heatZ(hm);
   const rows = hm.prices.length, cols = hm.times.length;
   const abs = Z.flat().map(Math.abs).sort((a, b) => a - b);
-  const vmax = abs[Math.floor(abs.length * (state.mapMode === "total" ? 0.985 : 0.99))] || 1;
+  // escala de color: Auto (percentil alto, ignora los extremos) o una fraccion fija del maximo (baja = mas color)
+  const SCALE = { low: 0.25, medium: 0.5, high: 1 };
+  const vmax = (SCALE[state.mapScale] ? abs[abs.length - 1] * SCALE[state.mapScale]
+    : abs[Math.floor(abs.length * (heatZ(hm) === hm.z && heatLens(hm) === "gamma" ? 0.985 : 0.99))]) || 1;
+  // contornos a +-25, 50 y 75 % de la escala; en Delta y Charm tambien el cero (frontera entre compra y venta)
+  const levs = [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75].concat(heatLens(hm) === "gamma" ? [] : [0]);
+  const contours = state.mapContour ? levs.map((f) => ({ f, segs: contourSegs(Z, f * vmax) })) : [];
   const cv = document.createElement("canvas");
   cv.width = cols; cv.height = rows;
   const ctx = cv.getContext("2d");
@@ -735,7 +776,56 @@ function buildHeatImage(hm) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  return { url: cv.toDataURL("image/png"), vmax };
+  return { url: cv.toDataURL("image/png"), vmax, contours };
+}
+
+// velas agrupadas en tramos de n minutos (marcadas por su minuto de inicio). slot: minutos de cada vela dibujada,
+// nunca menos que la resolucion de los datos (5 min en vistas antiguas)
+function mapCandles(cs, n) {
+  if (!cs || !cs.length) return { list: [], slot: n };
+  let native = Infinity;
+  for (let i = 1; i < cs.length; i++) native = Math.min(native, minutesOf(cs[i][0]) - minutesOf(cs[i - 1][0]));
+  const slot = Math.max(n, isFinite(native) && native > 0 ? native : 1);
+  const out = [], idx = new Map();
+  for (const [t, o, h, l, c] of cs) {
+    const m = Math.floor(minutesOf(t) / slot) * slot, k = `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+    if (!idx.has(k)) { idx.set(k, out.length); out.push([k, o, h, l, c]); continue; }
+    const b = out[idx.get(k)];
+    b[2] = Math.max(b[2], h); b[3] = Math.min(b[3], l); b[4] = c;
+  }
+  return { list: out, slot };
+}
+
+// proximo vencimiento de las barras del mapa: "0DTE" si vence en la sesion del mapa
+function frontTag(hm, d) {
+  const fe = hm.front_expiry || d.front_expiry;
+  return fe && String(fe).slice(0, 10) === hm.session ? "0DTE" : `exp. ${ddmm(fe)}`;
+}
+
+// barras de la izquierda del mapa segun Ajustes: GEX (por 1 %), OI (calls y puts) o posicion neta de los dealers,
+// de todos los vencimientos del filtro o solo del proximo. Agrupadas para que quepan (maxN barras)
+function mapSideBars(d, hm, pLo, pHi, maxN) {
+  let kind = state.mapBars;
+  const f0 = state.mapBars0;
+  const src = hm.strikes && hm.net && (kind === "gex" || hm.oi) ? hm : d, O = src.oi || {}, sp1 = (hm.spot || d.spot) / 100;
+  let A = kind === "oi" ? (f0 ? O.front_calls : O.calls) : kind === "netoi" ? (f0 ? O.front_pos : O.net_pos) : null;
+  const B = kind === "oi" && A ? (f0 ? O.front_puts : O.puts) : null;
+  if (!A) { kind = "gex"; A = (f0 ? src.front : src.net).map((v) => v * sp1); }
+  const ks = [], a = [], b = [];
+  src.strikes.forEach((k, i) => { if (k >= pLo && k <= pHi) { ks.push(k); a.push(A[i] || 0); b.push(B ? B[i] || 0 : 0); } });
+  const bk = bucketStrikes(ks, [a, b], hm.step || d.step, maxN);
+  const right = bk.arrs[0], left = bk.arrs[1];
+  const max = Math.max(1, ...right.map(Math.abs), ...(B ? left.map(Math.abs) : []));
+  const label = { gex: "GEX by strike, 1%", oi: "Open interest", netoi: "Dealer net contracts" }[kind] + (f0 ? `, ${frontTag(hm, d)}` : "");
+  return { kind, ks: bk.ks, right, left, split: !!B, max, step: bk.step, label };
+}
+
+// rotulo de la barra de color segun la lente
+function heatScaleTitle(hm) {
+  const ln = heatLens(hm);
+  if (ln === "delta") return "Dealer hedge, $ (buy +, sell −)";
+  if (ln === "charm") return "Charm hedge, $ next hour";
+  return heatZ(hm) === hm.z ? "Total GEX per 1%" : "Gamma by strike, per 1%";
 }
 
 function minutesOf(hhmm) { const [h, m] = hhmm.split(":").map(Number); return h * 60 + m; }
@@ -759,7 +849,10 @@ function renderMap(d, hm, W, H, exp = false) {
   const tagW = state.showLevels ? Math.ceil(longest * lf * 0.62 + 26) : 0;
   const cbGap = narrow ? 6 : 10, edge = exp ? 24 : narrow ? 2 : 8;
   const heatR = W - edge - cbW - cbGap - tagW;
-  const pLo = hm.prices[0], pHi = hm.prices[hm.prices.length - 1];
+  // rango de precios: el del mapa o el del zoom vertical (solo para este ticker)
+  const fLo = hm.prices[0], fHi = hm.prices[hm.prices.length - 1];
+  const zm = state.mapZoom && state.mapZoom.sym === hm.symbol ? state.mapZoom : null;
+  const pLo = zm ? Math.max(fLo, zm.lo) : fLo, pHi = zm ? Math.min(fHi, zm.hi) : fHi;
   const yOf = (p) => bottom - ((p - pLo) / (pHi - pLo)) * (bottom - top);
   // el mapa de los indices empieza antes de la apertura (tramo previo con las velas del ETF)
   const m0 = minutesOf(hm.times[0] || "09:30"), m1 = minutesOf("16:00"), mOpen = minutesOf("09:30");
@@ -779,36 +872,46 @@ function renderMap(d, hm, W, H, exp = false) {
       s += `<text x="${heatL - 10}" y="${y + small * 0.35}" text-anchor="end" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtSpot(v)}</text>`;
   }
 
-  // barras GEX por strike (horizontales)
-  // barras del propio mapa (cubren todo su rango de precios); si no vienen, las del analisis
-  // modo "por strike": la misma medida que el color del mapa (gamma en cada strike) a la hora actual o de la
-  // ultima vela; modo "total": GEX neta por strike al precio actual
-  // en los dos modos: GEX neta de cada strike al precio actual, por 1% (la misma medida que el mapa y que gexbot).
-  // No se usa la gamma "en el strike" a la hora de la ultima vela: al cierre el 0DTE a punto de vencer la dispara
-  const ks = [], vs = [];
-  const src = hm.strikes && hm.net ? hm : d, sp1 = (hm.spot || d.spot) / 100;
-  src.strikes.forEach((k, i) => { if (k >= pLo && k <= pHi) { ks.push(k); vs.push(src.net[i] * sp1); } });
-  const sideB = bucketStrikes(ks, [vs], hm.step || d.step, Math.max(20, Math.floor((bottom - top) / 4)));
-  ks.length = 0; vs.length = 0; ks.push(...sideB.ks); vs.push(...sideB.arrs[0]);
-  const bmax = Math.max(1, ...vs.map(Math.abs));
+  // barras por strike (horizontales), del propio mapa (cubren todo su rango de precios) o, si no vienen, del analisis.
+  // GEX: neta de cada strike al precio actual, por 1% (la misma medida que el mapa y que gexbot; no la gamma "en el
+  // strike" a la hora de la ultima vela: al cierre el 0DTE a punto de vencer la dispara). OI: calls a la derecha y
+  // puts a la izquierda. Neta: contratos netos de los dealers. Con "solo 0DTE", solo el proximo vencimiento
+  const sb = mapSideBars(d, hm, pLo, pHi, Math.max(20, Math.floor((bottom - top) / 4)));
+  const ks = sb.ks, bmax = sb.max;
   const cx = (barsL + barsR) / 2, half = (barsR - barsL) / 2 - 4;
-  const bh = Math.max(1.5, Math.min(10, ((bottom - top) / Math.max(1, (pHi - pLo) / sideB.step)) * 0.7));
+  const bh = Math.max(1.5, Math.min(10, ((bottom - top) / Math.max(1, (pHi - pLo) / sb.step)) * 0.7));
   if (!narrow) s += `<line x1="${cx}" x2="${cx}" y1="${top}" y2="${bottom}" stroke="${C.axis}"/>`;
   if (!narrow) ks.forEach((k, i) => {
-    const v = vs[i]; if (!v) return;
-    const w = (Math.abs(v) / bmax) * half, y = yOf(k) - bh / 2;
-    s += `<rect x="${v > 0 ? cx : cx - w}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${bh.toFixed(2)}" rx="1" fill="${v > 0 ? C.pos : C.neg}"/>`;
+    const y = (yOf(k) - bh / 2).toFixed(2);
+    for (const [v, side] of sb.split ? [[sb.right[i], 1], [-sb.left[i], -1]] : [[sb.right[i], 0]]) {
+      if (!v) continue;
+      const w = (Math.abs(v) / bmax) * half, pos = side ? side > 0 : v > 0;
+      s += `<rect x="${pos ? cx : cx - w}" y="${y}" width="${w.toFixed(2)}" height="${bh.toFixed(2)}" rx="1" fill="${pos ? C.pos : C.neg}"/>`;
+    }
   });
   if (!narrow) {
-    s += `<text x="${cx - half}" y="${bottom + small + 10}" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(-bmax)}</text>`;
+    s += `<text x="${cx - half}" y="${bottom + small + 10}" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(sb.split ? bmax : -bmax)}</text>`;
     s += `<text x="${cx + half}" y="${bottom + small + 10}" text-anchor="end" font-family="${MONO}" font-size="${small}" fill="${C.muted}">${fmtAxis(bmax)}</text>`;
     // el rotulo va entre las dos cifras si cabe; si no, en una segunda linea
-    const lab = "GEX by strike, 1%", fits = textW(lab, small) + textW(fmtAxis(-bmax), small) + textW(fmtAxis(bmax), small) + 24 <= barsR - barsL;
+    const lab = sb.label, fits = textW(lab, small) + textW(fmtAxis(-bmax), small) + textW(fmtAxis(bmax), small) + 24 <= barsR - barsL;
     s += `<text x="${cx}" y="${bottom + small + 10 + (fits ? 0 : small + 5)}" text-anchor="middle" font-family="${SANS}" font-size="${small}" fill="${C.faint}">${lab}</text>`;
   }
 
-  // mapa
-  s += `<image href="${url}" x="${heatL}" y="${top}" width="${lastX - heatL}" height="${bottom - top}" preserveAspectRatio="none" style="image-rendering:auto"/>`;
+  // mapa (con zoom, la imagen entera desplazada y recortada al recuadro), curvas de nivel y velas comparten el recorte
+  const clip = `heatclip${exp ? "e" : "s"}`;
+  s += `<clipPath id="${clip}"><rect x="${heatL}" y="${top}" width="${heatR - heatL}" height="${bottom - top}"/></clipPath>`;
+  const iy = yOf(fHi), ih = yOf(fLo) - iy;
+  s += `<g clip-path="url(#${clip})"><image href="${url}" x="${heatL}" y="${iy.toFixed(1)}" width="${lastX - heatL}" height="${ih.toFixed(1)}" preserveAspectRatio="none" style="image-rendering:auto"/>`;
+  if (state.heatImg.contours.length) {
+    const nr = hm.prices.length, nc = hm.times.length;
+    const X = (c) => (heatL + ((c + 0.5) / nc) * (lastX - heatL)).toFixed(1), Y = (r) => yOf(fLo + (r / (nr - 1)) * (fHi - fLo)).toFixed(1);
+    for (const { f, segs } of state.heatImg.contours) {
+      if (!segs.length) continue;
+      const dp = segs.map(([c0, r0, c1, r1]) => `M${X(c0)} ${Y(r0)}L${X(c1)} ${Y(r1)}`).join("");
+      s += `<path d="${dp}" fill="none" stroke="${C.hi}" stroke-opacity="${f === 0 ? 0.7 : 0.28}" stroke-width="${f === 0 ? 1.3 : 0.8}" stroke-linecap="round"/>`;
+    }
+  }
+  s += `</g>`;
   if (lastX < heatR) s += `<rect x="${lastX}" y="${top}" width="${heatR - lastX}" height="${bottom - top}" fill="${C.ink}" fill-opacity="0.6"/>`;
   s += `<rect x="${heatL}" y="${top}" width="${heatR - heatL}" height="${bottom - top}" fill="none" stroke="${C.line || C.axis}"/>`;
 
@@ -847,15 +950,18 @@ function renderMap(d, hm, W, H, exp = false) {
   }
 
   // precio
-  const sy = yOf(hm.spot);
-  s += `<line x1="${heatL}" x2="${heatR}" y1="${sy}" y2="${sy}" stroke="${C.spotline}" stroke-opacity="0.5" stroke-dasharray="2 4"/>`;
-  s += `<rect x="${heatL - axisW + 6}" y="${sy - small * 0.85 - 3}" width="${axisW - 10}" height="${small + 7}" rx="4" fill="${C.spotline}"/>`;
-  s += `<text x="${heatL - 10}" y="${sy + small * 0.35}" text-anchor="end" font-family="${MONO}" font-size="${small}" font-weight="500" fill="${C.ink}">${fmtSpot(hm.spot)}</text>`;
-  if (hm.candles && hm.candles.length) {
-    const slot = (heatR - heatL) * 5 / (m1 - m0);
-    const cw = Math.max(1.5, slot * 0.62);
+  if (hm.spot >= pLo && hm.spot <= pHi) {
+    const sy = yOf(hm.spot);
+    s += `<line x1="${heatL}" x2="${heatR}" y1="${sy}" y2="${sy}" stroke="${C.spotline}" stroke-opacity="0.5" stroke-dasharray="2 4"/>`;
+    s += `<rect x="${heatL - axisW + 6}" y="${sy - small * 0.85 - 3}" width="${axisW - 10}" height="${small + 7}" rx="4" fill="${C.spotline}"/>`;
+    s += `<text x="${heatL - 10}" y="${sy + small * 0.35}" text-anchor="end" font-family="${MONO}" font-size="${small}" font-weight="500" fill="${C.ink}">${fmtSpot(hm.spot)}</text>`;
+  }
+  const mc = mapCandles(hm.candles, +state.mapCandle || 5);
+  if (mc.list.length) {
+    const slot = (heatR - heatL) * mc.slot / (m1 - m0);
+    const cw = Math.max(1, slot * 0.62);
     let cs = "";
-    for (const [t, o, h, l, c] of hm.candles) {
+    for (const [t, o, h, l, c] of mc.list) {
       const x = xOf(t) + slot / 2;
       const up = c >= o;
       const yT = yOf(Math.max(o, c)), yB = yOf(Math.min(o, c));
@@ -864,8 +970,7 @@ function renderMap(d, hm, W, H, exp = false) {
       cs += `<g${op}><line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yOf(h).toFixed(1)}" y2="${yOf(l).toFixed(1)}" stroke="${C.candle}" stroke-width="1"/>`;
       cs += `<rect x="${(x - cw / 2).toFixed(1)}" y="${yT.toFixed(1)}" width="${cw.toFixed(1)}" height="${Math.max(1, yB - yT).toFixed(1)}" fill="${up ? C.candle : C.ink}" stroke="${C.candle}" stroke-width="0.9"/></g>`;
     }
-    s += `<g clip-path="url(#heatclip${exp ? "e" : "s"})">${cs}</g>`;
-    s += `<clipPath id="heatclip${exp ? "e" : "s"}"><rect x="${heatL}" y="${top}" width="${heatR - heatL}" height="${bottom - top}"/></clipPath>`;
+    s += `<g clip-path="url(#${clip})">${cs}</g>`;
   }
   if (hm.live) {
     const nx = xOf(hm.now);
@@ -881,13 +986,13 @@ function renderMap(d, hm, W, H, exp = false) {
     const y = top + ((1 - t) / 2) * (bottom - top);
     if (!narrow || t === 1 || t === -1 || t === 0) s += `<text x="${cbL + cbBar + 4}" y="${y + small * 0.35}" font-family="${MONO}" font-size="${small - (narrow ? 1 : 0)}" fill="${C.muted}">${fmtAxis(v)}</text>`;
   });
-  if (!narrow) s += `<text transform="translate(${cbL + cbBar + 6 + cbNum + small * 0.4},${(top + bottom) / 2}) rotate(90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${state.mapMode === "total" ? "Total GEX per 1%" : "Gamma by strike, per 1%"}</text>`;
+  if (!narrow) s += `<text transform="translate(${cbL + cbBar + 6 + cbNum + small * 0.4},${(top + bottom) / 2}) rotate(90)" text-anchor="middle" font-family="${MONO}" font-size="${small - 1}" fill="${C.faint}">${heatScaleTitle(hm)}</text>`;
 
   // marca de agua
   if (!narrow) s += `<text x="${heatL + 10}" y="${bottom - 10}" font-family="${MONO}" font-size="${small}" fill="${C.hi}" fill-opacity="0.35">GEX Lab, ${esc(d.symbol)}, ${ddmm(hm.session)}</text>`;
 
-  if (!exp) state.geo = { kind: "map", left: heatL, right: heatR, top, bottom, barsL, barsR, pLo, pHi, m0, m1, lastX };
-  return frame(W, H, s, d, exp, `Gamma map ${ddmm(hm.session)}`);
+  if (!exp) state.geo = { kind: "map", left: heatL, right: heatR, top, bottom, barsL, barsR, pLo, pHi, fLo, fHi, m0, m1, lastX, sb };
+  return frame(W, H, s, d, exp, `${LENS_N[heatLens(hm)]} map ${ddmm(hm.session)}`);
 }
 
 // motores: ids internos gexbot / spotgamma; en pantalla, Neto / Perfil
@@ -908,6 +1013,7 @@ function extraParams() {
 
 function heatParams() {
   const p = new URLSearchParams({ symbol: state.symbol, dte: state.dte, range: state.range, session: state.mapSess, ...extraParams() });
+  if (state.mapLens !== "gamma") p.set("lens", state.mapLens);
   const sp = $("spotInput").value.trim();
   if (sp) p.set("spot", sp.replace(/,/g, ""));
   return p.toString();
@@ -945,7 +1051,7 @@ function mapCaption() {
     : ` Pre-market candles (faded) are ${hm.pre_src} scaled to ${hm.symbol}, rescaled at 09:40 so they join the index.`) : "";
   if (hm.pre) cap.textContent = `Pre-market (${dia}), with open interest from the previous close.` + pre;
   else if (hm.live) cap.textContent = `Today's session (${dia}), with open interest from the previous close.` + pre;
-  else if (hm.kind === "next") cap.textContent = `Projection for ${dia}. Candles will appear when the session opens`;
+  else if (hm.kind === "next") cap.textContent = `Projection for ${dia}. Candles will appear when the session opens.`;
   else cap.textContent = `Session of ${dia}` + (hm.approx ? ". Approximate: CBOE no longer publishes the contracts that expired that day" : ".") + pre;
   cap.title = hm.approx ? "From now on the app saves a copy of the chain during each session, so future replays will be exact." : "";
 }
@@ -984,6 +1090,7 @@ function draw() {
   if (state.view === "map") {
     if (!state.heat || state.heatKey !== heatParams()) { loadHeat(); return; }
     el.innerHTML = renderMap(d, state.heat, W, H);
+    syncMapTools();
     el.setAttribute("aria-label", "Gamma map by price and time");
     return;
   }
@@ -1252,12 +1359,18 @@ function setSections() {
       ["chg", "Daily change", "Contracts opened (up) or closed (down) in the last session, calls and puts side by side. Only for the tickers in the lists."],
       ["pos", "Net positioning", "Dealer net contracts at each strike: long (up) or short (down). With “Dealers: flow”, the position estimated from flow."]] });
   } else if (v === "map") {
-    S.push({ type: "one", title: "Map color", key: "mapMode", opts: [
+    if (state.mapLens === "gamma") S.push({ type: "one", title: "Map color", key: "mapMode", opts: [
       ["strike", "By strike", "Gamma concentrated at each strike, like TRACE."],
       ["total", "Total", "Total market GEX if the price were at that level."]] });
     S.push({ type: "one", title: "Session", key: "mapSess", cur: state.mapKind || state.mapSess, opts: [
       ["last", "Last session", "Replays the last session with its candles."],
       ["next", "Next", "Projection of the next session."]] });
+    S.push({ type: "one", title: "Color scale", key: "mapScale", opts: [
+      ["auto", "Auto", "Adapts to each map and ignores the most extreme values."],
+      ["low", "Low", "Full color at a quarter of the largest value: shows the weaker zones."],
+      ["medium", "Medium", "Full color at half of the largest value."],
+      ["high", "High", "Full color only at the largest value: just the strongest zones stand out."]] });
+    S.push({ type: "flag", key: "mapContour", lab: "Contour lines", info: "Lines at 25, 50 and 75% of the color scale. Where they bunch up, the value changes quickly. In Delta and Charm the brighter line marks where buying turns into selling." });
   }
   return S;
 }
@@ -1285,11 +1398,14 @@ function setChoose(k, v) {
     state.showLevels = !state.showLevels; store.set("levels", state.showLevels ? "1" : "0");
   } else if (k === "mapSess") {
     state.mapSess = v;
+  } else if (k === "mapContour" || k === "mapBars0") {
+    state[k] = !state[k]; store.set(k, state[k] ? "1" : "0");
+    if (k === "mapContour") state.heatImg = null;
   } else {
     state[k] = v; store.set(k, v);
-    if (k === "mapMode") state.heatImg = null;
+    if (k === "mapMode" || k === "mapScale") state.heatImg = null;
   }
-  syncSet(); renderSet(); draw();
+  syncSet(); renderSet(); syncMapTools(); draw();
 }
 function syncSet() {
   const v = state.view, strike = v === "strike";
@@ -1301,11 +1417,42 @@ function syncSet() {
   $("setLab").textContent = strike ? GREEK_N[state.greek] +
     (state.greek === "gamma" ? `, ${BN[state.bars]}` : state.greek === "delta" ? `, ${BN[state.dbars]}` : state.greek === "oi" ? `, ${{ chg: "Daily change", pos: "Dealer net" }[state.oiMode] || "Total"}` : "") +
     (nl ? `, ${nl} line${nl > 1 ? "s" : ""}` : "")
-    : v === "map" ? (state.mapMode === "total" ? "Total map" : "Map by strike") : "Levels";
+    : v === "map" ? "Settings" : "Levels";
   if (!$("chartSet").hidden) renderSet();
 }
+/* barra del mapa: desplegables de lente, velas y barras de la izquierda, interruptor del proximo vencimiento y zoom */
+const LENS_OPTS = [
+  ["gamma", "Gamma", "Violet: dealers long gamma, calmer moves and pinning. Magenta: short gamma, faster moves."],
+  ["delta", "Delta Pressure", "What dealers would buy (violet) or sell (magenta) to stay hedged if the price got there. Long gamma: they hold the price; short gamma: they push it."],
+  ["charm", "Charm Pressure", "What dealers would buy or sell over the next hour just from time passing. Into the close, the bright zero line marks pinning zones."]];
+const CANDLE_OPTS = [["1", "1 minute"], ["5", "5 minutes"], ["15", "15 minutes"]];
+const BARS_OPTS = [
+  ["gex", "GEX", "Net gamma exposure at each strike, per 1% move."],
+  ["oi", "Open interest", "Open contracts at the previous close: calls to the right, puts to the left."],
+  ["netoi", "Dealer net contracts", "Estimated dealer position at each strike: long to the right, short to the left."]];
+const CARET = `<svg viewBox="0 0 10 6" width="10" height="6" aria-hidden="true"><path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function ddFill(btn, menu, key, opts, prefix, short) {
+  const cur = opts.find((o) => o[0] === state[key]) || opts[0];
+  $(btn).innerHTML = `<span class="dd-k">${prefix}</span><b>${esc(short ? short(cur) : cur[1])}</b>${CARET}`;
+  $(menu).innerHTML = opts.map(([v, l, sub]) => `<button role="menuitemradio" aria-checked="${state[key] === v}" data-k="${key}" data-v="${v}"><span class="dd-t">${esc(l)}</span>${sub ? `<span class="dd-s">${esc(sub)}</span>` : ""}</button>`).join("");
+}
+function syncMapTools() {
+  ddFill("lensBtn", "lensMenu", "mapLens", LENS_OPTS, "Lens");
+  ddFill("candleBtn", "candleMenu", "mapCandle", CANDLE_OPTS, "Candles", (o) => `${o[0]}m`);
+  ddFill("barsBtn", "barsMenu", "mapBars", BARS_OPTS, "Bars", (o) => ({ gex: "GEX", oi: "OI", netoi: "Net OI" })[o[0]]);
+  const hm = state.heat, d = state.data;
+  $("bars0Tg").setAttribute("aria-checked", String(state.mapBars0));
+  $("bars0Lab").textContent = hm && d && frontTag(hm, d) !== "0DTE" ? "Next expiration" : "0DTE";
+  const zoomed = !!(hm && state.mapZoom && state.mapZoom.sym === hm.symbol);
+  $("zoomReset").hidden = !zoomed; $("zoomHint").hidden = zoomed;
+  // sin columna de barras (pantalla estrecha) no tiene sentido elegir que muestran
+  const g = state.geo, narrow = !!(g && g.kind === "map" && g.barsR - g.barsL < 20);
+  $("mtBars").style.visibility = narrow ? "hidden" : "";
+  $("mapTools").classList.toggle("bare", narrow && !zoomed);
+}
+
 function bindPopovers() {
-  const pairs = [["setBtn", "chartSet"], ["expBtn", "expMenu"]];
+  const pairs = [["setBtn", "chartSet"], ["expBtn", "expMenu"], ["lensBtn", "lensMenu"], ["candleBtn", "candleMenu"], ["barsBtn", "barsMenu"]];
   const close = (except) => pairs.forEach(([b, p]) => { if (p !== except) { $(p).hidden = true; $(b).setAttribute("aria-expanded", "false"); } });
   pairs.forEach(([b, p]) => {
     $(b).addEventListener("click", (e) => {
@@ -1319,6 +1466,11 @@ function bindPopovers() {
   });
   // el menu Exportar se cierra al elegir; las opciones del grafico siguen abiertas para probar varias
   $("expMenu").addEventListener("click", (e) => { if (e.target.closest("button")) close(); });
+  // los desplegables del mapa se cierran al elegir
+  for (const m of ["lensMenu", "candleMenu", "barsMenu"]) $(m).addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-k]");
+    if (b) { close(); setChoose(b.dataset.k, b.dataset.v); }
+  });
   document.addEventListener("click", () => close());
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 }
@@ -1535,22 +1687,56 @@ function mapTip(e, x, y, g) {
   if (!hm || y < g.top || y > g.bottom) return hideTip();
   const price = g.pLo + ((g.bottom - y) / (g.bottom - g.top)) * (g.pHi - g.pLo);
   let html;
-  if (x >= g.barsL && x <= g.barsR) {
+  if (x >= g.barsL && x <= g.barsR && g.sb) {
+    // barra mas cercana, con los mismos valores (y agrupacion) que se dibujan
+    const sb = g.sb;
     let bi = -1, bd = Infinity;
-    d.strikes.forEach((k, i) => { const dd = Math.abs(k - price); if (dd < bd) { bd = dd; bi = i; } });
+    sb.ks.forEach((k, i) => { const dd = Math.abs(k - price); if (dd < bd) { bd = dd; bi = i; } });
     if (bi < 0) return hideTip();
-    html = `<div class="t">Strike ${fmtLevel(d.strikes[bi])}</div><div class="r">Net GEX <b>${fmtBig(d.net[bi], true)}</b></div>
-      <div class="r">Expires ${ddmm(d.front_expiry)} <b>${fmtBig(d.front[bi], true)}</b></div>`;
+    const rows = sb.kind === "oi" ? `<div class="r">Calls <b>${fmtNum(sb.right[bi])}</b></div><div class="r">Puts <b>${fmtNum(sb.left[bi])}</b></div>`
+      : sb.kind === "netoi" ? `<div class="r">Dealers ${sb.right[bi] >= 0 ? "long" : "short"} <b>${fmtNum(Math.abs(sb.right[bi]))}</b></div>`
+      : `<div class="r">GEX per 1% <b>${fmtBig(sb.right[bi], true)}</b></div>`;
+    html = `<div class="t">Strike ${fmtLevel(sb.ks[bi])}${state.mapBars0 ? `, ${frontTag(hm, d)}` : ""}</div>${rows}`;
   } else if (x >= g.left && x <= Math.min(g.right, g.lastX)) {
     const mins = g.m0 + ((x - g.left) / (g.right - g.left)) * (g.m1 - g.m0);
     const c = Math.max(0, Math.min(hm.times.length - 1, Math.round((mins - g.m0) / 5)));
-    const r = Math.max(0, Math.min(hm.prices.length - 1, Math.round(((price - g.pLo) / (g.pHi - g.pLo)) * (hm.prices.length - 1))));
-    html = `<div class="t">${nyHHMM(hm.session + " " + hm.times[c])}, price ${fmtSpot(price)}</div>
-      <div class="r">${state.mapMode === "total" ? "Total GEX" : "Gamma at strike"} <b>${fmtBig(heatZ(hm)[r][c], true)}</b></div>
+    const r = Math.max(0, Math.min(hm.prices.length - 1, Math.round(((price - g.fLo) / (g.fHi - g.fLo)) * (hm.prices.length - 1))));
+    const v = heatZ(hm)[r][c], ln = heatLens(hm);
+    const val = ln === "delta" ? `<div class="r">Dealers would ${v >= 0 ? "buy" : "sell"} <b>${fmtBig(Math.abs(v), true)}</b></div>`
+      : ln === "charm" ? `<div class="r">Next hour, dealers ${v >= 0 ? "buy" : "sell"} <b>${fmtBig(Math.abs(v), true)}</b></div>`
+      : `<div class="r">${heatZ(hm) === hm.z ? "Total GEX" : "Gamma at strike"} <b>${fmtBig(v, true)}</b></div>`;
+    html = `<div class="t">${nyHHMM(hm.session + " " + hm.times[c])}, price ${fmtSpot(price)}</div>${val}
       <div class="r">Distance <b>${fmtPct((price / hm.spot - 1) * 100)}</b></div>`;
   } else return hideTip();
   tip.innerHTML = html; tip.hidden = false;
   placeTip(e);
+}
+
+function mapZoomStart(e) {
+  const g = state.geo, svg = $("chart").querySelector("svg");
+  if (e.button !== 0 || state.view !== "map" || !g || g.kind !== "map" || !state.heat || !svg) return;
+  const rect = svg.getBoundingClientRect(), x = e.clientX - rect.left, y0 = e.clientY - rect.top;
+  if (x < g.left || x > g.right || y0 < g.top || y0 > g.bottom) return;
+  e.preventDefault();
+  const sel = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+  for (const [k, v] of Object.entries({ x: g.left, y: y0, width: g.right - g.left, height: 0, fill: C.hi, "fill-opacity": 0.08, stroke: C.hi, "stroke-opacity": 0.45 }))
+    sel.setAttribute(k, v);
+  svg.appendChild(sel);
+  let y1 = y0;
+  const move = (ev) => {
+    y1 = Math.max(g.top, Math.min(g.bottom, ev.clientY - rect.top));
+    sel.setAttribute("y", Math.min(y0, y1)); sel.setAttribute("height", Math.abs(y1 - y0));
+    hideTip();
+  };
+  const up = () => {
+    window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up);
+    sel.remove();
+    if (Math.abs(y1 - y0) < 10) return;
+    const pOf = (y) => g.pLo + ((g.bottom - y) / (g.bottom - g.top)) * (g.pHi - g.pLo);
+    state.mapZoom = { sym: state.heat.symbol, lo: pOf(Math.max(y0, y1)), hi: pOf(Math.min(y0, y1)) };
+    draw();
+  };
+  window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
 }
 
 function hideTip() {
@@ -3116,6 +3302,11 @@ async function init() {
   $("tvBtn").addEventListener("click", copyTV);
   $("chart").addEventListener("mousemove", onMove);
   $("chart").addEventListener("mouseleave", hideTip);
+  // zoom vertical del mapa: arrastrar arriba o abajo sobre el mapa; doble clic para volver
+  $("chart").addEventListener("mousedown", mapZoomStart);
+  $("chart").addEventListener("dblclick", () => { if (state.view === "map" && state.mapZoom) { state.mapZoom = null; draw(); } });
+  $("zoomReset").addEventListener("click", () => { state.mapZoom = null; draw(); });
+  $("bars0Tg").addEventListener("click", () => setChoose("mapBars0"));
   document.addEventListener("keydown", (e) => {
     if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $("symbol").select(); }
   });

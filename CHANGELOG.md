@@ -3,9 +3,31 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE
+## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE; lentes Delta y Charm Pressure en el TRACE
 
 **Añadido**
+- **Lentes del TRACE (desplegable «Lens» de la cabecera del mapa), como en el TRACE de SpotGamma:**
+  - **Gamma:** el mapa de siempre (por strike o total).
+  - **Delta Pressure:** lo que los dealers comprarían (violeta) o venderían (magenta) para seguir cubiertos si el
+    precio fuera desde donde estaba a esa hora hasta cada nivel. Con gamma positiva, venta encima y compra debajo
+    (frenan el precio); con gamma negativa, al revés (lo aceleran).
+  - **Charm Pressure:** lo que comprarían o venderían durante la hora siguiente solo por el paso del tiempo, con el
+    precio quieto en cada nivel. Hacia el cierre, la línea donde cambia de signo marca las zonas de pin. Se apaga en
+    los últimos 15 minutos.
+  - Delta y Charm no se precalculan en el motor: se calculan al pedirlos (en la nube, en el navegador, y solo se
+    repiten cuando el motor publica datos nuevos). Con todos los vencimientos de SPX tardan como la lente Gamma.
+- **Más opciones del mapa**, a mano como en SpotGamma: en la cabecera, desplegables de lente y de velas junto a
+  Key levels, Settings y Export; encima de la columna de barras, desplegable de qué muestran y el interruptor 0DTE.
+  En Settings quedan el color del mapa (Gamma), la sesión, la escala de color y las curvas de nivel. En el móvil
+  la cabecera pasa a dos líneas.
+  - **Curvas de nivel** al 25, 50 y 75 % de la escala de color (y en Delta y Charm, la del cero, más marcada). Donde
+    se juntan, el valor cambia deprisa. Se pueden quitar.
+  - **Velas de 1, 5 o 15 minutos.**
+  - **Escala de color:** Auto (la de siempre), baja, media o alta (color pleno al 25, 50 o 100 % del máximo).
+  - **Zoom vertical:** arrastrar arriba o abajo sobre el mapa; doble clic o «Reset zoom» para volver.
+  - **Barras de la izquierda:** GEX, open interest (calls a la derecha, puts a la izquierda) o contratos netos de
+    los dealers, de todos los vencimientos del filtro o solo del próximo (0DTE). El tooltip da los valores de la
+    barra dibujada.
 - **Workflow de estudios (`estudio.yml`):** ejecuta un script de `pruebas/` con lectura del estado del motor y del
   historial diario en R2, para comparar configuraciones con el historial propio. Solo lee; no cambia nada de la web.
   `pruebas/estudio_0dte.py` compara las cuatro configuraciones del 0DTE (Neto/Perfil, estándar/flujo) con lo que
@@ -18,7 +40,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   se abren al instante con los datos del último cierre en lugar del aviso «Downloading … in the cloud». La pasada
   se reparte entre los ciclos de después del cierre y no repite los ya hechos en la sesión.
 - **Pre-market en el TRACE:** el mapa de SPX, NDX, RUT, SPY, QQQ e IWM empieza a las 07:00 ET. Antes de la
-  apertura muestra, atenuadas, las velas de 5 min del ETF fuera de horario (SPY, QQQ, IWM), escaladas al índice, y
+  apertura muestra, atenuadas, las velas del ETF fuera de horario (SPY, QQQ, IWM), escaladas al índice, y
   una línea discontinua a las 09:30. Desde las 09:40 esas velas se reescalan con la relación índice/ETF del día, así
   que empalman sin salto con el índice real (también el día del dividendo del ETF). Antes de abrir, el precio y los
   niveles van con la última vela y el motor rápido se actualiza cada 5 min desde las 07:05. El open interest sigue
@@ -26,6 +48,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   `pruebas/tradier_premarket.py` y `pruebas/premarket_mapa.py`.
 
 **Cambiado**
+- **Velas de 1 minuto de Tradier** (antes de 5) para los índices en tiempo real, también en el tramo previo a la
+  apertura: el mapa puede mostrarlas a 1, 5 o 15 minutos.
 - **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y
   administración. Las cifras usan el formato inglés (7,550.25) y las fechas van como «Nov 13»; el spot manual se
   escribe con punto decimal. Las etiquetas del COT, la forma de la curva VIX y los nombres del calendario de eventos

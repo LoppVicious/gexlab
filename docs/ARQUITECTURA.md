@@ -10,14 +10,14 @@ Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
   - auth (PBKDF2 en el cliente, sesión única por cuenta), prefs y listas en D1
   - cron */5: toca() lanza motor.yml modo ciclo cada 15 min (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00);
     tocaRapido() lanza modo rapido cada 5 min de 07:05 a 16:05 ET (de 07:05 a 09:30, el tramo previo a la apertura).
-  - **Tiempo real** (`motor.py rapido`, `TIEMPO_REAL` = SPX NDX RUT SPY QQQ IWM): cadena y velas de 5 min de Tradier
+  - **Tiempo real** (`motor.py rapido`, `TIEMPO_REAL` = SPX NDX RUT SPY QQQ IWM): cadena y velas de 1 min de Tradier
     (`fuente_tradier.velas`, solo cerradas y hasta el cierre, formato de CBOE intraday; solo `VELAS_TRADIER`:
     Tradier no da velas de NDX ni RUT), paquete y vistas; lee el estado pero no lo guarda
     (historial de niveles y flujo, en el ciclo de 15 min, que vuelve a descargar esos 6: el cupo de Tradier alcanza).
     Escribe `pub/rapido.json`. Sale sin hacer nada fuera de 07:00-cierre (festivos, cierre a las 13:00). Resto de
     tickers: velas de CBOE. La web (Auto) recarga cada minuto esos 6 y cada 5 el resto.
   - **Tramo previo a la apertura del TRACE** (`gex_engine.PRE_PROXY`, desde `PRE_OPEN` = 07:00): el mapa de SPX, NDX,
-    RUT y sus ETF empieza a las 07:00. `fuente_tradier.velas_pre` añade a `fx/intraday_SYM.json` las velas de 5 min del
+    RUT y sus ETF empieza a las 07:00. `fuente_tradier.velas_pre` añade a `fx/intraday_SYM.json` las velas de 1 min del
     ETF (Tradier, `session_filter=all`) escaladas al índice (`pre_src` = ETF). Ratio: índice / ETF al cierre de la vela
     de 09:35-09:40 (la primera vela del índice lleva precios de ayer); antes, el de los cierres anteriores (RUT no tiene
     `prevclose` en Tradier: última vela anterior o `last` antes de abrir). Antes de las 09:30 el `spot` del paquete es
@@ -66,6 +66,10 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
 `motor.leer_config` suma al universo), lanzar ciclo o historial (`/api/admin/lanzar`) y el CHANGELOG (se copia a `dist/`).
 
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
+El motor solo precalcula la lente Gamma del mapa. Las lentes `delta` y `charm` (`heatmap(lens=...)`, clave con
+`_delta`/`_charm` en `nube.js`) no están en R2: el navegador las calcula con el paquete y las guarda en memoria hasta
+que cambia el paquete (`generado`). Para ir rápido, la delta exacta (N(d1)) solo se evalúa en los contratos casi
+vencidos; en el resto sale integrando su gamma en el eje de precios (Delta) o por derivada en W y T (Charm).
 El rango canónico es `auto` o un número sin ceros sobrantes. El motor borra las vistas que ya no calcula.
 
 

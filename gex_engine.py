@@ -1744,6 +1744,11 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     woi_c = np.zeros(wgrid.size); woi_p = np.zeros(wgrid.size)
     np.add.at(woi_c, idx[inw & C], OI[inw & C])
     np.add.at(woi_p, idx[inw & ~C], OI[inw & ~C])
+    # lo mismo solo con el proximo vencimiento (barras del mapa con "solo 0DTE")
+    woi_fc = np.zeros(wgrid.size); woi_fp = np.zeros(wgrid.size); wpos_f = np.zeros(wgrid.size)
+    np.add.at(woi_fc, idx[inw & C & FRONT], OI[inw & C & FRONT])
+    np.add.at(woi_fp, idx[inw & ~C & FRONT], OI[inw & ~C & FRONT])
+    np.add.at(wpos_f, idx[inw & FRONT], pos[inw & FRONT])
     oi_prev = None if combine else oi_previo(normalize(symbol), _contract_keys(K, C, EXP), OI)
     wdc = wdp = None
     if oi_prev and oi_prev.get("oi"):
@@ -1777,7 +1782,8 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
               "chg_calls": np.round(wdc[vis]).tolist() if wdc is not None else None,
               "chg_puts": np.round(wdp[vis]).tolist() if wdp is not None else None,
               "prev_date": oi_prev.get("date") if wdc is not None else None,
-              "net_pos": np.round(wpos[vis]).tolist()}
+              "net_pos": np.round(wpos[vis]).tolist(), "front_calls": np.round(woi_fc[vis]).tolist(),
+              "front_puts": np.round(woi_fp[vis]).tolist(), "front_pos": np.round(wpos_f[vis]).tolist()}
     delta_out = {"net": np.round(wdn[vis]).tolist(), "calls": np.round(wdcl[vis]).tolist(), "puts": np.round(wdpu[vis]).tolist()}
     by_exp = {"groups": egroups, "gex": [[float(f"{v:.5g}") for v in row] for row in wexp[:, vis]]}
 
@@ -2053,12 +2059,18 @@ _heat_cache: dict[str, tuple[float, dict]] = {}
 
 def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             spot_override: float | None = None, rows: int = 140, step_min: int = 5, which: str = "auto",
-            combine: bool = False, positioning: str = "standard", model: str = "gexbot") -> dict:
-    """GEX total (por 1%) si el subyacente estuviera en cada precio a cada hora de la sesion.
-    El open interest es el del cierre anterior: el mapa cambia con el tiempo y el precio, no con el flujo."""
+            combine: bool = False, positioning: str = "standard", model: str = "gexbot", lens: str = "gamma") -> dict:
+    """Mapa por precio y hora de la sesion. El open interest es el del cierre anterior: el mapa cambia con el tiempo
+    y el precio, no con el flujo. Lentes (`lens`), todas desde el lado de los dealers:
+    - gamma: GEX total (por 1%) si el subyacente estuviera en cada precio (`z`) y gamma concentrada en cada strike (`zk`).
+    - delta: Delta Pressure, $ que comprarian (+) o venderian (-) para cubrirse si el precio fuera de donde estaba en esa
+      hora (la vela, o el precio actual en las horas sin vela) a cada precio del mapa.
+    - charm: Charm Pressure, $ que comprarian (+) o venderian (-) durante la hora siguiente solo por el paso del tiempo,
+      con el precio quieto en cada nivel."""
     symbol = normalize(symbol)
     model = model if model in MODELS else "gexbot"
-    key = f"{symbol}|{max_dte}|{window_pct}|{spot_override}|{which}|{combine}|{positioning}|{model}"
+    lens = lens if lens in ("gamma", "delta", "charm") else "gamma"
+    key = f"{symbol}|{max_dte}|{window_pct}|{spot_override}|{which}|{combine}|{positioning}|{model}|{lens}"
     hit = _heat_cache.get(key)
     if hit and time.time() - hit[0] < CACHE_TTL:
         return hit[1]
@@ -2119,7 +2131,8 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         pos, _ = flow_positions(symbol, ch, m, sign * OI)
     w = pos * 100.0
 
-    # velas de 5 minutos de la sesion
+    # velas de la sesion con la resolucion de la fuente (1 min en CBOE y Tradier; 5 min en datos antiguos), marcadas por
+    # su minuto de inicio: la web las agrupa en 1, 5 o 15 minutos
     candles = []
     raw = fetch_aux("intraday", symbol, ttl=60)
     if raw:
@@ -2131,12 +2144,12 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
                 continue
             hh, mm = int(dt[11:13]), int(dt[14:16])
             mins = hh * 60 + mm - 1  # la vela de 09:31 cubre 09:30-09:31
-            k5 = f"{mins // 60:02d}:{(mins % 60) // 5 * 5:02d}"
+            k1 = f"{mins // 60:02d}:{mins % 60:02d}"
             o, h, l, c = (float(p.get(x) or p["close"]) for x in ("open", "high", "low", "close"))
-            if k5 not in buckets:
-                buckets[k5] = [o, h, l, c]
+            if k1 not in buckets:
+                buckets[k1] = [o, h, l, c]
             else:
-                bk = buckets[k5]
+                bk = buckets[k1]
                 bk[1], bk[2], bk[3] = max(bk[1], h), min(bk[2], l), c
         candles = [[k, *v] for k, v in sorted(buckets.items())]
 
@@ -2181,9 +2194,103 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     else:
         jref = 0
     kbar = None
+
+    # Delta y Charm Pressure. Delta de los dealers (acciones) en cada precio: call y put del mismo grupo comparten N(d1);
+    # la parte de la put que no depende del precio (-e^-qT) se cancela en las diferencias. N(d1) sobre toda la matriz
+    # es caro, asi que solo se evalua exacta en los contratos "estrechos" (a punto de vencer); en el resto la delta sale
+    # integrando su gamma en el eje de precios y el paso de una hora, por derivada (una sola exponencial por celda)
+    dy = float(ys[1] - ys[0]) if rows > 1 else 1.0
+
+    def inputs(live, t_at):
+        Wd, Td, Qd = model_inputs(model, IV[live], None, EXP[live], q, t_at, div)
+        Qd = np.zeros(Wd.size) if np.isscalar(Qd) else Qd
+        if fut_rel is not None:
+            Qd = np.full(Wd.size, risk_free())
+        return Wd, Td, Qd
+
+    def d1_of(lsk, Wd, Td, Qd):
+        return (lsk + ((risk_free() - Qd) * Td + 0.5 * Wd).astype(np.float32)) * (1.0 / np.sqrt(Wd)).astype(np.float32)
+
+    def exact_delta(lsk, Wd, Td, Qd, wq):
+        x = d1_of(lsk, Wd, Td, Qd)
+        return (_ncdf(x) @ wq.astype(np.float32)).astype(np.float64)
+
+    def delta_profile(lsk, live, t_at):
+        Wd, Td, Qd = inputs(live, t_at)
+        wq = w[live] * np.exp(-Qd * Td)
+        sw = np.sqrt(Wd)
+        nar = sw * spot < 4 * dy   # la campana de su gamma ocupa pocas filas: integrarla seria impreciso
+        D = np.zeros(rows)
+        if (~nar).any():
+            x = d1_of(lsk[:, ~nar], Wd[~nar], Td[~nar], Qd[~nar])
+            G = (np.exp(-0.5 * x * x) @ (wq[~nar] / (math.sqrt(2 * math.pi) * sw[~nar])).astype(np.float32)) / ys
+            D += np.concatenate([[0.0], np.cumsum((G[1:] + G[:-1]) * 0.5 * np.diff(ys))])
+        if nar.any():
+            D += exact_delta(lsk[:, nar], Wd[nar], Td[nar], Qd[nar], wq[nar])
+        return D
+
+    def charm_hour(lsk, live, tt):
+        """Cambio de la delta de los dealers en la hora siguiente con el precio quieto. Exacto (dos N(d1)) en lo que
+        vence en esa hora o pierde mas del 10 % de su varianza; derivada en W y T en el resto.
+        Lo que vence en esa hora no llega al escalon 0/1 (con strikes cada pocos puntos dibujaria franjas en cada uno):
+        se queda con la varianza que el motor le da a 15 minutos del vencimiento, o la que tenga si es menor."""
+        t1 = tt + timedelta(minutes=60)
+        W0, T0, Q0 = inputs(live, tt)
+        W1, T1, Q1 = inputs(live, t1)
+        done = EXP[live] <= np.datetime64(t1.replace(second=0, microsecond=0))
+        if done.any():
+            W1 = W1.copy()
+            il, el = np.flatnonzero(live), EXP[live]
+            for e in np.unique(el[done]):
+                me = done & (el == e)
+                sub = np.zeros(EXP.size, bool)
+                sub[il[me]] = True
+                t_end = e.astype("datetime64[m]").astype(datetime) - timedelta(minutes=15)
+                W1[me] = np.minimum(inputs(sub, t_end)[0], W0[me])
+        ex = done | ((W0 - W1) > 0.1 * W0)
+        dD = np.zeros(rows)
+        if ex.any():
+            l_ex = lsk[:, ex]
+            dD += exact_delta(l_ex, W1[ex], T1[ex], Q1[ex], w[live][ex] * np.exp(-Q1[ex] * T1[ex])) - \
+                exact_delta(l_ex, W0[ex], T0[ex], Q0[ex], w[live][ex] * np.exp(-Q0[ex] * T0[ex]))
+        if (~ex).any():
+            k = ~ex
+            sw = np.sqrt(W0[k])
+            x = d1_of(lsk[:, k], W0[k], T0[k], Q0[k])
+            pdf = np.exp(-0.5 * x * x)
+            # dN(d1) = pdf(d1) * (dd1/dW * dW + dd1/dT * dT), con dd1/dW = -d2 / (2W) y dd1/dT = (r - q) / sqrt(W)
+            wk = (w[live][k] * np.exp(-Q0[k] * T0[k]) / math.sqrt(2 * math.pi))
+            dW = (W1[k] - W0[k]) / (2 * W0[k])
+            dT = (risk_free() - Q0[k]) * (T1[k] - T0[k]) / sw
+            d2 = x - sw.astype(np.float32)
+            dD += (pdf @ (wk * dT).astype(np.float32)).astype(np.float64) - ((pdf * d2) @ (wk * dW).astype(np.float32)).astype(np.float64)
+        return dD
+
+    # Delta Pressure: precio de referencia de cada columna, el cierre de la ultima vela de ese tramo de 5 min
+    # (sin velas aun, el precio actual)
+    ref_px = None
+    if lens == "delta":
+        cmin = np.array([int(c[0][:2]) * 60 + int(c[0][3:5]) for c in candles], float)
+        ccls = np.array([c[4] for c in candles], float)
+        ref_px = np.full(len(times), spot)
+        for j, tt in enumerate(times):
+            tm = tt.hour * 60 + tt.minute
+            if cmin.size and tm <= cmin[-1]:
+                i = int(np.searchsorted(cmin, tm + step_min, "left")) - 1
+                ref_px[j] = ccls[i] if i >= 0 else candles[0][1]
     for j, tt in enumerate(times):
         live = EXP > np.datetime64(tt.replace(second=0, microsecond=0))
         if not live.any():
+            continue
+        lsk = log_sk if live.all() else log_sk[:, live]
+        if lens == "delta":
+            D = delta_profile(lsk, live, tt)
+            # $ que moverian los dealers si el precio fuera de ref_px a cada nivel: venden lo que les sube la delta
+            Z[:, j] = -(D - np.interp(ref_px[j], ys, D)) * ys
+            continue
+        if lens == "charm":
+            # $ que moverian en la hora siguiente con el precio quieto (lo que vence en ese tramo llega a su delta final)
+            Z[:, j] = -charm_hour(lsk, live, tt) * ys
             continue
         # varianza restante en cada instante: se consume solo en horas de mercado (ver variance_to_expiry)
         Wl, Tl, Ql = model_inputs(model, IV[live], None, EXP[live], q, tt, div)
@@ -2191,7 +2298,6 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         if fut_rel is not None:
             Ql = np.full(Wl.size, risk_free())   # Black-76
         sw = np.sqrt(Wl)
-        lsk = log_sk if live.all() else log_sk[:, live]
         d1 = lsk + ((risk_free() - Ql) * Tl + 0.5 * Wl).astype(np.float32)
         d1 *= (1.0 / sw).astype(np.float32)
         np.square(d1, out=d1)
@@ -2222,10 +2328,10 @@ def heatmap(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         # velas antes de las 09:30: del ETF (escaladas al indice si no es el propio ETF)
         "pre_src": (raw or {}).get("pre_src") if any(c[0] < "09:30" for c in candles) else None,
         "now": now.strftime("%H:%M"),
-        "times": [t.strftime("%H:%M") for t in times],
-        "prices": ys.tolist(), "z": np.round(Z, 0).tolist(), "zk": np.round(ZK, 0).tolist(),
+        "times": [t.strftime("%H:%M") for t in times], "lens": lens,
+        "prices": ys.tolist(), "z": np.round(Z, 0).tolist(), "zk": np.round(ZK, 0).tolist() if lens == "gamma" else None,
         "candles": candles, "levels": lev["levels"], "step": lev["step"], "strike_bars": strike_bars,
-        "strikes": lev["strikes"], "net": lev["net"], "front": lev["front"],
+        "strikes": lev["strikes"], "net": lev["net"], "front": lev["front"], "oi": lev.get("oi"),
         "front_expiry": lev["front_expiry"], "expected_move": lev["expected_move"], "name": lev["name"],
     }
     _heat_cache[key] = (time.time(), res)

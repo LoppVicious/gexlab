@@ -6,6 +6,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 ## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE
 
 **Añadido**
+- **Workflow de estudios (`estudio.yml`):** ejecuta un script de `pruebas/` con lectura del estado del motor y del
+  historial diario en R2, para comparar configuraciones con el historial propio. Solo lee; no cambia nada de la web.
 - **El historial diario alimenta toda la web:** cada día, tras el cierre (desde las 16:20 ET), el motor calcula
   una vez todos los tickers de la lista del historial diario que no están en ninguna watchlist, igual que los de
   las listas. Así acumulan historia para el Volatility dashboard (cambio diario de la matriz por strike fijo,

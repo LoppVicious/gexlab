@@ -1,0 +1,28 @@
+name: Estudio
+# Ejecuta un script de pruebas/ con lectura de R2 (estado del motor, historial diario) y Tradier.
+# Los scripts de estudio solo leen: nunca escriben en R2. Los registros son publicos: solo resultados agregados.
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Script de pruebas/ a ejecutar"
+        default: "estudio_inventario.py"
+jobs:
+  estudio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements-nube.txt
+      - name: Estudio
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          GEX_ALMACEN: r2
+        run: python pruebas/${{ inputs.script }}

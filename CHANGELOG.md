@@ -12,6 +12,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   sesión anterior y hace una semana, percentiles 10-90 a partir de 15 sesiones), el Histórico y el modo flujo, y
   se abren al instante con los datos del último cierre en lugar del aviso «Downloading … in the cloud». La pasada
   se reparte entre los ciclos de después del cierre y no repite los ya hechos en la sesión.
+- **Prueba de datos fuera de horario:** `pruebas/tradier_premarket.py` comprueba qué da Tradier antes de la
+  apertura (velas de SPY y SPX, operaciones nocturnas de SPXW, futuros), para estudiar velas pre-market en el TRACE.
 
 **Cambiado**
 - **Toda la web en inglés:** menús, gráficos, tooltips, glosario, avisos, mensajes de error, inicio de sesión y

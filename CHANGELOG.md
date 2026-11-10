@@ -8,6 +8,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 **Añadido**
 - **Workflow de estudios (`estudio.yml`):** ejecuta un script de `pruebas/` con lectura del estado del motor y del
   historial diario en R2, para comparar configuraciones con el historial propio. Solo lee; no cambia nada de la web.
+  `pruebas/estudio_0dte.py` compara las cuatro configuraciones del 0DTE (Neto/Perfil, estándar/flujo) con lo que
+  hizo el precio: rango entre muros, rechazo o rotura en cada toque y volatilidad por encima y por debajo del flip.
+  `pruebas/estudio_inventario.py` cuenta el historial disponible.
 - **El historial diario alimenta toda la web:** cada día, tras el cierre (desde las 16:20 ET), el motor calcula
   una vez todos los tickers de la lista del historial diario que no están en ninguna watchlist, igual que los de
   las listas. Así acumulan historia para el Volatility dashboard (cambio diario de la matriz por strike fijo,

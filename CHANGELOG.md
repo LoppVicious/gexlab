@@ -23,7 +23,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Curva VIX en directo:** con el mercado abierto, la línea principal («Today») es la curva de hoy: el precio de
   cada futuro VX implícito en las opciones del VIX (paridad put-call), actualizado en cada ciclo del motor e
   incluidos los vencimientos semanales; el último cierre oficial pasa a ser la sesión anterior. Cuando CBOE publica
-  la liquidación, la principal vuelve a ser el cierre oficial («Last close» con su fecha).
+  la liquidación, la principal vuelve a ser el cierre oficial («Last close» con su fecha). El panel de la izquierda
+  (forma, VIX, M1, M2, pendiente, futuro a 30 días y racha) también pasa a directo mientras exista esa curva.
 
 **Corregido**
 - **Call Wall y Put Wall (motor Perfil)** dependían del rango visible: en BABA el Hub a ±20 % daba la Call Wall en

@@ -2348,11 +2348,15 @@ const SHAPE_LABEL = { contango: "Contango", backwardation: "Backwardation", fron
 function renderVix() {
   const d = vx.data;
   if (!d) return;
-  const sh = d.shape.code, p = d.points;
+  // con la sesion abierta, el panel usa la curva de hoy (implicita en las opciones); si no, el cierre oficial
+  const lv = d.live && d.live.m1 != null ? d.live : null;
+  const v = lv || d;
+  const sh = v.shape.code;
+  const m1x = lv ? { expiry: lv.m1_exp, days: lv.m1_days } : d.points[0], m2x = lv ? { expiry: lv.m2_exp, days: lv.m2_days } : d.points[1];
   const st = $("vxState");
-  st.textContent = SHAPE_LABEL[sh] || d.shape.label; st.className = "mstate " + SHAPE_CLASS[sh];
-  $("vxSub").textContent = `Official close, ${longDate(d.date)}`;
-  const spr = `<b>${sgnPct(d.spread)}</b>`, bas = `<b>${sgnPct(d.basis)}</b>`;
+  st.textContent = SHAPE_LABEL[sh] || v.shape.label; st.className = "mstate " + SHAPE_CLASS[sh];
+  $("vxSub").textContent = lv ? `Live ${hhmm(utcDate(lv.time))} · implied by VIX options` : `Official close, ${longDate(d.date)}`;
+  const spr = `<b>${sgnPct(v.spread)}</b>`, bas = `<b>${sgnPct(v.basis)}</b>`;
   const reads = {
     contango: `The second expiration trades ${spr} over the first, and the first ${bas} over the VIX. Normal structure: the market isn't pricing immediate stress and futures tend to converge down toward the VIX.`,
     backwardation: `The first expiration trades above the second (${spr}) and the VIX above the first. Immediate protection costs more than protection further out: the signature of stress episodes. A return to contango usually comes with normalization.`,
@@ -2365,17 +2369,18 @@ function renderVix() {
   const ratio = d.vix_vix3m;
   const fact = (l, v, s, warn, g) => `<div class="fact"><span class="fl"${g ? ` data-g="${g}"` : ""}>${l}</span><strong>${v}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
   $("vxFacts").innerHTML = [
-    fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `at the close · now ${fmtNum(live.value, 2)}` : "at the close", false, "vix"),
-    fact(`M1 · ${monLabel(p[0].expiry)}`, fmtNum(d.m1, 2), `${p[0].days} days · ${sgnPct(d.basis)} over the VIX`, false, "m1"),
-    fact(`M2 · ${monLabel(p[1].expiry)}`, fmtNum(d.m2, 2), `${p[1].days} days`, false, "m2"),
-    fact("M2 / M1 slope", sgnPct(d.spread), `${ordinal(d.spread_pct_rank)} percentile of the last year`, false, "slope"),
-    fact("30-day future", fmtNum(d.cm30, 2), "interpolated between expirations", false, "cm30"),
+    lv && lv.vix ? fact("VIX", fmtNum(lv.vix, 2), `now · close ${fmtNum(d.vix_close, 2)}`, false, "vix")
+      : fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `at the close · now ${fmtNum(live.value, 2)}` : "at the close", false, "vix"),
+    fact(`M1 · ${monLabel(m1x.expiry)}`, fmtNum(v.m1, 2), `${m1x.days} days · ${sgnPct(v.basis)} over the VIX`, false, "m1"),
+    fact(`M2 · ${monLabel(m2x.expiry)}`, fmtNum(v.m2, 2), `${m2x.days} days`, false, "m2"),
+    fact("M2 / M1 slope", sgnPct(v.spread), `${ordinal(v.spread_pct_rank)} percentile of the last year`, false, "slope"),
+    fact("30-day future", fmtNum(v.cm30, 2), "interpolated between expirations", false, "cm30"),
     fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "above 1: short-term stress" : "below 1: normal structure") : "no data", ratio >= 1, "vix3m"),
-    fact("Streak", `${d.streak} ${d.streak === 1 ? "session" : "sessions"}`, `in ${d.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
+    fact("Streak", `${v.streak} ${v.streak === 1 ? "session" : "sessions"}`, `${lv ? "counting today, " : ""}in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1) · ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
   const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
-  const lv = d.live ? " Today: each future implied by VIX options (put-call parity) until the settlement is published; small points, weekly expirations." : "";
-  $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lv}`;
+  const lvNote = d.live ? " Today: each future implied by VIX options (put-call parity) until the settlement is published; small points, weekly expirations." : "";
+  $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lvNote}`;
   renderVixCurve();
   renderVixHist();
 }
@@ -2438,7 +2443,7 @@ function renderVixCurve() {
       }
     }
   }
-  const col = SHAPE_COLOR(d.shape.code);
+  const col = SHAPE_COLOR((isLive && d.live.shape ? d.live.shape : d.shape).code);
   s += `<path d="${path(main)}" fill="none" stroke="${col}" stroke-width="2.2"/>`;
   vx.curveGeo = [];
   let lastLab = -1e9;

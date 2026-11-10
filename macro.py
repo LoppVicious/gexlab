@@ -267,6 +267,26 @@ def _live_curve(now: datetime, last: str, monthly: set[str], vix_now: float | No
     return {"date": today, "time": ch.get("timestamp"), "vix": vix_now, "points": pts}
 
 
+def _live_stats(lc: dict, spreads: list[float], streak: int, contango: bool) -> None:
+    """Datos del panel con la curva en directo: forma, M1 y M2 (los dos primeros mensuales), pendiente M2/M1 y su
+    percentil frente al ultimo ano de cierres, base sobre el VIX, futuro a 30 dias y racha contando la sesion de hoy."""
+    mens = [p for p in lc["points"] if p.get("monthly")]
+    if len(mens) < 2:
+        return
+    a, b = mens[0], mens[1]
+    m1, m2, spot = a["price"], b["price"], lc.get("vix")
+    sp = m2 / m1 - 1
+    sigue = (sp >= 0) == contango
+    lc.update({
+        "m1": m1, "m2": m2, "m1_exp": a["expiry"], "m1_days": a["days"], "m2_exp": b["expiry"], "m2_days": b["days"],
+        "spread": sp, "spread_pct_rank": 100.0 * sum(1 for s in spreads if s <= sp) / len(spreads),
+        "basis": (m1 / spot - 1) if spot else None,
+        "cm30": _interp30(([(0, spot)] if spot else []) + [(p["days"], p["price"]) for p in lc["points"]]),
+        "shape": _shape(spot, m1, m2),
+        "streak": streak + 1 if sigue else 1, "streak_contango": sp >= 0,
+    })
+
+
 def _vix_curve() -> dict:
     now = g.now_ny()
     exps = vx_expiries(now)
@@ -359,6 +379,8 @@ def _vix_curve() -> dict:
         live_curve = _live_curve(now, last, set(exp_keys), tmap.get("VIX"))
     except Exception:  # noqa: BLE001
         live_curve = None
+    if live_curve:
+        _live_stats(live_curve, spreads, streak, c0)
 
     spot_last = vix_close.get(last)
     m1, m2 = cur[0]["settle"], cur[1]["settle"]

@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; página de correlación implícita; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 
 **Añadido**
 - **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
@@ -58,6 +58,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   que queda tras el próximo vencimiento («Expires…»).
 - **Equity Hub: escenarios.** Tabla precio (−5 % a +5 %) por IV (−5 a +5 puntos) con la GEX por 1 % o con el flujo
   de cobertura: lo que los dealers comprarían o venderían para seguir cubiertos si el precio y la IV fueran ahí.
+- **Página Correlation** (menú Volatility): correlación implícita de CBOE entre las 50 mayores acciones del S&P 500
+  a 10 días, 1, 3, 6 y 9 meses y 1 año, con la de hace una semana y la banda 10-90 del último año; índice de dispersión
+  DSPX y VIX; lectura del régimen (bloque, normal o cada acción por su lado) y dos años de historia.
 
 **Cambiado**
 - El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del

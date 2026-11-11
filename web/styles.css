@@ -441,11 +441,11 @@ body.macro-mode .controls, body.macro-mode .stage, body.macro-mode .ticker,
 body.macro-mode .quick, body.macro-mode #autoToggle { display: none; }
 body.macro-mode .controls + * { margin-top: 0; }
 .macro { flex: 1; margin: 18px 28px 0; }
-#vixView {
+#vixView, #corrView {
   display: grid; grid-template-columns: 300px 1fr; border: 1px solid var(--line-soft); border-radius: 14px;
   background: var(--surface); overflow: hidden; height: max(640px, calc(100vh - 150px)); flex: none;
 }
-#vixView[hidden] { display: none; }
+#vixView[hidden], #corrView[hidden] { display: none; }
 .mside { padding: 22px 24px 18px; border-right: 1px solid var(--line-soft); overflow-y: auto; display: flex; flex-direction: column; }
 .mside > * { flex-shrink: 0; }
 .mhead .sym { font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
@@ -493,7 +493,7 @@ body.macro-mode .controls + * { margin-top: 0; }
 .cotdetail .mchart { height: 360px; flex: none; }
 @media (max-width: 900px) {
   .macro { margin: 12px 16px 0; }
-  #vixView { grid-template-columns: 1fr; height: auto; }
+  #vixView, #corrView { grid-template-columns: 1fr; height: auto; }
   .mside { border-right: 0; border-bottom: 1px solid var(--line-soft); }
   .mcharts { min-height: 620px; }
 }

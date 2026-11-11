@@ -403,7 +403,8 @@ def fase_listas(st, listas: dict) -> None:
 
 def fase_macro(st) -> None:
     import macro
-    for key, fn in (("vix", macro.vix_curve), ("cot", macro.cot), ("resumen", macro.summary)):
+    for key, fn in (("vix", macro.vix_curve), ("cot", macro.cot), ("resumen", macro.summary),
+                    ("correlacion", macro.correlation)):
         try:
             subir(st, f"pub/{key}.json", fn())
         except Exception as e:  # noqa: BLE001

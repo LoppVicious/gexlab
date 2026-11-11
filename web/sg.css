@@ -60,7 +60,7 @@
   .ghost, .setbtn, .kl-tg, .chip-default, .scan th, .status, .quick button, .cs-tg, .chart-caption, .scan-note) { font-weight: 500; }
 :root[data-theme="light"] :is(.levels .val, .fact strong, .hrow b, .price, .scard .sp, .mstate) { font-weight: 600; }
 /* en claro los paneles se separan del fondo con una sombra leve, no solo con el borde */
-:root[data-theme="light"] :is(.stage, .tablewrap, .cpanel, .cside, .scard, .cotdetail, #vixView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
+:root[data-theme="light"] :is(.stage, .tablewrap, .cpanel, .cside, .scard, .cotdetail, #vixView, #corrView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
 :root[data-theme="light"] .chip { color: var(--amber); background: rgba(166, 109, 0, .08); border-color: rgba(166, 109, 0, .30); }
 :root[data-theme="light"] .chip button:hover { background: rgba(166, 109, 0, .14); }
 :root[data-theme="light"] .vleg i.up { background: rgba(18, 132, 110, .45); }
@@ -128,7 +128,7 @@ body.side-min .side .brand { justify-content: center; padding-left: 0; padding-r
 .ghost:hover, .iconbtn:hover { color: var(--accent); border-color: var(--accent); }
 
 /* paneles */
-.stage, .tablewrap, .compass, .scard, .cotdetail, #vixView { border-color: var(--line); border-radius: 12px; }
+.stage, .tablewrap, .compass, .scard, .cotdetail, #vixView, #corrView { border-color: var(--line); border-radius: 12px; }
 .stage { margin: 6px 24px 0; height: max(640px, calc(100vh - 170px)); }
 .scanner, .macro { margin-left: 24px; margin-right: 24px; }
 .scan th { color: var(--text); font-weight: 600; font-size: 12px; background: var(--surface); }

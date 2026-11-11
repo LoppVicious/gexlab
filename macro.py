@@ -627,3 +627,70 @@ def summary(refresh: bool = False) -> dict:
             cotd = {"error": str(e)}
     return {"session": session_info(), "indices": cards, "vix": vix, "cot": cotd, "rate": g.rate_info(),
             "computed_at": g.now_ny().strftime("%Y-%m-%d %H:%M")}
+
+
+# ---------------------------------------------------------------- correlacion implicita (CBOE)
+COR_TERM = [("COR10D", 10), ("COR1M", 30), ("COR3M", 91), ("COR6M", 182), ("COR9M", 273), ("COR1Y", 365)]
+COR_HIST_DAYS = 504          # dos anos para el grafico
+COR_RANK_DAYS = 252          # percentil del ultimo ano
+_cor_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _closes(sym: str) -> list[tuple[str, float]]:
+    ohlc, _ = g.history_ohlc(sym)
+    return [(d, v[3]) for d, v in sorted(ohlc.items()) if v[3] > 0]
+
+
+def _with_quote(sym: str, closes: list[tuple[str, float]]) -> tuple[list[tuple[str, float]], bool]:
+    """Anade la cotizacion de hoy (en directo con el mercado abierto, o el cierre si aun no esta en el historico).
+    Devuelve la serie y si el ultimo valor es en directo."""
+    q = g.fetch_quote(sym) or {}
+    qd = q.get("data") or {}
+    v = float(qd.get("current_price") or 0)
+    day = g.session_date(q.get("timestamp")) if q.get("timestamp") else None
+    if v <= 0 or not day or (closes and day < closes[-1][0]):
+        return closes, False
+    if closes and closes[-1][0] == day:
+        return closes[:-1] + [(day, v)], g.market_open(g.now_ny())
+    return closes + [(day, v)], g.market_open(g.now_ny())
+
+
+def _stats(vals: list[float]) -> dict:
+    cur = vals[-1]
+    year = vals[-COR_RANK_DAYS - 1:-1] or vals[:-1]
+    return {"value": cur, "prev": vals[-2] if len(vals) > 1 else None, "week": vals[-6] if len(vals) > 5 else None,
+            "pct": round(100.0 * sum(1 for x in year if x <= cur) / len(year), 1) if year else None,
+            "band": [round(float(np.percentile(year, p)), 2) for p in (10, 50, 90)] if len(year) >= 20 else None,
+            "median_all": round(float(np.median(vals)), 2)}
+
+
+def correlation() -> dict:
+    hit = _cor_cache.get("c")
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    res = _correlation()
+    _cor_cache["c"] = (time.time(), res)
+    return res
+
+
+def _correlation() -> dict:
+    """Correlacion implicita de CBOE (cuanto se espera que se muevan juntas las 50 mayores acciones del S&P 500, de la
+    IV del indice frente a la de sus componentes) a 10 dias, 1, 3, 6 y 9 meses y 1 ano, el indice de dispersion
+    DSPX y el VIX. Con el percentil del ultimo ano, la banda 10-90 y el historico de dos anos."""
+    series, live = {}, False
+    for sym in [s for s, _ in COR_TERM] + ["DSPX", "VIX"]:
+        c, lv = _with_quote(sym, _closes(sym))
+        if len(c) >= 30:
+            series[sym] = c
+            live = live or lv
+    if "COR3M" not in series:
+        raise ConnectionError("Could not download the implied correlation indices from CBOE")
+    term = [{"symbol": s, "days": d, **_stats([v for _, v in series[s]])} for s, d in COR_TERM if s in series]
+    days = [d for d, _ in series["COR3M"]][-COR_HIST_DAYS:]
+    by = {s: dict(series[s]) for s in ("COR1M", "COR3M", "DSPX", "VIX") if s in series}
+    hist = [{"date": d, **{k.lower(): by[k].get(d) for k in by}} for d in days]
+    out = {"date": days[-1], "live": live, "term": term, "history": hist,
+           "dspx": _stats([v for _, v in series["DSPX"]]) if "DSPX" in series else None,
+           "vix": _stats([v for _, v in series["VIX"]]) if "VIX" in series else None,
+           "computed_at": g.now_ny().strftime("%Y-%m-%d %H:%M")}
+    return out

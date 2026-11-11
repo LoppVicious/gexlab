@@ -2137,6 +2137,7 @@ async function loadCollector() {
 const TOOLS = {
   oi: { view: "oiView", ticker: true, show: () => showOI(), render: () => renderOI(), load: (r) => loadOI(r) },
   lab: { view: "labView", ticker: true, show: () => showLab(), render: () => renderLab(), load: (r) => loadLab(r) },
+  corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
 };
 function setMode(m) {
   if (m === "risk" || m === "calc") m = "lab";   // secciones anteriores, unidas en Options Lab
@@ -3274,6 +3275,12 @@ const GLOSSARY = {
   buckets: { t: "Gamma by expiration", c: "text",
     what: "How the filter's gamma is split by days to expiration.",
     use: "Gamma that expires soon is the most powerful but disappears fast: if most of it is in 0–7 days, the levels can change a lot within the week. Gamma further out is weaker but more stable." },
+  corr: { t: "Implied correlation", c: "text",
+    what: "CBOE index (COR) of how much the 50 largest S&P 500 stocks are expected to move together over the period, derived from the implied volatility of the index against that of its components. 0 means independent, 100 means they move as one.",
+    use: "Low correlation: stocks move on their own stories and their moves cancel out, which keeps index volatility contained; it is a fragile calm, because a macro shock lifts correlation and index volatility at once. High correlation: a block market, macro or risk-off, where the index carries the risk." },
+  dspx: { t: "Dispersion (DSPX)", c: "text",
+    what: "CBOE index of the expected dispersion of the S&P 500 components over the next 30 days: how far apart their returns are expected to be.",
+    use: "High dispersion with low correlation is a stock-picker's market: big single-stock moves (earnings, themes) under a quiet index. When dispersion falls and correlation rises, the market starts trading as a block." },
   scen: { t: "Scenarios", c: "text",
     what: "Net GEX per 1% and dealer hedge flow if the price moved (rows) and implied volatility shifted in parallel (columns). Hedge flow is what dealers would buy (+) or sell (−) to stay hedged on the way there.",
     use: "It shows where the regime flips and how big the forced flows would be: for example a drop with rising IV in negative gamma. The highlighted cell is today. Same dealer convention as the rest of the panel." },
@@ -3355,6 +3362,7 @@ const NAV = {
   navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView(state.hubView || "impact"); } },
   navVol: { t: "Volatility dashboard", go: () => setMode("vol") },
   navVix: { t: "VIX curve", go: () => setMode("vix") },
+  navCorr: { t: "Correlation", go: () => setMode("corr") },
   navScan: { t: "Scanner", go: () => { setMode("scanner"); setScanView("table"); } },
   navCompass: { t: "Compass", go: () => { setMode("scanner"); setScanView("compass"); } },
   navValid: { t: "Validation", go: () => { setMode("scanner"); setScanView("valid"); } },
@@ -3368,6 +3376,7 @@ function currentNav() {
   if (m === "analysis") return state.view === "map" ? "navTrace" : "navHub";
   if (m === "vol") return "navVol";
   if (m === "vix") return "navVix";
+  if (m === "corr") return "navCorr";
   if (m === "cot") return "navCot";
   if (m === "oi") return "navOI";
   if (m === "lab") return "navLab";

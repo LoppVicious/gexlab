@@ -33,6 +33,7 @@
     <div class="sec">Volatility</div>
       <button class="item" id="navVol" data-title="Volatility dashboard" title="Volatility dashboard"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Volatility dashboard</span></button>
       <button class="item" id="navVix" data-title="VIX curve" title="VIX curve"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">VIX curve</span></button>
+      <button class="item" id="navCorr" data-title="Correlation" title="Implied correlation and dispersion"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/></svg><span class="lbl">Correlation</span></button>
     <div class="sec">Console</div>
       <button class="item" id="navScan" data-title="Scanner" title="Scanner"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg><span class="lbl">Scanner</span></button>
       <button class="item" id="navCompass" data-title="Compass" title="Compass"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z"/></svg><span class="lbl">Compass</span></button>
@@ -469,6 +470,32 @@
   </section>
 </main>
 
+<main class="macro mview" id="corrView" hidden>
+  <aside class="mside" aria-label="Correlation summary">
+    <div class="mhead">
+      <div class="sym" data-g="corr">Implied correlation (3 months)</div>
+      <div class="mstate" id="crState">—</div>
+      <div class="msub" id="crSub"></div>
+    </div>
+    <p class="regime" id="crRead"></p>
+    <div class="facts" id="crFacts"></div>
+    <p class="mnote"><b>Implied correlation</b> (CBOE COR indices): how much the 50 largest S&amp;P 500 stocks are expected to move together, from the index's implied volatility against that of its components. <b>Dispersion</b> (DSPX): how much they are expected to move apart. Index volatility depends on both.</p>
+  </aside>
+  <section class="mcharts">
+    <div class="mchart-head">
+      <span class="mtitle">Term structure</span>
+      <p class="chart-caption" id="crCap"></p>
+    </div>
+    <div class="mchart" id="crCurve" role="img" aria-label="Implied correlation term structure"></div>
+    <div class="mchart-head">
+      <span class="mtitle">Last two years</span>
+      <p class="chart-caption" id="crHistCap"></p>
+    </div>
+    <div class="mchart short" id="crHist" role="img" aria-label="Implied correlation history"></div>
+    <div class="tip" id="crTip" hidden></div>
+  </section>
+</main>
+
 <main class="macro tool" id="oiView" hidden></main>
 <main class="macro tool" id="labView" hidden></main>
 <main class="macro cot" id="cotView" hidden>
@@ -520,6 +547,7 @@
 <script src="hub.js"></script>
 <script src="historico.js"></script>
 <script src="vol.js"></script>
+<script src="corr.js"></script>
 <script src="opciones.js"></script>
 <script src="oi.js"></script>
 <script src="lab.js"></script>

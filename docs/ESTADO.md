@@ -59,7 +59,10 @@ Por orden de prioridad.
      frente a 22,1 % de cierre a cierre); por eso la prima de varianza va contra la de cierre a cierre.
    - Pendiente: vida media de la IV (Ornstein-Uhlenbeck), poco útil; el Compass sigue con `_realized_vol`.
    - Las copias locales de la cadena (`cache/`) pueden dar la sesión anterior a saltos; en producción (R2) salen bien.
-5. **Correlación implícita** (SPX frente a megacaps) como indicador de régimen. Requiere cadenas de las megacaps.
+5. **Correlación implícita** (hecho el 2026-11-11, página Correlation): índices de CBOE COR10D a COR1Y (las 50
+   mayores del S&P 500, histórico desde 2006), dispersión DSPX y VIX, con percentil del año, banda 10-90 y dos años de
+   historia. Más fiable que calcularla con cadenas de megacaps sin los pesos del índice. Hoy COR3M 11,8 (percentil
+   37 del año; mediana desde 2006: 40,8) y DSPX 38,1 (percentil 71).
 6. **Flujo:** BVC sobre el volumen incremental de 5 min, prima y delta firmadas acumuladas, UOA ponderado por delta,
    vega y $. Mostrar siempre como estimación.
 

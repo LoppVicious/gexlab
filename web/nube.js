@@ -214,6 +214,7 @@
       case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validation");
       case "/api/compass": return lista("compass.json", s, "Compass");
       case "/api/vix": return pub("vix.json", s, "VIX curve");
+      case "/api/corr": return pub("correlacion.json", s, "Correlation");
       case "/api/cot": return pub("cot.json", s, "COT");
       case "/api/cot_history": return pub(`cot_hist/${encodeURIComponent(q.get("key") || "ES")}.json`, s, "COT");
       case "/api/summary": return pub("resumen.json", s, "Summary");

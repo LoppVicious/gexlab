@@ -220,9 +220,13 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(200, {"eventos": eventos.publicables()})
             except Exception as e:  # noqa: BLE001
                 return self._json(200, {"eventos": [], "error": str(e)})
-        if url.path in ("/api/vix", "/api/cot", "/api/cot_history", "/api/summary"):
+        if url.path in ("/api/vix", "/api/cot", "/api/cot_history", "/api/summary", "/api/corr"):
             try:
                 import macro
+                if url.path == "/api/corr":
+                    if q.get("refresh") == "1":
+                        macro._cor_cache.clear()
+                    return self._json(200, macro.correlation())
                 if url.path == "/api/summary":
                     return self._json(200, macro.summary(refresh=q.get("refresh") == "1"))
                 if url.path == "/api/vix":

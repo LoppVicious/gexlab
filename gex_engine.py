@@ -721,7 +721,8 @@ def normalize(symbol: str) -> str:
     return s
 
 
-CBOE_VOL_INDICES = {"IRX", "TNX", "FVX", "VIX", "VIX9D", "VIX3M", "VIX6M", "VIX1Y", "VXN", "VXD", "VXAPL", "VXAZN", "VXGOG", "VXGS", "VXIBM", "VXEEM", "GVZ", "OVX", "RVX"}
+CBOE_VOL_INDICES = {"IRX", "TNX", "FVX", "VIX", "VIX9D", "VIX3M", "VIX6M", "VIX1Y", "VXN", "VXD", "VXAPL", "VXAZN", "VXGOG", "VXGS", "VXIBM", "VXEEM", "GVZ", "OVX", "RVX",
+                    "COR10D", "COR1M", "COR3M", "COR6M", "COR9M", "COR1Y", "DSPX"}
 
 
 def _cboe_symbol(symbol: str) -> str:

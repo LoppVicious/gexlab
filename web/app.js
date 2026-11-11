@@ -4,18 +4,18 @@
 // paletas del tema oscuro (por defecto) y claro; C se actualiza al cambiar de tema y se redibuja todo
 const THEMES = {
   dark: {
-    ink: "#10151d", surface: "#161c26", grid: "#232a36", axis: "#3a4352",
-    text: "#e9edf3", muted: "#a9b2c0", faint: "#7a8597",
-    neg: "#ff4f8e", pos: "#9b7dff", negFront: "#ffa3c4", posFront: "#cbb8ff", put: "#2fc28c", amber: "#e9b44c", call: "#ff6b6b",
-    accent: "#8eaefc", hi: "#ffffff", candle: "#e9edf3", spotline: "#c9d0db",
-    heat0: [22, 28, 38], heatNeg: [255, 60, 130], heatPos: [150, 110, 255],
+    ink: "#0f0f12", surface: "#16161a", grid: "#232329", axis: "#34343d",
+    text: "#f1f1f4", muted: "#a3a3ae", faint: "#6c6c78",
+    neg: "#ff2f7c", pos: "#9461ff", negFront: "#ff9cc0", posFront: "#c9b0ff", put: "#22c58b", amber: "#f2b632", call: "#ff5a5f",
+    accent: "#1fc8a6", hi: "#ffffff", candle: "#f2f2f5", spotline: "#d4d4dc",
+    heat0: [15, 15, 18], heatNeg: [255, 40, 120], heatPos: [146, 76, 255],
   },
   light: {
-    ink: "#eef1f4", surface: "#ffffff", grid: "#e9ecf0", axis: "#bfc7d1",
-    text: "#17202c", muted: "#465061", faint: "#677283",
-    neg: "#c8195c", pos: "#5b34e0", negFront: "#ec8fb3", posFront: "#a993f3", put: "#067a50", amber: "#9a6500", call: "#c0302e",
-    accent: "#2451a6", hi: "#000000", candle: "#17202c", spotline: "#465061",
-    heat0: [252, 252, 253], heatNeg: [200, 25, 92], heatPos: [91, 52, 224],
+    ink: "#eceef2", surface: "#ffffff", grid: "#e4e7ec", axis: "#b4bcc8",
+    text: "#0e1117", muted: "#3d4451", faint: "#626b7a",
+    neg: "#d1185a", pos: "#5b34e0", negFront: "#ef8fb2", posFront: "#a993f3", put: "#067a50", amber: "#9a6500", call: "#c92a2a",
+    accent: "#0f7a65", hi: "#000000", candle: "#0e1117", spotline: "#3d4451",
+    heat0: [252, 252, 253], heatNeg: [209, 24, 90], heatPos: [91, 52, 224],
   },
 };
 // colores de apoyo que dependen del tema (lineas del mensual, indices de volatilidad, cierre anterior...)
@@ -23,14 +23,14 @@ const THEME_EXTRA = {
   // vt: Vol Trigger / Hedge Wall, naranja para no confundirlo con el Gamma Flip (ambar); bar: barras del Impacto;
   // area: opacidad del relleno del perfil
   dark: { purple: "#8b7cf0", month: "oklch(0.78 0.15 45)", xmonth: "oklch(0.74 0.12 300)", prevClose: "#5b9dff", vt: "#ff8a3d",
-    bar: "#9b7dff", barOp: 0.55, area: 0.16, vol: ["#8eaefc", "#9b7dff", "#ff4f8e", "#e9b44c", "#2fc28c"] },
+    bar: "#9461ff", barOp: 0.55, area: 0.16, vol: ["#1fc8a6", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"] },
   light: { purple: "#5b34e0", month: "oklch(0.58 0.17 45)", xmonth: "oklch(0.48 0.16 300)", prevClose: "#1f63c2", vt: "#c2410c",
-    bar: "#7b879c", barOp: 0.7, area: 0.22, vol: ["#2451a6", "#5b34e0", "#c8195c", "#9a6500", "#067a50"] },
+    bar: "#7b879c", barOp: 0.7, area: 0.22, vol: ["#0f7a65", "#5b34e0", "#d1185a", "#9a6500", "#1f63c2"] },
 };
 Object.keys(THEMES).forEach((k) => Object.assign(THEMES[k], THEME_EXTRA[k]));
 const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);
-const MONO = "'Source Sans 3', -apple-system, 'Segoe UI', Roboto, sans-serif";
-const SANS = "'Source Sans 3', -apple-system, 'Segoe UI', Roboto, sans-serif";
+const MONO = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
+const SANS = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 // preferencias: en el servidor publicado son de cada usuario (llegan en me.js y se guardan en /api/prefs);
 // en el PC, en el navegador
@@ -2664,7 +2664,7 @@ function longDate(iso) {
 const _measure = document.createElement("canvas").getContext("2d");
 // ancho de un texto; img: en las imagenes exportadas (SVG cargado como imagen) no llega la fuente web y el navegador
 // dibuja con la de respaldo, asi que se mide con esa
-const IMG_SANS = SANS.replace("'Source Sans 3', ", "");
+const IMG_SANS = SANS.replace("'IBM Plex Sans', ", "");
 function textW(s, fs, w = 400, img = false) {
   _measure.font = `${w} ${fs}px ${img ? IMG_SANS : SANS}`;
   return _measure.measureText(s).width;

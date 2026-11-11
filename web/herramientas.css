@@ -3,7 +3,7 @@
    monoespaciadas tipo display separadas por filetes, graficos sobre papel milimetrado, teclas que se invierten al
    pulsarse y faders con marcas. Solo tokens del tema (sg.css): igual en claro y en oscuro. */
 
-.tool { --mono-d: var(--sans); display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; max-width: 1480px; }
+.tool { --mono-d: "IBM Plex Mono", ui-monospace, Consolas, monospace; display: flex; flex-direction: column; gap: 14px; padding-bottom: 28px; max-width: 1480px; }
 .tool[hidden] { display: none; }
 .tool .up { color: var(--put); } .tool .dn { color: var(--call); }
 .tool em { font-style: normal; font-weight: 500; }

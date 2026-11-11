@@ -4,27 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#eef1f4">
+<meta name="theme-color" content="#0c111a">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>GEX Lab - Admin setup</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root, :root[data-theme="light"] { --ink: #eef1f4; --surface: #ffffff; --line: #d9dee5; --line-strong: #bfc7d1; --text: #17202c; --muted: #465061;
-    --faint: #677283; --call: #c0302e; --focus: #2451a6; --btn: #17202c; --btn-hover: #2b3545; --btn-text: #ffffff; color-scheme: light; }
-  :root[data-theme="dark"] { --ink: #10151d; --surface: #161c26; --line: #29313e; --line-strong: #3a4352; --text: #e9edf3; --muted: #a9b2c0; --faint: #7a8597;
-    --call: #ff6b6b; --focus: #8eaefc; --btn: #e9edf3; --btn-hover: #cfd6e0; --btn-text: #10151d; color-scheme: dark; }
+  :root { --ink: #0f0f12; --surface: #16161a; --line: #2a2a31; --line-strong: #3a3a44; --text: #f1f1f4; --muted: #a3a3ae; --faint: #6c6c78;
+    --call: #ff5a5f; --focus: #3fd9bb; --btn: #1fc8a6; --btn-hover: #3fd9bb; --btn-text: #0f0f12; color-scheme: dark; }
+  :root[data-theme="light"] { --ink: #eceef2; --surface: #ffffff; --line: #d3d8e0; --line-strong: #b4bcc8; --text: #0e1117; --muted: #3d4451;
+    --faint: #626b7a; --call: #c92a2a; --focus: #0f7a65; --btn: #0f7a65; --btn-hover: #0c6352; --btn-text: #ffffff; color-scheme: light; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body {
-    background: var(--ink); color: var(--text); font: 15px/1.45 "Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--ink); color: var(--text); font: 15px/1.45 "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
     display: flex; align-items: center; justify-content: center; padding: 16px; -webkit-font-smoothing: antialiased;
   }
   .card { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 30px 28px 26px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-family: "Newsreader", Georgia, serif; font-weight: 500; font-size: 22px; margin-bottom: 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 17px; margin-bottom: 6px; }
   .sub { color: var(--faint); font-size: 13px; margin: 0 0 24px; }
   label { display: block; color: var(--muted); font-size: 12.5px; margin: 0 0 6px 2px; }
   input {
@@ -43,7 +43,7 @@
   .foot { color: var(--faint); font-size: 12px; text-align: center; margin-top: 18px; }
   .hint { color: var(--faint); font-size: 12px; margin: -8px 2px 16px; }
 </style>
-<script>try{if(localStorage.getItem("gexlab.theme")==="dark"){document.documentElement.dataset.theme="dark";document.querySelector('meta[name="theme-color"]').content="#10151d"}}catch(e){}</script>
+<script>try{if(localStorage.getItem("gexlab.theme")==="light"){document.documentElement.dataset.theme="light";document.querySelector('meta[name="theme-color"]').content="#f2f3f6"}}catch(e){}</script>
 </head>
 <body>
 <main class="card">

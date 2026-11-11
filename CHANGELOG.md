@@ -3,18 +3,11 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo sistema visual «Papel técnico»
+## 2026-11-12 — Título de las pestañas de inicio de sesión y alta
 
-**Cambiado**
-- **Aspecto de toda la web**: el tema claro pasa a ser el principal (fondo de papel frío, texto en tinta azul-negra) y
-  el oscuro queda como variante en tinta azul profunda en lugar de negro. Se mantiene el botón para cambiar de tema y
-  la elección de cada uno.
-- **Letra**: Source Sans 3 para la interfaz y las cifras (números tabulares, también en los gráficos y en Options Lab)
-  y Newsreader, una serif, para los títulos de página y de panel. Los rótulos ya no van en mayúsculas.
-- **Color con significado**: el acento pasa a ser un azul tinta y solo marca selección y estado. El botón Load va en
-  tinta, y las opciones elegidas en segmentos y pestañas son una ficha clara en lugar de un bloque verde. El violeta y el
-  magenta de la gamma, el rojo y el verde de calls y puts y el ámbar del flip quedan para los datos.
-- **Inicio de sesión y alta**: mismo papel, letra y botón en tinta que el resto de la web, en claro por defecto.
+**Corregido**
+- El título de las pestañas de inicio de sesión y de alta usa un guion en lugar del punto medio. El sistema visual
+  «Papel técnico» que se probó hoy se ha retirado: la web conserva sus colores y su letra de siempre.
 
 ## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; página de correlación implícita; flujo de opciones estimado; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 

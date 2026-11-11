@@ -1,58 +1,63 @@
 /* GEX Lab - interfaz con barra lateral y tema oscuro/claro (estetica inspirada en SpotGamma).
    Se carga despues de styles.css: redefine colores, tipografia y la estructura general. */
 
-:root, :root[data-theme="dark"] {
-  --ink: #0f0f12;          /* fondo de la pagina */
-  --surface: #16161a;      /* paneles */
-  --surface-2: #1d1d22;
-  --line: #2a2a31;
-  --line-soft: #212127;
-  --line-strong: #3a3a44;
-  --text: #f1f1f4;
-  --muted: #a3a3ae;
-  --faint: #6c6c78;
-  --accent: #1fc8a6;       /* verde azulado de SpotGamma */
-  --accent-soft: rgba(31, 200, 166, .12);
-  --pos: #9461ff;          /* gamma positiva: violeta */
-  --neg: #ff2f7c;          /* gamma negativa: magenta */
-  --put: #22c58b;
-  --call: #ff5a5f;
-  --amber: #f2b632;
-  --focus: #3fd9bb;
-  --btn: #23232a; --btn-hover: #2c2c35; --pop: #1a1a1f; --hover: #1c1c22;
-  --seg-on: #26262e; --knob: #d4d4dc; --scroll: #34343d; --shadow: rgba(0, 0, 0, .5);
-  --side: #121215; --side-on: rgba(31, 200, 166, .10);
-  --sans: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;  /* cifras: la misma, con numeros tabulares */
-  color-scheme: dark;
-}
-/* tema claro: los colores de texto y de nivel pasan 4,5:1 (o casi) sobre blanco; el acento lleva texto blanco encima */
-:root[data-theme="light"] {
-  --ink: #eceef2;
-  --surface: #ffffff;
-  --surface-2: #f4f5f8;
-  --line: #d3d8e0;
-  --line-soft: #e1e5eb;
-  --line-strong: #b4bcc8;
-  --text: #0e1117;
-  --muted: #3d4451;
-  --faint: #626b7a;
-  --accent: #0f7a65;
-  --accent-soft: rgba(15, 122, 101, .11);
-  --pos: #5b34e0;
-  --neg: #d1185a;
+/* Sistema visual "Papel tecnico": el claro es el tema principal (papel frio, tinta azul-negra) y el oscuro es su
+   variante en tinta. El acento (azul tinta) marca solo seleccion y estado; los colores con significado
+   (gamma +/-, calls, puts, flip) quedan para los datos. Letra: Source Sans 3 (interfaz y cifras tabulares) y
+   Newsreader (titulos). */
+:root, :root[data-theme="light"] {
+  --ink: #eef1f4;          /* fondo de la pagina: papel frio */
+  --surface: #ffffff;      /* paneles */
+  --surface-2: #f6f7f9;
+  --line: #d9dee5;
+  --line-soft: #e7eaef;
+  --line-strong: #bfc7d1;
+  --text: #17202c;
+  --muted: #465061;
+  --faint: #677283;
+  --accent: #2451a6;       /* azul tinta */
+  --accent-soft: rgba(36, 81, 166, .09);
+  --pos: #5b34e0;          /* gamma positiva: violeta */
+  --neg: #c8195c;          /* gamma negativa: magenta */
   --put: #067a50;
-  --call: #c92a2a;
+  --call: #c0302e;
   --amber: #9a6500;
-  --focus: #12846e;
-  --btn: #eef0f3; --btn-hover: #e4e7ec; --pop: #ffffff; --hover: #f3f5f8;
-  --seg-on: #ffffff; --knob: #ffffff; --scroll: #c8ced7; --shadow: rgba(20, 24, 33, .12);
-  --side: #ffffff; --side-on: rgba(18, 132, 110, .09);
+  --focus: #2451a6;
+  --btn: #f1f3f6; --btn-hover: #e7eaef; --pop: #ffffff; --hover: #f2f4f7;
+  --seg-on: #ffffff; --knob: #ffffff; --scroll: #c5ccd6; --shadow: rgba(23, 32, 44, .12);
+  --side: #f7f8fa; --side-on: #ffffff;
+  --sans: "Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "Source Sans 3", -apple-system, "Segoe UI", Roboto, sans-serif;  /* cifras: la misma, con numeros tabulares */
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
   color-scheme: light;
 }
-/* en claro IBM Plex a 400 se ve fina y palida: menu, etiquetas y cifras van un punto mas gruesas */
+/* variante oscura: tinta azul profunda, no negro puro, para no cansar en sesiones largas */
+:root[data-theme="dark"] {
+  --ink: #10151d;
+  --surface: #161c26;
+  --surface-2: #1c2330;
+  --line: #29313e;
+  --line-soft: #212835;
+  --line-strong: #3a4352;
+  --text: #e9edf3;
+  --muted: #a9b2c0;
+  --faint: #7a8597;
+  --accent: #8eaefc;
+  --accent-soft: rgba(142, 174, 252, .12);
+  --pos: #9b7dff;
+  --neg: #ff4f8e;
+  --put: #2fc28c;
+  --call: #ff6b6b;
+  --amber: #e9b44c;
+  --focus: #8eaefc;
+  --btn: #1f2633; --btn-hover: #273040; --pop: #1a212c; --hover: #1d2430;
+  --seg-on: #262f3d; --knob: #d6dce6; --scroll: #333c4b; --shadow: rgba(0, 0, 0, .45);
+  --side: #131922; --side-on: #1d2430;
+  color-scheme: dark;
+}
+/* en claro la letra a 400 se ve fina y palida: menu, etiquetas y cifras van un punto mas gruesas */
 :root[data-theme="light"] body { -webkit-font-smoothing: auto; }
-:root[data-theme="light"] .side .item { font-weight: 500; color: #262b34; }
+:root[data-theme="light"] .side .item { font-weight: 500; color: var(--muted); }
 :root[data-theme="light"] .side .item[aria-current="page"] { font-weight: 600; }
 :root[data-theme="light"] .side .sec { font-weight: 700; color: var(--faint); }
 :root[data-theme="light"] .side .brand, :root[data-theme="light"] .pagetitle { font-weight: 700; }
@@ -63,9 +68,7 @@
 :root[data-theme="light"] :is(.stage, .tablewrap, .cpanel, .cside, .scard, .cotdetail, #vixView, #corrView, .vpanel, .fpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
 :root[data-theme="light"] .chip { color: var(--amber); background: rgba(166, 109, 0, .08); border-color: rgba(166, 109, 0, .30); }
 :root[data-theme="light"] .chip button:hover { background: rgba(166, 109, 0, .14); }
-:root[data-theme="light"] .vleg i.up { background: rgba(18, 132, 110, .45); }
-:root[data-theme="light"] .vleg i.dn { background: rgba(217, 42, 102, .45); }
-body { font-family: var(--sans); font-size: 13.5px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+body { font-family: var(--sans); font-size: 14px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
 .price, .scard .sp, .mstate { letter-spacing: -.03em; }
 
 /* ---------------------------------------------------------------- estructura: barra lateral + contenido */
@@ -77,18 +80,19 @@ body { font-family: var(--sans); font-size: 13.5px; letter-spacing: 0; font-vari
   background: var(--side); border-right: 1px solid var(--line-soft); padding: 14px 12px 12px; z-index: 40;
   transition: width .18s ease;
 }
-.side .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; font-weight: 600; font-size: 15px; letter-spacing: .01em; white-space: nowrap; }
+.side .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 14px; font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: -.01em; white-space: nowrap; }
 .side .brand svg { flex: none; }
 .side nav { flex: 1; overflow-y: auto; scrollbar-width: none; }
 .side nav::-webkit-scrollbar { display: none; }
-.side .sec { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding: 14px 10px 6px; white-space: nowrap; }
+.side .sec { font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--faint); padding: 16px 10px 5px; white-space: nowrap; }
 .side .item {
   display: flex; align-items: center; gap: 11px; width: 100%; padding: 7px 10px; margin: 1px 0;
   background: none; border: 0; border-radius: 8px; color: var(--muted); font-size: 13.5px; text-align: left; white-space: nowrap;
 }
 .side .item svg { flex: none; width: 17px; height: 17px; }
 .side .item:hover { color: var(--text); background: var(--hover); }
-.side .item[aria-current="page"] { color: var(--accent); background: var(--side-on); font-weight: 500; }
+.side .item[aria-current="page"] { color: var(--text); background: var(--side-on); font-weight: 600; box-shadow: inset 0 0 0 1px var(--line), inset 3px 0 0 var(--accent); }
+.side .item[aria-current="page"] svg { color: var(--accent); }
 .side .item .tag { margin-left: auto; font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--accent); border: 1px solid var(--accent); border-radius: 5px; padding: 0 5px; line-height: 15px; }
 .side .foot-side { border-top: 1px solid var(--line-soft); padding-top: 10px; display: flex; flex-direction: column; gap: 2px; }
 .side .who { display: flex; align-items: center; gap: 11px; padding: 7px 10px; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; }
@@ -106,32 +110,32 @@ body.side-min .side .brand { justify-content: center; padding-left: 0; padding-r
 /* ---------------------------------------------------------------- barra superior */
 .bar { padding: 12px 24px; gap: 16px; border-bottom: 1px solid var(--line-soft); background: var(--ink); position: sticky; top: 0; z-index: 30; }
 .bar .burger { display: none; }
-.pagetitle { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; margin-right: 6px; }
+.pagetitle { display: flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 22px; font-weight: 500; letter-spacing: -.01em; white-space: nowrap; margin-right: 6px; }
 .pagetitle svg { color: var(--accent); }
 .ticker { background: var(--surface); border-color: var(--line); border-radius: 9px; }
-.ticker .go { background: var(--accent); color: #fff; font-weight: 600; }
-.ticker .go:hover { background: var(--accent); filter: brightness(1.08); }
+.ticker .go { background: var(--text); color: var(--surface); font-weight: 600; }
+.ticker .go:hover { background: var(--text); filter: none; opacity: .88; }
 .quick { margin-left: 4px; }
 .quick button { font-weight: 500; }
-.quick button.on { color: var(--accent); }
+.quick button.on { color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--accent); border-radius: 0; }
 .statusbox { gap: 10px; }
 
 /* ---------------------------------------------------------------- controles y segmentos (verde azulado como SpotGamma) */
 .controls { padding: 12px 24px 14px; }
-.seg.boxed { background: var(--surface); border-color: var(--line); }
-.seg.boxed button[aria-checked="true"] { background: var(--accent); color: #fff; box-shadow: none; font-weight: 500; }
-.tabs, .modes { background: var(--surface); border-color: var(--line); }
-.tabs button[aria-selected="true"], .modes button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); font-weight: 500; }
-.seg.compact button[aria-checked="true"], .seg button[aria-checked="true"] { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.seg.boxed { background: var(--surface-2); border-color: var(--line); }
+.seg.boxed button[aria-checked="true"] { background: var(--seg-on); color: var(--text); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px var(--shadow); font-weight: 600; }
+.tabs, .modes { background: var(--surface-2); border-color: var(--line); }
+.tabs button[aria-selected="true"], .modes button[aria-selected="true"] { background: var(--seg-on); color: var(--text); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px var(--shadow); font-weight: 600; }
+.seg.compact button[aria-checked="true"], .seg button[aria-checked="true"] { color: var(--text); background: var(--seg-on); border-color: transparent; box-shadow: 0 0 0 1px var(--line-strong); font-weight: 600; }
 .switch[aria-checked="true"] .track { background: var(--accent); }
 .toggle[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
-.ghost:hover, .iconbtn:hover { color: var(--accent); border-color: var(--accent); }
+.ghost:hover, .iconbtn:hover { color: var(--text); border-color: var(--line-strong); background: var(--hover); }
 
 /* paneles */
-.stage, .tablewrap, .compass, .scard, .cotdetail, #vixView, #corrView { border-color: var(--line); border-radius: 12px; }
+.stage, .tablewrap, .compass, .scard, .cotdetail, #vixView, #corrView { border-color: var(--line); border-radius: 10px; }
 .stage { margin: 6px 24px 0; height: max(640px, calc(100vh - 170px)); }
 .scanner, .macro { margin-left: 24px; margin-right: 24px; }
-.scan th { color: var(--text); font-weight: 600; font-size: 12px; background: var(--surface); }
+.scan th { color: var(--muted); font-weight: 600; font-size: 12.5px; background: var(--surface); }
 .scan td { border-bottom-color: var(--line-soft); }
 .levels .val, .fact strong, .scan .lv { font-weight: 600; }
 .foot { padding: 14px 24px 20px; }
@@ -181,7 +185,7 @@ body.vol-mode .controls { display: none; }
 #volView[hidden] { display: none; }
 .vhead { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .vtitle { display: flex; align-items: baseline; gap: 10px; }
-.vsym { font-size: 18px; font-weight: 700; letter-spacing: .02em; }
+.vsym { font-family: var(--serif); font-size: 24px; font-weight: 500; letter-spacing: -.01em; }
 .vname { color: var(--muted); font-size: 13px; }
 .vspot { font-size: 15px; font-weight: 600; color: var(--text); margin-left: 6px; }
 .vhead .tabs { margin-left: auto; }
@@ -236,7 +240,7 @@ table.vmat tbody tr:hover td { filter: brightness(1.15); }
 table.vmat td .ds { display: inline; margin-left: 6px; }
 .vleg { display: inline-flex; align-items: center; gap: 8px; color: var(--faint); font-size: 12px; margin-left: 8px; }
 .vleg i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-.vleg i.up { background: rgba(31, 200, 166, .5); } .vleg i.dn { background: rgba(255, 47, 124, .5); margin-left: 8px; }.tip .vt-prev { color: var(--faint); font-weight: 400; }
+.vleg i.up { background: color-mix(in srgb, var(--accent) 50%, transparent); } .vleg i.dn { background: color-mix(in srgb, var(--neg) 50%, transparent); margin-left: 8px; }.tip .vt-prev { color: var(--faint); font-weight: 400; }
 .tip .vt-sub { font-size: 11px; margin-top: -2px; margin-bottom: 4px; }
 @media (max-width: 640px) {
   .vhead .tabs { margin-left: 0; width: 100%; overflow-x: auto; }
@@ -291,7 +295,7 @@ body.view-map #hubCard, body.view-map #hubWatch { display: none; }
 body.ana-mode:not(.view-map) #tabMap { display: none; }
 body.view-map .chart-head .tabs { display: none; }
 .hubcard, .hubwatch { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
-.htitle { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+.htitle { font-family: var(--serif); font-size: 16px; font-weight: 500; letter-spacing: 0; color: var(--text); margin-bottom: 6px; }
 .hrow { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; padding: 4px 0; font-size: 13px; }
 .hrow span { color: var(--muted); }
 .hrow b { font-weight: 600; text-align: right; }
@@ -315,9 +319,9 @@ table.hwl td.up { color: var(--put); } table.hwl td.dn { color: var(--call); }
 .zoombar { display: flex; align-items: center; gap: 12px; padding: 6px 18px 12px; }
 .zoombar[hidden] { display: none; }
 .zb-track { position: relative; flex: 1; height: 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--ink); cursor: pointer; touch-action: none; user-select: none; }
-.zb-win { position: absolute; top: -1px; bottom: -1px; border: 1px solid var(--accent); border-radius: 6px; background: color-mix(in srgb, var(--accent) 28%, transparent); cursor: grab; }
+.zb-win { position: absolute; top: -1px; bottom: -1px; border: 1px solid var(--line-strong); border-radius: 6px; background: color-mix(in srgb, var(--accent) 12%, var(--surface)); cursor: grab; }
 .zb-win:active { cursor: grabbing; }
-.zb-h { position: absolute; top: 50%; width: 10px; height: 20px; margin-top: -10px; border-radius: 3px; background: var(--accent); cursor: ew-resize; }
+.zb-h { position: absolute; top: 50%; width: 8px; height: 18px; margin-top: -9px; border-radius: 3px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: 0 1px 2px var(--shadow); cursor: ew-resize; }
 .zb-h.l { left: -5px; } .zb-h.r { right: -5px; }
 .zb-lab { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 128px; text-align: right; }
 .zb-reset { font-size: 12px; }
@@ -362,7 +366,7 @@ body.view-map .zoombar { display: none; }
 .tsep { height: 1px; background: var(--line); margin: 6px 0; }
 
 /* ---------------------------------------------------------------- opciones del grafico y menu Exportar (cabecera del grafico)
-   El panel se genera en app.js (setSections / renderSet). Letra propia del panel: IBM Plex Sans (prueba antes de
+   El panel se genera en app.js (setSections / renderSet). Letra propia del panel: la de la web (prueba antes de
    cambiar la de toda la web) */
 .chead-r { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 .popw { position: relative; }
@@ -447,3 +451,11 @@ body.view-map .maptools { display: flex; }
 .chead-r { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
 body.view-map .maptools.bare { display: none; }
 @media (max-width: 640px) { .dd .dd-k { display: none; } }
+
+/* ---------------------------------------------------------------- Papel tecnico: titulos en serif
+   Una sola voz para los titulos de pagina y de panel; el resto de la interfaz y todas las cifras van en sans. */
+.sumtitle, .lab-title h1 { font-family: var(--serif); font-weight: 500; letter-spacing: -.01em; }
+.sumtitle { font-size: 28px; }
+.lab-title h1 { font-size: 26px; }
+.cmp-t b, .mtitle { font-family: var(--serif); font-size: 17px; font-weight: 500; }
+:root[data-theme="light"] .pagetitle, :root[data-theme="light"] .side .brand { font-weight: 500; }

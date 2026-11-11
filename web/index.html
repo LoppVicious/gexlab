@@ -184,6 +184,9 @@
 </section>
 
 <main class="stage">
+  <aside class="hubside" id="hubSide" aria-label="Watchlist">
+    <section class="hubwatch" id="hubWatch" hidden></section>
+  </aside>
   <aside class="ladder" aria-label="Levels">
     <div class="headline">
       <div class="sym" id="hSym">—</div>
@@ -201,8 +204,6 @@
       <div class="split-bar"><i class="c" id="splitC"></i><i class="p" id="splitP"></i></div>
       <div class="split-foot"><span id="callPct"></span><span id="putPct"></span></div>
     </div>
-
-    <section class="hubcard" id="hubCard" hidden></section>
 
     <div class="facts" id="facts" hidden>
       <div class="fact">
@@ -245,7 +246,6 @@
       <p class="scen-n" id="scenNote"></p>
     </section>
 
-    <section class="hubwatch" id="hubWatch" hidden></section>
     <dl class="meta" id="meta"></dl>
   </aside>
 
@@ -259,6 +259,7 @@
         <button role="tab" id="tabMap" aria-selected="false">Map</button>
       </div>
       <p class="chart-caption" id="caption"></p>
+      <span class="capinfo" id="capInfo" tabindex="0" role="note" hidden>i</span>
       <div class="chead-r">
         <div class="popw map-only">
           <button class="ghost dd" id="lensBtn" aria-haspopup="menu" aria-expanded="false" title="What the map colors show"></button>
@@ -309,6 +310,21 @@
     <div class="tip" id="tip" hidden></div>
   </section>
 </main>
+
+<!-- Equity Hub: detalle bajo el grafico, en pestanas. El perfil vive aqui; flujos, escenarios y datos se mueven aqui
+     desde la columna de niveles al entrar en el Hub y vuelven a ella en TRACE (placeHub en hub.js) -->
+<section class="hubdrawer" id="hubDrawer" aria-label="Details">
+  <div class="tabs" role="tablist" aria-label="Details" id="drawerTabs">
+    <button role="tab" data-p="profile" aria-selected="true">Profile</button>
+    <button role="tab" data-p="flows" aria-selected="false">Flows</button>
+    <button role="tab" data-p="scen" aria-selected="false">Scenarios</button>
+    <button role="tab" data-p="data" aria-selected="false">Data</button>
+  </div>
+  <div class="dpane" data-p="profile" role="tabpanel"><section class="hubcard" id="hubCard" hidden></section></div>
+  <div class="dpane" data-p="flows" role="tabpanel" hidden></div>
+  <div class="dpane" data-p="scen" role="tabpanel" hidden></div>
+  <div class="dpane" data-p="data" role="tabpanel" hidden></div>
+</section>
 
 <main class="scanner" id="scanner" hidden>
   <div class="scan-bar">

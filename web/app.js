@@ -1647,6 +1647,7 @@ function setView(v) {
     : v === "profile" ? "Total GEX recalculated at each hypothetical underlying price"
     : v === "impact" ? "Lines: total gamma of the filter's expirations and of the next weekly expiration if the price were at each level. Bars: net gamma at each strike at the current price" : "";
   mapCaption();
+  if (typeof placeHub === "function") placeHub();
   $("tip").hidden = true;
   draw();
 }

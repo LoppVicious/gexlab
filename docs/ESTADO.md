@@ -63,8 +63,14 @@ Por orden de prioridad.
    mayores del S&P 500, histórico desde 2006), dispersión DSPX y VIX, con percentil del año, banda 10-90 y dos años de
    historia. Más fiable que calcularla con cadenas de megacaps sin los pesos del índice. Hoy COR3M 11,8 (percentil
    37 del año; mediana desde 2006: 40,8) y DSPX 38,1 (percentil 71).
-6. **Flujo:** BVC sobre el volumen incremental de 5 min, prima y delta firmadas acumuladas, UOA ponderado por delta,
-   vega y $. Mostrar siempre como estimación.
+6. **Flujo** (hecho el 2026-11-11, página Options flow, `flujo.py`): volumen nuevo de cada contrato entre fotos del
+   ciclo, clasificado por BVC sobre el cambio de IV (no de precio: el precio de una opción se mueve con el
+   subyacente), con la regla de cotización si hay menos de 20 contratos en el tramo; prima neta de calls y puts, delta
+   y vega netas acumuladas; actividad inusual (volumen > OI) con prima, delta $, vega $ y parte comprada.
+   - Tramos de 15 min, no de 5: solo el ciclo guarda estado; el modo rápido publica un punto provisional.
+   - El primer tramo de cada sesión (o si el motor se para) se clasifica por la última operación, más tosco.
+   - Comprobado con un tramo simulado (calls con IV al alza salen compradas, puts a la baja vendidas). Pendiente de
+     ver una sesión real completa.
 
 Descartado o prioridad baja: dependencia en cola y cópulas (pocos datos), HMM, tarjetas macro (spreads HY, curva),
 construcción de carteras, ejecución y dimensionado.

@@ -128,6 +128,9 @@ Los dos:
   del ticker cuyo máximo o mínimo, en unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del
   muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
   `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de `cache/eventos.json` (3 años).
+- **Flujo** (`flujo.tick`, `pub/t/{SYM}/flujo.json`, `/api/flow`, `web/flujo.js`): estado por ticker en
+  `history/flujo_{SYM}.json.gz` (volumen e IV de la última foto, serie de la sesión y volumen firmado por contrato).
+  Lo llama `motor._ticker`; solo guarda el ciclo (`save`), el modo rápido publica un punto provisional.
 - **Correlación** (`macro.correlation`, `pub/correlacion.json`, `/api/corr`, `web/corr.js`): índices COR y DSPX de
   CBOE (en `CBOE_VOL_INDICES`) con la cotización de hoy, percentil y banda del último año y 504 sesiones de historia.
   La publica `fase_macro`.

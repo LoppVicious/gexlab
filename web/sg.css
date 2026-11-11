@@ -60,7 +60,7 @@
   .ghost, .setbtn, .kl-tg, .chip-default, .scan th, .status, .quick button, .cs-tg, .chart-caption, .scan-note) { font-weight: 500; }
 :root[data-theme="light"] :is(.levels .val, .fact strong, .hrow b, .price, .scard .sp, .mstate) { font-weight: 600; }
 /* en claro los paneles se separan del fondo con una sombra leve, no solo con el borde */
-:root[data-theme="light"] :is(.stage, .tablewrap, .cpanel, .cside, .scard, .cotdetail, #vixView, #corrView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
+:root[data-theme="light"] :is(.stage, .tablewrap, .cpanel, .cside, .scard, .cotdetail, #vixView, #corrView, .vpanel, .fpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
 :root[data-theme="light"] .chip { color: var(--amber); background: rgba(166, 109, 0, .08); border-color: rgba(166, 109, 0, .30); }
 :root[data-theme="light"] .chip button:hover { background: rgba(166, 109, 0, .14); }
 :root[data-theme="light"] .vleg i.up { background: rgba(18, 132, 110, .45); }
@@ -185,6 +185,22 @@ body.vol-mode .controls { display: none; }
 .vname { color: var(--muted); font-size: 13px; }
 .vspot { font-size: 15px; font-weight: 600; color: var(--text); margin-left: 6px; }
 .vhead .tabs { margin-left: auto; }
+#flowView { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+#flowView[hidden] { display: none; }
+.fbadge { font-size: 11px; font-weight: 500; color: var(--amber); border: 1px solid var(--amber); border-radius: 999px; padding: 1px 8px; margin-left: 4px; align-self: center; }
+.fpanel { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px 12px; }
+.fchart { position: relative; height: 420px; }
+.fchart svg { position: absolute; inset: 0; display: block; }
+.fchart .empty, .ftable .empty { color: var(--faint); padding: 40px; text-align: center; }
+.ftable { overflow-x: auto; }
+.ftable table { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ftable th, .ftable td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.ftable th { color: var(--faint); font-weight: 500; font-size: 12px; }
+.ftable th.l, .ftable td.l { text-align: left; }
+.ftable .cp { font-weight: 600; } .ftable .cp.c { color: var(--call); } .ftable .cp.p { color: var(--put); }
+.ftable .bar { display: inline-block; width: 46px; height: 6px; border-radius: 3px; background: var(--line); position: relative; vertical-align: middle; margin-left: 6px; overflow: hidden; }
+.ftable .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+@media (max-width: 700px) { .fchart { height: 340px; } }
 .vsum:empty { display: none; }
 .vsum { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
 .vstat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; min-width: 0; }

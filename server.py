@@ -194,6 +194,15 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
+        if url.path == "/api/flow":
+            try:
+                import flujo
+                return self._json(200, flujo.tick(q.get("symbol", "SPX")))
+            except (LookupError, ValueError, ConnectionError) as e:
+                return self._json(400, {"error": str(e)})
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/vol":
             try:
                 import volatilidad

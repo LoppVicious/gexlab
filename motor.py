@@ -378,6 +378,11 @@ def _ticker(st, sym: str, syms: list[str], ligero: bool = False) -> None:
         subir(st, f"pub/t/{sym}/vol.json", volatilidad.vol_data(sym, save=sym in syms))
     except Exception as e:  # noqa: BLE001
         err(f"{sym} volatilidad", e)
+    try:  # flujo estimado: solo el ciclo guarda el tramo; el modo rapido publica un ultimo punto provisional
+        import flujo
+        subir(st, f"pub/t/{sym}/flujo.json", flujo.tick(sym, save=sym in syms and not ligero))
+    except Exception as e:  # noqa: BLE001
+        err(f"{sym} flujo", e)
     log(f"{sym}: paquete {n / 1e6:.2f} MB")
 
 

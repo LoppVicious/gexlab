@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; página de correlación implícita; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; página de correlación implícita; flujo de opciones estimado; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 
 **Añadido**
 - **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
@@ -61,6 +61,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Página Correlation** (menú Volatility): correlación implícita de CBOE entre las 50 mayores acciones del S&P 500
   a 10 días, 1, 3, 6 y 9 meses y 1 año, con la de hace una semana y la banda 10-90 del último año; índice de dispersión
   DSPX y VIX; lectura del régimen (bloque, normal o cada acción por su lado) y dos años de historia.
+- **Página Options flow** (menú Positioning), marcada como estimación: cada 15 minutos el motor compara la cadena con
+  la foto anterior y clasifica el volumen nuevo de cada contrato como compra o venta según cuánto se movió su IV
+  frente al resto (BVC). Muestra la prima neta de calls y de puts, la delta y la vega netas de los clientes
+  acumuladas en la sesión, con el precio, y la actividad inusual del día (volumen por encima del open interest)
+  con prima, delta y vega en dólares y la parte estimada como compra. Solo para los tickers de las listas.
 
 **Cambiado**
 - El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del

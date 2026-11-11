@@ -4,18 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0c111a">
+<meta name="theme-color" content="#eef1f4">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>GEX Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="sg.css">
 <link rel="stylesheet" href="herramientas.css">
-<script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f6"</script>
+<script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}if(document.documentElement.dataset.theme==="dark")document.querySelector('meta[name="theme-color"]').content="#10151d"</script>
 </head>
 <body>
 <div class="app">
@@ -41,6 +41,7 @@
     <div class="sec">Positioning</div>
       <button class="item" id="navCot" data-title="COT" title="COT"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V4M4 16h12"/><path d="M7 12l3-3 2 2 4-5"/></svg><span class="lbl">COT</span></button>
       <button class="item" id="navOI" data-title="Open Interest" title="Open Interest"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10V5M9 10V7M13 10V4M17 10V8" /><path d="M5 10v3M9 10v6M13 10v2M17 10v4" opacity=".55"/><path d="M3 10h15"/></svg><span class="lbl">Open Interest</span></button>
+      <button class="item" id="navFlow" data-title="Options flow" title="Estimated options flow and unusual activity"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h10l-3-3M17 13H7l3 3"/></svg><span class="lbl">Options flow</span></button>
     <div class="sec">Tools</div>
       <button class="item" id="navLab" data-title="Options Lab" title="Options Lab: price an option or build a strategy"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="1.5"/><path d="M5.5 13.5h3.5l5-6"/><path d="M3 10h14" opacity=".35"/></svg><span class="lbl">Options Lab</span></button>
   </nav>
@@ -496,6 +497,23 @@
   </section>
 </main>
 
+<main class="macro" id="flowView" hidden>
+  <div class="vhead">
+    <div class="vtitle"><span class="vsym" id="fSym">—</span><span class="vname" id="fName"></span><span class="vspot" id="fSpot"></span><span class="fbadge" title="Classified from the volume between engine snapshots, not from individual trades">Estimate</span></div>
+  </div>
+  <div class="vsum" id="fSum"></div>
+  <div class="fpanel">
+    <div class="mchart-head"><span class="mtitle">Today, cumulative</span><p class="chart-caption" id="fCap"></p></div>
+    <div class="fchart" id="fChart" role="img" aria-label="Cumulative net premium and delta"></div>
+    <div class="tip" id="fTip" hidden></div>
+  </div>
+  <div class="fpanel">
+    <div class="mchart-head"><span class="mtitle" data-g="uoa">Unusual activity</span><p class="chart-caption">Contracts traded today above their open interest, by premium.</p></div>
+    <div class="ftable" id="fUoa"></div>
+  </div>
+  <p class="scan-note" id="fNote"></p>
+</main>
+
 <main class="macro tool" id="oiView" hidden></main>
 <main class="macro tool" id="labView" hidden></main>
 <main class="macro cot" id="cotView" hidden>
@@ -548,6 +566,7 @@
 <script src="historico.js"></script>
 <script src="vol.js"></script>
 <script src="corr.js"></script>
+<script src="flujo.js"></script>
 <script src="opciones.js"></script>
 <script src="oi.js"></script>
 <script src="lab.js"></script>

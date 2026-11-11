@@ -231,6 +231,13 @@
         if (r.ok && viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
         return r;
       }
+      case "/api/flow": {
+        const sym = normalize(q.get("symbol"));
+        if (!sym) return json(400, { error: "Invalid ticker" });
+        const r = await realFetch(`/api/pub/t/${encodeURIComponent(sym)}/flujo.json`, { signal: s });
+        if (r.status === 404) return json(503, { error: `No flow data for ${sym} yet: it is recorded by the engine cycle for the tickers in the lists.` });
+        return r;
+      }
       case "/api/chain": {
         // cadena completa para Open Interest, Risk Engine y la calculadora: sale del paquete del ticker
         const sym = normalize(q.get("symbol"));

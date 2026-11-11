@@ -128,6 +128,11 @@ Los dos:
   del ticker cuyo máximo o mínimo, en unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del
   muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
   `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de `cache/eventos.json` (3 años).
+- **Panel de volatilidad** (`volatilidad.vol_data`, `vol.json`): por vencimiento, IV ATM, `mf` (varianza sin modelo
+  con el método del VIX, `model_free_vol`), `rr25`/`bf25` y `event` (movimiento de un día del codo de la curva:
+  varianza forward del tramo por encima de la mediana y de un vecino, `EVENT_RATIO`). `summary`: IV30 sin modelo (en
+  el SPX da el VIX), realizada, prima de varianza frente a la de cierre a cierre de 20 sesiones, forma y evento.
+  `realized`: Yang-Zhang y cierre a cierre por ventana, y cono del último año; no se calcula en el VIX y su familia.
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.
 
 ## Pruebas (con datos reales)

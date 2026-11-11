@@ -409,9 +409,12 @@
       <button role="tab" data-v="matrix" aria-selected="false">Fixed-strike matrix</button>
       <button role="tab" data-v="term" aria-selected="true">Term structure</button>
       <button role="tab" data-v="skew" aria-selected="false">Skew</button>
+      <button role="tab" data-v="shape" aria-selected="false">Skew by expiration</button>
+      <button role="tab" data-v="realized" aria-selected="false">Realized vs. implied</button>
     </div>
     <span class="scan-status" id="volStatus"></span>
   </div>
+  <div class="vsum" id="volSum"></div>
   <div class="vpanel">
     <div class="vctl" id="volCtl"></div>
     <div class="vchart" id="volChart" role="img" aria-label="Implied volatility"></div>

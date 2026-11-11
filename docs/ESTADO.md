@@ -50,12 +50,14 @@ Por orden de prioridad.
      en $ y % del ADV.
    - Matriz spot × IV (spot ±X%, IV ±5 puntos) de GEX y DEX.
    - GEX por tramo de vencimiento y cuota de gamma que vence pronto.
-4. **Superficie de volatilidad:**
-   - IV30 sin modelo (fórmula del VIX) para cualquier ticker.
-   - Forma: RR25 y BF25 por vencimiento, pendiente de términos, inversión, varianza de evento desde el codo de la curva.
-   - Tarjeta VIX9D/VIX/VIX3M (ya se descargan en `CBOE_VOL_INDICES`).
-   - Vol realizada Yang-Zhang y cono de volatilidad (hoy `_realized_vol` es cierre a cierre, 20 días).
-   - Vida media de la IV (Ornstein-Uhlenbeck).
+4. **Superficie de volatilidad** (hecho el 2026-11-11, en el Volatility dashboard): IV30 sin modelo (SPX 17,50
+   frente a VIX 17,49), RR25 y BF25 por vencimiento, estructura e inversión, evento descontado del codo de la curva
+   (NVDA ±9,8 % antes de resultados), Yang-Zhang y cono de un año. La curva VIX9D-VIX1Y ya estaba (VIX curve).
+   - Yang-Zhang apenas cuenta un día que abre en máximos y cierra en mínimos (SPX el 2026-11-05: −4,45 %, YZ20 14,6 %
+     frente a 22,1 % de cierre a cierre); por eso la prima de varianza va contra la de cierre a cierre.
+   - Pendiente: vida media de la IV (Ornstein-Uhlenbeck), poco útil; el Compass sigue con `_realized_vol`.
+   - Revisar en producción la línea de la sesión anterior en estructura y forma: en local las copias de la cadena del
+     2026-11-10 dan IV ATM a saltos (72 → 40 → 60 % en vencimientos seguidos).
 5. **Correlación implícita** (SPX frente a megacaps) como indicador de régimen. Requiere cadenas de las megacaps.
 6. **Flujo:** BVC sobre el volumen incremental de 5 min, prima y delta firmadas acumuladas, UOA ponderado por delta,
    vega y $. Mostrar siempre como estimación.

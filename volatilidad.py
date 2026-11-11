@@ -28,6 +28,10 @@ MIN_BAND_DAYS = 15        # sesiones minimas para dibujar percentiles
 MAX_SMILES = 30           # vencimientos con smile completo
 HORIZON_DAYS = 190        # horizonte del panel: seis meses
 DAY_MIN = 24 * 60.0
+EVENT_RATIO = 1.4         # varianza forward de un tramo frente a la normal para marcar un evento
+EVENT_HORIZON = 90        # dias: tramos que cuentan para la varianza normal y para los eventos
+YZ_WINDOWS = [10, 20, 30, 60, 90, 120]   # ventanas de la vol realizada y su cono (sesiones)
+CONE_DAYS = 252           # el cono usa el ultimo ano
 
 
 _erf = np.frompyfunc(__import__("math").erf, 1, 1)
@@ -63,6 +67,46 @@ def _pick_expiries(exps: list, dtes: list[float], symbol: str = "") -> list[int]
     out = {i for i, d in semana.values() if d.weekday() in (dia_semanal, dia_semanal - 1)}
     out |= {i for i, e in enumerate(exps) if dtes[i] <= HORIZON_DAYS and es_mensual(date.fromisoformat(str(e)[:10]), symbol)}
     return sorted(out)[:MAX_SMILES]
+
+
+def model_free_vol(K, C, bid, ask, F: float, T: float) -> float | None:
+    """Volatilidad sin modelo de un vencimiento con el metodo del VIX (CBOE):
+    sigma^2 = 2/T sum(dK/K^2 e^rT Q(K)) - 1/T (F/K0 - 1)^2, con Q el punto medio de la opcion fuera de dinero,
+    K0 el primer strike por debajo del forward (media de call y put) y las alas cortadas tras dos strikes seguidos
+    sin bid. Con la cadena del SPX da el VIX."""
+    ks = np.unique(K)
+    if ks.size < 5 or T <= 0:
+        return None
+    below = ks[ks <= F]
+    K0 = float(below.max() if below.size else ks.min())
+    mid = (bid + ask) / 2
+    q: dict[float, float] = {}
+    for is_call, wing in ((False, sorted((float(k) for k in ks if k < K0), reverse=True)),
+                          (True, sorted(float(k) for k in ks if k > K0))):
+        quotes = {float(k): (b, p) for k, b, p in zip(K[C == is_call], bid[C == is_call], mid[C == is_call])}
+        zeros = 0
+        for k in wing:
+            b, p = quotes.get(k, (0.0, 0.0))
+            if b <= 0:
+                zeros += 1
+                if zeros >= 2:
+                    break
+                continue
+            zeros = 0
+            q[k] = float(p)
+    at = [float(mid[(K == K0) & (C == c) & (bid > 0)][0]) for c in (True, False) if ((K == K0) & (C == c) & (bid > 0)).any()]
+    if not at:
+        return None
+    q[K0] = float(np.mean(at))
+    kk = np.array(sorted(q))
+    if kk.size < 5:
+        return None
+    dk = np.empty_like(kk)
+    dk[1:-1] = (kk[2:] - kk[:-2]) / 2
+    dk[0], dk[-1] = kk[1] - kk[0], kk[-1] - kk[-2]
+    s2 = (2 / T * float(np.sum(dk / kk ** 2 * np.array([q[k] for k in kk]))) * float(np.exp(g.risk_free() * T))
+          - (F / K0 - 1) ** 2 / T)
+    return float(np.sqrt(s2)) if s2 > 0 else None
 
 
 def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
@@ -116,8 +160,12 @@ def smiles_from_chain(ch: dict, spot: float, now: datetime) -> list[dict]:
             continue
         days = int((exps[i].astype("datetime64[D]") - now64.astype("datetime64[D]")).astype(int))
         f = float(ref[m][0]) if Fc is not None else None
+        mf = None
+        if bid is not None and ch.get("ask") is not None and f:
+            e = E == exps[i]
+            mf = model_free_vol(K[e], C[e], bid[e], ch["ask"][e], f, float(T[e][0]))
         out.append({"exp": str(exps[i])[:10], "dte": round(dtes[i], 3), "days": max(days, 0),
-                    **({"fwd": round(f, 4)} if f else {}),
+                    **({"fwd": round(f, 4)} if f else {}), **({"mf": round(mf, 5)} if mf else {}),
                     "monthly": es_mensual(date.fromisoformat(str(exps[i])[:10]), sym), "K": np.round(k, 3).tolist(),
                     "iv": np.round(iv, 5).tolist(), "delta": np.round(d, 4).tolist()})
     return out
@@ -151,7 +199,10 @@ def term_structure(smiles: list[dict], spot: float) -> list[dict]:
     for sm in smiles:
         a = atm_iv(sm, spot)
         if a:
-            pts.append({"exp": sm["exp"], "dte": sm["dte"], "atm": round(a, 5)})
+            c25, p25 = iv_at_delta(sm, 0.25), iv_at_delta(sm, -0.25)
+            shp = {"rr25": round(c25 - p25, 5), "bf25": round((c25 + p25) / 2 - a, 5)} if c25 and p25 else {}
+            pts.append({"exp": sm["exp"], "dte": sm["dte"], "atm": round(a, 5), **shp,
+                        **({"mf": sm["mf"]} if sm.get("mf") else {})})
     # IV forward entre vencimientos consecutivos: sqrt((s2^2 T2 - s1^2 T1) / (T2 - T1))
     for p0, p1 in zip(pts[:-1], pts[1:]):
         t0, t1 = max(p0["dte"], 1e-3) / 365, p1["dte"] / 365
@@ -159,7 +210,114 @@ def term_structure(smiles: list[dict], spot: float) -> list[dict]:
         p1["fwd"] = round(float(np.sqrt(v / (t1 - t0))), 5) if v > 0 and t1 > t0 else None
     if pts:
         pts[0]["fwd"] = pts[0]["atm"]
+    _mark_events(pts)
     return pts
+
+
+def _mark_events(pts: list[dict]) -> None:
+    """Movimiento de evento que descuenta cada tramo de la estructura temporal (el "codo" de la curva): varianza
+    forward del tramo por encima de la normal (mediana de los tramos hasta EVENT_HORIZON dias), por la duracion del
+    tramo. Solo se marca si la varianza forward supera EVENT_RATIO veces la normal. Es el movimiento de un dia que
+    el mercado paga de mas en ese tramo (resultados, FOMC...), no una prediccion."""
+    fv, prev = [], (0.0, 0.0)
+    for p in pts:
+        t, w = p["dte"] / 365, p["atm"] ** 2 * p["dte"] / 365
+        fv.append((w - prev[1]) / (t - prev[0]) if t > prev[0] else None)
+        prev = (t, w)
+    base = [v for v, p in zip(fv, pts) if v is not None and v > 0 and p["dte"] <= EVENT_HORIZON]
+    if len(base) < 4:
+        return
+    norm = float(np.median(base))
+    t0 = 0.0
+    for i, (v, p) in enumerate(zip(fv, pts)):
+        t = p["dte"] / 365
+        # codo: por encima de la normal y de al menos uno de los tramos vecinos (una curva solo invertida no cuenta)
+        nb = [fv[j] for j in (i - 1, i + 1) if 0 <= j < len(fv) and fv[j] is not None]
+        local = max(norm, min(nb)) if nb else norm
+        if v is not None and v > EVENT_RATIO * local and 1 <= p["dte"] <= EVENT_HORIZON:
+            p["event"] = round(float(np.sqrt((v - norm) * (t - t0))), 5)
+        t0 = t
+
+
+def _yang_zhang(o, h, l, c, prev_c) -> float | None:
+    """Volatilidad realizada de Yang-Zhang (anualizada): salto de apertura + intradia de Rogers-Satchell. Usa
+    apertura, maximo y minimo, asi que con pocas sesiones es mas precisa que la de cierre a cierre."""
+    n = len(c)
+    if n < 5:
+        return None
+    ro = np.log(o / prev_c)
+    rc = np.log(c / o)
+    rs = np.log(h / c) * np.log(h / o) + np.log(l / c) * np.log(l / o)
+    k = 0.34 / (1.34 + (n + 1) / (n - 1))
+    v = ro.var(ddof=1) + k * rc.var(ddof=1) + (1 - k) * rs.mean()
+    return float(np.sqrt(v * 252)) if v > 0 else None
+
+
+def realized(sym: str) -> dict | None:
+    """Vol realizada de Yang-Zhang a varias ventanas y su cono del ultimo ano (min, p10, mediana, p90, max de la
+    misma ventana movil), mas la de cierre a cierre a 20 dias. NDX y RUT usan su ETF (CBOE no da su historico)."""
+    ohlc, src = g.history_ohlc(sym)
+    rows = [v for _, v in sorted(ohlc.items())][-(CONE_DAYS + max(YZ_WINDOWS) + 1):]
+    if len(rows) < 30:
+        return None
+    a = np.array(rows, dtype=float)
+    o, h, l, c = a[1:, 0], a[1:, 1], a[1:, 2], a[1:, 3]
+    pc = a[:-1, 3]
+    ok = (o > 0) & (h >= l) & (l > 0) & (pc > 0)
+    o, h, l, c, pc = o[ok], h[ok], l[ok], c[ok], pc[ok]
+    now, cone, cc = {}, {}, {}
+    lr = np.log(c / pc)
+    for n in YZ_WINDOWS:
+        if len(c) < n:
+            continue
+        now[str(n)] = _yang_zhang(o[-n:], h[-n:], l[-n:], c[-n:], pc[-n:])
+        cc[str(n)] = round(float(lr[-n:].std(ddof=1) * np.sqrt(252)), 5)
+        roll = [_yang_zhang(o[i - n:i], h[i - n:i], l[i - n:i], c[i - n:i], pc[i - n:i])
+                for i in range(max(n, len(c) - CONE_DAYS), len(c) + 1)]
+        roll = [x for x in roll if x]
+        if len(roll) >= 20:
+            cone[str(n)] = [round(float(x), 5) for x in np.percentile(roll, [0, 10, 50, 90, 100])]
+    return {"proxy": src, "windows": YZ_WINDOWS, "yz": {k: round(v, 5) for k, v in now.items() if v},
+            "cc": cc, "cone": cone, "days": int(min(len(c), CONE_DAYS))}
+
+
+def _at_dte(pts: list[dict], key: str, dte: float) -> float | None:
+    xy = [(p["dte"], p[key]) for p in pts if p.get(key) is not None]
+    if len(xy) < 2 or not xy[0][0] <= dte <= xy[-1][0]:
+        return None
+    return float(np.interp(dte, [x for x, _ in xy], [y for _, y in xy]))
+
+
+def iv30_model_free(pts: list[dict]) -> float | None:
+    """IV a 30 dias sin modelo como el VIX: varianza total interpolada entre los vencimientos que rodean los 30
+    dias (el primero con al menos 7)."""
+    xs = [p for p in pts if p.get("mf") and p["dte"] >= 7]
+    lo = [p for p in xs if p["dte"] <= 30]
+    hi = [p for p in xs if p["dte"] > 30]
+    if not lo or not hi:
+        return None
+    a, b = lo[-1], hi[0]
+    w = (b["dte"] - 30) / (b["dte"] - a["dte"])
+    v = (a["mf"] ** 2 * a["dte"] * w + b["mf"] ** 2 * b["dte"] * (1 - w)) / 30
+    return round(float(np.sqrt(v)), 5)
+
+
+def summary(term: list[dict], rv: dict | None) -> dict:
+    """Lecturas de la superficie para la cabecera del panel."""
+    iv30 = iv30_model_free(term)
+    atm30 = _at_dte(term, "atm", 30)
+    a7, a90 = _at_dte(term, "atm", 7), _at_dte(term, "atm", 90)
+    yz20 = (rv or {}).get("yz", {}).get("20")
+    cc20 = (rv or {}).get("cc", {}).get("20")
+    ref = iv30 or atm30
+    ev = max((p for p in term if p.get("event")), key=lambda p: p["event"], default=None)
+    rnd = lambda v: None if v is None else round(v, 5)  # noqa: E731
+    # prima de varianza frente a la de cierre a cierre: Yang-Zhang apenas cuenta un dia que abre en maximos y cierra
+    # en minimos (lo toma por tendencia), y eso es justo lo que una opcion tiene que pagar
+    return {"iv30": iv30, "atm30": rnd(atm30), "atm7": rnd(a7), "atm90": rnd(a90),
+            "rr25": rnd(_at_dte(term, "rr25", 30)), "bf25": rnd(_at_dte(term, "bf25", 30)),
+            "rv20": yz20, "cc20": cc20, "vrp": rnd(ref - cc20) if ref and cc20 else None,
+            "event": {"exp": ev["exp"], "move": ev["event"]} if ev else None}
 
 
 def grid_snapshot(smiles: list[dict], spot: float) -> dict:
@@ -285,9 +443,17 @@ def vol_data(sym: str, save: bool = True) -> dict:
         ps, pspot = _snapshot_smiles(sym, day, now)
         if ps:
             prev[key] = {"date": day, "spot": pspot, "smiles": ps, "term": term_structure(ps, pspot)}
+    term = term_structure(sm, spot)
+    rv = None
+    if sym not in g.CBOE_VOL_INDICES:   # las opciones del VIX van sobre el futuro: la realizada del indice no compara
+        try:
+            rv = realized(sym)
+        except Exception:  # noqa: BLE001  (sin historico de precios el resto del panel sigue)
+            rv = None
     return {
         "symbol": sym, "name": g.name_of(sym), "spot": spot, "generado": now.strftime("%Y-%m-%d %H:%M ET"),
-        "timestamp": ch["timestamp"], "smiles": sm, "term": term_structure(sm, spot), "prev": prev,
+        "timestamp": ch["timestamp"], "smiles": sm, "term": term, "prev": prev,
+        "realized": rv, "summary": summary(term, rv),
         "matrix": matrix(sm, (prev.get("1d") or {}).get("smiles", []), spot),
         "bands": bands(h, today), "tenors": TENORS, "deltas": DELTAS, "term_grid": TERM_GRID,
     }

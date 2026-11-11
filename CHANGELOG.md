@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 
 **Añadido**
 - **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
@@ -38,6 +38,18 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Validación con el historial diario:** usa también los niveles guardados cada día al cierre de los tickers del
   historial diario, así un ticker recién añadido a la lista sale con todas las sesiones desde el primer día de ese
   historial, no solo desde que se añadió. Solo se validan los tickers de la lista.
+- **Volatility dashboard: resumen de la superficie** encima del gráfico, con seis lecturas: IV30 sin modelo (con la
+  fórmula del VIX sobre todas las opciones fuera de dinero; en el SPX da el VIX), volatilidad realizada de 20 sesiones
+  (cierre a cierre y Yang-Zhang), prima de varianza (IV30 menos realizada), forma de la estructura temporal (normal,
+  bulto en el corto plazo o invertida), skew a 30 días (risk reversal y butterfly de 25 delta) y el evento que
+  descuenta la curva.
+- **Evento descontado en la estructura temporal:** los tramos cuya varianza forward destaca sobre la normal y sobre
+  sus vecinos salen con un círculo y el movimiento de un día que se paga de más (NVDA: ±9,8 % hasta el vencimiento
+  del 20 de noviembre, el de sus resultados). El tooltip añade IV sin modelo, risk reversal, butterfly y evento.
+- **Pestaña «Skew by expiration»:** risk reversal y butterfly de 25 delta de cada vencimiento, con la sesión anterior.
+- **Pestaña «Realized vs. implied»:** cono de volatilidad del último año (Yang-Zhang a 10, 20, 30, 60, 90 y 120
+  sesiones: mínimo, percentiles 10-90, mediana y máximo), con la realizada de hoy y la IV ATM del mismo plazo. NDX y
+  RUT usan su ETF; en el VIX no se muestra (sus opciones van sobre el futuro).
 
 **Cambiado**
 - El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del

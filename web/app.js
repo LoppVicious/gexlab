@@ -2097,7 +2097,8 @@ function setMode(m) {
   state.mode = m; store.set("mode", m);
   syncNav();
   const tool = TOOLS[m];
-  const macro = m === "vix" || m === "cot" || m === "summary" || (tool && !tool.ticker);
+  // booleano siempre: classList.toggle con undefined invierte la clase en vez de quitarla
+  const macro = m === "vix" || m === "cot" || m === "summary" || !!(tool && !tool.ticker);
   document.body.classList.toggle("scan", m === "scanner" || macro || m === "vol" || !!tool);
   document.body.classList.toggle("macro-mode", macro);
   document.body.classList.toggle("vol-mode", m === "vol" || !!(tool && tool.ticker));

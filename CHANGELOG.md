@@ -52,6 +52,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Open Interest no cargaba en la nube** («undefined is not a function»): su preferencia de vencimientos usaba la
   misma clave que el modo de OI del Equity Hub. Ahora tiene claves propias. Las posiciones guardadas se guardan
   compactas (la nube corta cada preferencia a 2.000 caracteres).
+- **«Comprobar web» fallaba siempre** en su última prueba: pedía las cabeceras a `/login.html`, que ahora redirige a
+  `/login`. Ahora las pide a `/login`.
 
 ## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE; lentes Delta y Charm Pressure en el TRACE
 

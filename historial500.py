@@ -7,6 +7,7 @@ config/historial500.json; si aun no existe, se usa TICKERS (la lista inicial).
   python historial500.py                 sesion de hoy (solo si ya ha cerrado y no esta hecha)
   python historial500.py --forzar        rehace la ultima sesion cerrada (con el mercado cerrado)
   python historial500.py --forzar AAPL   solo esos tickers (pruebas)
+  python historial500.py --indice        reconstruye hist500/_niveles/ con los dias ya guardados
 
 Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
   hist500/{SYM}/{AAAA-MM-DD}.json.gz
@@ -16,6 +17,8 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
     levels[posicion][motor][filtro]: niveles con posicion "standard" y "flow", los dos motores y los filtros
             de la barra (0, 1, 7, 14, 30, 45, all; el 0DTE solo con vencimientos diarios), rango 5 %. Son los mismos campos que
             guarda el historico de la app tras el cierre (el 0DTE ya es el vencimiento siguiente).
+  hist500/_niveles/{SYM}.json.gz: indice {fecha: levels} con los campos de CAMPOS_INDICE de todos los dias del
+            ticker; lo usa la Validacion del motor para tener toda la historia de un ticker recien anadido.
   hist500/_flujo/{SYM}.json.gz: volumen del dia y lado de la ultima operacion por contrato de las ultimas
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
 Al terminar escribe hist500/_dias/{fecha}.json (resumen) y borra lo que tenga mas de RETENCION_ANOS.
@@ -58,6 +61,7 @@ NUNCA_BORRAR = ("VIX/", "_indices_vol/")  # el VIX y la familia VIX se guardan s
 POSICIONES = ("standard", "flow")
 RANGO = 5.0                     # el mismo rango que usa el historico de la app
 PAUSA = 0.5                     # segundos entre tickers (ademas del limite de gex_engine)
+CAMPOS_INDICE = ("spot", "call_wall", "put_wall", "net_per_pct", "m1_pct", "m1_session", "saved")
 
 _t0 = time.time()
 _record_flow = g.record_flow
@@ -193,7 +197,57 @@ def guardar_ticker(st, sym: str, sesion: str) -> int:
     n = almacen.put_json(st, f"{PREFIX}{g.normalize(sym)}/{sesion}.json.gz", doc)
     if flujo:
         almacen.put_json(st, fkey, flujo)
+    try:
+        actualizar_indice(st, sym, sesion, niveles)
+    except Exception as e:  # noqa: BLE001
+        log(f"ERROR indice de niveles {sym}: {type(e).__name__}: {str(e)[:120]}")
     return n
+
+
+def _niveles_indice(niveles: dict) -> dict:
+    """Solo los campos que usa la validacion, con la misma estructura levels[posicion][motor][filtro]."""
+    return {pos: {mdl: {f: {k: sn.get(k) for k in CAMPOS_INDICE} for f, sn in fs.items()}
+                  for mdl, fs in ms.items()} for pos, ms in niveles.items()}
+
+
+def reconstruir_indice(st, sym: str) -> dict:
+    """Indice de niveles a partir de todos los dias guardados del ticker en hist500/{SYM}/."""
+    idx = {}
+    rx = re.compile(r"/(\d{4}-\d{2}-\d{2})\.json\.gz$")
+    for k in st.list(f"{PREFIX}{g.normalize(sym)}/"):
+        m = rx.search(k)
+        if m:
+            d = almacen.get_json(st, k) or {}
+            if d.get("levels"):
+                idx[m.group(1)] = _niveles_indice(d["levels"])
+    return idx
+
+
+def actualizar_indice(st, sym: str, sesion: str, niveles: dict | None = None) -> int:
+    """Indice compacto hist500/_niveles/{SYM}.json.gz = {fecha: niveles}; lo lee la Validacion del motor
+    (leer_indice). Anade la sesion; si el indice aun no existe o no se pasan niveles, lo reconstruye con todos
+    los dias guardados. Devuelve las sesiones del indice."""
+    sym = g.normalize(sym)
+    key = f"{PREFIX}_niveles/{sym}.json.gz"
+    idx = almacen.get_json(st, key) if niveles is not None else None
+    if idx is None:
+        idx = reconstruir_indice(st, sym)
+    if niveles is not None:
+        idx[sesion] = _niveles_indice(niveles)
+    if not f"{sym}/".startswith(NUNCA_BORRAR):
+        corte = f"{int(sesion[:4]) - RETENCION_ANOS}{sesion[4:]}"
+        idx = {d: v for d, v in idx.items() if d >= corte}
+    if idx:
+        almacen.put_json(st, key, dict(sorted(idx.items())))
+    return len(idx)
+
+
+def leer_indice(st, sym: str) -> dict:
+    """Niveles de cada sesion guardada del ticker ({fecha: levels[posicion][motor][filtro]}); {} si no hay."""
+    try:
+        return almacen.get_json(st, f"{PREFIX}_niveles/{g.normalize(sym)}.json.gz") or {}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def podar(st, sesion: str) -> int:
@@ -215,6 +269,15 @@ def main(args: list[str]) -> int:
     _aislar()
     forzar = "--forzar" in args
     pedidos = [a for a in args if not a.startswith("--")]
+    if "--indice" in args:  # solo reconstruye los indices de niveles con los dias ya guardados
+        st = almacen.abrir()
+        hoy = g.now_ny().strftime("%Y-%m-%d")
+        for sym in pedidos or lista_tickers(st)[0]:
+            try:
+                log(f"{sym}: indice con {actualizar_indice(st, sym, hoy)} sesiones")
+            except Exception as e:  # noqa: BLE001
+                log(f"ERROR indice {sym}: {type(e).__name__}: {str(e)[:120]}")
+        return 0
     sesion = sesion_objetivo(forzar)
     now = g.now_ny()
     if sesion is None:

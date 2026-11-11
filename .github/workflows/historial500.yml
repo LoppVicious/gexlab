@@ -9,6 +9,10 @@ on:
         description: "Rehacer la ultima sesion cerrada aunque ya este guardada"
         type: boolean
         default: false
+      indice:
+        description: "Solo reconstruir los indices de niveles (hist500/_niveles/) con los dias ya guardados"
+        type: boolean
+        default: false
   schedule:
     - cron: "45 23 * * 1-5"
 concurrency:
@@ -36,4 +40,5 @@ jobs:
           R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
           GEX_ALMACEN: r2
           FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
-        run: python historial500.py $FORZAR
+          INDICE: ${{ inputs.indice && '--indice' || '' }}
+        run: python historial500.py $FORZAR $INDICE

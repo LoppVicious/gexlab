@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario
 
 **Añadido**
 - **Compass: estela de cada ticker** con las últimas sesiones guardadas, para ver si su volatilidad está más cara o
@@ -15,6 +15,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   botón para volver.
 - **Añadir tickers desde el buscador de la lista del Compass** («Find or add a ticker»): si lo escrito no está en
   la lista, aparece «+ Add … to your list» (también con Enter).
+- **Validación con el historial diario:** usa también los niveles guardados cada día al cierre de los tickers del
+  historial diario, así un ticker recién añadido a la lista sale con todas las sesiones desde el primer día de ese
+  historial, no solo desde que se añadió. Solo se validan los tickers de la lista.
 
 **Cambiado**
 - El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del

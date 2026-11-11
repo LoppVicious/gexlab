@@ -2576,14 +2576,18 @@ def _percentile(v, arr):
 
 
 # ================================================================ validacion historica
-def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: str = "spotgamma") -> dict:
+def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: str = "spotgamma",
+               extra: dict | None = None) -> dict:
     """Contrasta los niveles guardados de cada sesion con el precio de esa misma sesion
     (los niveles de la sesion d usan el OI del cierre de d-1, asi que son ex ante para d):
       - rango intradia (max-min)/cierre anterior segun el regimen (GEX neta + / -)
       - % de sesiones en que el maximo no supero el Call Wall / el minimo no perforo el Put Wall
-      - % de sesiones en que el cierre quedo dentro del movimiento esperado (si era del mismo dia)."""
-    key_dte = ("all" if max_dte in (None, "all") else str(max_dte)) + ("f" if mode == "flow" else "") \
-        + ("s" if model == "spotgamma" else "")
+      - % de sesiones en que el cierre quedo dentro del movimiento esperado (si era del mismo dia).
+    extra = {SYM: {fecha: levels[posicion][motor][filtro]}} (indice del historial diario, hist500): fotos tras el
+    cierre que completan las sesiones que falten en el historico propio, p. ej. de un ticker recien anadido."""
+    filtro = "all" if max_dte in (None, "all") else str(max_dte)
+    key_dte = filtro + ("f" if mode == "flow" else "") + ("s" if model == "spotgamma" else "")
+    pos = "flow" if mode == "flow" else "standard"
     rows, agg = [], {"pos": [], "neg": [], "cw": [], "pw": [], "em": []}
     for sym in symbols:
         path = os.path.join(HIST_DIR, f"{sym.replace('.', '_')}.json")
@@ -2597,6 +2601,10 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
             parts = k.split("|")
             if len(parts) >= 2 and parts[1] == key_dte:
                 (ante if len(parts) == 3 and parts[2] == "a" else reg)[parts[0]] = v
+        for d, lv in ((extra or {}).get(sym) or {}).items():
+            sn = (((lv or {}).get(pos) or {}).get(model) or {}).get(filtro)
+            if sn and d not in reg:
+                reg[d] = sn
         ohlc, proxy_src = history_ohlc(sym) if (reg or ante) else ({}, None)
         if proxy_src:
             # precios del ETF llevados al indice: relacion indice / ETF de las fotos guardadas tras el cierre

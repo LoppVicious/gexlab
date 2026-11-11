@@ -382,6 +382,9 @@ def _ticker(st, sym: str, syms: list[str], ligero: bool = False) -> None:
 
 
 def fase_listas(st, listas: dict) -> None:
+    import historial500
+    # niveles del historial diario (hist500): la Validacion tiene toda la historia de un ticker recien anadido
+    hist500 = {s: historial500.leer_indice(st, s) for s in {s for v in listas.values() for s in v if s}}
     for lid, syms in listas.items():
         syms = [s for s in syms if s]
         try:
@@ -392,7 +395,7 @@ def fase_listas(st, listas: dict) -> None:
             for mode in VAL_MODES:
                 try:
                     for mdl in g.MODELS:  # la Validacion sigue al motor elegido en la web
-                        subir(st, f"pub/l/{lid}/validacion_{dte}_{mode}_{mdl}.json", g.validation(syms, dte, mode, mdl))
+                        subir(st, f"pub/l/{lid}/validacion_{dte}_{mode}_{mdl}.json", g.validation(syms, dte, mode, mdl, hist500))
                 except Exception as e:  # noqa: BLE001
                     err(f"validacion {lid} {dte} {mode}", e)
     log(f"listas: Compass y Validacion de {len(listas)} listas")

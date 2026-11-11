@@ -30,7 +30,7 @@ Navegador
 ```
 Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
 
-Herramientas de opciones (Open Interest, Risk Engine y Options Calculator) calculan en JavaScript, sin Pyodide:
+Herramientas de opciones (Open Interest, `web/oi.js`, y Options Lab, `web/lab.js`) calculan en JavaScript, sin Pyodide:
 `/api/chain?symbol=` devuelve la cadena compacta (`chain_to_min`, con `fwds`), el OI de la sesión anterior por
 contrato (`oi_previo`) y el tipo de interés. En el PC la arma `gex_engine.chain_payload`; en la nube, `nube.js` con
 los archivos del paquete del ticker (`fx/SYM.min.json`, `fx/oiprev_SYM.json`, `fx/rate.json`). `web/opciones.js`

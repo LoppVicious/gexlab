@@ -2087,13 +2087,13 @@ async function loadCollector() {
   } catch { el.textContent = ""; }
 }
 
-/* herramientas (oi.js, riesgo.js, calculadora.js): vista, funciones y si usan el ticker de la barra superior */
+/* herramientas (oi.js, lab.js): vista, funciones y si usan el ticker de la barra superior */
 const TOOLS = {
   oi: { view: "oiView", ticker: true, show: () => showOI(), render: () => renderOI(), load: (r) => loadOI(r) },
-  risk: { view: "riskView", ticker: true, show: () => showRisk(), render: () => renderRisk(), load: (r) => loadRisk(r) },
-  calc: { view: "calcView", ticker: false, show: () => showCalc(), render: () => renderCalc(), load: () => showCalc() },
+  lab: { view: "labView", ticker: true, show: () => showLab(), render: () => renderLab(), load: (r) => loadLab(r) },
 };
 function setMode(m) {
+  if (m === "risk" || m === "calc") m = "lab";   // secciones anteriores, unidas en Options Lab
   state.mode = m; store.set("mode", m);
   syncNav();
   const tool = TOOLS[m];
@@ -3247,8 +3247,7 @@ const NAV = {
   navValid: { t: "Validation", go: () => { setMode("scanner"); setScanView("valid"); } },
   navCot: { t: "COT", go: () => setMode("cot") },
   navOI: { t: "Open Interest", go: () => setMode("oi") },
-  navRisk: { t: "Risk Engine", go: () => setMode("risk") },
-  navCalc: { t: "Options Calculator", go: () => setMode("calc") },
+  navLab: { t: "Options Lab", go: () => setMode("lab") },
 };
 function currentNav() {
   const m = state.mode;
@@ -3258,8 +3257,7 @@ function currentNav() {
   if (m === "vix") return "navVix";
   if (m === "cot") return "navCot";
   if (m === "oi") return "navOI";
-  if (m === "risk") return "navRisk";
-  if (m === "calc") return "navCalc";
+  if (m === "lab") return "navLab";
   if (m === "scanner") return state.scanView === "compass" ? "navCompass" : state.scanView === "valid" ? "navValid" : "navScan";
   return "navHub";
 }
@@ -3405,6 +3403,6 @@ async function init() {
     if (state.mode === "vix") loadVix(); else if (state.mode === "cot") loadCot(); else if (state.mode === "summary") loadSummary();
   }, 5 * 60 * 1000);
   setView(state.view);
-  if (state.mode === "scanner") { load(); setMode("scanner"); } else if (["vix", "cot", "summary", "vol", ...Object.keys(TOOLS)].includes(state.mode)) { setMode(state.mode); } else { setMode("analysis"); }
+  if (state.mode === "scanner") { load(); setMode("scanner"); } else if (["vix", "cot", "summary", "vol", "risk", "calc", ...Object.keys(TOOLS)].includes(state.mode)) { setMode(state.mode); } else { setMode("analysis"); }
 }
 init();

@@ -31,27 +31,25 @@ function oiSelected() {
 /* ---------------------------------------------------------------- estructura */
 function oiBuild() {
   $("oiView").innerHTML = `
-  <header class="tl-head">
-    <div class="tl-brand"><svg class="oi-mark" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7"/><path d="M8 14V7M12 14V9M16 14V5M20 14V10"/><path d="M8 14v4M12 14v7M16 14v3M20 14v5" opacity=".55"/></svg>
-      <div><h1>Open Interest <span class="re-sym" id="oiSym"></span></h1><p id="oiSub">Where positions sit, and where they were opened or closed since the last session.</p></div></div>
-    <div class="seg boxed" role="radiogroup" id="oiMetric" aria-label="Measure">
+  <header class="lab-head">
+    <div class="lab-title"><h1>Open Interest</h1><span class="lab-sym" id="oiSym"></span></div>
+    <div class="lab-keys" role="radiogroup" id="oiMetric" aria-label="Measure">
       <button role="radio" data-v="oi">Open interest</button><button role="radio" data-v="chg">Change</button><button role="radio" data-v="vol">Volume</button></div>
   </header>
+  <p class="lab-say" id="oiSub"></p>
   <div class="oi-exps" id="oiExps" role="group" aria-label="Expirations"></div>
-  <div class="oi-grid">
-    <section class="tl-card oi-main">
-      <div class="oi-ctl"><span class="oi-leg" id="oiLeg"></span>
-        <div class="seg boxed" role="radiogroup" id="oiRange" aria-label="Strike range">
-          <button role="radio" data-v="5">±5%</button><button role="radio" data-v="10">±10%</button><button role="radio" data-v="20">±20%</button></div></div>
-      <div class="ss-chart oi-chart" id="oiChart" role="img" aria-label="Open interest by strike"></div>
-    </section>
-    <aside class="tl-card oi-side" id="oiStats"></aside>
-  </div>
+  <div class="lab-read oi-read" id="oiStats"></div>
+  <section class="lab-panel">
+    <div class="lab-cap"><span id="oiLeg"></span>
+      <span class="lab-keys small" role="radiogroup" id="oiRange" aria-label="Strike range">
+        <button role="radio" data-v="5">±5%</button><button role="radio" data-v="10">±10%</button><button role="radio" data-v="20">±20%</button></span></div>
+    <div class="ss-chart oi-chart" id="oiChart" role="img" aria-label="Open interest by strike"></div>
+  </section>
   <div class="oi-grid2">
-    <section class="tl-card"><div class="re-legs-h"><h2>By expiration <small>click a bar to see only that expiration</small></h2></div><div class="ss-chart" id="oiByExp"></div></section>
-    <section class="tl-card"><div class="re-legs-h"><h2>Biggest changes <small id="oiChgSub"></small></h2></div><div id="oiMovers"></div></section>
+    <section class="lab-panel"><div class="lab-cap"><span>By expiration</span><span>click a bar to see only that one</span></div><div class="oi-bxw" id="oiByExp"></div></section>
+    <section class="lab-panel"><div class="lab-cap"><span>Biggest changes</span><span id="oiChgSub"></span></div><div id="oiMovers"></div></section>
   </div>
-  <p class="tl-note">Open interest is published once a day, before the open: it is the count of contracts left open at the previous close. The change compares it with the session before. Volume is today's, so far. Max pain is the strike where option holders of the chosen expirations would lose the most at expiration.</p>`;
+  <p class="tl-note">Open interest is published once a day, before the open: the contracts left open at the previous close. The change compares it with the session before; volume is today's so far. Max pain is the price at which the options of the chosen expirations would be worth the least at expiration.</p>`;
   const segSync = () => {
     for (const b of $("oiMetric").querySelectorAll("button")) b.setAttribute("aria-checked", String(b.dataset.v === oiv.metric));
     for (const b of $("oiRange").querySelectorAll("button")) b.setAttribute("aria-checked", String(+b.dataset.v === oiv.range));
@@ -143,8 +141,8 @@ function oiRender() {
   if (!oiv.ch) return;
   const ch = oiv.ch, S = ch.spot;
   $("oiSym").innerHTML = spotLabel(ch);
-  if (oiv.metric === "chg" && !ch.hasPrev) $("oiSub").textContent = "No previous session saved for this ticker yet: the change appears after its next daily update.";
-  else $("oiSub").textContent = ch.prevDate ? `Change compared with the ${shortDate(ch.prevDate)} session.` : "Where positions sit, and where they were opened or closed since the last session.";
+  const nsel = oiSelected().size, nall = ch.live.length;
+  $("oiSub").innerHTML = `Where ${esc(ch.symbol)} options are open${nsel === nall ? " across all expirations" : `, in ${nsel} of ${nall} expirations`}${ch.hasPrev ? `, and what changed since the <b>${shortDate(ch.prevDate)}</b> session` : ""}.${oiv.metric === "chg" && !ch.hasPrev ? " No previous session is saved for this ticker yet: the change appears after its next daily update." : ""}`;
   // vencimientos
   const live = oiDays().slice(0, 18);
   $("oiExps").innerHTML = OI_MODES.map(([k, t]) => `<button type="button" data-m="${k}" class="mode" aria-pressed="${oiv.mode === k}">${t}</button>`).join("") +
@@ -211,18 +209,21 @@ function oiChart(a) {
   }
   const vline = (v, col, lab, dash, row) => (v >= lo && v <= hi ? `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t - 6}" y2="${H - pad.b}" stroke="${col}" stroke-dasharray="${dash}" stroke-width="1.2"/><text x="${X(v) + 5}" y="${pad.t - 10 + row * 12}" fill="${col}" font-size="11.5">${lab}</text>` : "");
   const xt = niceTicks(lo, hi, Math.max(4, Math.round(W / 110)));
-  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    ${yt.map((v) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.grid}"/><text x="${pad.l - 8}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11.5" text-anchor="end">${fmtBig(Math.abs(v))}</text>`).join("")}
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${LAB_MONO}">
+    <defs>${graphPaper("oi", pad.l, pad.t)}</defs>
+    <rect x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}" height="${H - pad.t - pad.b}" fill="url(#oiGP)"/>
+    <rect x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}" height="${H - pad.t - pad.b}" fill="none" stroke="${C.axis}"/>
+    ${yt.map((v) => `<text x="${pad.l - 8}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11" text-anchor="end">${fmtBig(Math.abs(v))}</text>`).join("")}
     ${xt.map((v) => `<text x="${X(v)}" y="${H - pad.b + 18}" fill="${C.faint}" font-size="11.5" text-anchor="middle">${fmtNum(v, hi - lo < 20 ? 1 : 0)}</text>`).join("")}
-    <text x="${pad.l + 4}" y="${pad.t + 12}" fill="${C.call}" font-size="11.5" font-weight="600">${met === "chg" ? "Calls (left)" : "Calls"}</text>
-    <text x="${pad.l + 4}" y="${H - pad.b - 6}" fill="${C.put}" font-size="11.5" font-weight="600">${met === "chg" ? "Puts (right)" : "Puts"}</text>
+    <text x="${pad.l + 6}" y="${pad.t + 14}" fill="${C.call}" font-size="11.5" font-weight="600" font-family="${SANS}">${met === "chg" ? "Calls (left)" : "Calls"}</text>
+    <text x="${pad.l + 6}" y="${H - pad.b - 7}" fill="${C.put}" font-size="11.5" font-weight="600" font-family="${SANS}">${met === "chg" ? "Puts (right)" : "Puts"}</text>
     ${bars}
-    <line x1="${pad.l}" x2="${W - pad.r}" y1="${zy}" y2="${zy}" stroke="${C.axis}"/>
+    <line x1="${pad.l}" x2="${W - pad.r}" y1="${zy}" y2="${zy}" stroke="${C.muted}"/>
     ${vline(S, C.spotline, `Spot ${px(S)}`, "1 3", 0)}
     ${a.pain != null ? vline(a.pain, C.amber, `Max pain ${px(a.pain)}`, "5 4", 1) : ""}
     <line id="oiHover" y1="${pad.t}" y2="${H - pad.b}" stroke="${C.muted}" visibility="hidden"/>
   </svg>`;
-  $("oiLeg").innerHTML = met === "oi" ? `Contracts open by strike${oiv.ch.hasPrev ? `. <span class="oi-tick"></span> marks the previous session` : ""}` :
+  $("oiLeg").innerHTML = met === "oi" ? `Contracts open by strike${oiv.ch.hasPrev ? `<span class="oi-tick"></span>previous session` : ""}` :
     met === "vol" ? "Contracts traded today by strike" : "Contracts added (up) or closed (down) since the previous session";
   oiv.geo = { X, Y, bins, lo, hi, pad };
 }
@@ -246,19 +247,15 @@ function oiProbe(e) {
 function oiStats(a) {
   const t = a.t, ch = oiv.ch, S = ch.spot;
   const pc = t.cOI ? t.pOI / t.cOI : null, pcv = t.cVol ? t.pVol / t.cVol : null;
-  const share = t.cOI + t.pOI ? t.cOI / (t.cOI + t.pOI) : 0.5;
-  const row = (k, v, sub = "") => `<div class="oi-s"><span>${k}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ""}</div>`;
   const chg = (v) => (ch.hasPrev ? `<em class="${v > 0 ? "up" : v < 0 ? "dn" : ""}">${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v))}</em>` : "");
-  const nexp = a.sel.size;
-  $("oiStats").innerHTML = `
-    <h3>${nexp === ch.live.length ? "All expirations" : `${nexp} ${nexp === 1 ? "expiration" : "expirations"}`}</h3>
-    <div class="oi-split" title="Share of calls and puts in the open interest"><i style="flex:${share};background:${C.call}"></i><i style="flex:${1 - share};background:${C.put}"></i></div>
-    <div class="oi-pair"><div><span>Calls</span><b>${fmtBig(t.cOI)}</b>${chg(t.cChg)}</div><div><span>Puts</span><b>${fmtBig(t.pOI)}</b>${chg(t.pChg)}</div></div>
-    ${row("Put/call ratio", pc == null ? "—" : fmtNum(pc, 2), `open interest; ${pcv == null ? "no volume yet" : `${fmtNum(pcv, 2)} in today's volume`}`)}
-    ${row("Max pain", a.pain == null ? "—" : px(a.pain), a.pain == null ? "" : `${a.pain >= S ? "+" : "−"}${fmtNum(Math.abs(a.pain / S - 1) * 100, 1)}% from the spot`)}
-    ${row("Most call OI", a.cWall ? px(a.cWall.K) : "—", a.cWall ? `${fmtBig(a.cWall.cOI)} contracts` : "")}
-    ${row("Most put OI", a.pWall ? px(a.pWall.K) : "—", a.pWall ? `${fmtBig(a.pWall.pOI)} contracts` : "")}
-    ${row("Volume today", fmtBig(t.cVol + t.pVol), `${fmtBig(t.cVol)} calls, ${fmtBig(t.pVol)} puts`)}`;
+  const cell = (k, v, sub, cls = "") => `<div class="lab-r ${cls}"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`;
+  $("oiStats").innerHTML =
+    cell('<i class="lamp" style="background:var(--call)"></i>Call OI', fmtBig(t.cOI), `${chg(t.cChg)} ${ch.hasPrev ? "since last session" : ""}`) +
+    cell('<i class="lamp" style="background:var(--put)"></i>Put OI', fmtBig(t.pOI), `${chg(t.pChg)} ${ch.hasPrev ? "since last session" : ""}`) +
+    cell("Put/call", pc == null ? "—" : fmtNum(pc, 2), pcv == null ? "no volume yet" : `${fmtNum(pcv, 2)} in today's volume`) +
+    cell("Max pain", a.pain == null ? "—" : px(a.pain), a.pain == null ? "" : `${a.pain >= S ? "+" : "−"}${fmtNum(Math.abs(a.pain / S - 1) * 100, 1)}% from ${px(S)}`, "amb") +
+    cell("Top call strike", a.cWall ? px(a.cWall.K) : "—", a.cWall ? `${fmtBig(a.cWall.cOI)} contracts` : "") +
+    cell("Top put strike", a.pWall ? px(a.pWall.K) : "—", a.pWall ? `${fmtBig(a.pWall.pOI)} contracts` : "");
 }
 
 function oiByExp() {

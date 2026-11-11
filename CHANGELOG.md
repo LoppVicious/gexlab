@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario; Open Interest, Risk Engine y calculadora de opciones
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario; Open Interest y Options Lab
 
 **Añadido**
 - **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
@@ -11,20 +11,19 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   próximos 7 días, de 8 a 45, más de 45, o uno o varios a mano) y el rango (±5, 10 o 20 %). Al lado: calls y puts
   con su cambio, ratio put/call (OI y volumen), max pain, strikes con más OI de calls y de puts y volumen de hoy.
   Debajo: OI por vencimiento (pulsando una barra se ve solo ese) y los contratos con más altas y más bajas.
-- **Risk Engine** (menú Tools): posiciones de varias patas con la cadena real. Estrategias de un clic (call, put,
-  spreads, straddle, strangle, iron condor, butterfly, calendar, covered call y protective put) o patas a mano
-  (compra o venta, cantidad, call, put o acciones, vencimiento, strike y precio de entrada). Cada pata entra al
-  precio medio con su IV y se valora con el forward de su vencimiento. Muestra coste, máximos, puntos muertos y
-  probabilidad de ganar; el P&L por precio al primer vencimiento, hoy y en la fecha elegida; un cambio de IV para
-  todas las patas; griegas netas, y una matriz de escenarios por movimiento y fecha. La posición se guarda por
-  ticker.
-- **Options Calculator (Strike Studio)** (menú Tools): una opción por Black-Scholes-Merton. El formulario es una
-  frase que se edita ("Buy 1 call with strike 455, expiring in 30 days…"); compra o venta y call o put se cambian
-  pulsando. Da el precio, las cinco griegas traducidas a dólares de la posición, coste, punto muerto, máximos y
-  probabilidad de ganar, y el P&L por precio al vencimiento, hoy y tras los días elegidos, con un cambio de IV.
-  «Use market data» toma de la cadena real de un ticker el precio, el tipo, el dividendo implícito y la IV del
-  strike. Al pasar el ratón por los gráficos de P&L se ve el resultado en cada precio.
-- Las tres herramientas usan como precio del subyacente el que implican las opciones (forward del vencimiento más
+- **Options Lab** (menú Tools): calculadora de opciones y constructor de estrategias en uno. Dos modos: **Live
+  chain**, con la cadena real del ticker de la barra superior (cada pata entra al precio medio con su IV y se valora
+  con el forward de su vencimiento), e **Hypothetical**, con precio, IV, tipo y dividendo inventados. Una o varias
+  patas (compra o venta, cantidad, call, put o acciones, vencimiento o días, strike, IV y precio de entrada) o
+  estrategias de un clic (calls y puts largas o cortas, spreads, straddle, strangle, iron condor, butterfly,
+  calendar, covered call y protective put). Lecturas de coste, máximos, puntos muertos y probabilidad de ganar; una
+  frase con lo esencial («You collect $5,555. You make money between 7,344 and 7,831…»); P&L por precio al primer
+  vencimiento, hoy y en la fecha elegida, con un cambio de IV; griegas netas en dólares, y matriz de escenarios.
+  Las posiciones se guardan (las tres últimas de Live y la de Hypothetical).
+- **Estética de instrumento** en Open Interest y Options Lab: paneles con barra de rótulo, lecturas con cifras tipo
+  display, gráficos sobre papel milimetrado con la curva principal como trazo de osciloscopio, teclas que se
+  invierten al elegirlas y faders con marcas.
+- Las dos herramientas usan como precio del subyacente el que implican las opciones (forward del vencimiento más
   cercano): con el mercado cerrado, el último precio de un índice se queda en el cierre mientras sus opciones siguen
   cotizando, y se avisa cuando no coinciden.
 - **Compass: estela de cada ticker** con las últimas sesiones guardadas, para ver si su volatilidad está más cara o
@@ -49,8 +48,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 
 **Corregido**
 - **Open Interest no cargaba en la nube** («undefined is not a function»): su preferencia de vencimientos usaba la
-  misma clave que el modo de OI del Equity Hub. Ahora tiene claves propias. Las posiciones guardadas del Risk Engine
-  se guardan compactas (la nube corta cada preferencia a 2.000 caracteres).
+  misma clave que el modo de OI del Equity Hub. Ahora tiene claves propias. Las posiciones guardadas se guardan
+  compactas (la nube corta cada preferencia a 2.000 caracteres).
 
 ## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE; lentes Delta y Charm Pressure en el TRACE
 

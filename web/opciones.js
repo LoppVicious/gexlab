@@ -5,6 +5,8 @@
    - cadena completa de /api/chain (la cadena compacta del motor, el OI de la sesion anterior y el tipo de interes)
    - utilidades de grafico SVG (escalas, marcas de eje, formato) */
 
+const LAB_MONO = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
+
 const BS = {
   ncdf(x) {   // Abramowitz-Stegun 7.1.26 (error < 1.5e-7), como el motor
     const z = Math.abs(x) / Math.SQRT2, t = 1 / (1 + 0.3275911 * z);
@@ -210,12 +212,20 @@ function toolTip(box, html, x, y) {
 }
 
 /* ---------------------------------------------------------------- grafico de P&L por precio (comun)
-   o = {lo, hi, curves: [{label, pts, color, dash, main}], marks: [{x, label, color, dash, side}], bes: [x],
-        band: [a, b], bandLabel, probe(x) -> [{label, v, color}], ref: precio de referencia para el % del tooltip}
-   La curva "main" lleva el relleno verde (ganancia) y rojo (perdida). Devuelve la geometria para la sonda. */
+   Estetica de instrumento: papel milimetrado, la curva principal como trazo de osciloscopio (con halo) y los strikes
+   como marcas sobre el eje.
+   o = {lo, hi, curves: [{label, pts, color, dash, main}], marks: [{x, label, color, dash, side}], ticks: [strikes],
+        bes: [x], band: [a, b], bandLabel, probe(x) -> [{label, v, color}], ref: precio para el % del tooltip}
+   La curva "main" lleva el relleno de ganancia (verde) y perdida (rojo). Devuelve la geometria para la sonda. */
+function graphPaper(id, x0, y0) {
+  const light = document.documentElement.dataset.theme === "light";
+  return `<pattern id="${id}Gp" width="10" height="10" patternUnits="userSpaceOnUse" x="${x0}" y="${y0}"><path d="M10 0H0V10" fill="none" stroke="${C.grid}" stroke-width="${light ? 0.6 : 0.5}" opacity="${light ? 0.75 : 0.55}"/></pattern>
+    <pattern id="${id}GP" width="50" height="50" patternUnits="userSpaceOnUse" x="${x0}" y="${y0}"><rect width="50" height="50" fill="url(#${id}Gp)"/><path d="M50 0H0V50" fill="none" stroke="${C.grid}" stroke-width="1"/></pattern>
+    <filter id="${id}Glow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="${light ? 1.4 : 2.6}"/></filter>`;
+}
 function payoffChart(box, o) {
   const W = Math.max(320, box.clientWidth), H = Math.max(300, Math.min(460, Math.round(W * 0.46)));
-  const pad = { l: 64, r: 18, t: 30, b: 34 };
+  const pad = { l: 66, r: 16, t: 26, b: 40 };
   let y0 = Infinity, y1 = -Infinity;
   for (const c of o.curves) for (const p of c.pts) if (isFinite(p[1])) { y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
   if (!isFinite(y0)) { y0 = -1; y1 = 1; }
@@ -226,32 +236,38 @@ function payoffChart(box, o) {
   const xdec = o.hi - o.lo < 8 ? 2 : o.hi - o.lo < 40 ? 1 : 0;
   const main = o.curves.find((c) => c.main) || o.curves[0];
   const area = `${pathOf(main.pts, X, Y)}L${X(o.hi).toFixed(1)},${zy.toFixed(1)}L${X(o.lo).toFixed(1)},${zy.toFixed(1)}Z`;
-  const id = box.id || "pc";
-  const marks = (o.marks || []).filter((k) => k.x >= o.lo && k.x <= o.hi).map((k, i) => {
+  const id = box.id || "pc", pw = W - pad.l - pad.r, ph = H - pad.t - pad.b, ax = H - pad.b;
+  const marks = (o.marks || []).filter((k) => k.x >= o.lo && k.x <= o.hi).map((k) => {
     const x = X(k.x), right = k.side !== "end";
-    return `<line x1="${x}" x2="${x}" y1="${pad.t - 8}" y2="${H - pad.b}" stroke="${k.color}" stroke-width="1" stroke-dasharray="${k.dash || "3 4"}"/>
-      <text x="${x + (right ? 5 : -5)}" y="${pad.t - 12 + (i % 2) * 13}" fill="${k.color}" font-size="11.5" text-anchor="${right ? "start" : "end"}">${k.label}</text>`;
+    return `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${ax}" stroke="${k.color}" stroke-width="1" stroke-dasharray="${k.dash || "3 4"}"/>
+      <text x="${x + (right ? 5 : -5)}" y="${pad.t + 11}" fill="${k.color}" font-size="11.5" text-anchor="${right ? "start" : "end"}">${k.label}</text>`;
   }).join("");
-  const bes = (o.bes || []).filter((x) => x >= o.lo && x <= o.hi).map((x) =>
-    `<circle cx="${X(x)}" cy="${zy}" r="4.5" fill="${C.surface}" stroke="${C.amber}" stroke-width="2"><title>Breakeven ${px(x)}</title></circle>`).join("");
-  const beLab = (o.bes || []).filter((x) => x >= o.lo && x <= o.hi).map((x) =>
-    `<text x="${X(x)}" y="${zy + (y1 > -y0 ? 18 : -10)}" fill="${C.amber}" font-size="11.5" text-anchor="middle">${px(x)}</text>`).join("");
+  // strikes: una marca triangular sobre el eje y su cifra, sin lineas que crucen el grafico
+  const ticks = (o.ticks || []).filter((k) => k >= o.lo && k <= o.hi).map((k) =>
+    `<path d="M${X(k)} ${ax - 7}l-4 7h8z" fill="${C.muted}"/><text x="${X(k)}" y="${ax - 10}" fill="${C.muted}" font-size="10.5" text-anchor="middle" font-family="${LAB_MONO}">${fmtNum(k, k % 1 ? 1 : 0)}</text>`).join("");
+  const inR = (o.bes || []).filter((x) => x >= o.lo && x <= o.hi);
+  const bes = inR.map((x) => `<circle cx="${X(x)}" cy="${zy}" r="4.5" fill="${C.surface}" stroke="${C.amber}" stroke-width="2"><title>Breakeven ${px(x)}</title></circle>
+    <text x="${X(x)}" y="${zy + (y1 > -y0 ? 18 : -10)}" fill="${C.amber}" font-size="11" text-anchor="middle" font-family="${LAB_MONO}">${px(x)}</text>`).join("");
   const band = o.band && o.band[1] > o.band[0]
-    ? `<rect x="${X(Math.max(o.band[0], o.lo))}" y="${pad.t}" width="${Math.max(0, X(Math.min(o.band[1], o.hi)) - X(Math.max(o.band[0], o.lo)))}" height="${H - pad.t - pad.b}" fill="${C.text}" opacity=".04"/>` : "";
-  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
-    <defs><clipPath id="${id}Up"><rect x="0" y="0" width="${W}" height="${Math.max(0, zy)}"/></clipPath><clipPath id="${id}Dn"><rect x="0" y="${zy}" width="${W}" height="${Math.max(0, H - zy)}"/></clipPath></defs>
+    ? `<rect x="${X(Math.max(o.band[0], o.lo))}" y="${pad.t}" width="${Math.max(0, X(Math.min(o.band[1], o.hi)) - X(Math.max(o.band[0], o.lo)))}" height="${ph}" fill="${C.accent}" opacity=".06"/>` : "";
+  const trace = (c) => { const d = pathOf(c.pts.filter((p) => isFinite(p[1])), X, Y); return c.main
+    ? `<path d="${d}" fill="none" stroke="${c.color}" stroke-width="5" opacity=".45" filter="url(#${id}Glow)"/><path d="${d}" fill="none" stroke="${c.color}" stroke-width="2.2" stroke-linejoin="round"/>`
+    : `<path d="${d}" fill="none" stroke="${c.color}" stroke-width="1.6" ${c.dash ? `stroke-dasharray="${c.dash}"` : ""} stroke-linejoin="round" opacity=".9"/>`; };
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${LAB_MONO}">
+    <defs>${graphPaper(id, pad.l, pad.t)}<clipPath id="${id}Up"><rect x="0" y="0" width="${W}" height="${Math.max(0, zy)}"/></clipPath><clipPath id="${id}Dn"><rect x="0" y="${zy}" width="${W}" height="${Math.max(0, H - zy)}"/></clipPath><clipPath id="${id}Pl"><rect x="${pad.l}" y="${pad.t}" width="${pw}" height="${ph}"/></clipPath></defs>
+    <rect x="${pad.l}" y="${pad.t}" width="${pw}" height="${ph}" fill="url(#${id}GP)"/>
     ${band}
-    ${yt.map((v) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.grid}" stroke-width="1"/><text x="${pad.l - 8}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11.5" text-anchor="end">${moneyK(v)}</text>`).join("")}
-    ${xt.map((v) => `<text x="${X(v)}" y="${H - pad.b + 18}" fill="${C.faint}" font-size="11.5" text-anchor="middle">${fmtNum(v, xdec)}</text>`).join("")}
-    <path d="${area}" fill="${C.put}" opacity=".16" clip-path="url(#${id}Up)"/>
-    <path d="${area}" fill="${C.call}" opacity=".14" clip-path="url(#${id}Dn)"/>
-    <line x1="${pad.l}" x2="${W - pad.r}" y1="${zy}" y2="${zy}" stroke="${C.axis}" stroke-width="1"/>
-    ${marks}
-    ${o.curves.map((c) => `<path d="${pathOf(c.pts.filter((p) => isFinite(p[1])), X, Y)}" fill="none" stroke="${c.color}" stroke-width="2" ${c.dash ? `stroke-dasharray="${c.dash}"` : ""} stroke-linejoin="round"/>`).join("")}
-    ${bes}${beLab}
-    <g id="${id}Probe" visibility="hidden"><line y1="${pad.t}" y2="${H - pad.b}" stroke="${C.muted}" stroke-width="1"/></g>
+    ${yt.map((v) => `<text x="${pad.l - 8}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11" text-anchor="end">${moneyK(v)}</text>`).join("")}
+    ${xt.map((v) => `<text x="${X(v)}" y="${ax + 18}" fill="${C.faint}" font-size="11" text-anchor="middle">${fmtNum(v, xdec)}</text>`).join("")}
+    <g clip-path="url(#${id}Pl)"><path d="${area}" fill="${C.put}" opacity=".13" clip-path="url(#${id}Up)"/><path d="${area}" fill="${C.call}" opacity=".12" clip-path="url(#${id}Dn)"/></g>
+    <line x1="${pad.l}" x2="${W - pad.r}" y1="${zy}" y2="${zy}" stroke="${C.muted}" stroke-width="1"/>
+    <rect x="${pad.l}" y="${pad.t}" width="${pw}" height="${ph}" fill="none" stroke="${C.axis}" stroke-width="1"/>
+    ${marks}${ticks}
+    <g clip-path="url(#${id}Pl)">${o.curves.slice().reverse().map(trace).join("")}</g>
+    ${bes}
+    <g id="${id}Probe" visibility="hidden"><line y1="${pad.t}" y2="${ax}" stroke="${C.muted}" stroke-width="1"/></g>
   </svg>
-  <div class="ss-legend">${o.curves.map((c) => `<span><i ${c.dash ? `class="dash" style="border-color:${c.color}"` : `style="background:${c.color}"`}></i>${c.label}</span>`).join("")}${band ? `<span><i class="band"></i>${o.bandLabel || "±1σ move"}</span>` : ""}${(o.bes || []).length ? `<span><i class="be"></i>Breakeven</span>` : ""}</div>`;
+  <div class="lab-legend">${o.curves.map((c) => `<span><i ${c.dash ? `class="dash" style="border-color:${c.color}"` : `style="background:${c.color}"`}></i>${c.label}</span>`).join("")}${band ? `<span><i class="band"></i>${o.bandLabel || "±1σ move"}</span>` : ""}${inR.length ? `<span><i class="be"></i>Breakeven</span>` : ""}${(o.ticks || []).length ? `<span><i class="tk"></i>Strikes</span>` : ""}</div>`;
   box._geo = { X, Y, pad, lo: o.lo, hi: o.hi, probe: o.probe, ref: o.ref, id };
   if (!box._probeOn) {
     box._probeOn = true;

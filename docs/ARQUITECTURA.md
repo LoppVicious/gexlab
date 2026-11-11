@@ -128,6 +128,10 @@ Los dos:
   del ticker cuyo máximo o mínimo, en unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del
   muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
   `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de `cache/eventos.json` (3 años).
+- **Posicionamiento en `compute`:** `scenarios` (GEX por 1 % y flujo de cobertura en la rejilla `SCEN_SPOT` ×
+  `SCEN_IV`; la IV se desplaza reescalando la varianza total de cada contrato), `buckets` (`EXP_BUCKETS`),
+  `totals.net_per_pct_after` (sin el próximo vencimiento) y `liquidity` (ADV$ de 20 sesiones de CBOE, flujos en % del
+  ADV e impacto por la raíz cuadrada; `None` en índices). El Escáner lleva `gex_adv` e `impact_bp`.
 - **Panel de volatilidad** (`volatilidad.vol_data`, `vol.json`): por vencimiento, IV ATM, `mf` (varianza sin modelo
   con el método del VIX, `model_free_vol`), `rr25`/`bf25` y `event` (movimiento de un día del codo de la curva:
   varianza forward del tramo por encima de la mediana y de un vecino, `EVENT_RATIO`). `summary`: IV30 sin modelo (en

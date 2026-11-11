@@ -221,9 +221,27 @@
       <div class="fact">
         <span class="fl" id="frontLabel" data-g="front">Next expiration</span>
         <strong id="frontVal">—</strong>
-        <span class="fs">of the filter's total gamma</span>
+        <span class="fs" id="frontSub">of the filter's total gamma</span>
+      </div>
+      <div class="fact" id="liqFact" hidden>
+        <span class="fl" data-g="liq">Hedging vs. volume</span>
+        <strong id="liqVal">—</strong>
+        <span class="fs" id="liqSub"></span>
+      </div>
+      <div class="fact bk-fact">
+        <span class="fl" data-g="buckets">Gamma by expiration</span>
+        <div class="bkbar" id="bkBar"></div>
+        <span class="fs bkleg" id="bkLeg"></span>
       </div>
     </div>
+
+    <section class="scen" id="scenBox" hidden>
+      <div class="scen-h"><span data-g="scen">Scenarios</span>
+        <div class="seg boxed" role="radiogroup" id="scenSeg" aria-label="Scenario value"><button role="radio" data-v="gex" aria-checked="true">GEX 1%</button><button role="radio" data-v="flow" aria-checked="false">Hedge flow</button></div>
+      </div>
+      <div class="scen-t" id="scenTable"></div>
+      <p class="scen-n" id="scenNote"></p>
+    </section>
 
     <section class="hubwatch" id="hubWatch" hidden></section>
     <dl class="meta" id="meta"></dl>
@@ -378,6 +396,7 @@
         <th data-k="net_per_pct" title="Net GEX per 1% move">GEX 1%</th>
         <th data-k="em_pct" title="1 standard deviation range (68.3%) for the next session, implied by options">1σ range</th>
         <th data-k="front_share" title="Share of gamma that expires at the next expiration">Next exp.</th>
+        <th data-k="gex_adv" title="Hedging for a 1% move as a share of average daily dollar volume (20 sessions), and its estimated price impact (square-root law). Not available for cash indices, hedged mostly with futures">Hedge / ADV</th>
         <th class="x"><span class="sr">Remove</span></th>
       </tr></thead>
       <tbody id="scanBody"></tbody>

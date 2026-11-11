@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 
 **Añadido**
 - **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
@@ -50,6 +50,14 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Pestaña «Realized vs. implied»:** cono de volatilidad del último año (Yang-Zhang a 10, 20, 30, 60, 90 y 120
   sesiones: mínimo, percentiles 10-90, mediana y máximo), con la realizada de hoy y la IV ATM del mismo plazo. NDX y
   RUT usan su ETF; en el VIX no se muestra (sus opciones van sobre el futuro).
+- **Equity Hub: coberturas frente al volumen.** Nueva lectura «Hedging vs. volume»: la cobertura de los dealers por
+  un movimiento del 1 % en % del volumen medio diario en dólares, con su impacto aproximado en el precio (ley de la
+  raíz cuadrada) y si va a favor o en contra del movimiento; también vanna y charm en % del volumen. No sale en los
+  índices, que se cubren sobre todo con futuros. El Escáner tiene la columna «Hedge / ADV» para comparar tickers.
+- **Equity Hub: gamma por vencimiento**, en una barra con los tramos 0-1, 2-7, 8-30 y más de 30 días, y la GEX por 1 %
+  que queda tras el próximo vencimiento («Expires…»).
+- **Equity Hub: escenarios.** Tabla precio (−5 % a +5 %) por IV (−5 a +5 puntos) con la GEX por 1 % o con el flujo
+  de cobertura: lo que los dealers comprarían o venderían para seguir cubiertos si el precio y la IV fueran ahí.
 
 **Cambiado**
 - El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del

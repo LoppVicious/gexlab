@@ -644,6 +644,41 @@ function flipSide(spot, fx, fr) {
   return Math.min(Math.abs(dd), Math.abs(dr)) < FLIP_ZONE ? "near" : dd > 0 ? "above" : "below";
 }
 // con solo el 0DTE, el charm es el cambio hasta el vencimiento de hoy, no por un dia
+/* ---------- gamma por tramo de vencimiento y matriz de escenarios (panel lateral) */
+function renderBuckets(d) {
+  const b = d.buckets || [];
+  const cols = [C.posFront, C.accent, C.purple, C.faint];
+  $("bkBar").innerHTML = b.map((x, i) => x.share > 0 ? `<i style="flex:${x.share};background:${cols[i % cols.length]}" title="${x.lab}: ${fmtNum(x.share * 100, 0)}%"></i>` : "").join("");
+  $("bkLeg").innerHTML = b.map((x, i) => `<span><i style="background:${cols[i % cols.length]}"></i>${x.lab.replace("-", "–")} ${fmtNum(x.share * 100, 0)}%</span>`).join("");
+}
+
+let scenMode = store.get("scenMode", "gex");
+function renderScen(d) {
+  const s = d.scenarios;
+  $("scenBox").hidden = !s;
+  if (!s) return;
+  $("scenSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === scenMode)));
+  const m = s[scenMode] || s.gex;
+  const mx = Math.max(1, ...m.flat().map(Math.abs));
+  const i0 = s.spot.indexOf(0), j0 = s.iv.indexOf(0);
+  const sgn = (v) => (v > 0 ? "+" : v < 0 ? "−" : "");
+  const cell = (v, i, j) => {
+    const a = Math.min(1, Math.abs(v) / mx) * 0.5;
+    const bg = Math.abs(v) < 0.5 ? "" : `background:color-mix(in srgb, ${v > 0 ? C.pos : C.neg} ${(a * 100).toFixed(0)}%, transparent)`;
+    return `<td class="${i === i0 && j === j0 ? "now" : ""}" style="${bg}">${scenMode === "flow" && i === i0 && j === j0 ? "0" : sgn(v) + fmtBig(Math.abs(v))}</td>`;
+  };
+  $("scenTable").innerHTML = `<table><thead><tr><th title="Rows: price move. Columns: parallel IV shift">IV →</th>${s.iv.map((v) => `<th>${v ? sgn(v) + Math.abs(v) + " pt" : "Now"}</th>`).join("")}</tr></thead>
+    <tbody>${s.spot.map((p, i) => `<tr><th>${p ? sgn(p) + Math.abs(p) + "%" : "Now"}<small>${fmtSpot(d.spot * (1 + p / 100))}</small></th>${m[i].map((v, j) => cell(v, i, j)).join("")}</tr>`).join("")}</tbody></table>`;
+  $("scenNote").textContent = scenMode === "gex" ? "Net GEX per 1% move at that price and IV. Violet: positive (dealers dampen moves); magenta: negative (they amplify them)."
+    : "What dealers would buy (+) or sell (−) to stay hedged if the price and IV went there from now, in dollars.";
+}
+$("scenSeg").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-v]");
+  if (!b || !state.data) return;
+  scenMode = b.dataset.v; store.set("scenMode", scenMode);
+  renderScen(state.data);
+});
+
 function charmLabel(d) { return d.meta && d.meta.max_dte === 0 && d.front_expiry === d.session ? "Charm, to expiration" : "Charm, per day"; }
 // selector de rango: Auto, botones fijos o valor manual (ningun boton marcado)
 function syncRange(d) {
@@ -1166,6 +1201,17 @@ function paintSide(d) {
   $("charmLabel").textContent = charmLabel(d);
   $("frontLabel").textContent = `Expires ${ddmm(d.front_expiry)}`;
   $("frontVal").textContent = `${fmtNum(d.front_share * 100, 0)}%`;
+  $("frontSub").textContent = t.net_per_pct_after != null ? `of the gamma. After it: GEX ${fmtBig(t.net_per_pct_after, true)} per 1%` : "of the filter's total gamma";
+  const lq = d.liquidity;
+  $("liqFact").hidden = !lq;
+  if (lq) {
+    const pa = (v) => `${fmtNum(Math.abs(v) * 100, Math.abs(v) < 0.1 ? 1 : 0)}%`;
+    $("liqVal").textContent = `${pa(lq.gex_adv)} of ADV`;
+    $("liqSub").textContent = `per 1% move, ≈ ${fmtNum(lq.impact_bp, 0)} bp ${t.net_per_pct >= 0 ? "against the move" : "with the move"}. Vanna ${pa(lq.vanna_adv)}, charm ${pa(lq.charm_adv)}`;
+    $("liqSub").title = `Average daily volume ${fmtBig(lq.adv, true)} (20 sessions). Impact with the square-root law: daily volatility ${fmtNum(lq.sigma_d * 100, 2)}% × √(hedge / volume), as if the whole hedge traded in one session. An order of magnitude to compare tickers, not a forecast.`;
+  }
+  renderBuckets(d);
+  renderScen(d);
 
   const m = d.meta;
   $("meta").innerHTML = `
@@ -2201,13 +2247,13 @@ function renderScan() {
     th.dataset.dir = th.dataset.k === k ? (scanState.sortDir > 0 ? "▲" : "▼") : "";
   });
   if (!rows.length) {
-    body.innerHTML = `<tr class="err"><td colspan="11" class="l">${scanState.rows.length ? "No ticker matches the filter." : "Add tickers to get started."}</td></tr>`;
+    body.innerHTML = `<tr class="err"><td colspan="12" class="l">${scanState.rows.length ? "No ticker matches the filter." : "Add tickers to get started."}</td></tr>`;
     return;
   }
   body.innerHTML = rows.map((r) => {
     const rm = `<td><button class="rm" data-rm="${esc(r.symbol)}" title="Remove ${esc(r.symbol)}" aria-label="Remove ${esc(r.symbol)}">×</button></td>`;
-    if (r.loading) return `<tr class="loading"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="9" class="l">Calculating…</td>${rm}</tr>`;
-    if (r.error) return `<tr class="err"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="9" class="l">${esc(r.error)}</td>${rm}</tr>`;
+    if (r.loading) return `<tr class="loading"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="10" class="l">Calculating…</td>${rm}</tr>`;
+    if (r.error) return `<tr class="err"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="10" class="l">${esc(r.error)}</td>${rm}</tr>`;
     const p = r.prev || {};
     const neg = r.regime === "negative";
     return `<tr data-s="${esc(r.symbol)}"${r.stale ? ' style="opacity:.55"' : ""}>
@@ -2221,6 +2267,7 @@ function renderScan() {
       <td>${fmtBig(r.net_per_pct, true)}</td>
       <td>${r.em_pct == null ? "—" : "±" + fmtNum(r.em_pct, 2) + "%"}</td>
       <td>${fmtNum((r.front_share || 0) * 100, 0)}%</td>
+      <td${r.impact_bp != null ? ` title="≈ ${fmtNum(r.impact_bp, 0)} bp of price impact per 1% move"` : ""}>${r.gex_adv == null ? "—" : fmtNum(r.gex_adv * 100, r.gex_adv < 0.1 ? 1 : 0) + "%"}</td>
       ${rm}</tr>`;
   }).join("");
 }
@@ -3219,8 +3266,17 @@ const GLOSSARY = {
     what: "What dealers would buy or sell just from one day passing, without the price moving, because deltas change as expiration approaches.",
     use: "It explains part of the afternoon flows and of expiration weeks. A large positive charm before a monthly expiration tends to provide support." },
   front: { t: "Next-expiration weight", c: "text",
-    what: "The share of the filter's total gamma that expires at the next expiration.",
+    what: "The share of the filter's total gamma that expires at the next expiration, and the net GEX per 1% that would be left without it.",
     use: "If it is high, the levels will change a lot when it expires: after expiration the walls can move or lose strength. If it is low, the levels are more stable." },
+  liq: { t: "Hedging vs. volume", c: "text",
+    what: "Dealer hedging for a 1% move as a share of the stock's average daily dollar volume (20 sessions), with the price impact that flow would have by the square-root law. Below, vanna (IV −1 pt) and charm (one day) in the same terms.",
+    use: "It makes tickers comparable: the same GEX weighs much more in a thin stock than in a liquid one. A few percent of the volume already moves the price; with positive gamma that pushes against the move (pinning), with negative gamma it adds to it. Not shown for cash indices, which are hedged mostly with futures." },
+  buckets: { t: "Gamma by expiration", c: "text",
+    what: "How the filter's gamma is split by days to expiration.",
+    use: "Gamma that expires soon is the most powerful but disappears fast: if most of it is in 0–7 days, the levels can change a lot within the week. Gamma further out is weaker but more stable." },
+  scen: { t: "Scenarios", c: "text",
+    what: "Net GEX per 1% and dealer hedge flow if the price moved (rows) and implied volatility shifted in parallel (columns). Hedge flow is what dealers would buy (+) or sell (−) to stay hedged on the way there.",
+    use: "It shows where the regime flips and how big the forced flows would be: for example a drop with rising IV in negative gamma. The highlighted cell is today. Same dealer convention as the rest of the panel." },
   vix: { t: "VIX", c: "text",
     what: "The 30-day implied volatility of the S&P 500.",
     use: "It is the starting point of the curve: futures are compared with it to see whether the market expects more or less volatility than now." },

@@ -1579,6 +1579,7 @@ def scan_row(sym: str, max_dte) -> dict:
                 "call_wall": L["call_wall"], "call_dist": pct(L["call_wall"]),
                 "put_wall": L["put_wall"], "put_dist": pct(L["put_wall"]),
                 "vt": L["vt"], "em_pct": em.get("pct"), "front_share": r["front_share"], "is_index": r["is_index"],
+                "gex_adv": (r.get("liquidity") or {}).get("gex_adv"), "impact_bp": (r.get("liquidity") or {}).get("impact_bp"),
                 "step": r["step"], "prev": {k: prev.get(k) for k in ("date", "call_wall", "put_wall", "flip", "net_per_pct")} if prev else None}
     except Exception as e:  # noqa: BLE001
         return {"symbol": sym.upper(), "error": str(e)}
@@ -1842,6 +1843,24 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
         pd_next[a:a + chunk] = dm[:, FRONT].sum(axis=1)
         pd_month[a:a + chunk] = dm[:, MONTH].sum(axis=1)
 
+    # --- escenarios: GEX por 1 % y flujo de cobertura con el precio movido y la IV desplazada en paralelo (la varianza
+    # total de cada contrato se reescala con su volatilidad: vale para los dos motores). Flujo = lo que comprarian (+)
+    # o venderian (-) los dealers para seguir cubiertos: -(delta en acciones del escenario - la de ahora) x precio
+    base_vol = np.where(IVR > 0.01, IVR, IV) if (model == "spotgamma" and IVR is not None) else IV
+    sh0 = float((pos * delta_w(SX, K, W, TT, C, q=QD) * 100.0 * sx_rel).sum())   # en el VIX, acciones del indice
+    scen = {"spot": list(SCEN_SPOT), "iv": list(SCEN_IV), "gex": [], "flow": []}
+    for ds in SCEN_SPOT:
+        Sx = spot * (1 + ds / 100)
+        S = Sx * sx_rel
+        rg, rf = [], []
+        for dv in SCEN_IV:
+            Wv = W * (np.maximum(base_vol + dv / 100, 0.02) / base_vol) ** 2
+            rg.append(float(f"{float((pos * gamma_w(S, K, Wv, TT, q=QD) * 100.0 * S).sum()) * Sx * 0.01:.4g}"))
+            sh = float((pos * delta_w(S, K, Wv, TT, C, q=QD) * 100.0 * sx_rel).sum())
+            rf.append(float(f"{-(sh - sh0) * Sx:.4g}"))
+        scen["gex"].append(rg)
+        scen["flow"].append(rf)
+
     # --- zero gamma (convencion SpotGamma): precio en el que la GEX total recalculada cruza cero, el mas cercano
     zero_gamma = None
     sc = np.where(np.sign(prof[:-1]) * np.sign(prof[1:]) < 0)[0]
@@ -1931,6 +1950,10 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             vt = float(lk[cand.max()])
 
     net_total = float(gex.sum())
+    # gamma por tramo de vencimiento (dias naturales desde hoy) y GEX que queda tras el proximo vencimiento
+    dleft = (EXP.astype("datetime64[D]") - now.astype("datetime64[D]")).astype(int)
+    buckets = [{"lab": lab, "share": round(float(np.abs(gex[(dleft >= a) & (dleft <= b)]).sum()) / tot_abs, 4)}
+               for lab, a, b in EXP_BUCKETS]
     res = {
         "symbol": normalize(symbol),
         "name": name_of(normalize(symbol)),
@@ -1969,7 +1992,11 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             "put_per_pct": float(gex[~C].sum()) * spot * 0.01,
             "vanna_flow": float(vex.sum()),     # $ que comprarian (+) / venderian (-) si la IV cae 1 punto
             "charm_flow": float(-cex.sum()),    # $ que comprarian (+) / venderian (-) por el paso de un dia
+            "net_per_pct_after": float(gex[~FRONT].sum()) * spot * 0.01,   # sin el proximo vencimiento
         },
+        "buckets": buckets,
+        "scenarios": scen,
+        "liquidity": liquidity(normalize(symbol), net_total * spot * 0.01, float(vex.sum()), float(-cex.sum())),
         "regime": "positive" if net_total > 0 else "negative",
         "rate": rate_info(),
         "model": model,
@@ -2383,6 +2410,38 @@ def history_ohlc(symbol: str) -> tuple[dict, str | None]:
         if out:
             return out, src
     return {}, None
+
+
+SCEN_SPOT = (-5, -3, -2, -1, 0, 1, 2, 3, 5)     # escenarios del precio (%)
+SCEN_IV = (-5, -2, 0, 2, 5)                      # escenarios de la IV (puntos, en paralelo)
+EXP_BUCKETS = (("0-1d", 0, 1), ("2-7d", 2, 7), ("8-30d", 8, 30), (">30d", 31, 100000))
+ADV_DAYS = 20
+
+
+def liquidity(symbol: str, gex_pct: float, vanna: float, charm: float) -> dict | None:
+    """Coberturas frente a la liquidez del subyacente: volumen medio diario en $ (20 sesiones), cada flujo en % de
+    ese volumen y el impacto en precio de la cobertura de un movimiento del 1 % con la ley de la raiz cuadrada
+    (impacto = sigma diaria x raiz(flujo / volumen), Y = 1). Es un orden de magnitud comparable entre tickers.
+    Los indices (SPX, NDX, RUT) se cubren sobre todo con futuros, que CBOE no da: sin dato."""
+    if symbol in INDEX_SYMBOLS or symbol in CBOE_VOL_INDICES:
+        return None
+    raw = fetch_aux("historical", symbol, ttl=6 * 3600)
+    rows = []
+    for r in (raw or {}).get("data", [])[-(ADV_DAYS + 1):]:
+        try:
+            c, v = float(r["close"]), float(r.get("volume") or 0)
+        except (KeyError, ValueError):
+            continue
+        if c > 0:
+            rows.append((c, v))
+    dv = [c * v for c, v in rows[-ADV_DAYS:] if v > 0]
+    if len(dv) < ADV_DAYS // 2 or len(rows) < 6:
+        return None
+    adv = float(np.mean(dv))
+    ret = np.diff(np.log([c for c, _ in rows]))
+    sd = float(ret.std(ddof=1))
+    return {"adv": adv, "gex_adv": abs(gex_pct) / adv, "vanna_adv": vanna / adv, "charm_adv": charm / adv,
+            "impact_bp": sd * math.sqrt(abs(gex_pct) / adv) * 1e4, "sigma_d": sd}
 
 
 def _realized_vol(symbol: str, n: int = 20) -> float | None:

@@ -2436,6 +2436,7 @@ def _rank(v, arr):
 
 
 MIN_HIST_DAYS = 60
+TRAIL_DAYS = 10  # sesiones anteriores que da el Compass para la estela de cada ticker
 # indices de volatilidad de CBOE con historico gratuito: dan un IV rank de un ano desde el primer dia
 VOL_INDEX = {"SPX": "VIX", "SPY": "VIX", "XSP": "VIX", "NDX": "VXN", "QQQ": "VXN", "DJX": "VXD", "DIA": "VXD",
              "AAPL": "VXAPL", "AMZN": "VXAZN", "GOOG": "VXGOG", "GOOGL": "VXGOG", "GS": "VXGS", "IBM": "VXIBM",
@@ -2465,10 +2466,9 @@ def vol_index_rank(symbol: str, days: int = 252) -> dict | None:
     vals = [v for _, v in closes] + [cur]
     lo, hi = min(vals), max(vals)
     rank = 50.0 if hi == lo else (cur - lo) / (hi - lo) * 100
-    trail = []
-    for d, v in closes[-4:-1]:
-        trail.append({"date": d, "y": 50.0 if hi == lo else (v - lo) / (hi - lo) * 100})
-    return {"index": idx, "value": cur, "rank": float(rank), "lo": lo, "hi": hi, "trail": trail}
+    # rank de cada cierre reciente con el mismo rango de un ano: el Compass dibuja con el la estela del eje Y
+    past = {d: 50.0 if hi == lo else (v - lo) / (hi - lo) * 100 for d, v in closes[-(TRAIL_DAYS + 1):]}
+    return {"index": idx, "value": cur, "rank": float(rank), "lo": lo, "hi": hi, "past": past}
 
 
 def compass(symbols: list[str], workers: int = 4) -> dict:
@@ -2514,6 +2514,15 @@ def _compass(symbols: list[str], workers: int = 4) -> dict:
 
     vrps = [vrp(r) for r in ok]
     skews = [skew(r) for r in ok]
+    # el rank provisional de una sesion pasada se calcula frente al resto de la lista en esa misma sesion,
+    # solo si esa sesion la tiene guardada al menos la mitad de la lista (si no, el percentil no es comparable)
+    by_day: dict[str, list[dict]] = {}
+    for r in ok:
+        for d in sorted(r["hist"])[-(TRAIL_DAYS + 1):]:
+            if d < today:
+                by_day.setdefault(d, []).append(r["hist"][d])
+    prov_day = {d: ([vrp(v) for v in vs], [skew(v) for v in vs]) for d, vs in by_day.items()
+                if len(vs) >= max(2, len(ok) / 2)}
     out = []
     for r in rows:
         if "error" in r:
@@ -2533,12 +2542,19 @@ def _compass(symbols: list[str], workers: int = 4) -> dict:
             y, y_src = _percentile(vrp(r), vrps), "provisional"
         # eje X (RR rank): historico propio o provisional
         x, x_src = (_rank(r["rr25"], rrs), "propio") if own else (_percentile(skew(r), skews), "provisional")
+        # estela: sesiones anteriores con el mismo metodo que el punto de hoy, de la mas antigua a la mas reciente
         trail = []
-        if own:
-            for d in dates[-4:-1]:
-                hv = r["hist"][d]
-                ty = next((t["y"] for t in (vix or {}).get("trail", []) if t["date"] == d), None) if vix else _rank(hv.get("iv30"), ivs)
-                trail.append({"date": d, "x": _rank(hv.get("rr25"), rrs), "y": ty})
+        for d in [d for d in dates if d < today][-TRAIL_DAYS:]:
+            hv, pd_ = r["hist"][d], prov_day.get(d)
+            if vix:
+                ty = vix["past"].get(d)
+            elif own:
+                ty = _rank(hv.get("iv30"), ivs)
+            else:
+                ty = _percentile(vrp(hv), pd_[0]) if pd_ else None
+            tx = _rank(hv.get("rr25"), rrs) if own else (_percentile(skew(hv), pd_[1]) if pd_ else None)
+            if tx is not None and ty is not None:
+                trail.append({"date": d, "x": tx, "y": ty})
         out.append({
             "symbol": r["symbol"], "name": r["name"], "iv30": r["iv30"], "rr25": r["rr25"], "rv20": r["rv20"],
             "vrp": vrp(r), "x": x, "y": y, "x_src": x_src, "y_src": y_src,

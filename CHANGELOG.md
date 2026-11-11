@@ -3,6 +3,19 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-11 — Estela de historial en el Compass
+
+**Añadido**
+- **Compass: estela de cada ticker** con las últimas sesiones guardadas, para ver si su volatilidad está más cara o
+  más barata que hace unos días. Selector «History» en la barra del escáner: Off, 3, 5 o 10 días (5 por defecto).
+  Cada sesión se calcula con el mismo método que el punto de hoy: índice de volatilidad de CBOE si lo tiene, su
+  historial propio con 60 sesiones o, si no, frente al resto de la lista en esa misma sesión. El tooltip da el cambio
+  de IV rank y RR rank desde el inicio de la estela.
+
+**Cambiado**
+- La estela ya no exige 60 sesiones de historial propio: sale desde la segunda sesión guardada. Mientras un eje es
+  provisional (comparado con la lista), la estela de ese eje se mueve a saltos.
+
 ## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE; lentes Delta y Charm Pressure en el TRACE
 
 **Añadido**

@@ -93,6 +93,7 @@ const state = {
   pos: store.get("pos", "standard"),
   model: store.get("model", "auto"),
   validMode: "standard",
+  cmpTrail: store.get("cmpTrail", "5"),  // sesiones de historial que dibuja la estela del Compass (0 = sin estela)
   watch: null,
   combo: store.get("combo", "0") === "1",
   auto: false, autoTimer: null,
@@ -2247,6 +2248,7 @@ function setScanView(v) {
   $("svValid").setAttribute("aria-selected", String(v === "valid"));
   document.body.classList.toggle("scan-compass", v !== "table");
   $("compassWrap").hidden = v !== "compass";
+  $("trailSeg").hidden = v !== "compass";
   $("validWrap").hidden = v !== "valid";
   $("tableWrap").hidden = v !== "table";
   if (v === "compass") loadCompass();
@@ -2334,10 +2336,12 @@ function renderCompass() {
   for (const r of pts) {
     const x = xOf(r.x), y = yOf(r.y);
     let tr = "";
-    if (r.trail && r.trail.length) {
-      const chain = [...r.trail.filter((t) => t.x != null && t.y != null), { x: r.x, y: r.y }];
-      tr = `<polyline points="${chain.map((t) => `${xOf(t.x)},${yOf(t.y)}`).join(" ")}" fill="none" stroke="${C.pos}" stroke-opacity="0.45" stroke-width="1.5"/>` +
-        chain.slice(0, -1).map((t, k) => `<circle cx="${xOf(t.x)}" cy="${yOf(t.y)}" r="2.5" fill="${C.pos}" fill-opacity="${0.25 + 0.15 * k}"/>`).join("");
+    const past = cmpTrail(r);
+    if (past.length) {
+      // estela de la sesion mas antigua a hoy: cada tramo y cada punto mas opacos cuanto mas recientes
+      const chain = [...past, { x: r.x, y: r.y }], n = chain.length - 1;
+      tr = chain.slice(1).map((t, k) => `<line x1="${xOf(chain[k].x)}" y1="${yOf(chain[k].y)}" x2="${xOf(t.x)}" y2="${yOf(t.y)}" stroke="${C.purple}" stroke-opacity="${(0.2 + 0.55 * (k + 1) / n).toFixed(2)}" stroke-width="1.6" stroke-linecap="round"/>`).join("") +
+        past.map((t, k) => `<circle cx="${xOf(t.x)}" cy="${yOf(t.y)}" r="${k ? 2.5 : 3.5}" fill="${C.purple}" fill-opacity="${(0.25 + 0.5 * k / n).toFixed(2)}"/>`).join("");
     }
     // etiqueta sin solaparse
     let ly = y - 12;
@@ -2363,6 +2367,12 @@ function renderCompass() {
     " Click a point to open its analysis.";
 }
 
+// sesiones anteriores de la estela segun el selector (las ultimas N, de la mas antigua a la mas reciente)
+function cmpTrail(r) {
+  const n = +state.cmpTrail || 0;
+  return n && r.trail ? r.trail.filter((t) => t.x != null && t.y != null).slice(-n) : [];
+}
+
 function compassTip(e) {
   if (!cmp.geo) return;
   const rect = $("compass").getBoundingClientRect();
@@ -2372,6 +2382,13 @@ function compassTip(e) {
   const tip = $("ctip");
   if (!best) { tip.hidden = true; return; }
   const r = best.r;
+  // comparacion con el inicio de la estela: si la volatilidad esta mas cara o mas barata que hace unos dias
+  const ago = (x) => {
+    const p = cmpTrail(x)[0]; if (!p) return "";
+    const d = new Date(p.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const ch = (a, b) => `${fmtNum(a, 0)} → ${fmtNum(b, 0)} <span style="color:var(--muted);font-weight:400">(${b - a >= 0 ? "+" : "−"}${fmtNum(Math.abs(b - a), 0)})</span>`;
+    return `<div class="r">Since ${d}, IV rank <b>${ch(p.y, x.y)}</b></div><div class="r">Since ${d}, RR rank <b>${ch(p.x, x.x)}</b></div>`;
+  };
   tip.innerHTML = `<div class="t">${esc(r.symbol)} <span style="color:var(--muted);font-weight:400">${esc(r.name || "")}</span></div>
     <div class="r">30-day IV <b>${r.iv30 != null ? fmtNum(r.iv30 * 100, 1) + "%" : "—"}</b></div>
     <div class="r">20d realized vol <b>${r.rv20 != null ? fmtNum(r.rv20 * 100, 1) + "%" : "—"}</b></div>
@@ -2380,6 +2397,7 @@ function compassTip(e) {
     <div class="r">IV rank <b>${fmtNum(r.y, 0)} ${r.y_src === "provisional" ? "(provisional)" : r.y_src === "propio" ? "(own history)" : `(${r.y_src}, 1 year)`}</b></div>
     <div class="r">RR rank <b>${fmtNum(r.x, 0)} ${r.x_src === "provisional" ? "(provisional)" : "(own history)"}</b></div>
     ${r.vol_index ? `<div class="r">${r.vol_index.index} <b>${fmtNum(r.vol_index.value, 2)} (range ${fmtNum(r.vol_index.lo, 1)}–${fmtNum(r.vol_index.hi, 1)})</b></div>` : ""}
+    ${ago(r)}
     <div class="r">Saved history <b>${r.days}/${cmp.data.min_days} sessions</b></div>`;
   tip.hidden = false;
   let tx = x + 16, ty = y - tip.offsetHeight - 10;
@@ -2426,6 +2444,7 @@ function bindScanner() {
   $("svCompass").addEventListener("click", () => setScanView("compass"));
   $("svValid").addEventListener("click", () => setScanView("valid"));
   bindSeg("validModeSeg", "validMode", loadValidation);
+  bindSeg("trailSeg", "cmpTrail", renderCompass);
   $("compass").addEventListener("mousemove", compassTip);
   $("compass").addEventListener("mouseleave", () => { $("ctip").hidden = true; });
   $("compass").addEventListener("click", (e) => {

@@ -14,6 +14,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Color con significado**: el acento pasa a ser un azul tinta y solo marca selección y estado. El botón Load va en
   tinta, y las opciones elegidas en segmentos y pestañas son una ficha clara en lugar de un bloque verde. El violeta y el
   magenta de la gamma, el rojo y el verde de calls y puts y el ámbar del flip quedan para los datos.
+- **Inicio de sesión y alta**: mismo papel, letra y botón en tinta que el resto de la web, en claro por defecto.
 
 ## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Volatility dashboard con IV30 sin modelo, evento descontado, forma del skew y cono de volatilidad; coberturas frente al volumen y escenarios en el Equity Hub; página de correlación implícita; flujo de opciones estimado; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 

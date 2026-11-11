@@ -1453,7 +1453,7 @@ function syncMapTools() {
 }
 
 function bindPopovers() {
-  const pairs = [["setBtn", "chartSet"], ["expBtn", "expMenu"], ["lensBtn", "lensMenu"], ["candleBtn", "candleMenu"], ["barsBtn", "barsMenu"]];
+  const pairs = [["setBtn", "chartSet"], ["expBtn", "expMenu"], ["lensBtn", "lensMenu"], ["candleBtn", "candleMenu"], ["barsBtn", "barsMenu"], ["trailBtn", "trailMenu"]];
   const close = (except) => pairs.forEach(([b, p]) => { if (p !== except) { $(p).hidden = true; $(b).setAttribute("aria-expanded", "false"); } });
   pairs.forEach(([b, p]) => {
     $(b).addEventListener("click", (e) => {
@@ -2230,12 +2230,17 @@ function renderCside() {
   const eye = (on) => `<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">${on
     ? '<path d="M2 10s3-5.5 8-5.5S18 10 18 10s-3 5.5-8 5.5S2 10 2 10z"/><circle cx="10" cy="10" r="2.4"/>'
     : '<path d="M3 3l14 14M8.3 5.1A8.6 8.6 0 0 1 10 4.5c5 0 8 5.5 8 5.5a14 14 0 0 1-2.6 3.2M5.2 6.6A14 14 0 0 0 2 10s3 5.5 8 5.5c1.1 0 2.1-.3 3-.7"/>'}</svg>`;
-  $("cBody").innerHTML = rows.map((r) => {
+  const list = rows.map((r) => {
     const on = !hid.has(r.symbol), bad = r.error || r.x == null || r.y == null;
     return `<tr class="${on ? "" : "off"}${bad ? " bad" : ""}" data-s="${esc(r.symbol)}"><td class="x"><button class="eye" aria-pressed="${on}" title="${on ? "Hide" : "Show"} ${esc(r.symbol)}">${eye(on)}</button></td>
       <td class="l"><span class="tk">${esc(r.symbol)}</span></td><td>${r.iv30 != null ? fmtNum(r.iv30 * 100, 1) + "%" : "—"}</td>
       <td>${r.x != null ? fmtNum(r.x, 0) : "—"}</td><td>${r.y != null ? fmtNum(r.y, 0) : "—"}</td></tr>`;
-  }).join("") || `<tr><td colspan="5" class="l na">No matches</td></tr>`;
+  }).join("");
+  // lo escrito no esta en la lista: se ofrece anadirlo (tambien con Enter)
+  const qs = q.replace(/[-/]/g, ".");
+  const canAdd = /^[A-Z][A-Z0-9.]{0,9}$/.test(qs) && !d.rows.some((r) => r.symbol === qs);
+  $("cBody").innerHTML = (canAdd ? `<tr class="addrow"><td colspan="5"><button data-add="${esc(qs)}">+ Add ${esc(qs)} to your list</button></td></tr>` : "") +
+    (list || (canAdd ? "" : `<tr><td colspan="5" class="l na">No matches</td></tr>`));
   const vis = d.rows.filter((r) => !hid.has(r.symbol) && !r.error && r.x != null).length;
   $("cCount").textContent = `${vis} of ${d.rows.length} tickers visible`;
 }
@@ -2248,7 +2253,6 @@ function setScanView(v) {
   $("svValid").setAttribute("aria-selected", String(v === "valid"));
   document.body.classList.toggle("scan-compass", v !== "table");
   $("compassWrap").hidden = v !== "compass";
-  $("trailSeg").hidden = v !== "compass";
   $("validWrap").hidden = v !== "valid";
   $("tableWrap").hidden = v !== "table";
   if (v === "compass") loadCompass();
@@ -2368,6 +2372,30 @@ function renderCompass() {
 }
 
 // sesiones anteriores de la estela segun el selector (las ultimas N, de la mas antigua a la mas reciente)
+const TRAIL_OPTS = [["0", "Off", "Only today's point"], ["3", "3 days"], ["5", "5 days"], ["10", "10 days"]];
+function syncTrail() {
+  ddFill("trailBtn", "trailMenu", "cmpTrail", TRAIL_OPTS, "History", (o) => (o[0] === "0" ? "Off" : `${o[0]} days`));
+}
+const ICO_MAX = '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5V3h4.5M17 7.5V3h-4.5M3 12.5V17h4.5M17 12.5V17h-4.5"/></svg>';
+const ICO_MIN = '<svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 3v4.5H3M12.5 3v4.5H17M7.5 17v-4.5H3M12.5 17v-4.5H17"/></svg>';
+function cmpMax(on) {
+  $("cgrid").classList.toggle("max", on);
+  document.body.classList.toggle("cmp-max", on);
+  const b = $("cmpMax");
+  b.setAttribute("aria-pressed", String(on)); b.title = on ? "Exit full screen (Esc)" : "Expand";
+  b.setAttribute("aria-label", on ? "Exit full screen" : "Expand the Compass");
+  b.innerHTML = on ? ICO_MIN : ICO_MAX;
+}
+// anade un ticker a la lista del usuario desde el buscador del Compass
+function cmpAdd(v) {
+  v = v.trim().toUpperCase().replace(/[-/]/g, ".");
+  if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(v)) return;
+  const w = watchlist();
+  if (!w.includes(v)) { w.push(v); saveWatch(w); scanState.tries = 0; }
+  cmp.find = ""; $("cFind").value = "";
+  loadCompass(true);
+}
+
 function cmpTrail(r) {
   const n = +state.cmpTrail || 0;
   return n && r.trail ? r.trail.filter((t) => t.x != null && t.y != null).slice(-n) : [];
@@ -2403,7 +2431,9 @@ function compassTip(e) {
   let tx = x + 16, ty = y - tip.offsetHeight - 10;
   if (tx + tip.offsetWidth > rect.width - 8) tx = x - tip.offsetWidth - 16;
   if (ty < 0) ty = y + 16;
-  tip.style.left = tx + "px"; tip.style.top = ty + "px";
+  // el tooltip cuelga del recuadro (cabecera incluida), no del grafico
+  const pr = tip.offsetParent ? tip.offsetParent.getBoundingClientRect() : rect;
+  tip.style.left = tx + rect.left - pr.left + "px"; tip.style.top = ty + rect.top - pr.top + "px";
 }
 
 function bindCompassSide() {
@@ -2420,7 +2450,20 @@ function bindCompassSide() {
     }).observe($("compass"));
   }
   $("cFind").addEventListener("input", (e) => { cmp.find = e.target.value; renderCside(); });
+  $("cFind").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { const b = $("cBody").querySelector("[data-add]"); if (b) cmpAdd(b.dataset.add); }
+  });
+  syncTrail();
+  $("trailMenu").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-k]"); if (!b) return;
+    state.cmpTrail = b.dataset.v; store.set("cmpTrail", b.dataset.v);
+    $("trailMenu").hidden = true; $("trailBtn").setAttribute("aria-expanded", "false");
+    syncTrail(); renderCompass();
+  });
+  $("cmpMax").addEventListener("click", () => cmpMax(!$("cgrid").classList.contains("max")));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("cgrid").classList.contains("max") && $("trailMenu").hidden) cmpMax(false); }, true);
   $("cBody").addEventListener("click", (e) => {
+    const ad = e.target.closest("[data-add]"); if (ad) { cmpAdd(ad.dataset.add); return; }
     const tr = e.target.closest("tr[data-s]"); if (!tr) return;
     const h = cmpHidden(), s = tr.dataset.s;
     if (h.has(s)) h.delete(s); else h.add(s);
@@ -2444,7 +2487,6 @@ function bindScanner() {
   $("svCompass").addEventListener("click", () => setScanView("compass"));
   $("svValid").addEventListener("click", () => setScanView("valid"));
   bindSeg("validModeSeg", "validMode", loadValidation);
-  bindSeg("trailSeg", "cmpTrail", renderCompass);
   $("compass").addEventListener("mousemove", compassTip);
   $("compass").addEventListener("mouseleave", () => { $("ctip").hidden = true; });
   $("compass").addEventListener("click", (e) => {

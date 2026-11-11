@@ -60,7 +60,7 @@
   .ghost, .setbtn, .kl-tg, .chip-default, .scan th, .status, .quick button, .cs-tg, .chart-caption, .scan-note) { font-weight: 500; }
 :root[data-theme="light"] :is(.levels .val, .fact strong, .hrow b, .price, .scard .sp, .mstate) { font-weight: 600; }
 /* en claro los paneles se separan del fondo con una sombra leve, no solo con el borde */
-:root[data-theme="light"] :is(.stage, .tablewrap, .compass, .cside, .scard, .cotdetail, #vixView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
+:root[data-theme="light"] :is(.stage, .tablewrap, .cpanel, .cside, .scard, .cotdetail, #vixView, .vpanel) { box-shadow: 0 1px 2px rgba(20, 24, 33, .05), 0 1px 1px rgba(20, 24, 33, .03); }
 :root[data-theme="light"] .chip { color: var(--amber); background: rgba(166, 109, 0, .08); border-color: rgba(166, 109, 0, .30); }
 :root[data-theme="light"] .chip button:hover { background: rgba(166, 109, 0, .14); }
 :root[data-theme="light"] .vleg i.up { background: rgba(18, 132, 110, .45); }
@@ -220,7 +220,28 @@ table.vmat td .ds { display: inline; margin-left: 6px; }
 
 /* ---------------------------------------------------------------- compass con tabla lateral */
 .cgrid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; flex: 1; min-height: 560px; }
-.cgrid .compass { min-height: 560px; }
+.cgrid .compass { min-height: 520px; }
+/* recuadro del Compass: cabecera con titulo, desplegable de historial y ampliar; el grafico debajo, sin borde propio */
+.cpanel { position: relative; display: flex; flex-direction: column; min-width: 0; background: var(--surface); border: 1px solid var(--line-soft); border-radius: 14px; }
+.cpanel .compass { border: 0; border-radius: 0 0 14px 14px; background: none; }
+.cmp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 4px 16px; }
+.cmp-t { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.cmp-t b { font-size: 14px; font-weight: 600; }
+.cmp-t span { font-size: 12px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-tools { display: flex; align-items: center; gap: 8px; flex: none; }
+.cmp-tools .ghost { min-height: 30px; }
+.cmp-tools .dd { padding: 4px 10px; }
+.icobtn { display: inline-grid; place-items: center; padding: 4px 8px; }
+.icobtn[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+#trailMenu { min-width: 230px; }
+/* ampliado: el grafico y la lista ocupan toda la ventana (Esc o el mismo boton para volver) */
+.cgrid.max { position: fixed; inset: 0; z-index: 60; padding: 16px; background: var(--ink); min-height: 0; }
+.cgrid.max .cside-list { max-height: none; }
+body.cmp-max { overflow: hidden; }
+table.ctab tr.addrow td { padding: 6px 8px; }
+.addrow button { width: 100%; text-align: left; background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; color: var(--accent); }
+.addrow button:hover { background: var(--hover); }
+@media (max-width: 640px) { .cmp-t span { display: none; } }
 .cside { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .cside-top { display: flex; align-items: center; gap: 6px; padding: 10px; border-bottom: 1px solid var(--line-soft); }
 .cside-top input { flex: 1; min-width: 0; background: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; outline: none; text-transform: uppercase; }

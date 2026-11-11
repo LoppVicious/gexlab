@@ -3,16 +3,23 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Estela de historial en el Compass
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa
 
 **Añadido**
 - **Compass: estela de cada ticker** con las últimas sesiones guardadas, para ver si su volatilidad está más cara o
-  más barata que hace unos días. Selector «History» en la barra del escáner: Off, 3, 5 o 10 días (5 por defecto).
-  Cada sesión se calcula con el mismo método que el punto de hoy: índice de volatilidad de CBOE si lo tiene, su
-  historial propio con 60 sesiones o, si no, frente al resto de la lista en esa misma sesión. El tooltip da el cambio
-  de IV rank y RR rank desde el inicio de la estela.
+  más barata que hace unos días. Desplegable «History» en la cabecera del Compass: Off, 3, 5 o 10 días (5 por
+  defecto). Cada sesión se calcula con el mismo método que el punto de hoy: índice de volatilidad de CBOE si lo
+  tiene, su historial propio con 60 sesiones o, si no, frente al resto de la lista en esa misma sesión. El tooltip
+  da el cambio de IV rank y RR rank desde el inicio de la estela.
+- **Ampliar el Compass:** botón junto al desplegable; el gráfico y la lista ocupan toda la ventana. Esc o el mismo
+  botón para volver.
+- **Añadir tickers desde el buscador de la lista del Compass** («Find or add a ticker»): si lo escrito no está en
+  la lista, aparece «+ Add … to your list» (también con Enter).
 
 **Cambiado**
+- El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del
+  TRACE.
+- El cuadro «Add ticker» de la barra del escáner solo sale en la vista Tabla.
 - La estela ya no exige 60 sesiones de historial propio: sale desde la segunda sesión guardada. Mientras un eje es
   provisional (comparado con la lista), la estela de ese eje se mueve a saltos.
 

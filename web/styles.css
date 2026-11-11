@@ -304,7 +304,7 @@ table.scan { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .toggle[aria-pressed="true"] { color: var(--text); background: var(--surface-2); }
 .toggle[hidden] { display: none; }
 .modes.small button { padding: 3px 11px; font-size: 12.5px; }
-.compasswrap[hidden], .tablewrap[hidden], .only-table[hidden], .seg.only-compass[hidden] { display: none; }
+.compasswrap[hidden], .tablewrap[hidden], .only-table[hidden] { display: none; }
 .compasswrap { display: flex; flex-direction: column; flex: 1; position: relative; }
 .compass {
   position: relative; flex: 1; min-height: 520px;

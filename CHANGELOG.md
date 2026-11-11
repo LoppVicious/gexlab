@@ -47,6 +47,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - La estela ya no exige 60 sesiones de historial propio: sale desde la segunda sesión guardada. Mientras un eje es
   provisional (comparado con la lista), la estela de ese eje se mueve a saltos.
 
+**Corregido**
+- **Open Interest no cargaba en la nube** («undefined is not a function»): su preferencia de vencimientos usaba la
+  misma clave que el modo de OI del Equity Hub. Ahora tiene claves propias. Las posiciones guardadas del Risk Engine
+  se guardan compactas (la nube corta cada preferencia a 2.000 caracteres).
+
 ## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE; lentes Delta y Charm Pressure en el TRACE
 
 **Añadido**

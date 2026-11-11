@@ -286,5 +286,5 @@ function payoffProbe(box, e) {
 // cabecera "SPX 7,584" y, si el ultimo precio no coincide con el que implican las opciones, una nota con los dos
 function spotLabel(ch) {
   const off = Math.abs(ch.spot / ch.quoted - 1) > 0.001;
-  return `${esc(ch.symbol)} ${px(ch.spot)}${off ? `<small class="tl-imp" title="Price implied by the options of the nearest expiration. The last price of ${esc(ch.symbol)} is ${px(ch.quoted)}: with the market closed it does not move, while the options keep trading.">implied by options, last ${px(ch.quoted)}</small>` : ""}`;
+  return `${esc(ch.symbol)} ${px(ch.spot)}${off ? `<small class="tl-imp" title="Price the option quotes imply (forward of the nearest expiration), used for every calculation here so that the model matches the quotes. Outside market hours the last trade and the option quotes can be from different moments.">from option quotes; last trade ${px(ch.quoted)}</small>` : ""}`;
 }

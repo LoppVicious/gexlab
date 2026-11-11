@@ -16,12 +16,17 @@ const RISK_PRESETS = [
   ["cc", "Covered call"], ["pp", "Protective put"],
 ];
 
+// la nube guarda cada preferencia con 2.000 caracteres como maximo: patas compactas y los 3 ultimos tickers
 function riskSave() {
-  risk.saved[risk.sym] = risk.legs.map(({ id, ...l }) => l);
+  delete risk.saved[risk.sym];
+  risk.saved[risk.sym] = risk.legs.map((l) => [l.side, l.qty, l.kind, l.exp, l.K, +l.iv.toFixed(4), +l.entry.toFixed(2)]);
   const keys = Object.keys(risk.saved);
-  if (keys.length > 12) delete risk.saved[keys[0]];
-  store.set("riskLegs", JSON.stringify(risk.saved));
+  while (keys.length > 3) delete risk.saved[keys.shift()];
+  let js = JSON.stringify(risk.saved);
+  while (js.length > 1900 && Object.keys(risk.saved).length > 1) { delete risk.saved[Object.keys(risk.saved)[0]]; js = JSON.stringify(risk.saved); }
+  store.set("riskLegs", js.length > 1900 ? "{}" : js);
 }
+function riskUnpack(a) { return Array.isArray(a) ? { side: a[0], qty: a[1], kind: a[2], exp: a[3], K: a[4], iv: a[5], entry: a[6] } : a; }
 
 /* ---------------------------------------------------------------- patas */
 function riskExp(l) { return risk.ch.exps.find((e) => e.key === l.exp); }
@@ -221,7 +226,7 @@ async function loadRisk(refresh = false) {
     risk.ch = ch; risk.sym = ch.symbol;
     if (changed) {
       risk.passed = 0;
-      const keep = (risk.saved[ch.symbol] || []).filter((l) => ch.exps.some((e) => e.key === l.exp && e.days > 0));
+      const keep = (risk.saved[ch.symbol] || []).map(riskUnpack).filter((l) => ch.exps.some((e) => e.key === l.exp && e.days > 0));
       risk.legs = keep.map((l) => ({ ...l, id: risk.nid++ }));
       if (!risk.legs.length) { riskPreset("lc"); setStatus("", riskStatus()); return; }
     }

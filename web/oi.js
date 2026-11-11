@@ -6,9 +6,9 @@
 
 const oiv = {
   sym: "", ch: null, ctrl: null, built: false,
-  metric: store.get("oiMetric", "oi"),       // oi | chg | vol
-  range: +store.get("oiRange", "10"),        // +-% alrededor del spot
-  mode: store.get("oiMode", "all"),          // all | w1 | m1 | far | pick
+  metric: ["oi", "chg", "vol"].includes(store.get("oiTMetric", "oi")) ? store.get("oiTMetric", "oi") : "oi",       // oi | chg | vol
+  range: [5, 10, 20].includes(+store.get("oiTRange", "10")) ? +store.get("oiTRange", "10") : 10,        // +-% alrededor del spot
+  mode: ["all", "w1", "m1", "far"].includes(store.get("oiTMode", "all")) ? store.get("oiTMode", "all") : "all",          // all | w1 | m1 | far | pick
   pick: [],                                  // vencimientos elegidos a mano
 };
 const OI_MODES = [["all", "All"], ["w1", "Next 7 days"], ["m1", "8 to 45 days"], ["far", "Beyond 45 days"]];
@@ -24,7 +24,7 @@ function oiDays() {
   return [...m.values()];
 }
 function oiSelected() {
-  const f = { all: () => true, w1: (d) => d.days <= 7, m1: (d) => d.days > 7 && d.days <= 45, far: (d) => d.days > 45, pick: (d) => oiv.pick.includes(d.iso) }[oiv.mode];
+  const f = { all: () => true, w1: (d) => d.days <= 7, m1: (d) => d.days > 7 && d.days <= 45, far: (d) => d.days > 45, pick: (d) => oiv.pick.includes(d.iso) }[oiv.mode] || (() => true);
   return new Set(oiDays().filter(f).flatMap((d) => d.idx));
 }
 
@@ -57,13 +57,13 @@ function oiBuild() {
     for (const b of $("oiRange").querySelectorAll("button")) b.setAttribute("aria-checked", String(+b.dataset.v === oiv.range));
   };
   oiv.segSync = segSync; segSync();
-  $("oiMetric").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.metric = b.dataset.v; store.set("oiMetric", oiv.metric); segSync(); oiRender(); });
-  $("oiRange").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.range = +b.dataset.v; store.set("oiRange", String(oiv.range)); segSync(); oiRender(); });
+  $("oiMetric").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.metric = b.dataset.v; store.set("oiTMetric", oiv.metric); segSync(); oiRender(); });
+  $("oiRange").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.range = +b.dataset.v; store.set("oiTRange", String(oiv.range)); segSync(); oiRender(); });
   $("oiExps").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     if (b.dataset.m) { oiv.mode = b.dataset.m; oiv.pick = []; }
     else oiPick(b.dataset.k, e.shiftKey || e.ctrlKey || e.metaKey);
-    store.set("oiMode", oiv.mode === "pick" ? "all" : oiv.mode);
+    store.set("oiTMode", oiv.mode === "pick" ? "all" : oiv.mode);
     oiRender();
   });
   $("oiByExp").addEventListener("click", (e) => { const r = e.target.closest("[data-k]"); if (r) { oiPick(r.dataset.k, e.shiftKey || e.ctrlKey || e.metaKey); oiRender(); } });

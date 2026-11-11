@@ -29,6 +29,13 @@ Navegador
     con Pyodide (web/motor-web.js) ejecutando el MISMO gex_engine.py sobre el "paquete" del ticker
 ```
 Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
+
+Herramientas de opciones (Open Interest, Risk Engine y Options Calculator) calculan en JavaScript, sin Pyodide:
+`/api/chain?symbol=` devuelve la cadena compacta (`chain_to_min`, con `fwds`), el OI de la sesión anterior por
+contrato (`oi_previo`) y el tipo de interés. En el PC la arma `gex_engine.chain_payload`; en la nube, `nube.js` con
+los archivos del paquete del ticker (`fx/SYM.min.json`, `fx/oiprev_SYM.json`, `fx/rate.json`). `web/opciones.js`
+tiene lo común (Black-Scholes-Merton con griegas, lectura de la cadena, gráfico de P&L); el subyacente es el que
+implican las opciones (forward del vencimiento más cercano) y el tiempo se cuenta desde `quote_time`, como en el motor.
 El motor calcula siempre el VIX (`motor.SIEMPRE`), esté o no en las listas de los usuarios.
 
 **Pasada post-cierre (`motor.fase_cierre`):** los tickers del historial diario (`config/historial500.json`) que no

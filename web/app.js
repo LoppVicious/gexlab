@@ -1259,6 +1259,7 @@ async function load(refresh = false, silent = false) {
   state.symbol = sym; store.set("symbol", sym);
   markQuick();
   if (state.mode === "vol" && typeof loadVol === "function") { loadVol(refresh); return; }
+  if (TOOLS[state.mode]) { TOOLS[state.mode].load(refresh); return; }
   if (state.ctrl) state.ctrl.abort();
   state.ctrl = new AbortController();
 
@@ -2086,13 +2087,22 @@ async function loadCollector() {
   } catch { el.textContent = ""; }
 }
 
+/* herramientas (oi.js, riesgo.js, calculadora.js): vista, funciones y si usan el ticker de la barra superior */
+const TOOLS = {
+  oi: { view: "oiView", ticker: true, show: () => showOI(), render: () => renderOI(), load: (r) => loadOI(r) },
+  risk: { view: "riskView", ticker: true, show: () => showRisk(), render: () => renderRisk(), load: (r) => loadRisk(r) },
+  calc: { view: "calcView", ticker: false, show: () => showCalc(), render: () => renderCalc(), load: () => showCalc() },
+};
 function setMode(m) {
   state.mode = m; store.set("mode", m);
   syncNav();
-  const macro = m === "vix" || m === "cot" || m === "summary";
-  document.body.classList.toggle("scan", m === "scanner" || macro || m === "vol");
+  const tool = TOOLS[m];
+  const macro = m === "vix" || m === "cot" || m === "summary" || (tool && !tool.ticker);
+  document.body.classList.toggle("scan", m === "scanner" || macro || m === "vol" || !!tool);
   document.body.classList.toggle("macro-mode", macro);
-  document.body.classList.toggle("vol-mode", m === "vol");
+  document.body.classList.toggle("vol-mode", m === "vol" || !!(tool && tool.ticker));
+  document.body.classList.toggle("tool-mode", !!tool);
+  for (const [k, t] of Object.entries(TOOLS)) $(t.view).hidden = m !== k;
   document.body.classList.toggle("ana-mode", m === "analysis");
   $("volView").hidden = m !== "vol";
   $("scanner").hidden = m !== "scanner";
@@ -2109,6 +2119,7 @@ function setMode(m) {
   if (m === "vix") { if (vx.data) { renderVix(); setStatus("", vixStatus()); } if (!vx.data || Date.now() - vx.at > 300000) loadVix(); return; }
   if (m === "cot") { if (cot.data) { renderCot(); setStatus("", cotStatus()); } if (!cot.data || Date.now() - cot.at > 300000) loadCot(); return; }
   if (m === "vol") { if (typeof showVol === "function") showVol(); return; }
+  if (tool) { tool.show(); return; }
   if (state.data) setStatus("", dataStatus(state.data));
   if (m === "scanner") {
     loadCollector();
@@ -3235,6 +3246,9 @@ const NAV = {
   navCompass: { t: "Compass", go: () => { setMode("scanner"); setScanView("compass"); } },
   navValid: { t: "Validation", go: () => { setMode("scanner"); setScanView("valid"); } },
   navCot: { t: "COT", go: () => setMode("cot") },
+  navOI: { t: "Open Interest", go: () => setMode("oi") },
+  navRisk: { t: "Risk Engine", go: () => setMode("risk") },
+  navCalc: { t: "Options Calculator", go: () => setMode("calc") },
 };
 function currentNav() {
   const m = state.mode;
@@ -3243,6 +3257,9 @@ function currentNav() {
   if (m === "vol") return "navVol";
   if (m === "vix") return "navVix";
   if (m === "cot") return "navCot";
+  if (m === "oi") return "navOI";
+  if (m === "risk") return "navRisk";
+  if (m === "calc") return "navCalc";
   if (m === "scanner") return state.scanView === "compass" ? "navCompass" : state.scanView === "valid" ? "navValid" : "navScan";
   return "navHub";
 }
@@ -3269,6 +3286,7 @@ function redrawAll() {
   else if (state.mode === "cot" && cot.data) renderCot();
   else if (state.mode === "summary" && sm.data) renderSummary();
   else if (state.mode === "vol" && typeof renderVol === "function") renderVol();
+  else if (TOOLS[state.mode]) TOOLS[state.mode].render();
 }
 function shellInit() {
   for (const [id, n] of Object.entries(NAV)) {
@@ -3351,6 +3369,7 @@ async function init() {
     if (state.mode === "vix") return loadVix(true);
     if (state.mode === "cot") return loadCot(true);
     if (state.mode === "vol") return loadVol(true);
+    if (TOOLS[state.mode]) return TOOLS[state.mode].load(true);
     if (state.mode !== "scanner") return load(true);
     if (state.scanView === "compass") loadCompass(true); else if (state.scanView === "valid") loadValidation(); else runScan();
   });
@@ -3378,6 +3397,7 @@ async function init() {
     if (state.mode === "cot") renderCotChart();
     if (state.mode === "summary") renderSummary();
     if (state.mode === "vol" && typeof renderVol === "function") renderVol();
+    if (TOOLS[state.mode]) TOOLS[state.mode].render();
   }, 80); });
   // curva VIX y COT abiertas: se refrescan solas cada 5 min (el servidor solo descarga si hay datos nuevos)
   setInterval(() => {
@@ -3385,6 +3405,6 @@ async function init() {
     if (state.mode === "vix") loadVix(); else if (state.mode === "cot") loadCot(); else if (state.mode === "summary") loadSummary();
   }, 5 * 60 * 1000);
   setView(state.view);
-  if (state.mode === "scanner") { load(); setMode("scanner"); } else if (["vix", "cot", "summary", "vol"].includes(state.mode)) { setMode(state.mode); } else { setMode("analysis"); }
+  if (state.mode === "scanner") { load(); setMode("scanner"); } else if (["vix", "cot", "summary", "vol", ...Object.keys(TOOLS)].includes(state.mode)) { setMode(state.mode); } else { setMode("analysis"); }
 }
 init();

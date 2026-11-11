@@ -3,9 +3,30 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario; Open Interest, Risk Engine y calculadora de opciones
 
 **Añadido**
+- **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
+  marca del OI de la sesión anterior, y también el cambio de OI o el volumen de hoy. Se eligen los vencimientos (todos,
+  próximos 7 días, de 8 a 45, más de 45, o uno o varios a mano) y el rango (±5, 10 o 20 %). Al lado: calls y puts
+  con su cambio, ratio put/call (OI y volumen), max pain, strikes con más OI de calls y de puts y volumen de hoy.
+  Debajo: OI por vencimiento (pulsando una barra se ve solo ese) y los contratos con más altas y más bajas.
+- **Risk Engine** (menú Tools): posiciones de varias patas con la cadena real. Estrategias de un clic (call, put,
+  spreads, straddle, strangle, iron condor, butterfly, calendar, covered call y protective put) o patas a mano
+  (compra o venta, cantidad, call, put o acciones, vencimiento, strike y precio de entrada). Cada pata entra al
+  precio medio con su IV y se valora con el forward de su vencimiento. Muestra coste, máximos, puntos muertos y
+  probabilidad de ganar; el P&L por precio al primer vencimiento, hoy y en la fecha elegida; un cambio de IV para
+  todas las patas; griegas netas, y una matriz de escenarios por movimiento y fecha. La posición se guarda por
+  ticker.
+- **Options Calculator (Strike Studio)** (menú Tools): una opción por Black-Scholes-Merton. El formulario es una
+  frase que se edita ("Buy 1 call with strike 455, expiring in 30 days…"); compra o venta y call o put se cambian
+  pulsando. Da el precio, las cinco griegas traducidas a dólares de la posición, coste, punto muerto, máximos y
+  probabilidad de ganar, y el P&L por precio al vencimiento, hoy y tras los días elegidos, con un cambio de IV.
+  «Use market data» toma de la cadena real de un ticker el precio, el tipo, el dividendo implícito y la IV del
+  strike. Al pasar el ratón por los gráficos de P&L se ve el resultado en cada precio.
+- Las tres herramientas usan como precio del subyacente el que implican las opciones (forward del vencimiento más
+  cercano): con el mercado cerrado, el último precio de un índice se queda en el cierre mientras sus opciones siguen
+  cotizando, y se avisa cuando no coinciden.
 - **Compass: estela de cada ticker** con las últimas sesiones guardadas, para ver si su volatilidad está más cara o
   más barata que hace unos días. Desplegable «History» en la cabecera del Compass: Off, 3, 5 o 10 días (5 por
   defecto). Cada sesión se calcula con el mismo método que el punto de hoy: índice de volatilidad de CBOE si lo

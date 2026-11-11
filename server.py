@@ -203,6 +203,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
+        if url.path == "/api/chain":
+            try:
+                return self._json(200, gex_engine.chain_payload(q.get("symbol", "SPX"), force=q.get("refresh") == "1"))
+            except (LookupError, ValueError, ConnectionError) as e:
+                return self._json(400, {"error": str(e)})
+            except Exception as e:  # noqa: BLE001
+                traceback.print_exc()
+                return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/eventos":
             try:
                 import eventos

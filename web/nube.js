@@ -230,6 +230,17 @@
         if (r.ok && viejo(parseInt(r.headers.get("X-Edad"), 10))) renovar(sym);
         return r;
       }
+      case "/api/chain": {
+        // cadena completa para Open Interest, Risk Engine y la calculadora: sale del paquete del ticker
+        const sym = normalize(q.get("symbol"));
+        if (!sym) return json(400, { error: "Invalid ticker" });
+        const p = await paquete(sym, s, q.get("refresh") === "1");
+        const f = p.files || {};
+        const chain = f[`fx/${sym}.min.json`];
+        if (!chain) return json(503, { error: `No option chain for ${sym} yet. Try again in a minute.` });
+        return json(200, { symbol: sym, name: p.name || sym, generado: p.generado, chain,
+          oiprev: f[`fx/oiprev_${sym.replace(".", "_")}.json`] || null, rate: f["fx/rate.json"] || null });
+      }
       case "/api/collector": return pub("recolector.json", s, "Collector");
       default: return realFetch(input, init);
     }

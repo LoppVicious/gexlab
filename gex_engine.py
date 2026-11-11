@@ -916,6 +916,17 @@ def chain_to_min(ch: dict) -> dict:
     return d
 
 
+def chain_payload(symbol: str, force: bool = False) -> dict:
+    """Cadena completa para las herramientas de la web (Open Interest, Risk Engine, calculadora): la cadena compacta
+    (chain_to_min), el OI de la sesion anterior por contrato y el tipo de interes. En la nube, nube.js la arma con el
+    paquete del ticker (los mismos tres archivos)."""
+    sym = normalize(symbol)
+    ch = parse_chain(fetch_chain(sym, force=force))
+    return {"symbol": sym, "name": name_of(sym), "generado": now_ny().strftime("%Y-%m-%d %H:%M ET"),
+            "chain": chain_to_min(ch), "oiprev": oi_previo(sym, _contract_keys(ch["K"], ch["call"], ch["exp"]), ch["oi"]),
+            "rate": rate_info()}
+
+
 def chain_from_min(d: dict) -> dict:
     exps = np.array(d["exps"], dtype="datetime64[m]")
     ch = {k: d.get(k) for k in ("symbol", "spot", "prev_close", "chg_pct", "close", "timestamp", "iv30", "source")}

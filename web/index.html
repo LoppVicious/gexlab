@@ -14,6 +14,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="sg.css">
+<link rel="stylesheet" href="herramientas.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f6"</script>
 </head>
 <body>
@@ -38,6 +39,10 @@
       <button class="item" id="navValid" data-title="Validation" title="Validation"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg><span class="lbl">Validation</span></button>
     <div class="sec">Positioning</div>
       <button class="item" id="navCot" data-title="COT" title="COT"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V4M4 16h12"/><path d="M7 12l3-3 2 2 4-5"/></svg><span class="lbl">COT</span></button>
+      <button class="item" id="navOI" data-title="Open Interest" title="Open Interest"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 10V5M9 10V7M13 10V4M17 10V8" /><path d="M5 10v3M9 10v6M13 10v2M17 10v4" opacity=".55"/><path d="M3 10h15"/></svg><span class="lbl">Open Interest</span></button>
+    <div class="sec">Tools</div>
+      <button class="item" id="navRisk" data-title="Risk Engine" title="Risk Engine"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14c2.5 0 3.5-7 7-7s4.5 7 7 7"/><path d="M3 17h14" opacity=".55"/></svg><span class="lbl">Risk Engine</span></button>
+      <button class="item" id="navCalc" data-title="Options Calculator" title="Options Calculator"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3" width="13" height="14" rx="2.5"/><path d="M6.5 13h3l4-5"/><circle cx="9.5" cy="13" r=".9"/></svg><span class="lbl">Options Calculator</span></button>
   </nav>
   <div class="foot-side">
     <button class="item" id="themeBtn" title="Switch between dark and light theme"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 12.5A6.5 6.5 0 0 1 7.5 4.5a6.5 6.5 0 1 0 8 8z"/></svg><span class="lbl" id="themeLbl">Light theme</span></button>
@@ -442,6 +447,9 @@
   </section>
 </main>
 
+<main class="macro tool" id="oiView" hidden></main>
+<main class="macro tool" id="riskView" hidden></main>
+<main class="macro tool" id="calcView" hidden></main>
 <main class="macro cot" id="cotView" hidden>
   <div class="scan-bar">
     <span class="cotdate" id="cotDate"></span>
@@ -491,5 +499,9 @@
 <script src="hub.js"></script>
 <script src="historico.js"></script>
 <script src="vol.js"></script>
+<script src="opciones.js"></script>
+<script src="oi.js"></script>
+<script src="riesgo.js"></script>
+<script src="calculadora.js"></script>
 </body>
 </html>

@@ -20,7 +20,8 @@
   los strikes reales y usar la rejilla solo para dibujar.
 - **Modelo "OI + volumen" como gexbot**, solo para comparar.
 - **Filtro "90 días"** equivalente al "full" de gexbot.
-- **Utilidades estilo SpotGamma:** Risk Reversal por vencimiento, Composite View, OI y volumen por strike con cambio de OI.
+- **Utilidades estilo SpotGamma:** Risk Reversal por vencimiento, Composite View. (Open Interest, Risk Engine y la
+  calculadora ya están: `web/oi.js`, `web/riesgo.js`, `web/calculadora.js`.)
 - **Importador de histórico de cadenas** (ThetaData, ORATS, CBOE DataShop…).
   - Por contrato y día: fecha, raíz, vencimiento, strike, C/P, OI vigente al abrir, IV (o bid/ask), bid, ask, volumen.
   - Además, OHLC del subyacente.

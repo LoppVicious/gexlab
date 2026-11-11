@@ -355,14 +355,15 @@
           <th title="Sessions with saved levels and an available price">Sessions</th>
           <th title="Average range (high − low) in sessions with positive net GEX">Range, gamma +</th>
           <th title="Average range in sessions with negative net GEX">Range, gamma −</th>
-          <th title="Sessions in which the high did not exceed the Call Wall">Call Wall held</th>
-          <th title="Sessions in which the low did not break the Put Wall">Put Wall held</th>
+          <th title="Sessions in which the high did not exceed the Call Wall. Baseline: how often any level at the same distance would have held, given the ticker's own history and current volatility">Call Wall held</th>
+          <th title="Sessions in which the low did not break the Put Wall. Baseline: how often any level at the same distance would have held, given the ticker's own history and current volatility">Put Wall held</th>
           <th title="Sessions in which the close stayed inside the 1-session, 1 standard deviation range (68.3% in theory)">Inside 1σ range</th>
         </tr></thead>
         <tbody id="validBody"></tbody>
       </table>
     </div>
-    <p class="scan-note">Each session is evaluated only with levels known before it started: those calculated before the open (the collector saves them in the 75 minutes before the Wall Street open) or, if there are none, those from the previous session's close. They are compared with the actual high, low and close. With few sessions the percentages are not meaningful.</p>
+    <div class="vtests" id="validTests"></div>
+    <p class="scan-note">Each session is evaluated only with levels known before it started: those calculated before the open (the collector saves them in the 75 minutes before the Wall Street open) or, if there are none, those from the previous session's close. They are compared with the actual high, low and close. Distances and ranges are measured in units of the ticker's 20-session realized volatility, so calm and volatile periods are comparable. Tests group the sessions of each day, because tickers move together, and need at least 20 different days. The ticker list is today's, so tickers that left it are missing from the past.</p>
   </div>
   <div class="tablewrap" id="tableWrap">
     <table class="scan" id="scanTable">

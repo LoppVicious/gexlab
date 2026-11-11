@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario; Open Interest y Options Lab
+## 2026-11-11 — Compass con estela de historial, cabecera propia y pantalla completa; Validación con el historial diario, referencia y pruebas; Open Interest y Options Lab; fuera las opciones ajustadas
 
 **Añadido**
 - **Open Interest** (menú Positioning): OI por strike del ticker de la barra superior, con calls arriba y puts abajo, la
@@ -43,6 +43,14 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - El Compass tiene cabecera propia (título, historial y ampliar) dentro de su recuadro, como los desplegables del
   TRACE.
 - El cuadro «Add ticker» de la barra del escáner solo sale en la vista Tabla.
+- **Validación con referencia y pruebas.** Cada muro se compara con lo que habría aguantado un nivel cualquiera a la
+  misma distancia, según el historial del ticker y su volatilidad del momento («baseline»). El rango de cada sesión se
+  mide también frente al rango normal del ticker, para separar el régimen de gamma de la volatilidad de la época. Un
+  panel nuevo, «Is it better than chance?», da un veredicto por prueba (muros, régimen de gamma y rango de 1σ frente
+  al 68,3 %): agrupa las sesiones por día, porque los tickers se mueven juntos, y no concluye nada con menos de 20
+  días. Debajo, los días con evento (vencimiento mensual, FOMC, IPC, empleo) frente al resto.
+- El calendario macro guarda los eventos pasados tres años (la web sigue recibiendo los últimos 45 días), para marcar
+  los días con evento en la Validación.
 - La estela ya no exige 60 sesiones de historial propio: sale desde la segunda sesión guardada. Mientras un eje es
   provisional (comparado con la lista), la estela de ese eje se mueve a saltos.
 
@@ -54,6 +62,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   compactas (la nube corta cada preferencia a 2.000 caracteres).
 - **«Comprobar web» fallaba siempre** en su última prueba: pedía las cabeceras a `/login.html`, que ahora redirige a
   `/login`. Ahora las pide a `/login`.
+- **Opciones ajustadas mezcladas con las normales.** Tras un split, un spin-off o una fusión, las opciones antiguas
+  pasan a otra raíz (HON2, BABA2, PANW1…) y entregan otra cesta, no 100 acciones. Entraban en la GEX y en el forward
+  como si fueran normales: en HON eran el 47 % del open interest y en BABA el 10 %. Ahora se descartan, igual que
+  productos raros como B1SPY o SPXO. En HON (filtro de 45 días) el flip pasa de 206,6 a 210,4 y el Call Wall de 230 a
+  240. Las fotos ya guardadas en el historial de esos tickers conservan el cálculo antiguo.
 
 ## 2026-11-10 — Web en inglés, tema claro revisado y curva VIX en directo y frente a la sesión anterior; IV sobre el forward implícito; la lista del historial diario alimenta toda la web; pre-market en el TRACE; lentes Delta y Charm Pressure en el TRACE
 

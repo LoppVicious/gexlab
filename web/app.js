@@ -2278,16 +2278,72 @@ async function loadValidation() {
     const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&symbols=${encodeURIComponent(watchlist().join(","))}`);
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Validation error");
-    const pct = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} sess.</span>` : ""}`;
-    const rng = (v, n) => v == null ? `<span class="na">—</span>` : `${fmtNum(v, 2)}%<span class="ds">${n} sess.</span>`;
+    const na = `<span class="na">—</span>`;
+    const pct = (v, n) => v == null ? na : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} sess.</span>` : ""}`;
+    // rango en % y, debajo, frente al rango normal del ticker (media de sus 20 rangos previos)
+    const rng = (v, rr, n) => v == null ? na : `${fmtNum(v, 2)}%<span class="ds">${rr != null ? `${fmtNum(rr, 2)}× normal, ` : ""}${n} sess.</span>`;
+    // muro: aguantó, y debajo lo que habría aguantado un nivel cualquiera a la misma distancia
+    const wall = (v, base) => v == null ? na : `${fmtNum(v, 0)}%${base != null ? `<span class="ds">baseline ${fmtNum(base, 0)}%</span>` : ""}`;
     const row = (x, cls = "") => `<tr class="${cls}"><td class="l"><span class="tk">${esc(x.symbol)}</span></td>
-      <td>${x.n}</td><td>${rng(x.range_pos, x.n_pos)}</td><td>${rng(x.range_neg, x.n_neg)}</td>
-      <td>${pct(x.cw_held)}</td><td>${pct(x.pw_held)}</td><td>${pct(x.em_hit, x.n_em)}</td></tr>`;
+      <td>${x.n}</td><td>${rng(x.range_pos, x.rr_pos, x.n_pos)}</td><td>${rng(x.range_neg, x.rr_neg, x.n_neg)}</td>
+      <td>${wall(x.cw_held, x.cw_exp)}</td><td>${wall(x.pw_held, x.pw_exp)}</td><td>${pct(x.em_hit, x.n_em)}</td></tr>`;
     body.innerHTML = d.rows.map((x) => row(x)).join("") + row({ ...d.total, symbol: "Total" }, "total");
-    $("scanStatus").textContent = d.total.n ? `${d.total.n} sessions evaluated (${d.total.n_ante} with levels from before the open)` : "No saved sessions to evaluate yet";
+    $("validTests").innerHTML = d.tests ? validTestsHtml(d) : "";
+    $("scanStatus").textContent = d.total.n ? `${d.total.n} sessions on ${d.n_days ?? "?"} days evaluated (${d.total.n_ante} with levels from before the open)` : "No saved sessions to evaluate yet";
   } catch (e) {
     body.innerHTML = `<tr class="err"><td colspan="7" class="l">${esc(e.message)}</td></tr>`;
+    $("validTests").innerHTML = "";
   }
+}
+
+/* Pruebas de la Validación (gex_engine._val_tests): cada una agrupa las sesiones por día y solo da veredicto con
+   min_days días distintos. Veredicto: pocos días, sin diferencia medible, mejor o peor que la referencia. */
+function validVerdict(t, minDays, better, calib = false) {
+  if (!t || t.n_days == null || t.n_days === 0) return { cls: "wait", txt: "No data" };
+  if (t.n_days < minDays) return { cls: "wait", txt: `Too few days (${t.n_days} of ${minDays})` };
+  if (t.p == null) return { cls: "wait", txt: "Not testable" };
+  const p = t.p < 0.001 ? "p < 0.001" : `p = ${fmtNum(t.p, t.p < 0.01 ? 3 : 2)}`;
+  // en el rango de 1σ lo bueno es no apartarse del 68,3 %
+  if (calib) return t.p >= 0.05 ? { cls: "ok", txt: `Consistent with theory (${p})` } : { cls: "bad", txt: `Off target (${p})` };
+  if (t.p >= 0.05) return { cls: "none", txt: `No measurable difference (${p})` };
+  return better ? { cls: "ok", txt: `Confirmed (${p})` } : { cls: "bad", txt: `Against (${p})` };
+}
+
+function validTestsHtml(d) {
+  const T = d.tests, tot = d.total, min = T.min_days;
+  // con pocos días la estimación del tamaño necesario tampoco es fiable: solo se da cuando ya hay días suficientes
+  const need = (t, unit) => t && t.needed && t.n_days >= min && t.p != null && t.p >= 0.05
+    ? `<span class="vtest-need">An effect this size would need about ${fmtNum(t.needed)} ${unit} to be told apart from chance.</span>` : "";
+  const line = (name, val, t, better, calib = false, unit = "sessions") => {
+    const v = validVerdict(t, min, better, calib);
+    return `<div class="vtest-row"><div class="vtest-name">${name}</div><div class="vtest-val">${val}${need(t, unit)}</div>
+      <div class="vtest-verd ${v.cls}">${v.txt}</div></div>`;
+  };
+  const diff = (a, b) => (a == null || b == null ? "" : ` (${a - b >= 0 ? "+" : "−"}${fmtNum(Math.abs(a - b), 0)} pts)`);
+  const wallVal = (held, base) => held == null ? "No sessions" : base == null
+    ? `Held ${fmtNum(held, 0)}% (no baseline: price history too short)`
+    : `Held ${fmtNum(held, 0)}% against ${fmtNum(base, 0)}% for any level at the same distance${diff(held, base)}`;
+  const rg = T.regime || {};
+  const regVal = rg.ratio == null ? "Needs days with both regimes"
+    : `On the same day, the range with negative gamma was ${fmtNum(rg.ratio, 2)}× the range with positive gamma, each relative to its ticker's normal range`;
+  const emVal = tot.em_hit == null ? "No sessions" : `Close inside the range ${fmtNum(tot.em_hit, 0)}% of the time, against 68.3% in theory${diff(tot.em_hit, 68.3)}`;
+  let h = `<div class="vtest-head">Is it better than chance?</div>`;
+  h += line("Call Wall", wallVal(tot.cw_obs_b ?? tot.cw_held, tot.cw_exp), T.cw, (T.cw?.effect ?? 0) > 0);
+  h += line("Put Wall", wallVal(tot.pw_obs_b ?? tot.pw_held, tot.pw_exp), T.pw, (T.pw?.effect ?? 0) > 0);
+  h += line("Gamma regime", regVal, rg, (rg.ratio ?? 1) > 1, false, "days");
+  h += line("1σ range", emVal, T.em, false, true);
+  const bd = d.by_day;
+  if (bd && (bd.event?.n || bd.normal?.n)) {
+    const cell = (x, k, b) => x[k] == null ? "—" : `${fmtNum(x[k], 0)}%${b && x[b] != null ? ` <span class="vtest-dim">(${fmtNum(x[b], 0)}%)</span>` : ""}`;
+    const rr = (x) => x.rr_pos == null || x.rr_neg == null ? "—" : `${fmtNum(x.rr_neg / x.rr_pos, 2)}×`;
+    const r = (lbl, x) => `<tr><td class="l">${lbl}</td><td>${x.n}</td><td>${rr(x)}</td><td>${cell(x, "cw_held", "cw_exp")}</td>
+      <td>${cell(x, "pw_held", "pw_exp")}</td><td>${cell(x, "em_hit")}</td></tr>`;
+    h += `<div class="vtest-sub">Event days (monthly expiration, FOMC, CPI, payrolls) against the rest. Baseline in parentheses.</div>
+      <table class="scan vtest-tab"><thead><tr><th class="l">Days</th><th>Sessions</th><th>Range, gamma − / +</th>
+      <th>Call Wall held</th><th>Put Wall held</th><th>Inside 1σ</th></tr></thead>
+      <tbody>${r("Normal", bd.normal)}${r("Event", bd.event)}</tbody></table>`;
+  }
+  return h;
 }
 
 async function loadCompass(force = false) {

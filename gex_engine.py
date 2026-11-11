@@ -49,6 +49,15 @@ NYSE_EARLY_CLOSE = {"2026-11-27", "2026-12-24", "2027-11-26", "2028-07-03", "202
 _HOL64 = np.array(sorted(NYSE_HOLIDAYS), dtype="datetime64[D]")
 SESSION_MIN = 390.0  # 09:30-16:00
 OCC_RE = re.compile(r"^([A-Z0-9.]+?)(\d{6})([CP])(\d{8})$")
+# raices de series estandar distintas del simbolo (semanales y PM de los indices). Las demas raices son opciones
+# ajustadas tras un split, spin-off o fusion (HON2, BABA2, PANW1...: entregan otra cesta, no 100 acciones) o productos
+# de otro tipo (B1SPY, SPXO); se descartan. Medido el 2026-11-11: HON2 llevaba el 47 % del OI de HON y BABA2 el 10 %.
+SERIES_ROOTS = {"SPX": {"SPXW"}, "NDX": {"NDXP"}, "RUT": {"RUTW"}, "VIX": {"VIXW"}}
+
+
+def standard_roots(symbol: str) -> set:
+    s = symbol.upper().lstrip("^_$")
+    return {s, s.replace(".", "")} | SERIES_ROOTS.get(s, set())
 
 RISK_FREE = 0.04  # respaldo si no se puede leer la letra del Tesoro
 LEVEL_WINDOW_PCT = 10.0  # rango minimo (+-%) de la rejilla de niveles
@@ -987,10 +996,15 @@ def parse_chain(raw: dict) -> dict:
     vol = np.zeros(n)
     last = np.zeros(n)
     keep = np.ones(n, dtype=bool)
+    sym = data.get("symbol", "").lstrip("^_")
+    roots = [m.group(1) if m else None for m in (OCC_RE.match(o.get("option", "")) for o in opts)]
+    ok_roots = standard_roots(sym)
+    if not any(r in ok_roots for r in roots):  # simbolo sin raiz propia conocida: se usan todas
+        ok_roots = {r for r in roots if r}
 
     for i, o in enumerate(opts):
         m = OCC_RE.match(o.get("option", ""))
-        if not m:
+        if not m or roots[i] not in ok_roots:
             keep[i] = False
             continue
         root, ymd, cp, k = m.groups()
@@ -1012,7 +1026,6 @@ def parse_chain(raw: dict) -> dict:
         iv = iv / 100.0
 
     spot = float(data.get("current_price") or data.get("close") or 0)
-    sym = data.get("symbol", "").lstrip("^_")
 
     K_, C_, E_ = strikes[keep], is_call[keep], expiry[keep]
     iv_k, F_, delta_k = _iv_forward(sym, spot, K_, C_, E_, bid[keep], ask[keep], iv[keep], delta[keep])
@@ -2587,19 +2600,164 @@ def _percentile(v, arr):
 
 
 # ================================================================ validacion historica
+VAL_BASE_DAYS = 500     # sesiones previas con las que se construye la referencia de cada ticker
+VAL_RV_DAYS = 20        # ventana de la volatilidad realizada que normaliza movimientos y distancias
+VAL_MIN_DAYS = 20       # dias distintos necesarios para dar por buena una prueba (agrupada por dia)
+EM_NOMINAL = 0.683      # cobertura teorica del rango de 1 desviacion tipica
+EVENT_NAMES = ("FOMC", "CPI", "Payrolls (NFP)")
+
+
+def _event_days() -> set:
+    """Dias de vencimiento mensual se calculan aparte; aqui, FOMC, IPC y empleo del calendario guardado (eventos.py)."""
+    st = read_json(os.path.join(CACHE_DIR, "eventos.json"), {}) or {}
+    return {e["date"] for e in st.get("eventos", []) if e.get("name", "").split(" (")[0] in EVENT_NAMES}
+
+
+def _clustered_test(items: list) -> dict:
+    """items = [(fecha, valor)] con valor = observado - esperado (o una diferencia por sesion). Las sesiones del mismo
+    dia se suman: los tickers se mueven juntos y contarlas por separado exageraria la significacion.
+    z = suma / raiz(suma de cuadrados por dia), p bilateral (normal). n_days = dias distintos."""
+    by = {}
+    for d, v in items:
+        by[d] = by.get(d, 0.0) + v
+    s = np.array(list(by.values()), dtype=float)
+    out = {"n_days": int(s.size), "z": None, "p": None}
+    den = float(np.sqrt((s * s).sum())) if s.size else 0.0
+    if s.size >= 2 and den > 0:
+        z = float(s.sum() / den)
+        out["z"] = z
+        out["p"] = float(1 - math.erf(abs(z) / math.sqrt(2)))
+    return out
+
+
+def _sessions_needed(effect: float, var: float) -> int | None:
+    """Sesiones necesarias para que un efecto del tamano observado sea significativo al 95 % (sin agrupar)."""
+    if abs(effect) < 1e-6 or var <= 0:
+        return None
+    n = 1.96 ** 2 * var / effect ** 2
+    return int(math.ceil(n)) if n < 1e5 else None
+
+
+def _val_series(ohlc: dict) -> dict:
+    """Por sesion i (con datos solo hasta i-1 para la normalizacion): cierre anterior, movimiento al alza y a la baja en
+    unidades de volatilidad realizada diaria (VAL_RV_DAYS sesiones previas) y rango frente a la media de sus
+    VAL_RV_DAYS rangos previos."""
+    dates = sorted(ohlc)
+    n = len(dates)
+    o, h, l, c = (np.array([ohlc[d][k] for d in dates], dtype=float) for k in range(4))
+    prev = np.r_[np.nan, c[:-1]]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ret = np.log(c / prev)
+        up = np.log(h / prev)
+        dn = np.log(prev / l)
+        rng = (h - l) / prev
+    rv = np.full(n, np.nan)
+    rmean = np.full(n, np.nan)
+    for i in range(VAL_RV_DAYS + 1, n):
+        win = ret[i - VAL_RV_DAYS:i]
+        win = win[np.isfinite(win)]
+        if win.size >= VAL_RV_DAYS // 2:
+            rv[i] = float(win.std(ddof=1))
+        rw = rng[i - VAL_RV_DAYS:i]
+        rw = rw[np.isfinite(rw) & (rw > 0)]
+        if rw.size >= VAL_RV_DAYS // 2:
+            rmean[i] = float(rw.mean())
+    with np.errstate(divide="ignore", invalid="ignore"):
+        nu, nd, rr = up / rv, dn / rv, rng / rmean
+    return {"dates": dates, "idx": {d: i for i, d in enumerate(dates)}, "prev": prev, "h": h, "l": l, "c": c,
+            "rv": rv, "nu": nu, "nd": nd, "rr": rr}
+
+
+def _base_prob(series: np.ndarray, i: int, x: float) -> float | None:
+    """Probabilidad de referencia: fraccion de las VAL_BASE_DAYS sesiones previas a i cuyo movimiento normalizado no
+    paso de x (cuantas veces habria aguantado un nivel cualquiera a esa distancia)."""
+    w = series[max(0, i - VAL_BASE_DAYS):i]
+    w = w[np.isfinite(w)]
+    if w.size < 60 or not np.isfinite(x):
+        return None
+    return float((w <= x).mean())
+
+
+def _val_summary(ss: list) -> dict:
+    """Resumen de una lista de sesiones evaluadas (ver validation)."""
+    mean = lambda a: float(np.mean(a)) if a else None  # noqa: E731
+    out = {"n": len(ss)}
+    pos = [s for s in ss if s["reg"] > 0]
+    neg = [s for s in ss if s["reg"] <= 0]
+    out["range_pos"], out["n_pos"] = mean([s["rng"] for s in pos]), len(pos)
+    out["range_neg"], out["n_neg"] = mean([s["rng"] for s in neg]), len(neg)
+    out["rr_pos"] = mean([s["rr"] for s in pos if s["rr"] is not None])
+    out["rr_neg"] = mean([s["rr"] for s in neg if s["rr"] is not None])
+    for w in ("cw", "pw"):
+        ev = [s for s in ss if s.get(w) is not None]
+        out[f"{w}_held"] = mean([float(s[w]) * 100 for s in ev])
+        out[f"n_{w}"] = len(ev)
+        evb = [s for s in ev if s.get(w + "_p") is not None]
+        out[f"{w}_exp"] = mean([s[w + "_p"] * 100 for s in evb])
+        out[f"{w}_obs_b"] = mean([float(s[w]) * 100 for s in evb])  # acierto en las mismas sesiones que la referencia
+        out[f"n_{w}_b"] = len(evb)
+    em = [s for s in ss if s.get("em") is not None]
+    out["em_hit"], out["n_em"] = mean([float(s["em"]) * 100 for s in em]), len(em)
+    return out
+
+
+def _val_tests(ss: list) -> dict:
+    """Pruebas sobre el conjunto de sesiones, agrupadas por dia (ver _clustered_test)."""
+    t = {}
+    for w in ("cw", "pw"):
+        ev = [s for s in ss if s.get(w) is not None and s.get(w + "_p") is not None]
+        r = _clustered_test([(s["date"], float(s[w]) - s[w + "_p"]) for s in ev])
+        if ev:
+            eff = float(np.mean([float(s[w]) - s[w + "_p"] for s in ev]))
+            var = float(np.mean([s[w + "_p"] * (1 - s[w + "_p"]) for s in ev]))
+            r.update(effect=eff * 100, needed=_sessions_needed(eff, var))
+        t[w] = r
+    em = [s for s in ss if s.get("em") is not None]
+    r = _clustered_test([(s["date"], float(s["em"]) - EM_NOMINAL) for s in em])
+    if em:
+        eff = float(np.mean([float(s["em"]) for s in em])) - EM_NOMINAL
+        r.update(effect=eff * 100, needed=_sessions_needed(eff, EM_NOMINAL * (1 - EM_NOMINAL)))
+    t["em"] = r
+    # regimen: por dia, media de log(rango / rango normal) con gamma negativa menos con gamma positiva
+    by = {}
+    for s in ss:
+        if s["rr"] and s["rr"] > 0:
+            by.setdefault(s["date"], ([], []))[0 if s["reg"] > 0 else 1].append(math.log(s["rr"]))
+    diffs = [(d, float(np.mean(n_)) - float(np.mean(p_))) for d, (p_, n_) in by.items() if p_ and n_]
+    r = {"n_days": len(diffs), "z": None, "p": None}
+    if len(diffs) >= 2:
+        v = np.array([x for _, x in diffs])
+        sd = float(v.std(ddof=1))
+        r["ratio"] = float(math.exp(v.mean()))
+        if sd > 0:
+            z = float(v.mean() / (sd / math.sqrt(v.size)))
+            r.update(z=z, p=float(1 - math.erf(abs(z) / math.sqrt(2))))
+            r["needed"] = int(math.ceil((1.96 * sd / v.mean()) ** 2)) if v.mean() else None
+    t["regime"] = r
+    t["min_days"] = VAL_MIN_DAYS
+    return t
+
+
 def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: str = "spotgamma",
                extra: dict | None = None) -> dict:
     """Contrasta los niveles guardados de cada sesion con el precio de esa misma sesion
     (los niveles de la sesion d usan el OI del cierre de d-1, asi que son ex ante para d):
-      - rango intradia (max-min)/cierre anterior segun el regimen (GEX neta + / -)
-      - % de sesiones en que el maximo no supero el Call Wall / el minimo no perforo el Put Wall
-      - % de sesiones en que el cierre quedo dentro del movimiento esperado (si era del mismo dia).
+      - rango intradia (max-min)/cierre anterior segun el regimen (GEX neta + / -), en % y frente al rango normal del
+        ticker (media de los VAL_RV_DAYS rangos previos): el regimen negativo coincide con epocas de mas volatilidad,
+        y solo la segunda medida separa una cosa de la otra
+      - % de sesiones en que el maximo no supero el Call Wall / el minimo no perforo el Put Wall, frente a la
+        referencia: lo que habria aguantado un nivel cualquiera a la misma distancia (_base_prob)
+      - % de sesiones en que el cierre quedo dentro del movimiento esperado de 1 sigma (si era del mismo dia), frente al
+        68,3 % teorico.
+    Las pruebas (`tests`) agrupan las sesiones por dia (_clustered_test) y solo valen con VAL_MIN_DAYS dias o mas.
+    `by_day` separa los dias con evento (vencimiento mensual, FOMC, IPC o empleo) del resto.
     extra = {SYM: {fecha: levels[posicion][motor][filtro]}} (indice del historial diario, hist500): fotos tras el
     cierre que completan las sesiones que falten en el historico propio, p. ej. de un ticker recien anadido."""
     filtro = "all" if max_dte in (None, "all") else str(max_dte)
     key_dte = filtro + ("f" if mode == "flow" else "") + ("s" if model == "spotgamma" else "")
     pos = "flow" if mode == "flow" else "standard"
-    rows, agg = [], {"pos": [], "neg": [], "cw": [], "pw": [], "em": []}
+    rows, all_s = [], []
+    events = _event_days()
     for sym in symbols:
         path = os.path.join(HIST_DIR, f"{sym.replace('.', '_')}.json")
         try:
@@ -2633,45 +2791,46 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
                     f = ratios[rk[j]]
                     scaled[d] = (o_ * f, h_ * f, l_ * f, c_ * f)
                 ohlc = scaled
-        dates = sorted(ohlc)
-        res = {"symbol": sym, "n": 0, "n_ante": 0, "pos_range": [], "neg_range": [], "cw": [], "pw": [], "em": []}
+        sr = _val_series(ohlc) if ohlc else None
+        dates = sr["dates"] if sr else []
+        n_ante, ss = 0, []
         for i, d in enumerate(dates):
             if i == 0:
                 continue
             # niveles conocidos antes de la sesion: la foto ex ante de ese dia o, si no, la ultima de la sesion anterior
             sn = ante.get(d)
             if sn is not None:
-                res["n_ante"] += 1
+                n_ante += 1
             else:
                 sn = reg.get(dates[i - 1])
             if sn is None:
                 continue
-            prev_c = ohlc[dates[i - 1]][3]
-            o, hi, lo, c = ohlc[d]
-            if prev_c <= 0 or hi <= 0:
+            prev_c, hi, lo, c = sr["prev"][i], sr["h"][i], sr["l"][i], sr["c"][i]
+            if not prev_c > 0 or not hi > 0:
                 continue
-            rng = (hi - lo) / prev_c * 100
-            (res["pos_range"] if (sn.get("net_per_pct") or 0) > 0 else res["neg_range"]).append(rng)
-            if sn.get("call_wall"):
-                res["cw"].append(hi <= sn["call_wall"])
-            if sn.get("put_wall"):
-                res["pw"].append(lo >= sn["put_wall"])
+            rv = sr["rv"][i]
+            rr = sr["rr"][i]
+            s = {"date": d, "reg": sn.get("net_per_pct") or 0, "rng": (hi - lo) / prev_c * 100,
+                 "rr": float(rr) if np.isfinite(rr) else None,
+                 "event": d in events or es_mensual(datetime.strptime(d, "%Y-%m-%d").date(), sym)}
+            # muros: aguanto o no, y con que probabilidad habria aguantado un nivel cualquiera a la misma distancia
+            # (en unidades de la volatilidad realizada del momento, frente a las sesiones previas del ticker)
+            for w, val, ser, held in (("cw", sn.get("call_wall"), sr["nu"], lambda v: hi <= v),
+                                      ("pw", sn.get("put_wall"), sr["nd"], lambda v: lo >= v)):
+                if not val:
+                    continue
+                s[w] = bool(held(val))
+                x = (math.log(val / prev_c) if w == "cw" else math.log(prev_c / val)) / rv if rv > 0 else float("nan")
+                s[w + "_p"] = _base_prob(ser, i, x)
             if sn.get("m1_pct") and sn.get("m1_session") == d:
-                res["em"].append(abs(c / prev_c - 1) * 100 <= sn["m1_pct"])
-            res["n"] += 1
-        mean = lambda a: float(np.mean(a)) if a else None  # noqa: E731
-        rate = lambda a: float(np.mean(a) * 100) if a else None  # noqa: E731
-        rows.append({"symbol": sym, "n": res["n"], "n_ante": res["n_ante"],
-                     "range_pos": mean(res["pos_range"]), "n_pos": len(res["pos_range"]),
-                     "range_neg": mean(res["neg_range"]), "n_neg": len(res["neg_range"]),
-                     "cw_held": rate(res["cw"]), "pw_held": rate(res["pw"]),
-                     "em_hit": rate(res["em"]), "n_em": len(res["em"])})
-        agg["pos"] += res["pos_range"]; agg["neg"] += res["neg_range"]
-        agg["cw"] += res["cw"]; agg["pw"] += res["pw"]; agg["em"] += res["em"]
-    total = {"n": sum(r["n"] for r in rows), "n_ante": sum(r["n_ante"] for r in rows),
-             "range_pos": float(np.mean(agg["pos"])) if agg["pos"] else None, "n_pos": len(agg["pos"]),
-             "range_neg": float(np.mean(agg["neg"])) if agg["neg"] else None, "n_neg": len(agg["neg"]),
-             "cw_held": float(np.mean(agg["cw"]) * 100) if agg["cw"] else None,
-             "pw_held": float(np.mean(agg["pw"]) * 100) if agg["pw"] else None,
-             "em_hit": float(np.mean(agg["em"]) * 100) if agg["em"] else None, "n_em": len(agg["em"])}
-    return {"rows": rows, "total": total}
+                s["em"] = abs(c / prev_c - 1) * 100 <= sn["m1_pct"]
+            ss.append(s)
+        all_s += ss
+        rows.append({"symbol": sym, "n_ante": n_ante, **_val_summary(ss)})
+    total = {"n_ante": sum(r["n_ante"] for r in rows), **_val_summary(all_s)}
+    normal = [s for s in all_s if not s["event"]]
+    event = [s for s in all_s if s["event"]]
+    return {"rows": rows, "total": total, "tests": _val_tests(all_s),
+            "by_day": {"normal": {**_val_summary(normal), "tests": _val_tests(normal)},
+                       "event": {**_val_summary(event), "tests": _val_tests(event)}},
+            "n_days": len({s["date"] for s in all_s})}

@@ -23,6 +23,7 @@ import gex_engine as g
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/130.0 Safari/537.36")
 STATE = os.path.join(g.CACHE_DIR, "eventos.json")
+GUARDAR_ANOS = 3
 VERSION = 3  # al cambiar las fuentes o las etiquetas, se fuerza una actualizacion y se descarta lo guardado con otra version
 MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 MONTHS = {m: i + 1 for i, m in enumerate(["January", "February", "March", "April", "May", "June", "July",
@@ -186,7 +187,8 @@ def actualizar() -> tuple[list[dict], dict]:
                 known[f"{e['date']}|{e['name']}"] = e
         except Exception as ex:  # noqa: BLE001
             res[name] = f"error: {str(ex)[:80]}"
-    lo = (datetime.now(timezone.utc) - timedelta(days=45)).strftime("%Y-%m-%d")
+    # lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); la web recibe 45 dias
+    lo = (datetime.now(timezone.utc) - timedelta(days=365 * GUARDAR_ANOS)).strftime("%Y-%m-%d")
     hi = (datetime.now(timezone.utc) + timedelta(days=400)).strftime("%Y-%m-%d")
     evs = sorted((e for e in known.values() if lo <= e["date"] <= hi), key=lambda e: (e["date"], e["time"], -e["imp"]))
     g.write_json(STATE, {"eventos": evs, "fuentes": res, "version": VERSION,
@@ -196,7 +198,8 @@ def actualizar() -> tuple[list[dict], dict]:
 
 def publicables() -> list[dict]:
     st = g.read_json(STATE, {}) or {}
-    return st.get("eventos", [])
+    lo = (datetime.now(timezone.utc) - timedelta(days=45)).strftime("%Y-%m-%d")
+    return [e for e in st.get("eventos", []) if e["date"] >= lo]
 
 
 if __name__ == "__main__":

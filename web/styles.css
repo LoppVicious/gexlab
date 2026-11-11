@@ -320,6 +320,21 @@ body.scan-compass .only-table { display: none; }
 .validwrap[hidden] { display: none; }
 .validwrap { display: flex; flex-direction: column; flex: 1; }
 .scan tr.total td { border-top: 1px solid var(--line); font-weight: 500; }
+.vtests:empty { display: none; }
+.vtests { margin-top: 12px; border: 1px solid var(--line-soft); border-radius: 14px; background: var(--surface); padding: 6px 16px 14px; }
+.vtest-head { font-weight: 600; font-size: 13.5px; padding: 10px 0 6px; }
+.vtest-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 14px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--line-soft); font-size: 13px; }
+.vtest-name { color: var(--muted); font-weight: 500; }
+.vtest-need { display: block; color: var(--faint); font-size: 12px; margin-top: 3px; }
+.vtest-verd { font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; color: var(--muted); }
+.vtest-verd.ok { color: var(--pos); border-color: var(--pos); }
+.vtest-verd.bad { color: var(--neg); border-color: var(--neg); }
+.vtest-verd.wait { color: var(--faint); }
+.vtest-sub { color: var(--muted); font-size: 12.5px; margin: 14px 0 8px; }
+.vtest-tab { border: 1px solid var(--line-soft); border-radius: 10px; }
+.vtest-tab tbody tr { cursor: default; }
+.vtest-dim { color: var(--faint); }
+@media (max-width: 700px) { .vtest-row { grid-template-columns: 1fr; gap: 4px; } }
 .scan .na { color: var(--faint); }
 .toasts { position: fixed; right: 20px; bottom: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .toast {

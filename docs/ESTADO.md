@@ -1,6 +1,6 @@
 # Estado
 
-Última revisión: 2026-11-09. Cambios hechos: ver `CHANGELOG.md`.
+Última revisión: 2026-11-11. Cambios hechos: ver `CHANGELOG.md`.
 
 ## Pendiente / ideas apuntadas por el usuario
 - **Dealer Hedge Ratio** (en espera): COT TFF de dealers en ES y VX (en % del OI, z-score de 3 años) + pendiente de la curva del VIX.
@@ -27,3 +27,38 @@
   - Además, OHLC del subyacente.
   - Con eso se recalculan el Histórico y la Validación con cualquier motor.
 - **Desplazamiento índice → futuro** (ES/NQ) al copiar niveles a TradingView.
+
+## Propuestas de la revisión de material cuantitativo (2026-11-11)
+Por orden de prioridad.
+
+1. **Calidad de datos** (hecho el 2026-11-11):
+   - Raíces ajustadas: filtradas en `parse_chain` (`standard_roots`). Había HON2 (47 % del OI de HON), BABA2 (10 %),
+     PANW1, WDC1, CVX1, BA1, B1SPY/B1IWM/B1VDA/B1SLA y SPXO.
+   - Medido con CBOE en 20 tickers: los contratos sin bid, con spread > 50 % o sin IV pesan menos del 3 % de la gamma
+     (salvo HON, por HON2). Las IV infladas de las alas 0DTE al final de la sesión (cotizaciones de 0,00/0,01) vienen
+     igual de CBOE; repararlas movía algún muro casi empatado, pero nos alejaría de las referencias. No se tocan.
+   - Convención de T: coherente (la IV y la gamma usan la misma varianza total). En Perfil, el mínimo de 1 h de T
+     rebaja la gamma 0DTE en la última hora; es deliberado (copia el script de SpotGamma) y Auto usa Neto en 0DTE.
+2. **Validación más rigurosa** (hecho el 2026-11-11): referencia por distancia para los muros, rango frente al normal
+   del ticker, pruebas agrupadas por día con mínimo de 20 días, días con evento aparte. Pendiente:
+   - IC de rango a 2 y 5 días y VRP sin días de evento, cuando haya historial (empezó el 2026-11-04).
+   - Semáforo de Basilea sobre un rango de 2σ (hoy solo se guarda el de 1σ).
+   - No aplica todavía: walk-forward (la Validación no ajusta umbrales).
+3. **Posicionamiento:**
+   - Impacto esperado de la cobertura: GEX$ por 1% / ADV$ con la ley de la raíz cuadrada, comparable entre tickers.
+   - Flujo de cobertura esperado mañana: charm hasta OPEX, escenarios de vanna y GEX tras el próximo vencimiento,
+     en $ y % del ADV.
+   - Matriz spot × IV (spot ±X%, IV ±5 puntos) de GEX y DEX.
+   - GEX por tramo de vencimiento y cuota de gamma que vence pronto.
+4. **Superficie de volatilidad:**
+   - IV30 sin modelo (fórmula del VIX) para cualquier ticker.
+   - Forma: RR25 y BF25 por vencimiento, pendiente de términos, inversión, varianza de evento desde el codo de la curva.
+   - Tarjeta VIX9D/VIX/VIX3M (ya se descargan en `CBOE_VOL_INDICES`).
+   - Vol realizada Yang-Zhang y cono de volatilidad (hoy `_realized_vol` es cierre a cierre, 20 días).
+   - Vida media de la IV (Ornstein-Uhlenbeck).
+5. **Correlación implícita** (SPX frente a megacaps) como indicador de régimen. Requiere cadenas de las megacaps.
+6. **Flujo:** BVC sobre el volumen incremental de 5 min, prima y delta firmadas acumuladas, UOA ponderado por delta,
+   vega y $. Mostrar siempre como estimación.
+
+Descartado o prioridad baja: dependencia en cola y cópulas (pocos datos), HMM, tarjetas macro (spreads HY, curva),
+construcción de carteras, ejecución y dimensionado.

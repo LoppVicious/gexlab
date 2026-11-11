@@ -118,10 +118,16 @@ Los dos:
   respecto al forward. Así put y call cuadran en el dinero aunque el spot esté parado (antes de la apertura) o haya
   dividendos. El forward viaja en el paquete (`fwds`, uno por vencimiento) y en las copias de la cadena (`F`).
   La gamma de los dos motores sigue calculándose sobre el spot.
+- **Raíces** (`standard_roots`): solo la del símbolo y las series de `SERIES_ROOTS` (SPXW, NDXP, RUTW, VIXW). Las
+  ajustadas (HON2, BABA2...) y productos raros (B1SPY, SPXO) se descartan en `parse_chain`, para Tradier y CBOE.
 - **VIX** (`FUTURES_OPTIONS`): sus opciones van sobre el futuro de cada vencimiento, que es su forward implícito;
   gamma, perfil, mapa y panel de volatilidad usan ese futuro (q = r).
 - **Vol Trigger:** strike más alto por debajo del flip con GEX neta ≤ −25 % del máximo.
 - **Rango Auto:** 1σ implícita. En 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa. Mínimo 0,4 %, máximo 10 %.
+- **Validación** (`validation`): muros frente a una referencia (`_base_prob`: fracción de las 500 sesiones previas
+  del ticker cuyo máximo o mínimo, en unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del
+  muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
+  `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de `cache/eventos.json` (3 años).
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.
 
 ## Pruebas (con datos reales)

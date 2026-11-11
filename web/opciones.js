@@ -188,7 +188,7 @@ function px(x) {
   return fmtNum(r, r % 1 === 0 ? 0 : Math.round(r * 10) / 10 === r ? 1 : 2);
 }
 
-function niceTicks(lo, hi, n = 6) {
+function axisTicks(lo, hi, n = 6) {
   if (!(hi > lo)) return [lo];
   const raw = (hi - lo) / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
   const step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
@@ -232,7 +232,7 @@ function payoffChart(box, o) {
   y0 = Math.min(y0, 0); y1 = Math.max(y1, 0);
   const sp = (y1 - y0) || 1; y0 -= sp * 0.08; y1 += sp * 0.1;
   const X = scale(o.lo, o.hi, pad.l, W - pad.r), Y = scale(y0, y1, H - pad.b, pad.t), zy = Y(0);
-  const xt = niceTicks(o.lo, o.hi, Math.max(4, Math.round(W / 120))), yt = niceTicks(y0, y1, 5);
+  const xt = axisTicks(o.lo, o.hi, Math.max(4, Math.round(W / 120))), yt = axisTicks(y0, y1, 5);
   const xdec = o.hi - o.lo < 8 ? 2 : o.hi - o.lo < 40 ? 1 : 0;
   const main = o.curves.find((c) => c.main) || o.curves[0];
   const area = `${pathOf(main.pts, X, Y)}L${X(o.hi).toFixed(1)},${zy.toFixed(1)}L${X(o.lo).toFixed(1)},${zy.toFixed(1)}Z`;

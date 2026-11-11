@@ -164,7 +164,7 @@ function oiChart(a) {
   // demasiados strikes para el ancho: se agrupan en tramos redondos
   const maxBars = Math.floor((W - pad.l - pad.r) / 5);
   if (bins.length > maxBars) {
-    const step = niceTicks(0, (hi - lo) / maxBars * 1.0001, 1)[1] || (hi - lo) / maxBars;
+    const step = axisTicks(0, (hi - lo) / maxBars * 1.0001, 1)[1] || (hi - lo) / maxBars;
     const m = new Map();
     for (const b of bins) {
       const k = Math.round(b.K / step) * step;
@@ -190,7 +190,7 @@ function oiChart(a) {
   let gap = Infinity; for (let i = 1; i < keys.length; i++) gap = Math.min(gap, keys[i] - keys[i - 1]);
   if (!isFinite(gap)) gap = (hi - lo) / 40;
   const bw = Math.max(1.2, Math.min(18, (X(lo + gap) - X(lo)) * 0.78));
-  const yt = niceTicks(y0, y1, 6);
+  const yt = axisTicks(y0, y1, 6);
   let bars = "";
   for (const b of bins) {
     const x = X(b.K);
@@ -208,7 +208,7 @@ function oiChart(a) {
     }
   }
   const vline = (v, col, lab, dash, row) => (v >= lo && v <= hi ? `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t - 6}" y2="${H - pad.b}" stroke="${col}" stroke-dasharray="${dash}" stroke-width="1.2"/><text x="${X(v) + 5}" y="${pad.t - 10 + row * 12}" fill="${col}" font-size="11.5">${lab}</text>` : "");
-  const xt = niceTicks(lo, hi, Math.max(4, Math.round(W / 110)));
+  const xt = axisTicks(lo, hi, Math.max(4, Math.round(W / 110)));
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${LAB_MONO}">
     <defs>${graphPaper("oi", pad.l, pad.t)}</defs>
     <rect x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}" height="${H - pad.t - pad.b}" fill="url(#oiGP)"/>

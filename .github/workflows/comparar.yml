@@ -18,3 +18,4 @@ jobs:
       - run: python pruebas/${{ inputs.script }}
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}

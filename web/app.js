@@ -2350,20 +2350,33 @@ async function loadValidation() {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Validation error");
     const na = `<span class="na">—</span>`;
-    const pct = (v, n) => v == null ? na : `${fmtNum(v, 0)}%${n != null ? `<span class="ds">${n} sess.</span>` : ""}`;
     // rango en % y, debajo, frente al rango normal del ticker (media de sus 20 rangos previos)
-    const rng = (v, rr, n) => v == null ? na : `${fmtNum(v, 2)}%<span class="ds">${rr != null ? `${fmtNum(rr, 2)}× normal, ` : ""}${n} sess.</span>`;
-    // muro: aguantó, y debajo lo que habría aguantado un nivel cualquiera a la misma distancia
-    const wall = (v, base) => v == null ? na : `${fmtNum(v, 0)}%${base != null ? `<span class="ds">baseline ${fmtNum(base, 0)}%</span>` : ""}`;
+    const rng = (v, rr, n) => v == null ? na : `<span title="${n} sessions${rr != null ? `; ${fmtNum(rr, 2)} times the ticker's normal range` : ""}">${fmtNum(v, 2)}%${rr != null ? ` <small class="v-x">${fmtNum(rr, 2)}×</small>` : ""}</span>`;
+    // porcentaje con su barra y una marca en la referencia (lo que aguantaria un nivel cualquiera, o la teoria)
+    const bar = (v, ref, refTxt, good) => {
+      if (v == null) return na;
+      const cls = ref == null ? "" : good(v, ref) ? "up" : "dn";
+      return `<span class="v-bar ${cls}" title="${ref == null ? "" : `${refTxt} ${fmtNum(ref, 1)}%`}"><span class="v-tr"><i style="width:${Math.min(100, v).toFixed(1)}%"></i>${ref != null ? `<b style="left:${Math.min(100, ref).toFixed(1)}%"></b>` : ""}</span><em>${fmtNum(v, 0)}%</em></span>`;
+    };
+    const held = (a, b) => a >= b, near = (a, b) => Math.abs(a - b) <= 10;
     const row = (x, cls = "") => `<tr class="${cls}"><td class="l"><span class="tk">${esc(x.symbol)}</span></td>
       <td>${x.n}</td><td>${rng(x.range_pos, x.rr_pos, x.n_pos)}</td><td>${rng(x.range_neg, x.rr_neg, x.n_neg)}</td>
-      <td>${wall(x.cw_held, x.cw_exp)}</td><td>${wall(x.pw_held, x.pw_exp)}</td><td>${pct(x.em_hit, x.n_em)}</td></tr>`;
+      <td class="l">${bar(x.cw_held, x.cw_exp, "Baseline", held)}</td><td class="l">${bar(x.pw_held, x.pw_exp, "Baseline", held)}</td><td class="l">${bar(x.em_hit, 68.3, "Theory", near)}</td></tr>`;
     body.innerHTML = d.rows.map((x) => row(x)).join("") + row({ ...d.total, symbol: "Total" }, "total");
     $("validTests").innerHTML = d.tests ? validTestsHtml(d) : "";
-    $("scanStatus").textContent = d.total.n ? `${d.total.n} sessions on ${d.n_days ?? "?"} days evaluated (${d.total.n_ante} with levels from before the open)` : "No saved sessions to evaluate yet";
+    $("validDays").innerHTML = validDaysHtml(d);
+    $("validDays").hidden = !$("validDays").innerHTML;
+    const nd = d.n_days ?? 0, min = (d.tests && d.tests.min_days) || 20;
+    $("validProg").innerHTML = d.total.n
+      ? `<span class="v-pb"><i style="width:${Math.min(100, nd / min * 100).toFixed(0)}%"></i></span><b>${nd} of ${min} days</b> needed for a verdict; ${d.total.n} sessions (${d.total.n_ante} with levels from before the open)`
+      : "No saved sessions to evaluate yet";
+    $("scanStatus").textContent = d.total.n ? `${d.total.n} sessions on ${nd} days evaluated` : "No saved sessions to evaluate yet";
+    // la tabla ocupa lo que queda de ventana; si hay muchos tickers se desplaza dentro de su caja
+    const tw = document.querySelector(".v-tw");
+    tw.style.maxHeight = `${Math.max(260, Math.round(window.innerHeight - tw.getBoundingClientRect().top - 24))}px`;
   } catch (e) {
     body.innerHTML = `<tr class="err"><td colspan="7" class="l">${esc(e.message)}</td></tr>`;
-    $("validTests").innerHTML = "";
+    $("validTests").innerHTML = ""; $("validDays").innerHTML = ""; $("validProg").textContent = "";
   }
 }
 
@@ -2380,41 +2393,50 @@ function validVerdict(t, minDays, better, calib = false) {
   return better ? { cls: "ok", txt: `Confirmed (${p})` } : { cls: "bad", txt: `Against (${p})` };
 }
 
+// cuatro tarjetas con la pregunta de cada prueba: lo observado frente a la referencia y el veredicto
 function validTestsHtml(d) {
   const T = d.tests, tot = d.total, min = T.min_days;
   // con pocos días la estimación del tamaño necesario tampoco es fiable: solo se da cuando ya hay días suficientes
   const need = (t, unit) => t && t.needed && t.n_days >= min && t.p != null && t.p >= 0.05
-    ? `<span class="vtest-need">An effect this size would need about ${fmtNum(t.needed)} ${unit} to be told apart from chance.</span>` : "";
-  const line = (name, val, t, better, calib = false, unit = "sessions") => {
+    ? `<span class="vtest-need">An effect this size would need about ${fmtNum(t.needed)} ${unit}.</span>` : "";
+  const diff = (a, b) => (a == null || b == null ? "" : `${a - b >= 0 ? "+" : "−"}${fmtNum(Math.abs(a - b), 0)} pts`);
+  // dos barras: lo observado y la referencia
+  const pair = (obs, ref, refLab) => obs == null ? "" : `<div class="v-pair">
+      <span><em>Observed</em><span class="v-tr"><i style="width:${Math.min(100, obs).toFixed(1)}%"></i></span><b>${fmtNum(obs, 0)}%</b></span>
+      ${ref != null ? `<span class="ref"><em>${refLab}</em><span class="v-tr"><i style="width:${Math.min(100, ref).toFixed(1)}%"></i></span><b>${fmtNum(ref, 0)}%</b></span>` : ""}</div>`;
+  const card = (name, q, big, sub, body, t, better, calib = false, unit = "sessions") => {
     const v = validVerdict(t, min, better, calib);
-    return `<div class="vtest-row"><div class="vtest-name">${name}</div><div class="vtest-val">${val}${need(t, unit)}</div>
-      <div class="vtest-verd ${v.cls}">${v.txt}</div></div>`;
+    return `<div class="v-card"><div class="v-ch"><b>${name}</b><span class="vtest-verd ${v.cls}">${v.txt}</span></div>
+      <p class="v-q">${q}</p><div class="v-big">${big}<small>${sub}</small></div>${body}${need(t, unit)}</div>`;
   };
-  const diff = (a, b) => (a == null || b == null ? "" : ` (${a - b >= 0 ? "+" : "−"}${fmtNum(Math.abs(a - b), 0)} pts)`);
-  const wallVal = (held, base) => held == null ? "No sessions" : base == null
-    ? `Held ${fmtNum(held, 0)}% (no baseline: price history too short)`
-    : `Held ${fmtNum(held, 0)}% against ${fmtNum(base, 0)}% for any level at the same distance${diff(held, base)}`;
-  const rg = T.regime || {};
-  const regVal = rg.ratio == null ? "Needs days with both regimes"
-    : `On the same day, the range with negative gamma was ${fmtNum(rg.ratio, 2)}× the range with positive gamma, each relative to its ticker's normal range`;
-  const emVal = tot.em_hit == null ? "No sessions" : `Close inside the range ${fmtNum(tot.em_hit, 0)}% of the time, against 68.3% in theory${diff(tot.em_hit, 68.3)}`;
-  let h = `<div class="vtest-head">Is it better than chance?</div>`;
-  h += line("Call Wall", wallVal(tot.cw_obs_b ?? tot.cw_held, tot.cw_exp), T.cw, (T.cw?.effect ?? 0) > 0);
-  h += line("Put Wall", wallVal(tot.pw_obs_b ?? tot.pw_held, tot.pw_exp), T.pw, (T.pw?.effect ?? 0) > 0);
-  h += line("Gamma regime", regVal, rg, (rg.ratio ?? 1) > 1, false, "days");
-  h += line("1σ range", emVal, T.em, false, true);
-  const bd = d.by_day;
-  if (bd && (bd.event?.n || bd.normal?.n)) {
-    const cell = (x, k, b) => x[k] == null ? "—" : `${fmtNum(x[k], 0)}%${b && x[b] != null ? ` <span class="vtest-dim">(${fmtNum(x[b], 0)}%)</span>` : ""}`;
-    const rr = (x) => x.rr_pos == null || x.rr_neg == null ? "—" : `${fmtNum(x.rr_neg / x.rr_pos, 2)}×`;
-    const r = (lbl, x) => `<tr><td class="l">${lbl}</td><td>${x.n}</td><td>${rr(x)}</td><td>${cell(x, "cw_held", "cw_exp")}</td>
-      <td>${cell(x, "pw_held", "pw_exp")}</td><td>${cell(x, "em_hit")}</td></tr>`;
-    h += `<div class="vtest-sub">Event days (monthly expiration, FOMC, CPI, payrolls) against the rest. Baseline in parentheses.</div>
-      <table class="scan vtest-tab"><thead><tr><th class="l">Days</th><th>Sessions</th><th>Range, gamma − / +</th>
-      <th>Call Wall held</th><th>Put Wall held</th><th>Inside 1σ</th></tr></thead>
-      <tbody>${r("Normal", bd.normal)}${r("Event", bd.event)}</tbody></table>`;
-  }
+  const cwO = tot.cw_obs_b ?? tot.cw_held, pwO = tot.pw_obs_b ?? tot.pw_held, rg = T.regime || {};
+  let h = card("Call Wall", "Does the high stop at the Call Wall more than at any level that far?", cwO == null ? "—" : `${fmtNum(cwO, 0)}%`,
+    tot.cw_exp == null ? "held, no baseline yet" : `held, ${diff(cwO, tot.cw_exp)} vs. baseline`, pair(cwO, tot.cw_exp, "Any level"), T.cw, (T.cw?.effect ?? 0) > 0);
+  h += card("Put Wall", "Does the low stop at the Put Wall more than at any level that far?", pwO == null ? "—" : `${fmtNum(pwO, 0)}%`,
+    tot.pw_exp == null ? "held, no baseline yet" : `held, ${diff(pwO, tot.pw_exp)} vs. baseline`, pair(pwO, tot.pw_exp, "Any level"), T.pw, (T.pw?.effect ?? 0) > 0);
+  h += card("Gamma regime", "With negative gamma, is the day's range wider than with positive gamma?", rg.ratio == null ? "—" : `${fmtNum(rg.ratio, 2)}×`,
+    rg.ratio == null ? "needs days with both regimes" : "range with gamma − against gamma +, same day",
+    rg.ratio == null ? "" : `<div class="v-ratio"><span style="flex:1"><i></i>gamma +</span><span style="flex:${Math.max(0.2, rg.ratio).toFixed(2)}"><i></i>gamma −</span></div>`, rg, (rg.ratio ?? 1) > 1, false, "days");
+  h += card("1σ range", "Does the close stay inside the expected 1σ range 68.3% of the time?", tot.em_hit == null ? "—" : `${fmtNum(tot.em_hit, 0)}%`,
+    tot.em_hit == null ? "" : `inside, ${diff(tot.em_hit, 68.3)} vs. theory`, pair(tot.em_hit, 68.3, "Theory"), T.em, false, true);
   return h;
+}
+
+// dias con evento (vencimiento mensual, FOMC, CPI, empleo) frente al resto
+function validDaysHtml(d) {
+  const bd = d.by_day;
+  if (!bd || !(bd.event?.n || bd.normal?.n)) return "";
+  const pc = (x, k, b) => x[k] == null ? "—" : `${fmtNum(x[k], 0)}%${b && x[b] != null ? ` <small>vs ${fmtNum(x[b], 0)}%</small>` : ""}`;
+  const rr = (x) => x.rr_pos == null || x.rr_neg == null ? "—" : `${fmtNum(x.rr_neg / x.rr_pos, 2)}×`;
+  const r = (lbl, k, f) => `<tr><td class="l">${lbl}</td><td>${f(bd.normal || {}, k)}</td><td>${f(bd.event || {}, k)}</td></tr>`;
+  return `<div class="oi-side-h"><b>Event days</b><span>monthly expiration, FOMC, CPI, payrolls</span></div>
+    <table class="oi-t v-dt"><thead><tr><th class="l"></th><th>Normal</th><th>Event</th></tr></thead><tbody>
+    ${r("Sessions", "n", (x) => x.n ?? "—")}
+    ${r("Range, gamma − / +", "", rr)}
+    ${r("Call Wall held", "cw_held", (x) => pc(x, "cw_held", "cw_exp"))}
+    ${r("Put Wall held", "pw_held", (x) => pc(x, "pw_held", "pw_exp"))}
+    ${r("Inside 1σ", "em_hit", (x) => pc(x, "em_hit"))}
+    </tbody></table><p class="v-dn">After "vs", the baseline: any level at the same distance.</p>`;
 }
 
 async function loadCompass(force = false) {

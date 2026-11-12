@@ -1,14 +1,16 @@
 """
-GEX Lab - calendario macro de EE. UU. para marcar los eventos sobre la estructura temporal de volatilidad.
+GEX Lab - calendario macro: eventos de EE. UU. para la estructura temporal de volatilidad y la Validacion, y los
+de los paises grandes para la pagina Calendar, con dato real (actual), consenso (forecast) y anterior (previous).
 
 Fuentes (todas publicas):
-  - Reserva Federal: reuniones del FOMC (pagina del calendario)
+  - Nasdaq (principal): calendario economico por dia con actual, consenso y anterior de 20 paises; se usan 11.
+    Cubre de 7 dias atras a 21 adelante. La importancia la pone la tabla IMPORTANCIA (Nasdaq no la da).
+  - Reserva Federal: reuniones del FOMC (pagina del calendario), para el futuro lejano
   - BEA: PIB y renta/gasto personal (PCE), calendario ICS oficial
   - Census: ventas minoristas, bienes duraderos, construccion y venta de viviendas (calendario oficial)
-  - ForexFactory: la semana en curso (IPC, empleo, IPP, ISM, Michigan, peticiones de desempleo...). Las semanas
-    ya vistas se conservan en el estado, asi que el historico se va completando solo.
   - FRED (opcional, con FRED_API_KEY): fechas futuras exactas de IPC, empleo, IPP, JOLTS, etc.
-Publica pub/eventos.json: [{date, time, name, imp}] desde hace 30 dias hasta un ano vista.
+Misma fecha, pais y etiqueta: gana la ultima fuente (Nasdaq va al final).
+Publica pub/eventos.json (EE. UU.), pub/calendario.json (11 paises) y pub/eventos_horas.json (avisos).
 """
 from __future__ import annotations
 
@@ -24,7 +26,7 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like
       "Chrome/130.0 Safari/537.36")
 STATE = os.path.join(g.CACHE_DIR, "eventos.json")
 GUARDAR_ANOS = 3
-VERSION = 3  # al cambiar las fuentes o las etiquetas, se fuerza una actualizacion y se descarta lo guardado con otra version
+VERSION = 4  # al cambiar las fuentes o las etiquetas, se fuerza una actualizacion y se descarta lo guardado con otra version
 MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 MONTHS = {m: i + 1 for i, m in enumerate(["January", "February", "March", "April", "May", "June", "July",
                                            "August", "September", "October", "November", "December"])}
@@ -111,37 +113,6 @@ def census() -> list[dict]:
     return out
 
 
-FF_NAMES = [
-    (r"^CPI m/m", "CPI", 3), (r"^Core CPI m/m", None, 0), (r"^Non-Farm Employment Change", "Payrolls (NFP)", 3),
-    (r"^PPI m/m", "PPI", 2), (r"^ISM Manufacturing PMI", "ISM manufacturing", 2), (r"^ISM Services PMI", "ISM services", 2),
-    (r"^Unemployment Claims", "Jobless claims", 1), (r"^(Prelim|Revised) UoM Consumer Sentiment", "Michigan", 1),
-    (r"^JOLTS Job Openings", "JOLTS", 2), (r"^Retail Sales m/m", "Retail sales", 2), (r"^Core PCE Price Index m/m", "PCE", 3),
-    (r"^FOMC Statement", "FOMC", 3), (r"^(Advance|Prelim|Final) GDP q/q", "GDP", 2), (r"^FOMC Meeting Minutes", "FOMC minutes", 2),
-    (r"^Fed Chair .* Speaks", "Fed Chair speaks", 2), (r"^CB Consumer Confidence", "Consumer confidence", 1),
-]
-
-
-def forexfactory() -> list[dict]:
-    data = json.loads(_get("https://nfs.faireconomy.media/ff_calendar_thisweek.json"))
-    out = []
-    for e in data:
-        if e.get("country") != "USD":
-            continue
-        name = next(((n, i) for rx, n, i in FF_NAMES if re.search(rx, e.get("title", ""))), None)
-        if not name or not name[0]:
-            continue
-        try:
-            dt = datetime.fromisoformat(e["date"])
-        except (KeyError, ValueError):
-            continue
-        ny = _ny(dt)
-        nm = name[0]
-        if nm in ("CPI", "PPI", "Payrolls (NFP)", "PCE", "Retail sales", "JOLTS"):
-            nm = f"{nm} ({_ref_month(ny, 2 if nm == 'JOLTS' else 1)})"
-        out.append({"date": ny.strftime("%Y-%m-%d"), "time": ny.strftime("%H:%M"), "name": nm, "imp": name[1]})
-    return out
-
-
 # id de cada publicacion en FRED: (etiqueta, importancia, meses de retraso del dato)
 FRED_RELEASES = {10: ("CPI", 3, 1), 50: ("Payrolls (NFP)", 3, 1), 46: ("PPI", 2, 1), 192: ("JOLTS", 2, 2),
                  91: ("Michigan", 1, None), 180: ("Jobless claims", 1, None)}
@@ -166,6 +137,100 @@ def fred() -> list[dict]:
             nm = name if lag is None else f"{name} ({_ref_month(d, lag)})"
             out.append({"date": r["date"], "time": "10:00" if name in ("Michigan", "JOLTS") else "08:30", "name": nm, "imp": imp})
     return out
+
+
+# ---------------------------------------------------------------- Nasdaq
+NASDAQ_URL = "https://api.nasdaq.com/api/calendar/economicevents?date={}"
+PAISES = {"United States": "US", "Euro Zone": "EZ", "Germany": "DE", "France": "FR", "Italy": "IT",
+          "United Kingdom": "GB", "Japan": "JP", "China": "CN", "Canada": "CA", "Australia": "AU", "Switzerland": "CH"}
+# (pais, regex anclado sobre eventName, importancia, etiqueta o None, meses de retraso del dato o None).
+# Lo que no esta aqui: importancia 1 y el nombre de Nasdaq. Las etiquetas de EE. UU. son las de siempre (Summary,
+# estructura de volatilidad, Validacion). (*) sin ver aun en datos reales de Nasdaq: patron provisional.
+IMPORTANCIA = [
+    ("US", r"^Fed Interest Rate Decision$", 3, "FOMC", None),
+    ("US", r"^FOMC Press Conference$", 3, None, None),
+    ("US", r"^CPI$", 3, "CPI", 1),
+    ("US", r"^Nonfarm Payrolls$", 3, "Payrolls (NFP)", 1),  # (*)
+    ("US", r"^(Core PCE Price Index|PCE price index)$", 3, "PCE", 1),
+    ("US", r"^PPI$", 2, "PPI", 1),
+    ("US", r"^Retail Sales$", 2, "Retail sales", 1),
+    ("US", r"^GDP$", 2, "GDP", None),
+    ("US", r"^ISM Manufacturing PMI$", 2, "ISM manufacturing", None),
+    ("US", r"^ISM Non-Manufacturing PMI$", 2, "ISM services", None),
+    ("US", r"^JOLTS Job Openings$", 2, "JOLTS", 2),
+    ("US", r"^FOMC Meeting Minutes$", 2, "FOMC minutes", None),
+    ("US", r"^Fed Chair .* Speaks$", 2, "Fed Chair speaks", None),
+    ("US", r"^Durable Goods Orders$", 2, "Durable goods", None),
+    ("US", r"^CB Consumer Confidence$", 2, "Consumer confidence", None),
+    ("US", r"^Michigan Consumer Sentiment", 2, "Michigan", None),  # (*)
+    ("US", r"^Initial Jobless Claims$", 1, "Jobless claims", None),
+    ("US", r"^Housing Starts$", 1, "Housing starts", None),
+    ("US", r"^New Home Sales$", 1, "New home sales", None),
+    ("EZ", r"^ECB Interest Rate Decision$", 3, None, None),
+    ("EZ", r"^ECB Press Conference$", 3, None, None),
+    ("EZ", r"^CPI$", 3, None, None),
+    ("EZ", r"^Core CPI$", 2, None, None),
+    ("EZ", r"^ECB President Lagarde Speaks$", 2, None, None),
+    ("EZ", r"^HCOB Eurozone Composite PMI$", 2, None, None),
+    ("EZ", r"^ZEW Economic Sentiment$", 2, None, None),
+    ("EZ", r"^GDP$", 2, None, None),  # (*)
+    ("DE", r"^German CPI$", 2, None, None),
+    ("DE", r"^German Ifo Business Climate Index$", 2, None, None),
+    ("DE", r"^German ZEW Economic Sentiment$", 2, None, None),
+    ("DE", r"^HCOB Germany (Manufacturing|Services) PMI$", 2, None, None),
+    ("FR", r"^French CPI$", 2, None, None),
+    ("IT", r"^Italian CPI$", 2, None, None),
+    ("GB", r"^BoE Interest Rate Decision$", 3, None, None),
+    ("GB", r"^CPI$", 3, None, None),
+    ("GB", r"^GDP$", 2, None, None),
+    ("GB", r"^Unemployment Rate$", 2, None, None),
+    ("GB", r"^BoE Gov Bailey Speaks$", 2, None, None),
+    ("GB", r"^S&P Global (Services|Manufacturing) PMI$", 2, None, None),
+    ("JP", r"^BoJ Interest Rate Decision$", 3, None, None),
+    ("JP", r"^(National|Tokyo) CPI$", 2, None, None),
+    ("JP", r"^GDP$", 2, None, None),
+    ("JP", r"^Reuters Tankan Index$", 2, None, None),
+    ("CN", r"^(CPI|GDP|Industrial Production|Retail Sales|RatingDog Manufacturing PMI)$", 2, None, None),
+    ("CA", r"^BoC Interest Rate Decision$", 3, None, None),
+    ("CA", r"^(CPI|BOC Press Conference)$", 2, None, None),
+    ("AU", r"^RBA Interest Rate Decision$", 3, None, None),
+    ("AU", r"^(CPI|Monthly CPI Indicator|Employment Change|Unemployment Rate)$", 2, None, None),
+    ("CH", r"^SNB Monetary Policy Assessment$", 3, None, None),
+    ("CH", r"^CPI$", 2, None, None),
+]
+
+
+def _valor(s) -> str | None:
+    s = str(s or "").replace("&nbsp;", " ").strip()
+    return s or None
+
+
+def nasdaq_fila(r: dict, d: datetime) -> dict | None:
+    """Fila de Nasdaq -> evento, o None si el pais no interesa. La hora ('gmt') ya viene en hora de Nueva York."""
+    pais = PAISES.get(r.get("country"))
+    nombre = _valor(r.get("eventName"))
+    if not pais or not nombre:
+        return None
+    hora = _valor(r.get("gmt")) or ""
+    hora = hora if re.fullmatch(r"\d{2}:\d{2}", hora) else ""
+    imp, nm = 1, nombre
+    for p, rx, i, etiqueta, retraso in IMPORTANCIA:
+        if p == pais and re.search(rx, nombre):
+            imp = i
+            if etiqueta:
+                nm = etiqueta if retraso is None else f"{etiqueta} ({_ref_month(d, retraso)})"
+            break
+    return {"date": d.strftime("%Y-%m-%d"), "time": hora, "name": nm, "country": pais, "imp": imp,
+            "actual": _valor(r.get("actual")), "forecast": _valor(r.get("consensus")), "previous": _valor(r.get("previous"))}
+
+
+def nasdaq_dia(d: datetime) -> list[dict]:
+    req = urllib.request.Request(NASDAQ_URL.format(d.strftime("%Y-%m-%d")),
+                                 headers={"User-Agent": UA, "Accept": "application/json", "Accept-Language": "en-US,en;q=0.9"})
+    with urllib.request.urlopen(req, timeout=25, context=g._SSL_CTXS[0]) as r:
+        data = json.loads(r.read().decode("utf-8", "replace"))
+    filas = ((data or {}).get("data") or {}).get("rows") or []
+    return [e for e in (nasdaq_fila(f, d) for f in filas) if e]
 
 
 # ---------------------------------------------------------------- union

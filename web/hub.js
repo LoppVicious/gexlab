@@ -202,7 +202,9 @@ function paintHub(d) {
     ${hubRow("Put/call ratio (OI)", hb.pc_oi != null ? fmtNum(hb.pc_oi, 2) : "—")}
     ${d.model === "spotgamma" ? hubRow("Implied dividend", d.dividend && d.dividend.ref != null ? fmtNum(d.dividend.ref * 100, 2) + "%" : "not measured", d.dividend && d.dividend.n ? `put-call parity, ${d.dividend.n} exp.` : "European indices only") : ""}`;
   card.hidden = false;
-  const rows = (hub.scan || []).filter((r) => !r.error);
+  // de mas sube a mas baja en el dia; sin variacion, al final
+  const rows = (hub.scan || []).filter((r) => !r.error)
+    .sort((a, b) => (b.chg != null ? b.chg : -Infinity) - (a.chg != null ? a.chg : -Infinity));
   wl.innerHTML = `<div class="htitle">Watchlist</div>` + (rows.length
     ? `<table class="hwl"><thead><tr><th class="l">Ticker</th><th>Price</th><th>Chg.</th></tr></thead><tbody>${rows.map((r) =>
       `<tr data-s="${esc(r.symbol)}" class="${r.symbol === d.symbol ? "on" : ""}"><td class="l">${esc(r.symbol)}</td><td>${fmtSpot(r.spot)}</td><td class="${r.chg > 0 ? "up" : r.chg < 0 ? "dn" : ""}">${r.chg != null ? fmtPct(r.chg) : "—"}</td></tr>`).join("")}</tbody></table>`

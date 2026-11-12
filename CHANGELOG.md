@@ -11,7 +11,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   grandes. **Daylight** (claro): fondo gris lavanda, tarjetas blancas con sombra suave, acento índigo y letra DM Sans.
   Los rótulos dejan de ir en mayúsculas, los gráficos usan la letra y los colores de cada tema, y el inicio de sesión
   y el alta siguen el mismo estilo.
-- **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (un clic carga el ticker; se pliega con la
+- **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (ordenada de la que más sube a la que más baja en el
+  día; un clic carga el ticker; se pliega con la
   flecha de su cabecera y el gráfico gana ese ancho, y la elección se recuerda), en el centro el
   gráfico y a la derecha el precio, el régimen, los niveles y el Net GEX. Debajo, un panel con pestañas reúne lo que
   antes era una columna muy larga: **Profile**, **Flows** (rango 1σ, vanna, charm, vencimiento próximo y gamma por

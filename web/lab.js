@@ -7,11 +7,46 @@
    Muestra lecturas (coste, maximos, puntos muertos, probabilidad), una frase con lo esencial, el P&L por precio al
    primer vencimiento, hoy y en la fecha elegida (con un cambio de IV), las griegas netas y una matriz de escenarios. */
 
-const LAB_PRESETS = [
-  ["lc", "Long call"], ["lp", "Long put"], ["sc", "Short call"], ["sp", "Short put"], ["bcs", "Bull call spread"],
-  ["bps", "Bear put spread"], ["str", "Straddle"], ["stg", "Strangle"], ["ic", "Iron condor"], ["fly", "Butterfly"],
-  ["cal", "Calendar"], ["cc", "Covered call"], ["pp", "Protective put"],
+/* Catalogo de estrategias por familia. Cada pata: [lado, tipo, strike en sigmas del movimiento a ~30 dias, opciones]
+   (qty: contratos; far: vencimiento lejano). La galeria dibuja su perfil con el mismo modelo que el constructor. */
+const LAB_CATS = [
+  ["dir", "Directional", "Bet that the price will go up or down."],
+  ["inc", "Income", "Earn premium by selling options."],
+  ["vol", "Volatility", "Profit from how much the price moves, not where."],
+  ["neu", "Neutral", "Profit if the price stays near a level."],
+  ["hed", "Hedging", "Protect a stock position from losses."],
 ];
+const LAB_STRATS = [
+  ["dir", "lc", "Long call", "Buy a call: bet on a rise with limited risk.", "Bullish", [[1, "C", 0]]],
+  ["dir", "lp", "Long put", "Buy a put: bet on a fall with limited risk.", "Bearish", [[1, "P", 0]]],
+  ["dir", "bcs", "Bull call spread", "Buy a call, sell a higher one: a cheaper bet on a moderate rise, profit capped.", "Slightly bullish", [[1, "C", 0], [-1, "C", 0.6]]],
+  ["dir", "bps", "Bear put spread", "Buy a put, sell a lower one: a cheaper bet on a moderate fall, profit capped.", "Slightly bearish", [[1, "P", 0], [-1, "P", -0.6]]],
+  ["dir", "syl", "Synthetic long", "Long call plus short put: moves like owning the stock.", "Bullish", [[1, "C", 0], [-1, "P", 0]]],
+  ["dir", "sys", "Synthetic short", "Long put plus short call: moves like shorting the stock.", "Bearish", [[1, "P", 0], [-1, "C", 0]]],
+  ["inc", "sp", "Short put", "Sell a put: earn the premium if the price holds, or buy the stock cheaper.", "Slightly bullish", [[-1, "P", -0.6]]],
+  ["inc", "sc", "Short call", "Sell a call: earn the premium if the price stays below the strike. Unlimited risk.", "Slightly bearish", [[-1, "C", 0.6]]],
+  ["inc", "bups", "Bull put spread", "Sell a put, buy a lower one: earn premium if the price holds or rises.", "Slightly bullish", [[-1, "P", 0], [1, "P", -0.6]]],
+  ["inc", "becs", "Bear call spread", "Sell a call, buy a higher one: earn premium if the price holds or falls.", "Slightly bearish", [[-1, "C", 0], [1, "C", 0.6]]],
+  ["inc", "sstg", "Short strangle", "Sell a call and a put apart: earn premium if the price stays in a range. Unlimited risk.", "Range bound", [[-1, "C", 0.6], [-1, "P", -0.6]]],
+  ["inc", "sstr", "Short straddle", "Sell a call and a put at one strike: most premium if the price does not move. Unlimited risk.", "Near strike", [[-1, "C", 0], [-1, "P", 0]]],
+  ["inc", "ic", "Iron condor", "Sell two spreads: earn premium if the price stays in a range, with limited risk.", "Range bound", [[-1, "P", -0.6], [1, "P", -1.1], [-1, "C", 0.6], [1, "C", 1.1]]],
+  ["inc", "ifly", "Iron butterfly", "Sell a straddle with wings: more premium, profit only near the strike.", "Near strike", [[-1, "P", 0], [-1, "C", 0], [1, "P", -0.8], [1, "C", 0.8]]],
+  ["inc", "jl", "Jade lizard", "Short put plus a call spread: premium with no risk above.", "Slightly bullish", [[-1, "P", -0.6], [-1, "C", 0.6], [1, "C", 1.1]]],
+  ["vol", "str", "Long straddle", "Buy a call and a put at one strike: bet on a big move either way.", "Either direction", [[1, "C", 0], [1, "P", 0]]],
+  ["vol", "stg", "Long strangle", "Buy a call and a put apart: cheaper than a straddle, needs a bigger move.", "Either direction", [[1, "C", 0.6], [1, "P", -0.6]]],
+  ["vol", "strap", "Strap", "Two calls plus a put: a big move, more likely up.", "Either direction", [[1, "C", 0, { qty: 2 }], [1, "P", 0]]],
+  ["vol", "strip", "Strip", "Two puts plus a call: a big move, more likely down.", "Either direction", [[1, "C", 0], [1, "P", 0, { qty: 2 }]]],
+  ["vol", "ric", "Reverse iron condor", "Buy two spreads: profit if the price leaves the range. Limited risk.", "Either direction", [[1, "P", -0.6], [-1, "P", -1.1], [1, "C", 0.6], [-1, "C", 1.1]]],
+  ["neu", "fly", "Call butterfly", "Three call strikes: profit if the price ends near the middle one.", "Near strike", [[1, "C", -0.6], [-1, "C", 0, { qty: 2 }], [1, "C", 0.6]]],
+  ["neu", "pfly", "Put butterfly", "Three put strikes: profit if the price ends near the middle one.", "Near strike", [[1, "P", 0.6], [-1, "P", 0, { qty: 2 }], [1, "P", -0.6]]],
+  ["neu", "cal", "Call calendar", "Sell a near call, buy a later one: profit from time if the price stays near the strike.", "Near strike", [[-1, "C", 0], [1, "C", 0, { far: 1 }]]],
+  ["neu", "pcal", "Put calendar", "Sell a near put, buy a later one: profit from time if the price stays near the strike.", "Near strike", [[-1, "P", 0], [1, "P", 0, { far: 1 }]]],
+  ["hed", "pp", "Protective put", "Stock plus a put: insurance against a fall.", "Bullish", [[1, "S", 0], [1, "P", -0.6]]],
+  ["hed", "cc", "Covered call", "Stock plus a short call: earn premium, give up the gains above the strike.", "Slightly bullish", [[1, "S", 0], [-1, "C", 0.6]]],
+  ["hed", "col", "Collar", "Stock, a put below and a call sold above: protection paid by the call.", "Slightly bullish", [[1, "S", 0], [1, "P", -0.6], [-1, "C", 0.6]]],
+  ["hed", "cp", "Covered put", "Short stock plus a short put: earn premium on a short position.", "Slightly bearish", [[-1, "S", 0], [-1, "P", -0.6]]],
+].map(([cat, k, n, d, tag, legs]) => ({ cat, k, n, d, tag, legs }));
+const labStrat = (k) => LAB_STRATS.find((s) => s.k === k);
 const LAB_HYP = { S: 450, r: 4.5, q: 0, iv: 20 };
 
 function labLoad(k, d) { try { const v = JSON.parse(store.get(k, "null")); return v == null ? d : v; } catch { return d; } }
@@ -19,12 +54,29 @@ const lab = {
   mode: store.get("labMode", "live") === "hyp" ? "hyp" : "live",
   hyp: Object.assign({}, LAB_HYP, labLoad("labHyp", {})),
   sym: "", ch: null, legs: [], hypLegs: null, passed: 0, shift: 0, ctrl: null, built: false, nid: 1,
-  saved: labLoad("labLegs", {}),
+  saved: labLoad("labLegs", {}), greek: store.get("labGreek", "none"), zoom: 1,
+  page: store.get("labPage", "pick") === "build" ? "build" : "pick", strats: labLoad("labStrats", {}),
 };
+function labPage(p) {
+  lab.page = p; store.set("labPage", p);
+  $("labPick").hidden = p !== "pick"; $("labBuildPane").hidden = p !== "build";
+  $("labView").classList.toggle("lab-on-build", p === "build");
+  if (p === "pick") labGallery(); else labRender();
+  window.scrollTo(0, 0);
+}
+// nombre de la estrategia de cada ticker (y de Hypothetical), junto a sus patas guardadas
+const labKey = () => (labLive() ? lab.sym : "~hyp");
+const labCur = () => lab.strats[labKey()] || "";
+function labSetStrat(k) {
+  const key = labKey(); delete lab.strats[key];
+  if (k) lab.strats[key] = k;
+  const ks = Object.keys(lab.strats); while (ks.length > 8) delete lab.strats[ks.shift()];
+  store.set("labStrats", JSON.stringify(lab.strats));
+}
 
 /* ---------------------------------------------------------------- guardar (la nube corta cada preferencia a 2.000) */
-const labPack = (l) => [l.side, l.qty, l.kind, l.exp || l.days, l.K, +(+l.iv).toFixed(4), +(+l.entry).toFixed(2), l.auto ? 1 : 0];
-const labUnpack = (a, live) => ({ id: lab.nid++, side: a[0], qty: a[1], kind: a[2], [live ? "exp" : "days"]: a[3], K: a[4], iv: a[5], entry: a[6], auto: !!a[7] });
+const labPack = (l) => [l.side, l.qty, l.kind, l.exp || l.days, l.K, +(+l.iv).toFixed(4), +(+l.entry).toFixed(2), l.auto ? 1 : 0, l.off ? 1 : 0];
+const labUnpack = (a, live) => ({ id: lab.nid++, side: a[0], qty: a[1], kind: a[2], [live ? "exp" : "days"]: a[3], K: a[4], iv: a[5], entry: a[6], auto: !!a[7], off: !!a[8] });
 function labSave() {
   if (lab.mode === "live" && lab.sym) {
     delete lab.saved[lab.sym];
@@ -58,12 +110,14 @@ function labValue(l, x, d) {
   const T = Math.max(labDays(l) - d, 0) / 365;
   return BS.price(x, l.K, T, labR(), labQ(l), Math.max(l.iv + lab.shift / 100, 0.005), l.kind === "C");
 }
+// patas activas: el ojo de la tabla saca una pata del grafico y de las cifras sin borrarla
+const labOn = () => lab.legs.filter((l) => !l.off);
 function labPnL(x, d) {
   let s = 0;
-  for (const l of lab.legs) s += l.side * l.qty * labMult(l) * (labValue(l, x, d) - l.entry);
+  for (const l of labOn()) s += l.side * l.qty * labMult(l) * (labValue(l, x, d) - l.entry);
   return s;
 }
-const labOpts = () => lab.legs.filter((l) => l.kind !== "S");
+const labOpts = () => labOn().filter((l) => l.kind !== "S");
 function labFirst() { const o = labOpts(); return o.length ? o.reduce((a, b) => (labDays(a) <= labDays(b) ? a : b)) : null; }
 function labLast() { const o = labOpts(); return o.length ? o.reduce((a, b) => (labDays(a) >= labDays(b) ? a : b)) : null; }
 function labHorizon() { const f = labFirst(); return f ? Math.max(labDays(f), 0) : 30; }
@@ -107,21 +161,45 @@ function labPreset(p) {
     e = expNear(lab.ch, 30); far = expNear(lab.ch, Math.max(60, e.days + 25));
     sig = ivAt(lab.ch, e.i, nearestStrike(strikesOf(lab.ch, e.i), e.fwd), true) * Math.sqrt(Math.max(e.T, 1 / 365));
   } else sig = lab.hyp.iv / 100 * Math.sqrt(30 / 365);
-  const at = (k) => S * (1 + k * sig);
-  const L = (side, kind, k, o = {}) => labLeg(side, kind, at(k), { e, ...o });
-  const P = {
-    lc: () => [L(1, "C", 0)], lp: () => [L(1, "P", 0)],
-    sc: () => [L(-1, "C", 0.6)], sp: () => [L(-1, "P", -0.6)],
-    bcs: () => [L(1, "C", 0), L(-1, "C", 0.6)], bps: () => [L(1, "P", 0), L(-1, "P", -0.6)],
-    str: () => [L(1, "C", 0), L(1, "P", 0)], stg: () => [L(1, "C", 0.6), L(1, "P", -0.6)],
-    ic: () => [L(-1, "P", -0.6), L(1, "P", -1.1), L(-1, "C", 0.6), L(1, "C", 1.1)],
-    fly: () => [L(1, "C", -0.6), L(-1, "C", 0, { qty: 2 }), L(1, "C", 0.6)],
-    cal: () => [L(-1, "C", 0), L(1, "C", 0, { e: far, days: 60 })],
-    cc: () => [L(1, "S", 0), L(-1, "C", 0.6)], pp: () => [L(1, "S", 0), L(1, "P", -0.6)],
-  };
-  lab.legs = P[p]();
+  const s = labStrat(p) || labStrat("lc");
+  lab.legs = s.legs.map(([side, kind, k, o = {}]) => labLeg(side, kind, S * (1 + k * sig), { e: o.far ? far : e, days: o.far ? 60 : 30, qty: o.qty }));
   lab.passed = 0;
-  labSave(); labRender();
+  labSetStrat(s.k);
+  labSave();
+  if (lab.page !== "build") labPage("build"); else labRender();
+}
+
+/* ---------------------------------------------------------------- galeria: perfil de cada estrategia al vencimiento */
+function labShape(s) {
+  const S = 100, v = 0.25, T = 30 / 365, sig = v * Math.sqrt(T), r = 0.03;
+  const legs = s.legs.map(([side, kind, k, o = {}]) => {
+    const K = S * (1 + k * sig), t = o.far ? 60 / 365 : T, qty = o.qty || 1;
+    return { side, kind, K, t, qty, entry: kind === "S" ? S : BS.price(S, K, t, r, 0, v, kind === "C") };
+  });
+  const pnl = (x) => legs.reduce((a, l) => a + l.side * l.qty * ((l.kind === "S" ? x : l.t - T > 1e-9 ? BS.price(x, l.K, l.t - T, r, 0, v, l.kind === "C") : Math.max(0, l.kind === "C" ? x - l.K : l.K - x)) - l.entry), 0);
+  const W = 200, H = 84, lo = S * (1 - 3.4 * sig), hi = S * (1 + 3.4 * sig), n = 120;
+  const pts = Array.from({ length: n + 1 }, (_, i) => { const x = lo + (hi - lo) * i / n; return [x, pnl(x)]; });
+  let ymax = Math.max(0, ...pts.map((p) => p[1])), ymin = Math.min(0, ...pts.map((p) => p[1]));
+  const span = (ymax - ymin) || 1; ymax += span * 0.06; ymin -= span * 0.06;
+  const X = (x) => ((x - lo) / (hi - lo)) * W, Y = (y) => 4 + ((ymax - y) / (ymax - ymin)) * (H - 8);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join("");
+  const z = Y(0).toFixed(1), area = `${line}L${W} ${z}L0 ${z}Z`, id = `lsh-${s.k}`;
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <clipPath id="${id}u"><rect x="0" y="0" width="${W}" height="${z}"/></clipPath><clipPath id="${id}d"><rect x="0" y="${z}" width="${W}" height="${H}"/></clipPath>
+    <line class="lsh-mid" x1="${W / 2}" x2="${W / 2}" y1="0" y2="${H}"/><line class="lsh-zero" x1="0" x2="${W}" y1="${z}" y2="${z}"/>
+    <path class="lsh-a up" d="${area}" clip-path="url(#${id}u)"/><path class="lsh-a dn" d="${area}" clip-path="url(#${id}d)"/>
+    <path class="lsh-l up" d="${line}" clip-path="url(#${id}u)"/><path class="lsh-l dn" d="${line}" clip-path="url(#${id}d)"/></svg>`;
+}
+const LAB_TAG = { Bullish: "up", "Slightly bullish": "up", Bearish: "dn", "Slightly bearish": "dn", "Range bound": "nt", "Near strike": "nt", "Either direction": "vo" };
+function labGallery() {
+  const cur = lab.legs.length ? (labStrat(labCur())?.n || "Custom strategy") : "";
+  $("labPick").innerHTML = `
+    <div class="lab-pick-head"><div><h2>Strategies${lab.sym && labLive() ? ` for ${esc(lab.sym)}` : ""}</h2>
+      <p>Pick a ready-made strategy and adjust it, or build one from scratch. Strikes start around the expected move to the nearest monthly expiration.</p></div>
+      <div class="lab-pick-go">${cur ? `<button type="button" class="lab-pill on" data-a="resume">Back to ${esc(cur)}</button>` : ""}<button type="button" class="lab-pill" data-a="scratch">Build from scratch</button></div></div>
+    ${LAB_CATS.map(([c, t, d]) => `<section class="lab-fam"><h3>${t}</h3><p>${d}</p><div class="lab-cards">${LAB_STRATS.filter((s) => s.cat === c).map((s) => `
+      <button type="button" class="lab-card${s.k === labCur() && lab.legs.length ? " cur" : ""}" data-p="${s.k}">
+        <span class="lab-shape">${labShape(s)}</span><b>${s.n}</b><span class="lab-cd">${s.d}</span><i class="lab-tag ${LAB_TAG[s.tag] || ""}">${s.tag}</i></button>`).join("")}</div></section>`).join("")}`;
 }
 
 /* ---------------------------------------------------------------- estadisticas */
@@ -156,13 +234,23 @@ function labStats() {
       if (win) pop += BS.probAbove(S, a, T, r, q, v) - (b === Infinity ? 0 : BS.probAbove(S, b, T, r, q, v));
     }
   }
-  const cost = lab.legs.reduce((s, l) => s + l.side * l.qty * labMult(l) * l.entry, 0);
-  const now = lab.legs.reduce((s, l) => s + l.side * l.qty * labMult(l) * labValue(l, S, 0), 0);
+  const cost = labOn().reduce((s, l) => s + l.side * l.qty * labMult(l) * l.entry, 0);
+  const now = labOn().reduce((s, l) => s + l.side * l.qty * labMult(l) * labValue(l, S, 0), 0);
   return { mx: slope >= 1 ? Infinity : mx, mn: slope <= -1 ? -Infinity : mn, bes, pop, zones, cost, now, H, first: f };
+}
+// griega de la posicion con el subyacente en x, d dias despues de hoy (para el grafico)
+function labGreekAt(x, d, k) {
+  let s = 0;
+  for (const l of labOn()) {
+    const n = l.side * l.qty * labMult(l);
+    if (l.kind === "S") { if (k === "delta") s += n; continue; }
+    s += n * BS.greeks(x, l.K, Math.max(labDays(l) - d, 0) / 365, labR(), labQ(l), Math.max(l.iv + lab.shift / 100, 0.005), l.kind === "C")[k];
+  }
+  return s;
 }
 function labGreeks() {
   const g = { delta: 0, gamma: 0, theta: 0, vega: 0, rho: 0 };
-  for (const l of lab.legs) {
+  for (const l of labOn()) {
     const n = l.side * l.qty * labMult(l);
     if (l.kind === "S") { g.delta += n; continue; }
     const x = BS.greeks(labS(), l.K, Math.max(labDays(l), 0) / 365, labR(), labQ(l), Math.max(l.iv + lab.shift / 100, 0.005), l.kind === "C");
@@ -200,30 +288,46 @@ function labBuild() {
     <label>Rate <input data-h="r" inputmode="decimal"><i>%</i></label>
     <label>Dividend yield <input data-h="q" inputmode="decimal"><i>%</i></label>
   </div>
-  <section class="lab-panel lab-legs-panel">
-    <div class="lab-cap"><span>Position</span><span class="lab-presets" id="labPresets" role="group" aria-label="Strategies">${LAB_PRESETS.map(([k, t]) => `<button type="button" data-p="${k}">${t}</button>`).join("")}</span></div>
-    <div id="labLegs"></div>
-  </section>
-  <div class="lab-read" id="labRead"></div>
-  <p class="lab-say" id="labSay"></p>
-  <div class="lab-grid">
-    <section class="lab-panel">
-      <div class="lab-cap"><span>Profit and loss by price</span><span id="labCapR"></span></div>
-      <div class="ss-chart lab-scope" id="labChart" role="img" aria-label="Position profit and loss by underlying price"></div>
-      <div class="lab-faders">
-        <label class="lab-fader"><span>Date <b id="labPassedV"></b></span><input type="range" id="labPassed" min="0" max="30" step="1" value="0"></label>
-        <label class="lab-fader"><span>Implied volatility <b id="labShiftV"></b></span><input type="range" id="labShift" min="-20" max="20" step="1" value="0"></label>
-      </div>
-    </section>
-    <section class="lab-panel lab-greeks-panel">
-      <div class="lab-cap"><span>Greeks now</span><span>whole position</span></div>
-      <div id="labGreeks"></div>
-    </section>
+  <div id="labPick" class="lab-pick"></div>
+  <div id="labBuildPane" class="lab-build">
+  <div class="lab-stick">
+  <div class="lab-bhead">
+    <button type="button" class="lab-back" data-a="pick" aria-label="Back to strategies"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <span class="lab-bshape" id="labBShape"></span>
+    <div><h2 id="labName"></h2><p id="labDesc"></p></div>
   </div>
+  <div class="lab-stats" id="labRead"></div>
+  </div>
+  <section class="lab-panel lab-plot">
+    <div class="lab-tools">
+      <details class="lab-dd" id="labWhatIf"><summary>What-if<b id="labWhatV"></b></summary>
+        <div class="lab-pop">
+          <div class="lab-wi"><div class="lab-wi-h"><span>Date</span><b id="labPassedV"></b></div>
+            <div class="lab-chips" id="labDateChips"></div>
+            <input type="range" class="lab-range" id="labPassed" min="0" max="30" step="1" value="0" aria-label="Days from today"></div>
+          <div class="lab-wi"><div class="lab-wi-h"><span>Implied volatility</span><b id="labShiftV"></b></div>
+            <div class="lab-chips" id="labIvChips">${[-10, -5, 0, 5, 10].map((v) => `<button type="button" data-iv="${v}">${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) || "Now"}</button>`).join("")}</div>
+            <input type="range" class="lab-range" id="labShift" min="-20" max="20" step="1" value="0" aria-label="Change in implied volatility, points"></div>
+          <button type="button" class="lab-pill" id="labWhatReset">Back to today</button>
+        </div></details>
+      <details class="lab-dd" id="labGreekDd"><summary>Greek<b id="labGreekV"></b></summary>
+        <div class="lab-pop lab-opts">${[["none", "None"], ["delta", "Delta"], ["gamma", "Gamma"], ["theta", "Theta"], ["vega", "Vega"]].map(([k, t]) => `<button type="button" data-g="${k}">${t}</button>`).join("")}<small>Drawn on the right axis, for the whole position.</small></div></details>
+      <span class="lab-legend lab-tleg" id="labLegend"></span>
+      <span class="lab-tools-r"><span id="labCapR"></span>
+        <span class="lab-zoom" role="group" aria-label="Zoom"><button type="button" data-z="out" aria-label="Zoom out">−</button><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="reset" aria-label="Reset zoom"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M3 8a5 5 0 1 0 1.6-3.7M3 2.5v2.8h2.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></span></span>
+    </div>
+    <div class="lab-chart" id="labChart" role="img" aria-label="Position profit and loss by underlying price"></div>
+  </section>
+  <section class="lab-panel lab-legs-panel">
+    <div class="lab-tablewrap"><table class="lab-tbl" id="labLegs"></table></div>
+    <div class="lab-legs-foot"><button type="button" class="lab-pill on" data-a="add">+ Add position</button><span>Long/Short and Call/Put switch on click; the eye leaves a leg out of the chart and the figures.</span></div>
+  </section>
+  <p class="lab-say" id="labSay"></p>
   <section class="lab-panel">
     <div class="lab-cap"><span>Scenarios</span><span>P&amp;L by price move and date, with the volatility change above</span></div>
     <div class="re-matrix" id="labMatrix"></div>
   </section>
+  </div>
   <p class="tl-note">Black-Scholes-Merton with European exercise. In Live, each leg enters at the bid/ask midpoint with its own implied volatility and is valued on the forward of its expiration (dividends and carry included). The chance of profit is the one the option prices imply, not a forecast. Commissions and slippage are not included.</p>`;
   $("labMode").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && b.dataset.v !== lab.mode) labSetMode(b.dataset.v); });
   $("labHyp").addEventListener("change", (e) => {
@@ -234,19 +338,49 @@ function labBuild() {
     if (k === "iv") for (const l of lab.legs) if (l.kind !== "S") l.iv = lab.hyp.iv / 100;
     labAuto(); labSave(); labRender();
   });
-  $("labPresets").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && (lab.ch || !labLive())) labPreset(b.dataset.p); });
+  $("labPick").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b || (labLive() && !lab.ch)) return;
+    if (b.dataset.p) labPreset(b.dataset.p);
+    else if (b.dataset.a === "resume") labPage("build");
+    else if (b.dataset.a === "scratch") { lab.legs = []; lab.passed = 0; labSetStrat(""); labSave(); labPage("build"); }
+  });
+  $("labBuildPane").querySelector(".lab-back").addEventListener("click", () => labPage("pick"));
   $("labPassed").addEventListener("input", (e) => { lab.passed = +e.target.value; labDraw(); });
+  $("labWhatIf").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-d], [data-iv]"); if (!b) return;
+    if (b.dataset.d != null) lab.passed = +b.dataset.d; else { lab.shift = +b.dataset.iv; $("labShift").value = String(lab.shift); }
+    labDraw();
+  });
+  // la cabecera con las cifras se queda fija al bajar; compacta mientras esta pegada
+  const stick = $("labBuildPane").querySelector(".lab-stick");
+  window.addEventListener("scroll", () => {
+    if (lab.page !== "build" || state.mode !== "lab") return;
+    stick.classList.toggle("stuck", stick.getBoundingClientRect().top <= parseFloat(getComputedStyle(stick).top) + 1);
+  }, { passive: true });
+  $("labWhatReset").addEventListener("click", () => { lab.passed = 0; lab.shift = 0; $("labShift").value = "0"; labDraw(); });
+  $("labGreekDd").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-g]"); if (!b) return;
+    lab.greek = b.dataset.g; store.set("labGreek", lab.greek); $("labGreekDd").open = false; labDraw();
+  });
+  $("labBuildPane").querySelector(".lab-zoom").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-z]"); if (!b) return;
+    lab.zoom = b.dataset.z === "reset" ? 1 : Math.min(4, Math.max(0.25, lab.zoom * (b.dataset.z === "in" ? 1 / 1.4 : 1.4)));
+    labDraw();
+  });
+  // los desplegables se cierran al pulsar fuera
+  document.addEventListener("click", (e) => { if (!e.target.isConnected) return; for (const d of document.querySelectorAll(".lab-dd[open]")) if (!d.contains(e.target)) d.open = false; });
   $("labShift").addEventListener("input", (e) => { lab.shift = +e.target.value; labDraw(); });
-  const legs = $("labLegs");
+  const legs = $("labBuildPane").querySelector(".lab-legs-panel");
   legs.addEventListener("click", (e) => {
     const b = e.target.closest("[data-a]"); if (!b) return;
     if (b.dataset.a === "add") {
       const last = lab.legs[lab.legs.length - 1];
       lab.legs.push(labLeg(1, "C", labS(), labLive() ? { e: last && last.kind !== "S" ? labExp(last) : expNear(lab.ch, 30) } : { days: last && last.kind !== "S" ? last.days : 30 }));
-      labSave(); labRender(); return;
+      labSetStrat(""); labSave(); labRender(); return;
     }
     const i = lab.legs.findIndex((l) => l.id === +b.closest("[data-id]").dataset.id); if (i < 0) return;
     const l = lab.legs[i];
+    if (b.dataset.a === "off") { l.off = !l.off; labSave(); labRender(); return; }
     if (b.dataset.a === "side") l.side = -l.side;
     else if (b.dataset.a === "del") lab.legs.splice(i, 1);
     else if (b.dataset.a === "kind") {
@@ -254,7 +388,7 @@ function labBuild() {
       const o = labLive() ? { e: l.kind !== "S" ? labExp(l) : expNear(lab.ch, 30) } : { days: l.days || 30 };
       lab.legs[i] = Object.assign(labLeg(l.side, nk, l.K || labS(), { ...o, qty: l.kind === "S" ? 1 : l.qty }), { id: l.id });
     }
-    labSave(); labRender();
+    labSetStrat(""); labSave(); labRender();
   });
   legs.addEventListener("change", (e) => {
     const el = e.target, row = el.closest("[data-id]"); if (!row) return;
@@ -286,8 +420,7 @@ function labSetMode(m) {
   lab.passed = 0;
   if (m === "hyp") {
     lab.legs = labLoad("labHypLegs", []).map((a) => labUnpack(a, false));
-    if (!lab.legs.length) { labSync(); labPreset("lc"); return; }
-    labAuto(); labSync(); labRender(); setStatus("", "");
+    labAuto(); labSync(); labShowPage(); setStatus("", "");
   } else { lab.sym = ""; loadLab(); }
 }
 function labSync() {
@@ -301,11 +434,13 @@ function labSync() {
 function showLab() {
   if (!lab.built) labBuild();
   labSync();
-  if (!labLive()) { if (!lab.legs.length || lab.legs.some((l) => l.exp)) labSetMode("hyp"); else labRender(); return; }
+  if (!labLive()) { if (!lab.legs.length || lab.legs.some((l) => l.exp)) labSetMode("hyp"); else labShowPage(); return; }
   const sym = state.symbol || "SPX";
   $("symbol").value = sym;
-  if (!lab.ch || lab.sym !== sym) loadLab(); else { labRender(); setStatus("", labStatus()); }
+  if (!lab.ch || lab.sym !== sym) loadLab(); else { labShowPage(); setStatus("", labStatus()); }
 }
+// sin patas solo tiene sentido la galeria, salvo si se empieza de cero
+function labShowPage() { labPage(lab.legs.length || (lab.page === "build" && labCur() === "") ? lab.page : "pick"); }
 function labStatus() { return lab.ch && labLive() ? `Chain at ${nyHHMM(lab.ch.generado)}` : ""; }
 async function loadLab(refresh = false) {
   if (!lab.built) labBuild();
@@ -325,9 +460,8 @@ async function loadLab(refresh = false) {
     if (changed) {
       lab.passed = 0;
       lab.legs = (lab.saved[ch.symbol] || []).map((a) => labUnpack(a, true)).filter((l) => ch.exps.some((e) => e.key === l.exp && (l.kind === "S" || e.days > 0)));
-      if (!lab.legs.length) { labPreset("lc"); setStatus("", labStatus()); return; }
     }
-    labRender();
+    labShowPage();
     setStatus("", labStatus());
   } catch (e) {
     if (e.name === "AbortError") return;
@@ -339,99 +473,219 @@ async function loadLab(refresh = false) {
 /* ---------------------------------------------------------------- pintar */
 function labRender() {
   if (labLive() && !lab.ch) return;
+  if (lab.page !== "build") { labGallery(); return; }
+  const st0 = labStrat(labCur());
+  $("labName").textContent = st0 ? st0.n : "Custom strategy";
+  $("labDesc").textContent = st0 ? st0.d : "Your own combination of legs. Add, remove or change any of them below.";
+  $("labBShape").innerHTML = st0 ? labShape(st0) : "";
   $("labSym").innerHTML = labLive() ? spotLabel(lab.ch) : `Hypothetical underlying at ${px(lab.hyp.S)}`;
   const live = labLive() ? lab.ch.live.slice(0, 40) : [];
   const num = (f, v, label, w = "") => `<input class="lab-in ${w}" data-f="${f}" value="${esc(v)}" inputmode="decimal" aria-label="${label}">`;
+  const S = labS(), dash = `<span class="lab-dim">—</span>`;
+  const gk = (v, d = 2) => (isFinite(v) ? (v < -1e-9 ? "−" : "") + fmtNum(Math.abs(v), d) : "—");
   const rows = lab.legs.map((l) => {
-    const isS = l.kind === "S";
-    let when = "", strike = "";
+    const isS = l.kind === "S", call = l.kind === "C";
+    let when = dash, strike = dash, q = null;
     if (!isS && labLive()) {
       const e = labExp(l), ks = strikesOf(lab.ch, e.i).filter((k) => Math.abs(k / lab.ch.spot - 1) < 0.35 || k === l.K);
       when = `<select class="lab-in" data-f="exp" aria-label="Expiration">${live.map((x) => `<option value="${x.key}" ${x.key === l.exp ? "selected" : ""}>${shortDate(x.iso)}, ${fmtNum(Math.max(x.days, 0), x.days < 1 ? 1 : 0)}d</option>`).join("")}</select>`;
-      strike = `<select class="lab-in" data-f="K" aria-label="Strike">${ks.map((k) => `<option value="${k}" ${k === l.K ? "selected" : ""}>${fmtNum(k, k % 1 ? 1 : 0)}</option>`).join("")}</select>`;
+      strike = `<select class="lab-in" data-f="K" aria-label="Strike">${ks.map((k) => `<option value="${k}" ${k === l.K ? "selected" : ""}>${fmtNum(k, 2)}</option>`).join("")}</select>`;
+      q = lab.ch.rows.find((y) => y.e === e.i && y.K === l.K && y.call === call);
     } else if (!isS) {
       when = `<span class="lab-unit">${num("days", l.days, "Days to expiration")}<i>days</i></span>`;
-      strike = `<span class="lab-unit"><i>K</i>${num("K", l.K, "Strike")}</span>`;
-    } else when = `<span class="lab-dim">shares of the underlying</span>`;
-    const val = labValue(l, labS(), 0);
-    return `<div class="lab-leg ${l.side > 0 ? "long" : "short"} k${l.kind}" data-id="${l.id}">
-      <button type="button" class="lab-key bs" data-a="side" title="Switch between buy and sell">${l.side > 0 ? "Buy" : "Sell"}</button>
-      ${num("qty", l.qty, l.kind === "S" ? "Shares" : "Contracts", "qty")}
-      <button type="button" class="lab-key kind" data-a="kind" title="Call, put or shares">${{ C: "Call", P: "Put", S: "Shares" }[l.kind]}</button>
-      <span class="lab-when">${when}</span><span class="lab-k">${strike}</span>
-      <span class="lab-unit lab-ivc">${isS ? "" : `${num("iv", +(l.iv * 100).toFixed(1), "Implied volatility (%)")}<i>% IV</i>`}</span>
-      <span class="lab-unit lab-px" title="Entry price per ${isS ? "share" : "share of the option"}; worth ${fmtNum(val, 2)} now"><i>@</i>${num("entry", fmtNum(l.entry, 2).replace(/,/g, ""), "Entry price")}</span>
-      <button type="button" class="lab-del" data-a="del" aria-label="Remove leg">×</button>
-    </div>`;
+      strike = num("K", l.K, "Strike");
+    }
+    const T = isS ? 0 : Math.max(labDays(l), 0) / 365;
+    const g = isS ? { price: S, delta: 1, gamma: 0, vega: 0, theta: 0, rho: 0 } : BS.greeks(S, l.K, T, labR(), labQ(l), Math.max(l.iv + lab.shift / 100, 0.005), call);
+    const pnl = l.side * l.qty * labMult(l) * (labValue(l, S, 0) - l.entry);
+    return `<tr class="${l.off ? "off" : ""}" data-id="${l.id}">
+      <td class="lab-ks">${strike}</td>
+      <td><button type="button" class="lab-chip kind" data-a="kind" title="Call, put or shares">${{ C: "Call", P: "Put", S: "Shares" }[l.kind]}</button></td>
+      <td class="lab-ex">${when}</td>
+      <td><button type="button" class="lab-chip ${l.side > 0 ? "long" : "short"}" data-a="side" title="Switch between long and short">${l.side > 0 ? "Long" : "Short"}</button></td>
+      <td class="n">${num("qty", l.qty, isS ? "Shares" : "Contracts", "qty")}</td>
+      <td class="n">${num("entry", fmtNum(l.entry, 2).replace(/,/g, ""), "Entry price")}</td>
+      <td class="n">${isS ? dash : `<span class="lab-unit">${num("iv", +(l.iv * 100).toFixed(1), "Implied volatility (%)")}<i>%</i></span>`}</td>
+      <td class="n ${pnl > 0.5 ? "up" : pnl < -0.5 ? "dn" : ""}">${signedMoney(pnl, 0)}</td>
+      <td class="n">${gk(g.delta)}</td>
+      <td class="n">${fmtNum(g.price, 2)}</td>
+      <td class="n">${q ? fmtNum(q.bid, 2) : "—"}</td>
+      <td class="n">${q ? fmtNum(q.ask, 2) : "—"}</td>
+      <td class="n">${gk(g.gamma, 3)}</td>
+      <td class="n">${gk(g.vega)}</td>
+      <td class="n">${gk(g.theta)}</td>
+      <td class="n">${gk(g.rho)}</td>
+      <td class="lab-act"><button type="button" class="lab-ico${l.off ? " on" : ""}" data-a="off" aria-label="${l.off ? "Show" : "Hide"} this leg" title="${l.off ? "Show" : "Hide"} this leg"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.4"/></svg></button><button type="button" class="lab-ico del" data-a="del" aria-label="Remove leg" title="Remove leg"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button></td>
+    </tr>`;
   }).join("");
-  $("labLegs").innerHTML = `${rows || `<p class="re-empty">Pick a strategy above, or add a leg.</p>`}<button type="button" class="lab-add" data-a="add">Add leg</button>`;
+  const th = ["Strike", "Type", "Expiration", "Side", "Size", "Price", "IV", "P&amp;L", "Delta", "Theor.", "Bid", "Ask", "Gamma", "Vega", "Theta", "Rho", ""];
+  $("labLegs").innerHTML = `<thead><tr>${th.map((t, i) => `<th class="${i >= 4 && i < 16 ? "n" : ""}">${t}</th>`).join("")}</tr></thead>
+    <tbody>${rows || `<tr><td colspan="${th.length}" class="re-empty">Pick a strategy, or add a position.</td></tr>`}</tbody>`;
   labDraw();
 }
 
 function labDraw() {
   if (labLive() && !lab.ch) return;
   const S = labS();
-  const st = lab.legs.length ? labStats() : null;
+  const st = labOn().length ? labStats() : null;
   const H = st ? st.H : 30;
   const ps = $("labPassed"), maxD = Math.max(1, Math.floor(H));
   ps.max = String(maxD);
   if (lab.passed > maxD) lab.passed = maxD;
   ps.value = String(lab.passed);
   const dateOf = (d) => { const t = new Date(Date.now() + d * 86400000); return `${MESES[t.getMonth()]} ${t.getDate()}`; };
-  $("labPassedV").textContent = lab.passed ? `${dateOf(lab.passed)}, in ${lab.passed} ${lab.passed === 1 ? "day" : "days"}` : "today";
-  $("labShiftV").textContent = lab.shift ? `${lab.shift > 0 ? "+" : "−"}${Math.abs(lab.shift)} points on every leg` : "unchanged";
-  if (!st) { for (const id of ["labRead", "labSay", "labChart", "labGreeks", "labMatrix", "labCapR"]) $(id).innerHTML = ""; return; }
+  $("labPassedV").textContent = lab.passed ? `${dateOf(lab.passed)}, in ${lab.passed} ${lab.passed === 1 ? "day" : "days"}` : "Today";
+  $("labShiftV").textContent = lab.shift ? `${lab.shift > 0 ? "+" : "−"}${Math.abs(lab.shift)} points` : "As now";
+  ps.style.setProperty("--p", `${(lab.passed / maxD) * 100}%`);
+  $("labShift").style.setProperty("--p", `${((lab.shift + 20) / 40) * 100}%`);
+  const dd = [...new Set([0, 1, 7, 14, 30, maxD].filter((d) => d <= maxD))];
+  $("labDateChips").innerHTML = dd.map((d) => `<button type="button" data-d="${d}" aria-pressed="${d === lab.passed}">${d === 0 ? "Today" : d === maxD ? "Expiry" : d === 1 ? "Tomorrow" : d === 7 ? "1 week" : d === 14 ? "2 weeks" : "1 month"}</button>`).join("");
+  for (const b of $("labIvChips").children) b.setAttribute("aria-pressed", String(+b.dataset.iv === lab.shift));
+  document.documentElement.style.setProperty("--lab-top", `${document.querySelector("header.bar")?.offsetHeight || 0}px`);
+  $("labWhatV").textContent = lab.passed || lab.shift ? [lab.passed ? dateOf(lab.passed) : "", lab.shift ? `IV ${lab.shift > 0 ? "+" : "−"}${Math.abs(lab.shift)}` : ""].filter(Boolean).join(", ") : "";
+  $("labWhatIf").classList.toggle("set", !!(lab.passed || lab.shift));
+  $("labGreekV").textContent = lab.greek !== "none" ? lab.greek[0].toUpperCase() + lab.greek.slice(1) : "";
+  $("labGreekDd").classList.toggle("set", lab.greek !== "none");
+  for (const b of $("labGreekDd").querySelectorAll("[data-g]")) b.setAttribute("aria-pressed", String(b.dataset.g === lab.greek));
+  if (!st) { for (const id of ["labRead", "labSay", "labChart", "labMatrix", "labCapR"]) $(id).innerHTML = ""; return; }
 
   const when = st.first ? labWhen(st.first) : "";
-  const cell = (t, v, cls = "", sub = "") => `<div class="lab-r ${cls}"><span>${t}</span><b>${v}</b><small>${sub}</small></div>`;
+  const g = labGreeks(), nb = st.bes.length ? st.bes.reduce((m, x) => (Math.abs(x - S) < Math.abs(m - S) ? x : m)) / S - 1 : null;
+  const it = (t, v, cls = "", hint = "") => `<div class="lab-st ${cls}"${hint ? ` title="${esc(hint)}"` : ""}><span>${t}</span><b>${v}</b></div>`;
+  const gv = (v) => (Math.abs(v) < 0.005 ? "0" : (v > 0 ? "" : "−") + fmtNum(Math.abs(v), Math.abs(v) >= 100 ? 0 : 2));
   $("labRead").innerHTML =
-    cell(st.cost >= 0 ? "Net debit" : "Net credit", money(Math.abs(st.cost), 0), st.cost < 0 ? "pos" : "", st.now >= 0 ? `worth ${money(st.now, 0)} now` : `${money(-st.now, 0)} to close now`) +
-    cell("Max gain", st.mx === Infinity ? "Unlimited" : money(st.mx, 0), "pos", when ? `at ${when}` : "") +
-    cell("Max loss", st.mn === -Infinity ? "Unlimited" : money(st.mn, 0), "neg", when ? `at ${when}` : "") +
-    cell(st.bes.length > 1 ? "Breakevens" : "Breakeven", st.bes.length ? st.bes.slice(0, 2).map(px).join(" / ") + (st.bes.length > 2 ? "…" : "") : "None", st.bes.length > 1 ? "two" : "", when ? `at ${when}` : "") +
-    cell("Chance of profit", st.pop == null ? "—" : `${fmtNum(st.pop * 100, 0)}%`, "", "implied by the options");
+    it(st.cost >= 0 ? "Net debit" : "Net credit", money(Math.abs(st.cost), 0), st.cost >= 0 ? "dn" : "up", st.now >= 0 ? `Worth ${money(st.now, 0)} now` : `${money(-st.now, 0)} to close now`) +
+    it("Max loss", st.mn === -Infinity ? "Unlimited" : money(st.mn, 0), "dn", when ? `At the ${when} expiration` : "") +
+    it("Max profit", st.mx === Infinity ? "Unlimited" : money(st.mx, 0), "up", when ? `At the ${when} expiration` : "") +
+    it("Win rate", st.pop == null ? "—" : `${fmtNum(st.pop * 100, 1)}%`, "", "Chance of ending in profit at the first expiration, implied by the option prices") +
+    it(st.bes.length > 1 ? "Breakevens" : "Breakeven", st.bes.length ? st.bes.slice(0, 2).map(px).join(" / ") + (st.bes.length > 2 ? "…" : "") : "None") +
+    it("To breakeven", nb == null ? "—" : `${nb >= 0 ? "+" : "−"}${fmtNum(Math.abs(nb) * 100, 2)}%`, "", "Move from the price now to the nearest breakeven") +
+    it(labLive() ? "Underlying price" : "Price", `${px(S)}${labLive() ? " <small>USD</small>" : ""}`) +
+    it("Delta", gv(g.delta), "", `Like ${fmtNum(Math.abs(g.delta), 0)} shares ${g.delta >= 0 ? "long" : "short"}`) +
+    it("Gamma", gv(g.gamma), "", "Change in delta when the underlying moves $1") +
+    it("Theta", gv(g.theta), "", `${signedMoney(g.theta, 0)} a day from time alone`) +
+    it("Vega", gv(g.vega), "", `${signedMoney(g.vega, 0)} per +1 point of implied volatility`) +
+    it("Rho", gv(g.rho), "", `${signedMoney(g.rho, 0)} per +1% in rates`);
   $("labSay").innerHTML = labSentence(st);
 
-  // grafico
+  // grafico: rango de +-3 sigma alrededor del precio, con el zoom de la barra
   const f = st.first;
   const sig = f ? labAtmIV(f) * Math.sqrt(Math.max(labDays(f), 1 / 24) / 365) : 0.05;
   const w = Math.min(0.6, Math.max(0.05, 3 * sig));
   const ks = labOpts().map((l) => l.K);
   let lo = Math.min(S * (1 - w), ...ks.map((k) => k * 0.97)), hi = Math.max(S * (1 + w), ...ks.map((k) => k * 1.03));
-  lo = Math.max(lo, 0);
-  const xs = Array.from({ length: 181 }, (_, i) => lo + (hi - lo) * i / 180);
-  const curves = [
-    { label: f ? `At ${when} expiration` : "In 30 days", color: C.accent, main: true, pts: xs.map((x) => [x, labPnL(x, H)]) },
-    { label: `Today${lab.shift ? ` (IV ${lab.shift > 0 ? "+" : "−"}${Math.abs(lab.shift)})` : ""}`, color: C.text, dash: "5 4", pts: xs.map((x) => [x, labPnL(x, 0)]) },
-  ];
-  if (lab.passed > 0 && lab.passed < H) curves.push({ label: dateOf(lab.passed), color: C.amber, dash: "2 3", pts: xs.map((x) => [x, labPnL(x, lab.passed)]) });
-  $("labCapR").textContent = labLive() ? `${lab.ch.symbol}, ±1σ to ${when || "expiry"} shaded` : `±1σ to ${when || "expiry"} shaded`;
-  payoffChart($("labChart"), {
-    lo, hi, curves, ref: S, bes: st.bes, ticks: [...new Set(ks)].sort((a, b) => a - b),
-    marks: [{ x: S, label: `${labLive() ? "Spot" : "Price"} ${px(S)}`, color: C.spotline, dash: "1 3", side: "end" }],
-    band: [S * (1 - sig), S * (1 + sig)], bandLabel: `±1σ by ${when || "expiry"}`,
-    probe: (x) => curves.map((c, i) => ({ label: c.label, color: c.color, v: labPnL(x, i === 0 ? H : i === 1 ? 0 : lab.passed) })),
-  });
-
-  // griegas netas
-  const g = labGreeks();
-  const gr = (t, v, line, hint) => `<div class="lab-g" title="${esc(hint)}"><span>${t}</span><b class="${v > 0.005 ? "up" : v < -0.005 ? "dn" : ""}">${(Math.abs(v) < 0.005 ? "" : v > 0 ? "+" : "−") + fmtNum(Math.abs(v), Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 1 ? 1 : 2)}</b><small>${line}</small></div>`;
-  $("labGreeks").innerHTML =
-    gr("Delta", g.delta, `${signedMoney(g.delta, 0)} per +$1; like ${fmtNum(Math.abs(g.delta), 0)} shares ${g.delta >= 0 ? "long" : "short"}`, "Shares-equivalent exposure to the underlying.") +
-    gr("Gamma", g.gamma, "change in delta per +$1", "How fast delta changes when the underlying moves $1.") +
-    gr("Theta", g.theta, `${signedMoney(g.theta, 0)} per day from time alone`, "What one day costs (or pays) if nothing else changes.") +
-    gr("Vega", g.vega, `${signedMoney(g.vega, 0)} per +1 point of IV`, "Gain or loss if implied volatility rises one point on every leg.") +
-    gr("Rho", g.rho, `${signedMoney(g.rho, 0)} per +1% in rates`, "Sensitivity to interest rates; small unless long-dated.");
+  lo = Math.max(0, S - (S - lo) * lab.zoom); hi = S + (hi - S) * lab.zoom;
+  $("labCapR").textContent = labLive() ? `${lab.ch.symbol} to the ${when || "first"} expiration` : `To the ${when || "first"} expiration`;
+  labPlot({ S, H, lo, hi, f, when, ks, bes: st.bes, dateOf });
 
   // matriz de escenarios
-  const moves = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2].map((k) => k * sig);
+  const stepP = [0.5, 1, 2, 2.5, 5, 10, 15, 20].reduce((a, b) => (Math.abs(b - sig * 50) < Math.abs(a - sig * 50) ? b : a));
+  const moves = [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((k) => k * stepP / 100);
   const days = [0, H * 0.25, H * 0.5, H * 0.75, H];
   const vals = moves.map((mv) => days.map((d) => labPnL(S * (1 + mv), d)));
   const top = Math.max(1, ...vals.flat().map(Math.abs));
   const head = days.map((d, i) => `<th>${i === 0 ? "Today" : i === days.length - 1 && f ? when : dateOf(d)}</th>`).join("");
-  $("labMatrix").innerHTML = `<table><thead><tr><th class="l">Price</th>${head}</tr></thead><tbody>${moves.map((mv, i) => `<tr class="${mv === 0 ? "now" : ""}"><td class="l"><b>${px(S * (1 + mv))}</b><small>${mv === 0 ? "unchanged" : `${mv > 0 ? "+" : "−"}${fmtNum(Math.abs(mv) * 100, 1)}%`}</small></td>${vals[i].map((v) => {
+  $("labMatrix").innerHTML = `<table><thead><tr><th class="l">Price</th>${head}</tr></thead><tbody>${moves.map((mv, i) => `<tr class="${mv === 0 ? "now" : ""}"><td class="l"><b>${px(S * (1 + mv))}</b><small>${mv === 0 ? "unchanged" : `${mv > 0 ? "+" : "−"}${fmtNum(Math.abs(mv) * 100, Math.round(Math.abs(mv) * 1000) % 10 ? 1 : 0)}%`}</small></td>${vals[i].map((v) => {
     const a = Math.min(1, Math.abs(v) / top);
     return `<td style="--a:${(0.06 + a * 0.5).toFixed(2)};--c:${v >= 0 ? C.put : C.call}">${signedMoney(v, 0)}</td>`;
   }).join("")}</tr>`).join("")}</tbody></table>`;
+}
+/* grafico del constructor: P&L al vencimiento con su zona de ganancia y de perdida, hoy (discontinua), la fecha
+   del What-if y, si se elige, una griega en el eje derecho. Al pasar el raton: P&L, precio y probabilidad a cada lado */
+function labPlot(o) {
+  const box = $("labChart");
+  // alto: lo que deja libre la ventana para ver cabecera, cifras, grafico y patas sin bajar (como un terminal)
+  const W = Math.max(320, box.clientWidth), H = labFitH(W);
+  const gk = lab.greek !== "none" ? lab.greek : null;
+  const pad = { l: 64, r: gk ? 60 : 18, t: 22, b: 36 };
+  const n = 240, xs = Array.from({ length: n + 1 }, (_, i) => o.lo + (o.hi - o.lo) * i / n);
+  const wi = lab.passed > 0 && lab.passed < o.H;
+  const exp = xs.map((x) => [x, labPnL(x, o.H)]), now = xs.map((x) => [x, labPnL(x, 0)]), mid = wi ? xs.map((x) => [x, labPnL(x, lab.passed)]) : null;
+  let y0 = 0, y1 = 0;
+  for (const c of [exp, now, mid]) if (c) for (const p of c) if (isFinite(p[1])) { y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+  const sp = (y1 - y0) || 1; y0 -= sp * 0.06; y1 += sp * 0.08;
+  const X = scale(o.lo, o.hi, pad.l, W - pad.r), Y = scale(y0, y1, H - pad.b, pad.t), zy = Y(0), ax = H - pad.b;
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const xt = axisTicks(o.lo, o.hi, Math.max(4, Math.round(W / 90))), yt = axisTicks(y0, y1, 7);
+  const xdec = o.hi - o.lo < 8 ? 2 : o.hi - o.lo < 40 ? 1 : 0;
+  const line = pathOf(exp, X, Y), area = `${line}L${X(o.hi).toFixed(1)},${zy.toFixed(1)}L${X(o.lo).toFixed(1)},${zy.toFixed(1)}Z`;
+  let gpart = "", G = null, gpts = null;
+  if (gk) {
+    gpts = xs.map((x) => [x, labGreekAt(x, wi ? lab.passed : 0, gk)]);
+    let g0 = Math.min(0, ...gpts.map((p) => p[1])), g1 = Math.max(0, ...gpts.map((p) => p[1]));
+    const gs = (g1 - g0) || 1; g0 -= gs * 0.08; g1 += gs * 0.08;
+    G = scale(g0, g1, ax, pad.t);
+    gpart = `<path d="${pathOf(gpts, X, G)}" fill="none" stroke="${C.pos}" stroke-width="1.6" stroke-dasharray="1 3" stroke-linecap="round"/>` +
+      axisTicks(g0, g1, 6).map((v) => `<text x="${W - pad.r + 8}" y="${G(v) + 4}" fill="${C.pos}" font-size="11">${fmtNum(v, Math.abs(g1 - g0) < 0.1 ? 3 : Math.abs(g1 - g0) < 10 ? 2 : 0)}</text>`).join("");
+  }
+  const strikes = [...new Set(o.ks)].filter((k) => k >= o.lo && k <= o.hi).map((k) => `<path d="M${X(k)} ${ax - 6}l-4 6h8z" fill="${C.faint}"><title>Strike ${fmtNum(k, 2)}</title></path>`).join("");
+  const bes = o.bes.filter((x) => x >= o.lo && x <= o.hi).map((x) => `<circle cx="${X(x)}" cy="${zy}" r="4" fill="${C.surface}" stroke="${C.text}" stroke-width="1.6"><title>Breakeven ${px(x)}</title></circle>`).join("");
+  const sx = X(o.S);
+  box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${LAB_MONO}">
+    <defs><clipPath id="lpUp"><rect x="${pad.l}" y="0" width="${pw}" height="${Math.max(0, zy)}"/></clipPath><clipPath id="lpDn"><rect x="${pad.l}" y="${zy}" width="${pw}" height="${Math.max(0, H - zy)}"/></clipPath><clipPath id="lpPl"><rect x="${pad.l}" y="${pad.t}" width="${pw}" height="${ph}"/></clipPath></defs>
+    ${yt.map((v) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.grid}" stroke-width="1"/><text x="${pad.l - 10}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11" text-anchor="end">${fmtNum(v, Math.abs(y1 - y0) < 20 ? 2 : 0)}</text>`).join("")}
+    ${xt.map((v) => `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t}" y2="${ax}" stroke="${C.grid}" stroke-width="1" stroke-dasharray="2 4"/><text x="${X(v)}" y="${ax + 20}" fill="${C.faint}" font-size="11" text-anchor="middle">${fmtNum(v, xdec)}</text>`).join("")}
+    <path d="${area}" fill="${C.put}" opacity=".16" clip-path="url(#lpUp)"/><path d="${area}" fill="${C.call}" opacity=".14" clip-path="url(#lpDn)"/>
+    <line x1="${pad.l}" x2="${W - pad.r}" y1="${zy}" y2="${zy}" stroke="${C.muted}" stroke-width="1"/>
+    ${o.S >= o.lo && o.S <= o.hi ? `<line x1="${sx}" x2="${sx}" y1="${pad.t}" y2="${ax}" stroke="${C.text}" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/><text x="${sx}" y="${pad.t - 7}" fill="${C.muted}" font-size="11" text-anchor="middle">${px(o.S)}</text>` : ""}
+    <g clip-path="url(#lpPl)">
+      ${gpart}
+      ${mid ? `<path d="${pathOf(mid, X, Y)}" fill="none" stroke="${C.amber}" stroke-width="1.6" stroke-dasharray="6 4"/>` : ""}
+      <path d="${pathOf(now, X, Y)}" fill="none" stroke="${C.accent}" stroke-width="1.8" stroke-dasharray="3 4" stroke-linecap="round"/>
+      <path d="${line}" fill="none" stroke="${C.put}" stroke-width="2.4" stroke-linejoin="round" clip-path="url(#lpUp)"/>
+      <path d="${line}" fill="none" stroke="${C.call}" stroke-width="2.4" stroke-linejoin="round" clip-path="url(#lpDn)"/>
+    </g>
+    ${strikes}${bes}
+    <g id="lpProbe" visibility="hidden"><line y1="${pad.t}" y2="${ax}" stroke="${C.muted}" stroke-width="1"/></g>
+  </svg>`;
+  $("labLegend").innerHTML = `
+    <span><i style="background:linear-gradient(90deg, ${C.call} 50%, ${C.put} 50%)"></i>At ${o.when || "first"} expiration</span>
+    <span><i class="dash" style="border-color:${C.accent}"></i>Today${lab.shift ? ` (IV ${lab.shift > 0 ? "+" : "−"}${Math.abs(lab.shift)})` : ""}</span>
+    ${mid ? `<span><i class="dash" style="border-color:${C.amber}"></i>${o.dateOf(lab.passed)}</span>` : ""}
+    ${gk ? `<span><i class="dash" style="border-color:${C.pos}"></i>${gk[0].toUpperCase() + gk.slice(1)} (right axis)</span>` : ""}
+    ${o.bes.length ? `<span><i class="be lab-be"></i>Breakeven</span>` : ""}${o.ks.length ? `<span><i class="tk"></i>Strikes</span>` : ""}`;
+  box._g = { X, Y, G, pad, o, gk, wi, ax };
+  if (!box._on) {
+    box._on = true;
+    box.addEventListener("mousemove", (e) => labProbe(box, e));
+    box.addEventListener("mouseleave", () => labProbe(box, null));
+  }
+}
+function labFitH(W) {
+  const q = (sel) => { const e = document.querySelector(sel); return e && !e.hidden ? e.offsetHeight : 0; };
+  const stick = document.querySelector(".lab-stick");
+  if (stick && !stick.classList.contains("stuck")) lab.stickH = stick.offsetHeight;
+  const used = q("header.bar") + q("#labView .lab-head") + q("#labHyp") + (lab.stickH || 0) + q(".lab-tools") + q(".lab-legs-panel") + 84;
+  const fit = window.innerHeight - used;
+  return Math.round(Math.max(260, Math.min(W < 700 ? 360 : 640, fit)));
+}
+function labProbe(box, e) {
+  const g = box._g, pr = g && box.querySelector("#lpProbe");
+  if (!pr) return;
+  const svg = box.querySelector("svg"), mx = e ? e.clientX - svg.getBoundingClientRect().left : -1;
+  if (!e || mx < g.pad.l || mx > g.X(g.o.hi)) { pr.setAttribute("visibility", "hidden"); toolTip(box, null); return; }
+  const x = g.X.inv(mx), o = g.o;
+  const rows = [{ t: "Current P&L", v: labPnL(x, 0), c: C.accent }];
+  if (g.wi) rows.push({ t: `P&L on ${o.dateOf(lab.passed)}`, v: labPnL(x, lab.passed), c: C.amber });
+  const ve = labPnL(x, o.H);
+  rows.push({ t: "Expiration P&L", v: ve, c: ve >= 0 ? C.put : C.call });
+  pr.setAttribute("visibility", "visible");
+  const ln = pr.querySelector("line"); ln.setAttribute("x1", mx); ln.setAttribute("x2", mx);
+  pr.querySelectorAll("circle").forEach((c) => c.remove());
+  for (const r of rows) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", mx); c.setAttribute("cy", g.Y(r.v)); c.setAttribute("r", "4"); c.setAttribute("fill", r.c);
+    c.setAttribute("stroke", C.surface); c.setAttribute("stroke-width", "1.5");
+    pr.appendChild(c);
+  }
+  let prob = "";
+  if (o.f) {
+    const T = Math.max(o.H, 1 / 24) / 365, up = BS.probAbove(o.S, x, T, labR(), labQ(o.f), Math.max(labAtmIV(o.f) + lab.shift / 100, 0.005));
+    prob = `<div class="lt-p"><span>← ${fmtNum((1 - up) * 100, 1)}%</span><span>${fmtNum(up * 100, 1)}% →</span></div><div class="lt-s">Chance of ending below or above, ${o.when}</div>`;
+  }
+  const gr = g.gk ? `<div class="lt-r"><span><i style="background:${C.pos}"></i>${g.gk[0].toUpperCase() + g.gk.slice(1)}</span><b>${fmtNum(labGreekAt(x, g.wi ? lab.passed : 0, g.gk), 2)}</b></div>` : "";
+  toolTip(box, `<div class="lab-tt">${rows.map((r) => `<div class="lt-r"><span><i style="background:${r.c}"></i>${r.t}</span><b class="${r.v > 0 ? "up" : r.v < 0 ? "dn" : ""}">${signedMoney(r.v, 2)}</b></div>`).join("")}${gr}
+    <div class="lt-x"><b>${px(x)}</b><span>Underlying price, ${x >= o.S ? "+" : "−"}${fmtNum(Math.abs(x / o.S - 1) * 100, 2)}%</span></div>${prob}</div>`,
+  mx, Math.min(...rows.map((r) => g.Y(r.v))));
 }
 function renderLab() { if (lab.built) labDraw(); }

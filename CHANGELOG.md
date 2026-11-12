@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Añadido**
 - **Calendar** (en Market, bajo Summary): los datos macro de EE. UU., zona euro, Alemania, Francia, Italia, Reino
@@ -18,6 +18,17 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   vivienda de FRED, que tarda de 3 minutos a 2 horas), con reintentos hasta que sale.
 
 **Cambiado**
+- **Options Lab** rehecho como constructor de estrategias. Al entrar, una galería de 28 estrategias en cinco familias
+  (Directional, Income, Volatility, Neutral, Hedging), cada una con el dibujo de su perfil de pago, una frase y su
+  sesgo; se añaden synthetic long y short, bull put y bear call spread, short straddle y strangle, iron butterfly,
+  jade lizard, strap, strip, reverse iron condor, put butterfly, put calendar, collar y covered put. Al elegir una,
+  todo cabe en una pantalla: nombre, fila de cifras (coste, máximos, probabilidad, punto muerto, distancia a él,
+  precio y griegas), gráfico de P&L con zona de ganancia y de pérdida que ajusta su alto a la ventana, y la tabla de
+  posiciones con strike, tipo, vencimiento, Long/Short, tamaño, precio, IV, P&L, griegas, valor teórico, bid y ask;
+  el ojo saca una pata del cálculo sin borrarla. Al pasar el ratón por el gráfico se ve el P&L de hoy y al
+  vencimiento y la probabilidad de acabar por debajo y por encima de ese precio. **What-if** (fecha y volatilidad con
+  atajos), **Greek** (una griega en el eje derecho) y zoom van en la barra del gráfico. Al bajar, el nombre y las
+  cifras quedan fijos arriba. Los escenarios usan pasos de porcentaje redondos. Cada ticker recuerda su estrategia.
 - **Scanner** como tabla visual: las columnas de Gamma Flip, Call Wall y Put Wall pasan a una barra por fila del
   Put Wall al Call Wall con el precio (punto) y el flip (marca ámbar), con los tres niveles, su distancia y una
   flecha si cambiaron desde la sesión anterior; el GEX por 1 % es una barra que sale del cero y el rango 1σ otra

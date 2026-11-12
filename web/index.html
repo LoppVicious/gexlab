@@ -539,18 +539,20 @@
 </main>
 
 <main class="macro" id="flowView" hidden>
-  <div class="vhead">
-    <div class="vtitle"><span class="vsym" id="fSym">—</span><span class="vname" id="fName"></span><span class="vspot" id="fSpot"></span><span class="fbadge" title="Classified from the volume between engine snapshots, not from individual trades">Estimate</span></div>
-  </div>
-  <div class="vsum" id="fSum"></div>
-  <div class="fpanel">
-    <div class="mchart-head"><span class="mtitle">Today, cumulative</span><p class="chart-caption" id="fCap"></p></div>
-    <div class="fchart" id="fChart" role="img" aria-label="Cumulative net premium and delta"></div>
-    <div class="tip" id="fTip" hidden></div>
-  </div>
-  <div class="fpanel">
-    <div class="mchart-head"><span class="mtitle" data-g="uoa">Unusual activity</span><p class="chart-caption">Contracts traded today above their open interest, by premium.</p></div>
-    <div class="ftable" id="fUoa"></div>
+  <header class="lab-head">
+    <div class="lab-title"><span class="lab-sym"><b id="fSym">—</b> <span id="fName"></span> <span id="fSpot"></span></span><span class="fbadge" title="Classified from the volume between engine snapshots, not from individual trades">Estimate</span></div>
+  </header>
+  <div class="vsum f-sum" id="fSum"></div>
+  <p class="f-say" id="fSay"></p>
+  <div class="f-main">
+    <section class="lab-panel f-plot">
+      <div class="lab-tools"><span class="lab-legend lab-tleg" id="fLeg"></span><span class="f-cap" id="fCap"></span></div>
+      <div class="f-chart" id="fChart" role="img" aria-label="Cumulative net premium and delta"></div>
+    </section>
+    <section class="lab-panel f-side">
+      <div class="oi-side-h"><b data-g="uoa">Unusual activity</b><span>volume above open interest</span></div>
+      <div id="fUoa"></div>
+    </section>
   </div>
   <p class="scan-note" id="fNote"></p>
 </main>

@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Open Interest y COT en una pantalla; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Open Interest, COT y Options flow en una pantalla; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Añadido**
 - **Calendar** (en Market, bajo Summary): los datos macro de EE. UU., zona euro, Alemania, Francia, Italia, Reino
@@ -18,6 +18,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   vivienda de FRED, que tarda de 3 minutos a 2 horas), con reintentos hasta que sale.
 
 **Cambiado**
+- **Options flow** en una sola pantalla: las seis tarjetas de arriba retocadas (prima de calls y puts y delta neta
+  en el color de su línea), una frase con la lectura del día, el acumulado de la sesión con zonas suaves bajo calls
+  y puts, alto ajustado a la ventana y tarjeta al pasar el ratón, y al lado la actividad inusual en una columna
+  ancha (contrato, volumen y veces el OI, IV, prima y % comprado; delta y vega al pasar el ratón).
 - **COT** en una sola pantalla: a la izquierda los mercados con el índice COT de Asset managers, Leveraged funds y
   Dealers en celdas rellenas con el color de cada grupo (la cifra al final del relleno; los extremos, intensos y con
   borde ámbar); a la derecha el mercado elegido con el interés abierto, el neto de cada grupo y su cambio semanal,

@@ -2344,7 +2344,7 @@ function setScanView(v) {
 
 async function loadValidation() {
   const body = $("validBody");
-  body.innerHTML = `<tr class="loading"><td colspan="7" class="l">Calculating…</td></tr>`;
+  body.innerHTML = `<tr class="loading"><td colspan="8" class="l">Calculating…</td></tr>`;
   try {
     const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&symbols=${encodeURIComponent(watchlist().join(","))}`);
     const d = await r.json();
@@ -2359,9 +2359,11 @@ async function loadValidation() {
       return `<span class="v-bar ${cls}" title="${ref == null ? "" : `${refTxt} ${fmtNum(ref, 1)}%`}"><span class="v-tr"><i style="width:${Math.min(100, v).toFixed(1)}%"></i>${ref != null ? `<b style="left:${Math.min(100, ref).toFixed(1)}%"></b>` : ""}</span><em>${fmtNum(v, 0)}%</em></span>`;
     };
     const held = (a, b) => a >= b, near = (a, b) => Math.abs(a - b) <= 10;
+    // 2σ: cierres fuera del rango y zona de Basilea del ticker (el total no lleva zona: los tickers se mueven juntos)
+    const ex2 = (x) => !x.n_em ? na : `<span title="${fmtNum(x.em2_rate, 1)}% of ${x.n_em} sessions, 4.55% in theory${x.basel ? `. Basel traffic light: ${BASEL_TXT[x.basel].toLowerCase()}${x.n_em < d.basel_n ? `, indicative under ${d.basel_n} sessions` : ""}` : ""}">${x.basel ? `<i class="bdot ${x.basel}" aria-label="${BASEL_TXT[x.basel]}"></i>` : ""}${x.em2_exc} of ${x.n_em}</span>`;
     const row = (x, cls = "") => `<tr class="${cls}"><td class="l"><span class="tk">${esc(x.symbol)}</span></td>
       <td>${x.n}</td><td>${rng(x.range_pos, x.rr_pos, x.n_pos)}</td><td>${rng(x.range_neg, x.rr_neg, x.n_neg)}</td>
-      <td class="l">${bar(x.cw_held, x.cw_exp, "Baseline", held)}</td><td class="l">${bar(x.pw_held, x.pw_exp, "Baseline", held)}</td><td class="l">${bar(x.em_hit, 68.3, "Theory", near)}</td></tr>`;
+      <td class="l">${bar(x.cw_held, x.cw_exp, "Baseline", held)}</td><td class="l">${bar(x.pw_held, x.pw_exp, "Baseline", held)}</td><td class="l">${bar(x.em_hit, 68.3, "Theory", near)}</td><td>${ex2(x)}</td></tr>`;
     body.innerHTML = d.rows.map((x) => row(x)).join("") + row({ ...d.total, symbol: "Total" }, "total");
     $("validTests").innerHTML = d.tests ? validTestsHtml(d) : "";
     $("validDays").innerHTML = validDaysHtml(d);
@@ -2375,10 +2377,12 @@ async function loadValidation() {
     const tw = document.querySelector(".v-tw");
     tw.style.maxHeight = `${Math.max(260, Math.round(window.innerHeight - tw.getBoundingClientRect().top - 24))}px`;
   } catch (e) {
-    body.innerHTML = `<tr class="err"><td colspan="7" class="l">${esc(e.message)}</td></tr>`;
+    body.innerHTML = `<tr class="err"><td colspan="8" class="l">${esc(e.message)}</td></tr>`;
     $("validTests").innerHTML = ""; $("validDays").innerHTML = ""; $("validProg").textContent = "";
   }
 }
+
+const BASEL_TXT = { green: "Green", yellow: "Yellow", red: "Red" };
 
 /* Pruebas de la Validación (gex_engine._val_tests): cada una agrupa las sesiones por día y solo da veredicto con
    min_days días distintos. Veredicto: pocos días, sin diferencia medible, mejor o peor que la referencia. */
@@ -2387,13 +2391,13 @@ function validVerdict(t, minDays, better, calib = false) {
   if (t.n_days < minDays) return { cls: "wait", txt: `Too few days (${t.n_days} of ${minDays})` };
   if (t.p == null) return { cls: "wait", txt: "Not testable" };
   const p = t.p < 0.001 ? "p < 0.001" : `p = ${fmtNum(t.p, t.p < 0.01 ? 3 : 2)}`;
-  // en el rango de 1σ lo bueno es no apartarse del 68,3 %
+  // en los rangos de 1σ y 2σ lo bueno es no apartarse del 68,3 % ni del 4,55 %
   if (calib) return t.p >= 0.05 ? { cls: "ok", txt: `Consistent with theory (${p})` } : { cls: "bad", txt: `Off target (${p})` };
   if (t.p >= 0.05) return { cls: "none", txt: `No measurable difference (${p})` };
   return better ? { cls: "ok", txt: `Confirmed (${p})` } : { cls: "bad", txt: `Against (${p})` };
 }
 
-// cuatro tarjetas con la pregunta de cada prueba: lo observado frente a la referencia y el veredicto
+// cinco tarjetas con la pregunta de cada prueba: lo observado frente a la referencia y el veredicto
 function validTestsHtml(d) {
   const T = d.tests, tot = d.total, min = T.min_days;
   // con pocos días la estimación del tamaño necesario tampoco es fiable: solo se da cuando ya hay días suficientes
@@ -2419,6 +2423,14 @@ function validTestsHtml(d) {
     rg.ratio == null ? "" : `<div class="v-ratio"><span style="flex:1"><i></i>gamma +</span><span style="flex:${Math.max(0.2, rg.ratio).toFixed(2)}"><i></i>gamma −</span></div>`, rg, (rg.ratio ?? 1) > 1, false, "days");
   h += card("1σ range", "Does the close stay inside the expected 1σ range 68.3% of the time?", tot.em_hit == null ? "—" : `${fmtNum(tot.em_hit, 0)}%`,
     tot.em_hit == null ? "" : `inside, ${diff(tot.em_hit, 68.3)} vs. theory`, pair(tot.em_hit, 68.3, "Theory"), T.em, false, true);
+  // 2σ: el total frente al 4,55 % y cuantos tickers caen en cada zona de Basilea
+  const z = { green: 0, yellow: 0, red: 0 };
+  for (const x of d.rows) if (x.basel) z[x.basel]++;
+  const few = d.rows.some((x) => x.n_em && x.n_em < d.basel_n);
+  h += card("2σ range", "Does the close end outside twice the 1σ range only 4.55% of the time?", tot.em2_rate == null ? "—" : `${fmtNum(tot.em2_rate, 1)}%`,
+    tot.em2_rate == null ? "" : `outside, ${tot.em2_exc} of ${tot.n_em} sessions, theory 4.55%`,
+    tot.em2_rate == null ? "" : `<div class="v-zones">${Object.keys(z).map((k) => `<span class="bzone ${k}">${z[k]} ${BASEL_TXT[k].toLowerCase()}</span>`).join("")}<em>Basel zone by ticker${few ? `, indicative until ${d.basel_n} sessions` : ""}</em></div>`,
+    T.em2, false, true);
   return h;
 }
 
@@ -2436,6 +2448,7 @@ function validDaysHtml(d) {
     ${r("Call Wall held", "cw_held", (x) => pc(x, "cw_held", "cw_exp"))}
     ${r("Put Wall held", "pw_held", (x) => pc(x, "pw_held", "pw_exp"))}
     ${r("Inside 1σ", "em_hit", (x) => pc(x, "em_hit"))}
+    ${r("Outside 2σ", "em2_rate", (x) => x.em2_rate == null ? "—" : `${fmtNum(x.em2_rate, 1)}%`)}
     </tbody></table><p class="v-dn">After "vs", the baseline: any level at the same distance.</p>`;
 }
 

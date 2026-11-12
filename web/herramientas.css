@@ -419,11 +419,12 @@ select.lab-in option { background: var(--pop); color: var(--text); }
 .v-prog b { color: var(--text); font-weight: 700; }
 .v-pb { width: 120px; height: 6px; border-radius: 999px; background: var(--btn-hover); overflow: hidden; display: inline-block; }
 .v-pb i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
-.v-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.v-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
 .v-cards:empty { display: none; }
 .v-card { background: var(--panel); border-radius: var(--panel-r); padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 :root[data-theme="light"] .v-card { box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
-.v-ch { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.v-ch { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 8px; }
+.v-ch b { white-space: nowrap; }
 .v-ch b { font-size: 14px; font-weight: 800; }
 .v-q { margin: 0; color: var(--faint); font-size: 12px; line-height: 1.4; }
 .v-big { font-size: 24px; font-weight: 800; letter-spacing: -.01em; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -449,12 +450,16 @@ select.lab-in option { background: var(--pop); color: var(--text); }
 .v-dn { margin: 8px 0 0; color: var(--faint); font-size: 11.5px; }
 .v-table td, .v-table th { padding-top: 7px; padding-bottom: 7px; }
 .v-bar { display: inline-flex; align-items: center; gap: 8px; }
-.v-bar .v-tr { width: 90px; }
+.v-bar .v-tr { width: 64px; }
 .v-bar em { font-style: normal; font-weight: 700; min-width: 34px; text-align: right; font-variant-numeric: tabular-nums; }
 .v-bar.up .v-tr i { background: var(--put); } .v-bar.dn .v-tr i { background: var(--call); }
 .v-table tr.total td { font-weight: 800; }
-@media (max-width: 1200px) { .v-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .v-main { grid-template-columns: minmax(0, 1fr); } }
+.v-table th { white-space: normal; }
+@media (max-width: 1200px) { .v-cards { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); } .v-main { grid-template-columns: minmax(0, 1fr); } }
 .v-tw { overflow: auto; }
 .v-tw thead th { position: sticky; top: 0; z-index: 2; background: var(--panel); }
+.v-zones { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.v-zones .bzone { margin-left: 0; }
+.v-zones em { font-style: normal; color: var(--faint); font-size: 11.5px; flex-basis: 100%; }
 .v-x { color: var(--faint); font-size: 11px; font-weight: 600; }
 .v-table td, .v-table th { padding-top: 6px !important; padding-bottom: 6px !important; }

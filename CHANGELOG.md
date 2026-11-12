@@ -16,6 +16,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - El dato real de EE. UU. llega en uno o dos minutos: a la hora de cada dato se lanza un ciclo solo del calendario
   (CPI, empleo, PPI y JOLTS de BLS al minuto; ventas minoristas, PCE, peticiones de desempleo, PIB, bienes duraderos y
   vivienda de FRED, que tarda de 3 minutos a 2 horas), con reintentos hasta que sale.
+- **Validation**: columna **Outside 2σ** con los cierres fuera del doble del rango de 1σ frente al 4,55 % teórico
+  y el semáforo de Basilea de cada ticker (verde, amarillo o rojo según lo improbable que sea ese número de fallos;
+  orientativo hasta 250 sesiones), y una quinta tarjeta arriba, «2σ range», con el total y los tickers en cada zona.
+  Usa el historial ya guardado desde el 2026-11-04.
 
 **Cambiado**
 - **Validation** reordenada: arriba el avance hacia el veredicto (días evaluados frente a los 20 necesarios) y

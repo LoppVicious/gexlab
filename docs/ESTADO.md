@@ -42,7 +42,8 @@ Por orden de prioridad.
 2. **Validación más rigurosa** (hecho el 2026-11-11): referencia por distancia para los muros, rango frente al normal
    del ticker, pruebas agrupadas por día con mínimo de 20 días, días con evento aparte. Pendiente:
    - IC de rango a 2 y 5 días y VRP sin días de evento, cuando haya historial (empezó el 2026-11-04).
-   - Semáforo de Basilea sobre un rango de 2σ (hoy solo se guarda el de 1σ).
+   - Semáforo de Basilea sobre el rango de 2σ: hecho el 2026-11-12 (2 × `m1_pct`, binomial al 4,55 %, zona por
+     ticker). Revisar cuando haya ~250 sesiones por ticker; hoy es orientativo.
    - No aplica todavía: walk-forward (la Validación no ajusta umbrales).
 3. **Posicionamiento** (hecho el 2026-11-11, panel lateral del Equity Hub y columna del Escáner): cobertura por 1 %
    en % del ADV$ con impacto por la raíz cuadrada (AAPL 7,2 % y ≈45 pb; NVDA 0,7 % y ≈27 pb), vanna y charm en % del

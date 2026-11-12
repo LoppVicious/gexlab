@@ -2689,6 +2689,17 @@ VAL_BASE_DAYS = 500     # sesiones previas con las que se construye la referenci
 VAL_RV_DAYS = 20        # ventana de la volatilidad realizada que normaliza movimientos y distancias
 VAL_MIN_DAYS = 20       # dias distintos necesarios para dar por buena una prueba (agrupada por dia)
 EM_NOMINAL = 0.683      # cobertura teorica del rango de 1 desviacion tipica
+EM2_EXC = 0.0455        # excepciones teoricas del rango de 2 desviaciones tipicas (cierre fuera, por cualquier lado)
+BASEL_N = 250           # sesiones de la ventana de Basilea; con menos, la zona es orientativa
+
+
+def _basel_zone(k: int, n: int) -> str | None:
+    """Semaforo de Basilea con k excepciones en n sesiones, si la tasa real fuera EM2_EXC (binomial):
+    verde si P(X <= k) < 95 %, rojo si >= 99,99 %, amarillo entre medias (con 250 y 1 %: verde 0-4, rojo 10+)."""
+    if n <= 0:
+        return None
+    cdf = sum(math.comb(n, j) * EM2_EXC ** j * (1 - EM2_EXC) ** (n - j) for j in range(k + 1))
+    return "green" if cdf < 0.95 else ("red" if cdf >= 0.9999 else "yellow")
 EVENT_NAMES = ("FOMC", "CPI", "Payrolls (NFP)")
 
 
@@ -2783,6 +2794,8 @@ def _val_summary(ss: list) -> dict:
         out[f"n_{w}_b"] = len(evb)
     em = [s for s in ss if s.get("em") is not None]
     out["em_hit"], out["n_em"] = mean([float(s["em"]) * 100 for s in em]), len(em)
+    out["em2_exc"] = sum(1 for s in em if s["em2x"])
+    out["em2_rate"] = out["em2_exc"] / len(em) * 100 if em else None
     return out
 
 
@@ -2803,6 +2816,11 @@ def _val_tests(ss: list) -> dict:
         eff = float(np.mean([float(s["em"]) for s in em])) - EM_NOMINAL
         r.update(effect=eff * 100, needed=_sessions_needed(eff, EM_NOMINAL * (1 - EM_NOMINAL)))
     t["em"] = r
+    r = _clustered_test([(s["date"], float(s["em2x"]) - EM2_EXC) for s in em])
+    if em:
+        eff = float(np.mean([float(s["em2x"]) for s in em])) - EM2_EXC
+        r.update(effect=eff * 100, needed=_sessions_needed(eff, EM2_EXC * (1 - EM2_EXC)))
+    t["em2"] = r
     # regimen: por dia, media de log(rango / rango normal) con gamma negativa menos con gamma positiva
     by = {}
     for s in ss:
@@ -2834,6 +2852,8 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
         referencia: lo que habria aguantado un nivel cualquiera a la misma distancia (_base_prob)
       - % de sesiones en que el cierre quedo dentro del movimiento esperado de 1 sigma (si era del mismo dia), frente al
         68,3 % teorico.
+      - excepciones del rango de 2 sigma (2 x m1_pct: sigma es lineal) frente al 4,55 % teorico, con la zona de Basilea
+        por ticker (_basel_zone); el total no lleva zona porque los tickers se mueven juntos el mismo dia.
     Las pruebas (`tests`) agrupan las sesiones por dia (_clustered_test) y solo valen con VAL_MIN_DAYS dias o mas.
     `by_day` separa los dias con evento (vencimiento mensual, FOMC, IPC o empleo) del resto.
     extra = {SYM: {fecha: levels[posicion][motor][filtro]}} (indice del historial diario, hist500): fotos tras el
@@ -2908,14 +2928,18 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
                 x = (math.log(val / prev_c) if w == "cw" else math.log(prev_c / val)) / rv if rv > 0 else float("nan")
                 s[w + "_p"] = _base_prob(ser, i, x)
             if sn.get("m1_pct") and sn.get("m1_session") == d:
-                s["em"] = abs(c / prev_c - 1) * 100 <= sn["m1_pct"]
+                mv = abs(c / prev_c - 1) * 100
+                s["em"] = mv <= sn["m1_pct"]
+                s["em2x"] = mv > 2 * sn["m1_pct"]
             ss.append(s)
         all_s += ss
-        rows.append({"symbol": sym, "n_ante": n_ante, **_val_summary(ss)})
+        row = {"symbol": sym, "n_ante": n_ante, **_val_summary(ss)}
+        row["basel"] = _basel_zone(row["em2_exc"], row["n_em"])
+        rows.append(row)
     total = {"n_ante": sum(r["n_ante"] for r in rows), **_val_summary(all_s)}
     normal = [s for s in all_s if not s["event"]]
     event = [s for s in all_s if s["event"]]
     return {"rows": rows, "total": total, "tests": _val_tests(all_s),
             "by_day": {"normal": {**_val_summary(normal), "tests": _val_tests(normal)},
                        "event": {**_val_summary(event), "tests": _val_tests(event)}},
-            "n_days": len({s["date"] for s in all_s})}
+            "n_days": len({s["date"] for s in all_s}), "basel_n": BASEL_N}

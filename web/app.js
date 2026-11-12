@@ -2228,16 +2228,26 @@ async function runScan() {
   renderScan();
 }
 
-function levelCell(v, dist, prevV, step) {
-  if (v == null) return `<td>—</td>`;
-  const dec = Number.isInteger(v) ? 0 : decFor(step || 1);
-  let mv = "";
-  if (prevV != null && Math.abs(prevV - v) > 1e-9) {
-    const up = v > prevV;
-    mv = `<span class="mv ${up ? "up" : "dn"}" title="Was ${fmtNum(prevV, Number.isInteger(prevV) ? 0 : dec)}">${up ? "▲" : "▼"}</span>`;
-  }
-  const near = dist != null && Math.abs(dist) < 0.5 ? " near" : "";
-  return `<td><span class="lv">${fmtNum(v, dec)}</span>${mv}<span class="ds${near}">${dist == null ? "" : fmtPct(dist)}</span></td>`;
+// barra del escaner: del Put Wall al Call Wall con el precio (punto) y el flip (marca ambar); debajo los tres niveles
+// con su distancia y una flecha si cambiaron desde la sesion guardada anterior
+function scanLevels(r) {
+  const p = r.prev || {}, vs = [r.put_wall, r.call_wall, r.flip, r.spot].filter((v) => v != null);
+  if (r.put_wall == null || r.call_wall == null) return "—";
+  const lo = Math.min(...vs), hi = Math.max(...vs), X = (v) => (((v - lo) / (hi - lo || 1)) * 100).toFixed(1) + "%";
+  const dec = (v) => (Number.isInteger(v) ? 0 : decFor(r.step || 1));
+  const lab = (cls, name, v, dist, prev) => {
+    if (v == null) return "";
+    const mv = prev != null && Math.abs(prev - v) > 1e-9 ? `<b class="mv ${v > prev ? "up" : "dn"}" title="Was ${fmtNum(prev, dec(prev))}">${v > prev ? "▲" : "▼"}</b>` : "";
+    return `<span class="${cls}${dist != null && Math.abs(dist) < 0.5 ? " near" : ""}">${name}${fmtNum(v, dec(v))}${mv}<em>${dist == null ? "" : fmtPct(dist)}</em></span>`;
+  };
+  return `<div class="sx-lv"><div class="sx-bar">${r.flip != null ? `<i class="fl" style="left:${X(r.flip)}"></i>` : ""}<i class="sp" style="left:${X(r.spot)}"></i></div>
+    <div class="lb">${lab("pw", "", r.put_wall, r.put_dist, p.put_wall)}${lab("ff", "flip ", r.flip, r.flip_dist, p.flip)}${lab("cw", "", r.call_wall, r.call_dist, p.call_wall)}</div></div>`;
+}
+// GEX por 1 %: la cifra y una barra que sale del cero (violeta positiva, magenta negativa), a escala de la lista
+function scanGex(v, gmax) {
+  if (v == null) return "—";
+  const w = Math.min(50, (Math.abs(v) / (gmax || 1)) * 50).toFixed(1);
+  return `<div class="sx-gex"><span>${fmtBig(v, true)}</span><div class="sx-bar"><i class="${v < 0 ? "n" : "p"}" style="${v < 0 ? "right" : "left"}:50%;width:${w}%"></i></div></div>`;
 }
 
 function renderScan() {
@@ -2260,25 +2270,23 @@ function renderScan() {
     th.dataset.dir = th.dataset.k === k ? (scanState.sortDir > 0 ? "▲" : "▼") : "";
   });
   if (!rows.length) {
-    body.innerHTML = `<tr class="err"><td colspan="12" class="l">${scanState.rows.length ? "No ticker matches the filter." : "Add tickers to get started."}</td></tr>`;
+    body.innerHTML = `<tr class="err"><td colspan="9" class="l">${scanState.rows.length ? "No ticker matches the filter." : "Add tickers to get started."}</td></tr>`;
     return;
   }
+  const ok = rows.filter((r) => !r.loading && !r.error);
+  const gmax = Math.max(0, ...ok.map((r) => Math.abs(r.net_per_pct || 0))), emax = Math.max(0, ...ok.map((r) => r.em_pct || 0)) || 1;
   body.innerHTML = rows.map((r) => {
     const rm = `<td><button class="rm" data-rm="${esc(r.symbol)}" title="Remove ${esc(r.symbol)}" aria-label="Remove ${esc(r.symbol)}">×</button></td>`;
-    if (r.loading) return `<tr class="loading"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="10" class="l">Calculating…</td>${rm}</tr>`;
-    if (r.error) return `<tr class="err"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="10" class="l">${esc(r.error)}</td>${rm}</tr>`;
-    const p = r.prev || {};
+    if (r.loading) return `<tr class="loading"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="7" class="l">Calculating…</td>${rm}</tr>`;
+    if (r.error) return `<tr class="err"><td class="l"><span class="tk">${esc(r.symbol)}</span></td><td colspan="7" class="l">${esc(r.error)}</td>${rm}</tr>`;
     const neg = r.regime === "negative";
     return `<tr data-s="${esc(r.symbol)}"${r.stale ? ' style="opacity:.55"' : ""}>
       <td class="l"><span class="tk">${esc(r.symbol)}</span><span class="nm">${esc(r.name || "")}</span></td>
-      <td>${fmtSpot(r.spot)}</td>
-      <td class="chg ${r.chg >= 0 ? "up" : "dn"}">${r.chg == null ? "—" : fmtPct(r.chg)}</td>
+      <td><b class="sx-px">${fmtSpot(r.spot)}</b><span class="sx-chg ${r.chg >= 0 ? "up" : "dn"}">${r.chg == null ? "—" : fmtPct(r.chg)}</span></td>
       <td class="l"><span class="rg ${neg ? "neg" : "pos"}"><i></i>${neg ? "Negative" : "Positive"}</span></td>
-      ${levelCell(r.flip, r.flip_dist, p.flip, r.step)}
-      ${levelCell(r.call_wall, r.call_dist, p.call_wall, r.step)}
-      ${levelCell(r.put_wall, r.put_dist, p.put_wall, r.step)}
-      <td>${fmtBig(r.net_per_pct, true)}</td>
-      <td>${r.em_pct == null ? "—" : "±" + fmtNum(r.em_pct, 2) + "%"}</td>
+      <td class="l sx-wide">${scanLevels(r)}</td>
+      <td>${scanGex(r.net_per_pct, gmax)}</td>
+      <td class="l">${r.em_pct == null ? "—" : `<div class="sx-em"><div class="sx-bar"><i style="width:${Math.min(100, (r.em_pct / emax) * 100).toFixed(0)}%"></i></div><span>±${fmtNum(r.em_pct, 2)}%</span></div>`}</td>
       <td>${fmtNum((r.front_share || 0) * 100, 0)}%</td>
       <td${r.impact_bp != null ? ` title="≈ ${fmtNum(r.impact_bp, 0)} bp of price impact per 1% move"` : ""}>${r.gex_adv == null ? "—" : fmtNum(r.gex_adv * 100, r.gex_adv < 0.1 ? 1 : 0) + "%"}</td>
       ${rm}</tr>`;

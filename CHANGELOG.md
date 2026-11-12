@@ -3,9 +3,13 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; Volatility con vista general; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Cambiado**
+- **Scanner** como tabla visual: las columnas de Gamma Flip, Call Wall y Put Wall pasan a una barra por fila del
+  Put Wall al Call Wall con el precio (punto) y el flip (marca ámbar), con los tres niveles, su distancia y una
+  flecha si cambiaron desde la sesión anterior; el GEX por 1 % es una barra que sale del cero y el rango 1σ otra
+  barra. El precio lleva debajo la variación del día (la columna ordena por ella).
 - **Volatility dashboard**: nueva vista **Overview** (la de entrada) con las cuatro gráficas a la vez (Term
   structure, Skew, Skew by expiration y Realized vs. implied) y la matriz por strike fijo debajo. Al pulsar una se
   abre en grande con sus controles; las pestañas cambian de vista sin volver a la general, y Esc vuelve. Cada cifra

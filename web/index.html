@@ -407,14 +407,11 @@
     <table class="scan" id="scanTable">
       <thead><tr>
         <th data-k="symbol" class="l">Ticker</th>
-        <th data-k="spot">Price</th>
-        <th data-k="chg">Chg.</th>
+        <th data-k="chg" title="Price and change on the day (sorts by the change)">Price</th>
         <th data-k="regime" class="l">Regime</th>
-        <th data-k="flip_dist" title="Gamma Flip and distance from the price">Gamma Flip</th>
-        <th data-k="call_dist" title="Call Wall and distance from the price">Call Wall</th>
-        <th data-k="put_dist" title="Put Wall and distance from the price">Put Wall</th>
+        <th data-k="flip_dist" class="l sx-wide" title="Bar from the Put Wall to the Call Wall, with the price (dot) and the Gamma Flip (amber). Sorts by distance to the flip">Put Wall, price and flip, Call Wall</th>
         <th data-k="net_per_pct" title="Net GEX per 1% move">GEX 1%</th>
-        <th data-k="em_pct" title="1 standard deviation range (68.3%) for the next session, implied by options">1σ range</th>
+        <th data-k="em_pct" class="l" title="1 standard deviation range (68.3%) for the next session, implied by options">1σ range</th>
         <th data-k="front_share" title="Share of gamma that expires at the next expiration">Next exp.</th>
         <th data-k="gex_adv" title="Hedging for a 1% move as a share of average daily dollar volume (20 sessions), and its estimated price impact (square-root law). Not available for cash indices, hedged mostly with futures">Hedge / ADV</th>
         <th class="x"><span class="sr">Remove</span></th>

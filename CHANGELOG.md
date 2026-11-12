@@ -57,6 +57,13 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   tooltip.
 
 **Corregido**
+- **Summary** antes de la apertura: SPX, NDX y RUT muestran el precio pre-market (última vela de SPY, QQQ o IWM en
+  Tradier, escalada al índice) con su cambio frente al cierre de ayer y la marca «Pre-market». Antes salía el cierre de
+  ayer, porque la cotización retrasada de CBOE del ETF no se mueve fuera de horario.
+- En el terreno de gamma del Summary las etiquetas de los niveles ya no se montan unas sobre otras (p. ej. Gamma Flip
+  y Call Wall muy juntos en el NDX): cada una va a la primera fila libre.
+- Las imágenes copiadas o descargadas de un gráfico tienen esquinas rectas; antes se veían las esquinas redondeadas
+  sobre otro color. El informe conserva sus tarjetas redondeadas.
 - En tema claro, la sección activa de la barra lateral lleva un tinte índigo suave con el texto en índigo, en lugar
   de un bloque de color intenso que dejaba el texto oscuro e ilegible.
 - Al abrir la web con Options Lab como última pantalla salía en blanco (`showLab is not defined`): la app arranca

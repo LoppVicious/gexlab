@@ -726,7 +726,8 @@ function frame(W, H, inner, d, exp, title) {
   let head = "";
   if (exp) {
     const dte = DTE_LABEL[state.dte] || "";
-    head = `<rect x="0" y="0" width="${W}" height="${H}" rx="22" fill="${C.surface}"/>
+    // esquinas rectas en la imagen suelta (copiada o descargada); redondeadas solo dentro de las tarjetas del informe
+    head = `<rect x="0" y="0" width="${W}" height="${H}" rx="${state.inReport ? 22 : 0}" fill="${C.surface}"/>
       <text x="92" y="44" font-family="${SANS}" font-size="22" font-weight="600" fill="${C.text}">${esc(d.symbol)}</text>
       <text x="${92 + d.symbol.length * 14 + 14}" y="44" font-family="${SANS}" font-size="18" fill="${C.muted}">${esc(title)}, ${dte}</text>`;
     if (!state.inReport) {

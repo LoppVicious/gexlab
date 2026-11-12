@@ -588,12 +588,14 @@ def _index_card(sym: str, refresh: bool) -> dict:
     L, s = r["levels"], r["spot"]
     dist = lambda v: None if v is None else (v / s - 1) * 100  # noqa: E731
     prev = r.get("prev") or {}
-    return {"symbol": r["symbol"], "name": r["name"], "spot": s, "chg": r["chg_pct"], "regime": r["regime"],
+    imp = r.get("spot_implied") or {}
+    chg = imp["proxy_chg"] if imp.get("use") else r["chg_pct"]  # pre-market: cambio frente al cierre de ayer
+    return {"symbol": r["symbol"], "name": r["name"], "spot": s, "chg": chg, "regime": r["regime"],
             "net_per_pct": r["totals"]["net_per_pct"], "prev_net": prev.get("net_per_pct"), "prev_date": prev.get("date"),
             "levels": {k: {"v": L[k], "d": dist(L[k]), "prev": prev.get(k)} for k in ("call_wall", "flip", "vt", "put_wall")},
             "flip_exact": L["flip_exact"], "em": r.get("expected_move"), "moves": r.get("moves"), "step": r["step"],
             "abs_gamma": {"v": L["abs_gamma"], "d": dist(L["abs_gamma"])}, "is_index": r["is_index"],
-            "implied": (r.get("spot_implied") or {}).get("use", False), "quote_time": r["quote_time"],
+            "implied": imp.get("use", False), "quote_time": r["quote_time"],
             "front_share": r["front_share"], "front_expiry": r["front_expiry"]}
 
 

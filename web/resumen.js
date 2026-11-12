@@ -94,9 +94,11 @@ function suTerrain(x, prof, W = 400, H = 150) {
   items.forEach(([n, v, c]) => {
     const xx = X(v), w = `${n} ${fmtLevel(v)}`.length * 5.9, flip = n === "Gamma Flip";
     s += `<line x1="${xx}" x2="${xx}" y1="${T - 2}" y2="${B + 4}" stroke="${c}" stroke-width="${flip ? 1.2 : 2}"${flip ? ' stroke-dasharray="3 3"' : ""}/>`;
-    let a = xx - w / 2, anc = "middle"; if (a < 0) { a = xx; anc = "start"; } else if (xx + w / 2 > W) { a = xx - w; anc = "end"; }
-    const k = a > ends[0] + 8 ? 0 : 1; ends[k] = a + w;
-    s += `<text x="${xx}" y="${rows[k]}" text-anchor="${anc}" fill="${c}"><tspan font-weight="600">${fmtLevel(v)}</tspan><tspan fill="${C.muted}"> ${n}</tspan></text>`;
+    // centrada bajo su linea, en la primera fila libre; si las dos estan ocupadas, tras la que acaba antes
+    let a = Math.max(0, Math.min(W - w, xx - w / 2)), k = ends.findIndex((e) => a >= e + 8);
+    if (k < 0) { k = ends[0] <= ends[1] ? 0 : 1; a = ends[k] + 8; }
+    ends[k] = a + w;
+    s += `<text x="${a}" y="${rows[k]}" fill="${c}"><tspan font-weight="600">${fmtLevel(v)}</tspan><tspan fill="${C.muted}"> ${n}</tspan></text>`;
   });
   const px = X(sp);
   s += `<line x1="${px}" x2="${px}" y1="${T - 4}" y2="${B + 4}" stroke="${C.text}" stroke-width="1.6"/>`;
@@ -111,7 +113,7 @@ function suIndex(x) {
     .map(([t, k]) => `${t} <s>${fmtLevel(L[k].prev)}</s> ${fmtLevel(L[k].v)}`);
   const prof = su.prof[x.symbol], m5 = x.moves && x.moves.d5;
   return `<article class="su-ix ${neg ? "neg" : "pos"}" data-sym="${esc(x.symbol)}" title="Open ${esc(x.symbol)} in the Equity Hub">
-    <header><div><h2>${esc(x.symbol)}</h2><span>${esc(x.name || "")}</span></div><div class="px"><b>${fmtSpot(x.spot)}</b><em class="${x.chg >= 0 ? "up" : "dn"}">${x.chg != null ? fmtPct(x.chg) : ""}</em></div></header>
+    <header><div><h2>${esc(x.symbol)}</h2><span>${esc(x.name || "")}</span></div><div class="px"><b>${fmtSpot(x.spot)}</b><em class="${x.chg >= 0 ? "up" : "dn"}">${x.implied ? '<small title="Pre-market price from its ETF">Pre-market</small> ' : ""}${x.chg != null ? fmtPct(x.chg) : ""}</em></div></header>
     <div class="reg"><span class="dot"></span><b>${neg ? "Negative" : "Positive"} gamma</b><span>${neg ? "dealers amplify moves" : "dealers dampen moves"}</span></div>
     <div class="ter">${prof ? suTerrain(x, prof) : suWait("Loading the gamma profile…")}</div>
     <dl><div><dt>GEX per 1%</dt><dd class="${x.net_per_pct < 0 ? "dn" : "up"}">${fmtBig(x.net_per_pct, true)}</dd>${dg != null ? `<small>${dg >= 0 ? "▲" : "▼"} ${fmtBig(Math.abs(dg), true)} vs ${ddmm(x.prev_date)}</small>` : ""}</div>

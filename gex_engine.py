@@ -819,18 +819,43 @@ def rate_info() -> dict:
     return {"r": _rate["r"], "src": _rate["src"] or "fijo", "yield": _rate["yield"]}
 
 
+def _pre_tradier(symbol: str) -> float | None:
+    """Cierre de la ultima vela pre-market del ETF (PRE_PROXY), escalado al indice, con Tradier (solo en Actions;
+    el navegador recibe ese precio ya puesto en el paquete). Cache de 60 s."""
+    etf = PRE_PROXY.get(symbol)
+    if not etf or etf == symbol or os.environ.get("GEX_FIXTURE_DIR"):
+        return None
+    key = f"pre:{symbol}"
+    hit = _aux_cache.get(key)
+    if hit and time.time() - hit[0] < 60:
+        return hit[1]
+    v = None
+    try:
+        import fuente_tradier as ft
+        if ft.disponible():
+            velas = ft.velas_pre(symbol, etf, [])
+            v = float(velas[-1]["price"]["close"]) if velas else None
+    except Exception:  # noqa: BLE001
+        v = None
+    _aux_cache[key] = (time.time(), v)
+    return v
+
+
 def implied_index_spot(symbol: str, index_close: float, now: datetime) -> dict | None:
     """Fuera de horario el indice no cotiza; su ETF si (pre-market y after-hours).
     Spot implicito = cierre del indice x (precio actual del ETF / cierre del ETF)."""
     proxy = INDEX_PROXY.get(symbol)
     if not proxy or market_open(now) or index_close <= 0:
         return None
+    pre = now.weekday() < 5 and (4, 0) <= (now.hour, now.minute) < (9, 30)
+    v = _pre_tradier(symbol) if pre else None
+    if v:  # la cotizacion retrasada de CBOE no se mueve fuera de horario: ultima vela pre-market del ETF en Tradier
+        return {"value": v, "proxy": PRE_PROXY.get(symbol, proxy), "proxy_chg": (v / index_close - 1) * 100, "use": True}
     qd = fetch_quote(proxy)
     d = (qd or {}).get("data") or {}
     cur, close = float(d.get("current_price") or 0), float(d.get("close") or 0)
     if cur <= 0 or close <= 0:
         return None
-    pre = now.weekday() < 5 and (4, 0) <= (now.hour, now.minute) < (9, 30)
     return {"value": index_close * cur / close, "proxy": proxy, "proxy_chg": (cur / close - 1) * 100,
             "use": pre and abs(cur / close - 1) > 1e-5}
 

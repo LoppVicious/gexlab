@@ -55,14 +55,35 @@ def test_avisos():
            e("Minor", "09:00", 1), e("ECOFIN Meetings", "", country="EZ", real=False)]
     from datetime import timezone
     utc = lambda h, m: datetime(2026, 11, 13, h, m, tzinfo=timezone.utc)  # noqa: E731
-    assert ev.horas_aviso(evs, utc(13, 0)) == ["2026-11-13T13:31:00Z", "2026-11-13T15:01:00Z"]
-    # sin dato real: el siguiente reintento (T+6, 16, 31, 61, 121) que no haya pasado; el discurso no reintenta
-    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T13:36:00Z", "2026-11-13T15:01:00Z"]
-    assert ev.horas_aviso(evs, utc(13, 40)) == ["2026-11-13T13:46:00Z", "2026-11-13T15:01:00Z"]
-    assert ev.horas_aviso(evs, utc(15, 40)) == []          # pasado T+121 y el discurso ya avisado
+    # solo avisan los eventos con fuente de dato real (real) que aun no lo tienen; el resto no (el modo calendario
+    # no puede actualizarlos)
+    assert ev.horas_aviso(evs, utc(13, 0)) == ["2026-11-13T13:31:00Z"]
+    # sin dato real: el siguiente reintento (T+6, 16, 31, 61, 121) que no haya pasado
+    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T13:36:00Z"]
+    assert ev.horas_aviso(evs, utc(13, 40)) == ["2026-11-13T13:46:00Z"]
+    assert ev.horas_aviso(evs, utc(15, 40)) == []
     for x in evs[:2]:
         x["actual"] = "0.3%"
-    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T15:01:00Z"]
+    assert ev.horas_aviso(evs, utc(13, 32)) == []
+    assert ev.horas_aviso(evs, utc(13, 0)) == []
+
+
+def test_union_ff():
+    known = {}
+    oficial = {"date": "2026-11-13", "time": "08:30", "name": "CPI (Oct)", "country": "US", "imp": 2}
+    ff_ = {"date": "2026-11-13", "time": "08:30", "name": "CPI (Oct)", "titulo": "CPI m/m", "country": "US", "imp": 3,
+           "forecast": "0.3%", "previous": "0.6%", "actual": "0.4%"}
+    ev.unir(known, [oficial], solo_nuevos=True)
+    ev.unir(known, [ff_])
+    ev.unir(known, [oficial], solo_nuevos=True)
+    e = known["2026-11-13|US|CPI (Oct)"]
+    assert (e["actual"], e["forecast"], e["titulo"], e["imp"]) == ("0.4%", "0.3%", "CPI m/m", 3), e
+    ev.unir(known, [dict(ff_, actual=None, forecast="0.2%")])
+    e = known["2026-11-13|US|CPI (Oct)"]
+    assert (e["actual"], e["forecast"]) == ("0.4%", "0.2%"), e
+    # solo_nuevos con otra etiqueta de mes: ya existe la publicacion, se salta
+    ev.unir(known, [dict(oficial, name="CPI (Sep)")], solo_nuevos=True)
+    assert list(known) == ["2026-11-13|US|CPI (Oct)"], known
 
 
 if __name__ == "__main__":

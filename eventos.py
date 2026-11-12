@@ -204,13 +204,19 @@ def _base(k: str) -> str:
     return re.sub(r" \([A-Z][a-z]{2}\)$", "", k)
 
 
-def unir(known: dict, evs: list[dict]) -> None:
-    """Anade evs a known. Misma fecha, pais y etiqueta (sin el mes): gana el que llega."""
+def unir(known: dict, evs: list[dict], solo_nuevos: bool = False) -> None:
+    """Anade evs a known. Misma fecha, pais y etiqueta (sin el mes) es la misma publicacion.
+    solo_nuevos (fuentes oficiales): si ya esta, se salta, para no borrar lo de ForexFactory.
+    Si no (ForexFactory): se mezcla con lo que habia; los campos None no pisan lo guardado (p. ej. el actual)."""
     for e in evs:
         base = _base(_clave(e))
-        for k in [k for k in known if _base(k) == base]:
-            known.pop(k)
-        known[_clave(e)] = e
+        claves = [k for k in known if _base(k) == base]
+        if solo_nuevos and claves:
+            continue
+        viejo = {}
+        for k in claves:
+            viejo.update(known.pop(k))
+        known[_clave(e)] = {**viejo, **{k: v for k, v in e.items() if v is not None}}
 
 
 CAL_ATRAS, CAL_ADELANTE, OTROS_DIAS = 14, 28, 35
@@ -226,16 +232,17 @@ def actualizar() -> tuple[list[dict], dict]:
         try:
             evs = fn()
             res[name] = len(evs)
-            unir(known, evs)
+            unir(known, evs, solo_nuevos=name != "forexfactory")
         except Exception as ex:  # noqa: BLE001
             res[name] = f"error: {str(ex)[:80]}"
     hoy = g.now_ny()
-    # EE. UU.: lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); otros paises, 35 dias
+    # EE. UU.: lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); otros paises y
+    # los de solo calendario, 35 dias
     lo_us = (hoy - timedelta(days=365 * GUARDAR_ANOS)).strftime("%Y-%m-%d")
     lo_otros = (hoy - timedelta(days=OTROS_DIAS)).strftime("%Y-%m-%d")
     hi = (hoy + timedelta(days=400)).strftime("%Y-%m-%d")
     evs = sorted((e for e in known.values()
-                  if (lo_us if e.get("country", "US") == "US" else lo_otros) <= e["date"] <= hi),
+                  if (lo_us if e.get("country", "US") == "US" and not e.get("solo_cal") else lo_otros) <= e["date"] <= hi),
                  key=lambda e: (e["date"], e["time"] or "99:99", -e["imp"]))
     marcar_reales(evs)
     try:
@@ -254,10 +261,10 @@ def marcar_reales(evs: list[dict]) -> None:
 
 
 def rellenar_reales(evs: list[dict], now: datetime | None = None) -> int:
-    """Pone el dato real a los eventos de los ultimos 7 dias que ya han pasado y aun no lo tienen."""
+    """Pone el dato real a los eventos de los ultimos 2 dias que ya han pasado y aun no lo tienen."""
     now = now or datetime.now(timezone.utc)
     hoy = (now + g._ny_offset(now)).date()
-    lo = (hoy - timedelta(days=7)).isoformat()
+    lo = (hoy - timedelta(days=2)).isoformat()
     pend = [e for e in evs if e.get("real") and not e.get("actual") and e.get("time")
             and lo <= e["date"] <= hoy.isoformat() and _utc(e["date"], e["time"]) <= now]
     return reales.rellenar(pend) if pend else 0
@@ -301,22 +308,20 @@ REINTENTOS = (6, 16, 31, 61, 121)  # minutos tras el evento mientras falte el da
 
 
 def horas_aviso(evs: list[dict], now: datetime | None = None) -> list[str]:
-    """Instantes (UTC ISO) en que el Worker lanza el modo calendario: hora del evento + 1 min y, si tiene fuente de
-    dato real y aun no lo tiene, el siguiente reintento de REINTENTOS. Importancia 2 o mas, hoy y manana, con hora."""
+    """Instantes (UTC ISO) en que el Worker lanza el modo calendario: solo para eventos con fuente de dato real
+    (real) y aun sin el, que son los unicos que ese modo puede actualizar: hora del evento + 1 min y despues el
+    siguiente reintento de REINTENTOS. Importancia 2 o mas, hoy y manana, con hora."""
     now = now or datetime.now(timezone.utc)
     hoy = (now + g._ny_offset(now)).date()
     dias = {hoy.isoformat(), (hoy + timedelta(days=1)).isoformat()}
     out = set()
     for e in evs:
-        if e["imp"] < 2 or not e.get("time") or e["date"] not in dias:
+        if e["imp"] < 2 or not e.get("time") or e["date"] not in dias or not e.get("real") or e.get("actual"):
             continue
         t = _utc(e["date"], e["time"])
-        if t + timedelta(minutes=1) > now:
-            out.add(t + timedelta(minutes=1))
-        elif e.get("real") and not e.get("actual"):
-            sig = next((t + timedelta(minutes=m) for m in REINTENTOS if t + timedelta(minutes=m) > now), None)
-            if sig:
-                out.add(sig)
+        sig = next((t + timedelta(minutes=m) for m in (1,) + REINTENTOS if t + timedelta(minutes=m) > now), None)
+        if sig:
+            out.add(sig)
     return [t.strftime("%Y-%m-%dT%H:%M:%SZ") for t in sorted(out)]
 
 

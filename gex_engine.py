@@ -2670,7 +2670,7 @@ EVENT_NAMES = ("FOMC", "CPI", "Payrolls (NFP)")
 def _event_days() -> set:
     """Dias de vencimiento mensual se calculan aparte; aqui, FOMC, IPC y empleo del calendario guardado (eventos.py)."""
     st = read_json(os.path.join(CACHE_DIR, "eventos.json"), {}) or {}
-    return {e["date"] for e in st.get("eventos", []) if e.get("name", "").split(" (")[0] in EVENT_NAMES}
+    return {e["date"] for e in st.get("eventos", []) if e.get("country", "US") == "US" and e.get("name", "").split(" (")[0] in EVENT_NAMES}
 
 
 def _clustered_test(items: list) -> dict:

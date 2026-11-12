@@ -1,0 +1,88 @@
+/* GEX Lab - tema visual. Se carga el ultimo: sg.css pone la estructura y este archivo la identidad.
+   Oscuro "Bento": negro puro, bloques muy redondeados sin bordes, barra lateral flotante, lo elegido en blanco y letra
+   Manrope con cifras grandes. Claro "Daylight": gris lavanda, tarjetas blancas con sombra suave, acento indigo y letra
+   DM Sans. Los colores de los graficos estan en THEMES (app.js) y deben coincidir con estos tokens. */
+
+:root, :root[data-theme="dark"] {
+  --ink: #000; --surface: #121214; --surface-2: #1a1a1d;
+  --line: #222226; --line-soft: #1c1c20; --line-strong: #2e2e34;
+  --text: #fafafa; --muted: #a1a1aa; --faint: #71717a;
+  --accent: #34d3b0; --accent-soft: rgba(52, 211, 176, .14); --focus: #34d3b0;
+  --btn: #18181b; --btn-hover: #222226; --pop: #18181b; --hover: #18181b; --seg-on: #fafafa; --knob: #fafafa;
+  --scroll: #2e2e34; --shadow: rgba(0, 0, 0, .6); --side: #0e0e10; --side-on: #fafafa;
+  --panel: #121214; --panel-r: 26px; --ctl-r: 999px; --on-text: #000;
+  --sans: "Manrope", -apple-system, "Segoe UI", Roboto, sans-serif; --mono: var(--sans);
+}
+:root[data-theme="light"] {
+  --ink: #f2f3f8; --surface: #ffffff; --surface-2: #f7f8fc;
+  --line: #e6e8f0; --line-soft: #eef0f5; --line-strong: #d3d7e3;
+  --text: #11142b; --muted: #4c5170; --faint: #8288a6;
+  --accent: #5145e5; --accent-soft: rgba(81, 69, 229, .1); --focus: #5145e5;
+  --pos: #6a3df0; --neg: #e11d6a; --put: #0b9b6a; --call: #e5484d; --amber: #c27c0e;
+  --btn: #f3f4f9; --btn-hover: #eceef5; --pop: #ffffff; --hover: #f3f4f9; --seg-on: #ffffff; --knob: #ffffff;
+  --scroll: #d3d7e3; --shadow: rgba(17, 20, 43, .14); --side: #ffffff; --side-on: rgba(81, 69, 229, .09);
+  --panel: #ffffff; --panel-r: 20px; --ctl-r: 10px; --on-text: #fff;
+  --sans: "DM Sans", -apple-system, "Segoe UI", Roboto, sans-serif; --mono: var(--sans);
+}
+
+/* ---------------------------------------------------------------- letra: la del tema en toda la interfaz y en los graficos */
+body { font-family: var(--sans); background: var(--ink); }
+.main svg text, .side svg text { font-family: var(--sans); }
+.tool { --mono-d: var(--sans); }
+:root[data-theme="light"] body { -webkit-font-smoothing: antialiased; }
+
+/* ---------------------------------------------------------------- rotulos en caja normal, titulos con peso */
+.side .sec, .htitle, .mq-lt, .scan th, .vstat .k, .cap { text-transform: none; letter-spacing: 0; }
+.side .sec { font-size: 12px; font-weight: 700; color: var(--faint); }
+.htitle { font-size: 13px; font-weight: 700; color: var(--muted); }
+.pagetitle { text-transform: none; letter-spacing: -.02em; font-size: 20px; font-weight: 800; }
+.sumtitle { font-size: 32px; font-weight: 800; letter-spacing: -.035em; }
+.side .brand { font-weight: 800; font-size: 16px; }
+.price, .ts-px b, .vstat .v, .scard .sp { font-weight: 800; letter-spacing: -.035em; }
+.price { font-size: 40px; }
+.levels .val, .fact strong, .hrow b, .split-head strong { font-weight: 700; }
+
+/* ---------------------------------------------------------------- paneles: bloques sin bordes */
+:is(.stage, .hubdrawer, .tstrip, .tablewrap, .vtests, .cotdetail, .fpanel, .vstat, .vpanel, .cpanel, .cside, .scard, #vixView, #corrView, .lab-panel, .lab-read) {
+  border: 0; border-radius: var(--panel-r); background: var(--panel); }
+.lab-read { gap: 0; }
+:root[data-theme="light"] :is(.stage, .hubdrawer, .tstrip, .tablewrap, .vtests, .cotdetail, .fpanel, .vstat, .vpanel, .cpanel, .cside, .scard, #vixView, #corrView, .lab-panel, .lab-read) {
+  box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
+.tstrip > *, .ladder, .hubside, .hubcard, .hubwatch { border-color: var(--line-soft); }
+.scard.link:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+
+/* ---------------------------------------------------------------- barra lateral y superior */
+.side .item { border-radius: 12px; }
+:root[data-theme="dark"] .side { margin: 12px 0 12px 12px; height: calc(100vh - 24px); border: 0; border-radius: 24px; }
+:root[data-theme="dark"] .side .item { color: var(--muted); }
+:root[data-theme="dark"] .side .item[aria-current="page"], :root[data-theme="dark"] .side .item[aria-current="page"] svg { color: #000; background: #fafafa; }
+:root[data-theme="light"] .side { border-right: 1px solid #eceef5; }
+:root[data-theme="light"] .side .item { color: var(--muted); font-weight: 500; }
+:root[data-theme="light"] .side .item[aria-current="page"] { color: var(--accent); background: var(--side-on); font-weight: 600; }
+.bar { border-bottom: 0; }
+:root[data-theme="light"] .bar { background: rgba(242, 243, 248, .86); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.ticker { border-color: transparent; border-radius: 999px; background: var(--surface); }
+:root[data-theme="light"] .ticker { border-radius: 12px; border-color: #e1e4ee; box-shadow: 0 1px 2px rgba(17, 20, 43, .05); }
+.ticker .go { border-radius: 999px; font-weight: 700; }
+:root[data-theme="dark"] .ticker .go, :root[data-theme="dark"] .ticker .go:hover { background: #fafafa; color: #000; }
+:root[data-theme="light"] .ticker .go, :root[data-theme="light"] .ticker .go:hover { background: var(--accent); color: #fff; border-radius: 9px; }
+:root[data-theme="dark"] .quick button.on { color: #000; background: #fafafa; border-radius: 999px; }
+
+/* ---------------------------------------------------------------- controles: segmentos, pestanas, botones */
+.seg.boxed, .tabs, .modes { border: 0; border-radius: var(--ctl-r); background: var(--btn); padding: 3px; }
+.seg.boxed button, .tabs button, .modes button { border-radius: var(--ctl-r); font-weight: 600; }
+:root[data-theme="light"] .seg.boxed button, :root[data-theme="light"] .tabs button { border-radius: 8px; }
+.seg.boxed button[aria-checked="true"], .tabs button[aria-selected="true"], .modes button[aria-selected="true"] {
+  background: var(--seg-on); color: var(--on-text); box-shadow: none; font-weight: 700; }
+:root[data-theme="light"] .seg.boxed button[aria-checked="true"], :root[data-theme="light"] .tabs button[aria-selected="true"], :root[data-theme="light"] .modes button[aria-selected="true"] {
+  color: var(--accent); box-shadow: 0 1px 3px rgba(17, 20, 43, .12); }
+.seg button[aria-checked="true"], .seg.compact button[aria-checked="true"] { color: var(--text); background: var(--btn-hover); }
+.ghost, .setbtn, .iconbtn, .dd, .vchip, .vexp { border-radius: var(--ctl-r); }
+:root[data-theme="light"] :is(.ghost, .setbtn, .iconbtn, .dd) { background: #fff; border-color: #e1e4ee; }
+.ghost:hover, .iconbtn:hover { color: var(--text); border-color: var(--line-strong); background: var(--hover); }
+.switch[aria-checked="true"] .track, .kl-tg[aria-checked="true"] i, .cs-tg[aria-checked="true"] i { background: var(--accent); }
+.pill { border-radius: 999px; }
+:root[data-theme="dark"] .pill { border: 0; background: rgba(255, 255, 255, .08); }
+:root[data-theme="light"] .pill { background: var(--surface-2); }
+.cset, .cmenu { border-radius: 16px; border-color: var(--line); }
+input, .cside-top input { border-radius: 10px; }

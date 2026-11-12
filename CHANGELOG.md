@@ -3,9 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho; título de las pestañas de inicio de sesión y alta
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Cambiado**
+- **Aspecto de toda la web**, con dos temas que se alternan con el botón de la barra lateral. **Bento** (oscuro): negro
+  puro, bloques muy redondeados sin bordes, barra lateral flotante, lo elegido en blanco y letra Manrope con cifras
+  grandes. **Daylight** (claro): fondo gris lavanda, tarjetas blancas con sombra suave, acento índigo y letra DM Sans.
+  Los rótulos dejan de ir en mayúsculas, los gráficos usan la letra y los colores de cada tema, y el inicio de sesión
+  y el alta siguen el mismo estilo.
 - **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (un clic carga el ticker), en el centro el
   gráfico y a la derecha el precio, el régimen, los niveles y el Net GEX. Debajo, un panel con pestañas reúne lo que
   antes era una columna muy larga: **Profile**, **Flows** (rango 1σ, vanna, charm, vencimiento próximo y gamma por

@@ -5,7 +5,7 @@
    - cadena completa de /api/chain (la cadena compacta del motor, el OI de la sesion anterior y el tipo de interes)
    - utilidades de grafico SVG (escalas, marcas de eje, formato) */
 
-const LAB_MONO = "'IBM Plex Mono', ui-monospace, Consolas, monospace";
+const LAB_MONO = "'Manrope', -apple-system, 'Segoe UI', Roboto, sans-serif";
 
 const BS = {
   ncdf(x) {   // Abramowitz-Stegun 7.1.26 (error < 1.5e-7), como el motor

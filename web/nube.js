@@ -219,6 +219,7 @@
       case "/api/cot_history": return pub(`cot_hist/${encodeURIComponent(q.get("key") || "ES")}.json`, s, "COT");
       case "/api/summary": return pub("resumen.json", s, "Summary");
       case "/api/eventos": return pub("eventos.json", s, "Calendar");
+      case "/api/calendario": return pub("calendario.json", s, "Calendar");
       case "/api/vol": {
         const sym = normalize(q.get("symbol"));
         if (!sym) return json(400, { error: "Invalid ticker" });

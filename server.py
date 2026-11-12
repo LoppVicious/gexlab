@@ -220,12 +220,15 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
-        if url.path == "/api/eventos":
+        if url.path in ("/api/eventos", "/api/calendario"):
             try:
                 import eventos
                 st = gex_engine.read_json(eventos.STATE, {}) or {}
-                if not st.get("eventos") or q.get("refresh") == "1":
+                if not st.get("eventos") or st.get("version") != eventos.VERSION or q.get("refresh") == "1":
                     eventos.actualizar()
+                if url.path == "/api/calendario":
+                    return self._json(200, {"eventos": eventos.calendario(),
+                                            "actualizado": (gex_engine.read_json(eventos.STATE, {}) or {}).get("actualizado")})
                 return self._json(200, {"eventos": eventos.publicables()})
             except Exception as e:  # noqa: BLE001
                 return self._json(200, {"eventos": [], "error": str(e)})

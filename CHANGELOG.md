@@ -22,7 +22,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   dos, el resto de niveles con el Net GEX y el estado del mapa (preapertura, en vivo, repetición o próxima sesión).
   Flows, Scenarios y Data van en el mismo panel de pestañas que el Hub, y las barras laterales, 0DTE y la pista de
   zoom pasan a la misma fila que la lente y las velas.
-- La fila de vencimientos, rango y modelo ocupa una sola línea, con cada etiqueta a la izquierda de su control. La
+- La fila de vencimientos, rango y modelo ocupa una sola línea, con cada etiqueta a la izquierda de su control. Junto
+  a Settings ya no aparece el texto del motor y la convención por defecto: solo salen los ajustes cambiados. La
   explicación del gráfico pasa a un icono «i». En By strike, **Gamma by expiration** ya no lleva la línea de
   vencimientos encima del gráfico (empujaba el gráfico y cortaba las barras por abajo): cada vencimiento está en el
   tooltip.

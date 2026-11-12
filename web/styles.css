@@ -401,7 +401,6 @@ body.scan-compass .only-table { display: none; }
 }
 .chip button { background: none; border: 0; color: inherit; opacity: .7; width: 20px; height: 20px; border-radius: 10px; font-size: 14px; line-height: 1; padding: 0; }
 .chip button:hover { opacity: 1; background: rgba(227, 179, 65, .18); }
-.chip-default { font-size: 12.5px; color: var(--faint); }
 
 .panel {
   position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 440px;

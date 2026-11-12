@@ -1567,9 +1567,8 @@ function renderChips() {
     const v = parseFloat(sp.replace(/,/g, ""));
     chips.push({ k: "spot", t: `Spot ${isFinite(v) ? fmtSpot(v) : sp}` });
   }
-  $("chips").innerHTML = chips.length
-    ? chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Remove" aria-label="Remove ${esc(c.t)}">×</button></span>`).join("")
-    : `<span class="chip-default">Auto engine (${MOTOR_NOMBRE[effModel()]}), standard convention</span>`;
+  // con todo por defecto no se muestra nada: solo aparecen los ajustes cambiados
+  $("chips").innerHTML = chips.map((c) => `<span class="chip">${esc(c.t)}<button data-k="${c.k}" title="Remove" aria-label="Remove ${esc(c.t)}">×</button></span>`).join("");
 }
 
 function clearChip(k) {

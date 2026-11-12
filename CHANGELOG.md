@@ -93,6 +93,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   tooltip.
 
 **Corregido**
+- **Scanner** vacío («Add tickers to get started») al abrirlo después de Validation o Compass: ahora se calcula al
+  entrar desde cualquier vista.
 - **Summary** antes de la apertura: SPX, NDX y RUT muestran el precio pre-market (última vela de SPY, QQQ o IWM en
   Tradier, escalada al índice) con su cambio frente al cierre de ayer y la marca «Pre-market». Antes salía el cierre de
   ayer, porque la cotización retrasada de CBOE del ETF no se mueve fuera de horario.

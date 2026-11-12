@@ -2186,8 +2186,6 @@ function setMode(m) {
   if (m === "scanner") {
     loadCollector();
     setScanView(state.scanView);
-    const key = watchlist().join(",") + "|" + state.dte;
-    if (state.scanView === "table") { if (scanState.loadedFor !== key) runScan(); else renderScan(); }
   } else {
     if (state.data) draw(); else load();
   }
@@ -2339,6 +2337,8 @@ function setScanView(v) {
   $("tableWrap").hidden = v !== "table";
   if (v === "compass") loadCompass();
   else if (v === "valid") loadValidation();
+  // la tabla se calcula aqui y no en setMode: al llegar desde Compass o Validation tambien hay que pedirla
+  else if (scanState.loadedFor !== watchlist().join(",") + "|" + state.dte) runScan();
   else renderScan();
 }
 

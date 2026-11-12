@@ -1,4 +1,4 @@
-"""Pruebas sin red de eventos.py: normalizacion de Nasdaq, union de fuentes e instantes de aviso.
+"""Pruebas sin red de eventos.py: normalizacion de ForexFactory, union de fuentes e instantes de aviso.
 Uso: .venv/Scripts/python.exe pruebas/test_eventos.py"""
 import os
 import sys
@@ -8,27 +8,22 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import eventos as ev  # noqa: E402
 
 
-def fila(country, name, gmt="08:30", actual="&nbsp;", consensus="&nbsp;", previous="&nbsp;"):
-    return {"gmt": gmt, "country": country, "eventName": name, "actual": actual,
-            "consensus": consensus, "previous": previous, "description": ""}
+def ff(title, country="USD", date="2026-11-10T08:30:00-05:00", impact="High", forecast="", previous=""):
+    return {"title": title, "country": country, "date": date, "impact": impact, "forecast": forecast, "previous": previous}
 
 
-def test_normaliza():
-    d = datetime(2026, 11, 13)
-    e = ev.nasdaq_fila(fila("United States", "CPI", actual="0.3%", consensus="0.2%", previous="0.4%"), d)
-    assert e == {"date": "2026-11-13", "time": "08:30", "name": "CPI (Oct)", "country": "US", "imp": 3,
-                 "actual": "0.3%", "forecast": "0.2%", "previous": "0.4%"}, e
-    # anclado: Core CPI Index no hereda la importancia del CPI
-    e = ev.nasdaq_fila(fila("United States", "Core CPI Index"), d)
-    assert e["imp"] == 1 and e["name"] == "Core CPI Index" and e["actual"] is None, e
-    # pais de fuera de la lista: fuera
-    assert ev.nasdaq_fila(fila("Brazil", "CPI"), d) is None
-    # hora que no es hora
-    assert ev.nasdaq_fila(fila("Euro Zone", "ECOFIN Meetings", gmt="All Day"), d)["time"] == ""
-    # zona euro: misma etiqueta corta que EE. UU. pero otro pais
-    e = ev.nasdaq_fila(fila("Euro Zone", "ECB Interest Rate Decision", gmt="08:15"), d)
-    assert (e["country"], e["imp"], e["name"]) == ("EZ", 3, "ECB Interest Rate Decision"), e
-    assert ev.nasdaq_fila(fila("United States", "Fed Interest Rate Decision", gmt="14:00"), d)["name"] == "FOMC"
+def test_ff_fila():
+    e = ev.ff_fila(ff("CPI m/m", forecast="0.3%", previous="0.6%"))
+    assert e == {"date": "2026-11-10", "time": "08:30", "name": "CPI (Oct)", "titulo": "CPI m/m", "country": "US",
+                 "imp": 3, "forecast": "0.3%", "previous": "0.6%", "actual": None}, e
+    e = ev.ff_fila(ff("German Prelim CPI m/m", "EUR", "2026-11-10T08:00:00-05:00", "Medium", "0.2%", "0.3%"))
+    assert (e["country"], e["name"], e["imp"]) == ("DE", "German Prelim CPI m/m", 2) and "titulo" not in e, e
+    assert ev.ff_fila(ff("CPI m/m", "EUR"))["country"] == "EZ"
+    e = ev.ff_fila(ff("Empire State Manufacturing Index", impact="Low"))
+    assert e["solo_cal"] is True and e["imp"] == 1 and e["name"] == "Empire State Manufacturing Index", e
+    assert ev.ff_fila(ff("Bank Holiday", impact="Holiday")) is None
+    assert ev.ff_fila(ff("CPI q/q", "NZD")) is None
+    assert ev.ff_fila(ff("OPEC Meetings", date="2026-11-10T00:00:00-05:00", impact="Low"))["time"] == ""
 
 
 def test_union():
@@ -53,28 +48,21 @@ def test_union():
 
 def test_avisos():
     # 2026-11-13 es viernes; en noviembre Nueva York es UTC-5
-    evs = [
-        {"date": "2026-11-13", "time": "08:30", "name": "CPI (Oct)", "country": "US", "imp": 3,
-         "actual": None, "forecast": "0.2%", "previous": "0.4%"},
-        {"date": "2026-11-13", "time": "08:30", "name": "Retail sales (Oct)", "country": "US", "imp": 2,
-         "actual": None, "forecast": "0.1%", "previous": "0.0%"},
-        {"date": "2026-11-13", "time": "10:00", "name": "Fed Chair speaks", "country": "US", "imp": 2,
-         "actual": None, "forecast": None, "previous": None},
-        {"date": "2026-11-13", "time": "09:00", "name": "Minor", "country": "US", "imp": 1,
-         "actual": None, "forecast": None, "previous": None},
-        {"date": "2026-11-13", "time": "", "name": "ECOFIN Meetings", "country": "EZ", "imp": 2,
-         "actual": None, "forecast": None, "previous": None},
-    ]
+    def e(name, time, imp=2, real=True, actual=None, country="US"):
+        return {"date": "2026-11-13", "time": time, "name": name, "country": country, "imp": imp,
+                "real": real, "actual": actual, "forecast": "0.2%", "previous": "0.4%"}
+    evs = [e("CPI (Oct)", "08:30", 3), e("Retail sales (Oct)", "08:30"), e("Fed Chair speaks", "10:00", real=False),
+           e("Minor", "09:00", 1), e("ECOFIN Meetings", "", country="EZ", real=False)]
     from datetime import timezone
-    antes = datetime(2026, 11, 13, 13, 0, tzinfo=timezone.utc)   # 08:00 ET
-    assert ev.horas_aviso(evs, antes) == ["2026-11-13T13:31:00Z", "2026-11-13T15:01:00Z"], ev.horas_aviso(evs, antes)
-    # 08:32 ET sin actual: reintento a T+6 (una vez); el discurso no reintenta
-    durante = datetime(2026, 11, 13, 13, 32, tzinfo=timezone.utc)
-    assert ev.horas_aviso(evs, durante) == ["2026-11-13T13:36:00Z", "2026-11-13T15:01:00Z"], ev.horas_aviso(evs, durante)
-    # con actual ya publicado, no hay reintento
-    for e in evs[:2]:
-        e["actual"] = "0.3%"
-    assert ev.horas_aviso(evs, durante) == ["2026-11-13T15:01:00Z"]
+    utc = lambda h, m: datetime(2026, 11, 13, h, m, tzinfo=timezone.utc)  # noqa: E731
+    assert ev.horas_aviso(evs, utc(13, 0)) == ["2026-11-13T13:31:00Z", "2026-11-13T15:01:00Z"]
+    # sin dato real: el siguiente reintento (T+6, 16, 31, 61, 121) que no haya pasado; el discurso no reintenta
+    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T13:36:00Z", "2026-11-13T15:01:00Z"]
+    assert ev.horas_aviso(evs, utc(13, 40)) == ["2026-11-13T13:46:00Z", "2026-11-13T15:01:00Z"]
+    assert ev.horas_aviso(evs, utc(15, 40)) == []          # pasado T+121 y el discurso ya avisado
+    for x in evs[:2]:
+        x["actual"] = "0.3%"
+    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T15:01:00Z"]
 
 
 if __name__ == "__main__":

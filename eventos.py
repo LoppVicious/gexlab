@@ -3,13 +3,14 @@ GEX Lab - calendario macro: eventos de EE. UU. para la estructura temporal de vo
 de los paises grandes para la pagina Calendar, con dato real (actual), consenso (forecast) y anterior (previous).
 
 Fuentes (todas publicas):
-  - Nasdaq (principal): calendario economico por dia con actual, consenso y anterior de 20 paises; se usan 11.
-    Cubre de 7 dias atras a 21 adelante. La importancia la pone la tabla IMPORTANCIA (Nasdaq no la da).
+  - ForexFactory: la semana en curso de las divisas grandes con importancia, forecast y previous (sin dato real).
+    Limita peticiones: como mucho una por hora. Las semanas ya vistas se conservan en el estado.
   - Reserva Federal: reuniones del FOMC (pagina del calendario), para el futuro lejano
   - BEA: PIB y renta/gasto personal (PCE), calendario ICS oficial
   - Census: ventas minoristas, bienes duraderos, construccion y venta de viviendas (calendario oficial)
-  - FRED (opcional, con FRED_API_KEY): fechas futuras exactas de IPC, empleo, IPP, JOLTS, etc.
-Misma fecha, pais y etiqueta: gana la ultima fuente (Nasdaq va al final).
+  - FRED (con FRED_API_KEY): fechas futuras exactas de IPC, empleo, IPP, JOLTS, etc.
+  - Dato real de EE. UU.: reales.py (BLS y FRED).
+Misma fecha, pais y etiqueta: gana la ultima fuente (ForexFactory va al final).
 Publica pub/eventos.json (EE. UU.), pub/calendario.json (11 paises) y pub/eventos_horas.json (avisos).
 """
 from __future__ import annotations
@@ -17,17 +18,17 @@ from __future__ import annotations
 import json
 import os
 import re
-import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import gex_engine as g
+import reales
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/130.0 Safari/537.36")
 STATE = os.path.join(g.CACHE_DIR, "eventos.json")
 GUARDAR_ANOS = 3
-VERSION = 4  # al cambiar las fuentes o las etiquetas, se fuerza una actualizacion y se descarta lo guardado con otra version
+VERSION = 5  # al cambiar las fuentes o las etiquetas, se fuerza una actualizacion y se descarta lo guardado con otra version
 MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 MONTHS = {m: i + 1 for i, m in enumerate(["January", "February", "March", "April", "May", "June", "July",
                                            "August", "September", "October", "November", "December"])}
@@ -139,104 +140,61 @@ def fred() -> list[dict]:
     return out
 
 
-# ---------------------------------------------------------------- Nasdaq
-NASDAQ_URL = "https://api.nasdaq.com/api/calendar/economicevents?date={}"
-PAISES = {"United States": "US", "Euro Zone": "EZ", "Germany": "DE", "France": "FR", "Italy": "IT",
-          "United Kingdom": "GB", "Japan": "JP", "China": "CN", "Canada": "CA", "Australia": "AU", "Switzerland": "CH"}
-# (pais, regex anclado sobre eventName, importancia, etiqueta o None, meses de retraso del dato o None).
-# Lo que no esta aqui: importancia 1 y el nombre de Nasdaq. Las etiquetas de EE. UU. son las de siempre (Summary,
-# estructura de volatilidad, Validacion). (*) sin ver aun en datos reales de Nasdaq: patron provisional.
-IMPORTANCIA = [
-    ("US", r"^Fed Interest Rate Decision$", 3, "FOMC", None),
-    ("US", r"^FOMC Press Conference$", 3, None, None),
-    ("US", r"^CPI$", 3, "CPI", 1),
-    ("US", r"^Nonfarm Payrolls$", 3, "Payrolls (NFP)", 1),  # (*)
-    ("US", r"^(Core PCE Price Index|PCE price index)$", 3, "PCE", 1),
-    ("US", r"^PPI$", 2, "PPI", 1),
-    ("US", r"^Retail Sales$", 2, "Retail sales", 1),
-    ("US", r"^GDP$", 2, "GDP", None),
-    ("US", r"^ISM Manufacturing PMI$", 2, "ISM manufacturing", None),
-    ("US", r"^ISM Non-Manufacturing PMI$", 2, "ISM services", None),
-    ("US", r"^JOLTS Job Openings$", 2, "JOLTS", 2),
-    ("US", r"^FOMC Meeting Minutes$", 2, "FOMC minutes", None),
-    ("US", r"^Fed Chair .* Speaks$", 2, "Fed Chair speaks", None),
-    ("US", r"^Durable Goods Orders$", 2, "Durable goods", None),
-    ("US", r"^CB Consumer Confidence$", 2, "Consumer confidence", None),
-    ("US", r"^Michigan Consumer Sentiment", 2, "Michigan", None),  # (*)
-    ("US", r"^Initial Jobless Claims$", 1, "Jobless claims", None),
-    ("US", r"^Housing Starts$", 1, "Housing starts", None),
-    ("US", r"^New Home Sales$", 1, "New home sales", None),
-    ("EZ", r"^ECB Interest Rate Decision$", 3, None, None),
-    ("EZ", r"^ECB Press Conference$", 3, None, None),
-    ("EZ", r"^CPI$", 3, None, None),
-    ("EZ", r"^Core CPI$", 2, None, None),
-    ("EZ", r"^ECB President Lagarde Speaks$", 2, None, None),
-    ("EZ", r"^HCOB Eurozone Composite PMI$", 2, None, None),
-    ("EZ", r"^ZEW Economic Sentiment$", 2, None, None),
-    ("EZ", r"^GDP$", 2, None, None),  # (*)
-    ("DE", r"^German CPI$", 2, None, None),
-    ("DE", r"^German Ifo Business Climate Index$", 2, None, None),
-    ("DE", r"^German ZEW Economic Sentiment$", 2, None, None),
-    ("DE", r"^HCOB Germany (Manufacturing|Services) PMI$", 2, None, None),
-    ("FR", r"^French CPI$", 2, None, None),
-    ("IT", r"^Italian CPI$", 2, None, None),
-    ("GB", r"^BoE Interest Rate Decision$", 3, None, None),
-    ("GB", r"^CPI$", 3, None, None),
-    ("GB", r"^GDP$", 2, None, None),
-    ("GB", r"^Unemployment Rate$", 2, None, None),
-    ("GB", r"^BoE Gov Bailey Speaks$", 2, None, None),
-    ("GB", r"^S&P Global (Services|Manufacturing) PMI$", 2, None, None),
-    ("JP", r"^BoJ Interest Rate Decision$", 3, None, None),
-    ("JP", r"^(National|Tokyo) CPI$", 2, None, None),
-    ("JP", r"^GDP$", 2, None, None),
-    ("JP", r"^Reuters Tankan Index$", 2, None, None),
-    ("CN", r"^(CPI|GDP|Industrial Production|Retail Sales|RatingDog Manufacturing PMI)$", 2, None, None),
-    ("CA", r"^BoC Interest Rate Decision$", 3, None, None),
-    ("CA", r"^(CPI|BOC Press Conference)$", 2, None, None),
-    ("AU", r"^RBA Interest Rate Decision$", 3, None, None),
-    ("AU", r"^(CPI|Monthly CPI Indicator|Employment Change|Unemployment Rate)$", 2, None, None),
-    ("CH", r"^SNB Monetary Policy Assessment$", 3, None, None),
-    ("CH", r"^CPI$", 2, None, None),
+# ---------------------------------------------------------------- ForexFactory
+FF_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+DIVISAS = {"USD": "US", "EUR": "EZ", "GBP": "GB", "JPY": "JP", "CNY": "CN", "CAD": "CA", "AUD": "AU", "CHF": "CH"}
+EUR_PAIS = (("German ", "DE"), ("French ", "FR"), ("Italian ", "IT"))
+FF_IMP = {"High": 3, "Medium": 2, "Low": 1}
+# EE. UU.: titulo -> (etiqueta de siempre, meses de retraso del dato o None). Con etiqueta salen en el Summary, la
+# estructura de volatilidad y la Validacion; sin ella, solo en la pagina Calendar (solo_cal).
+FF_NAMES = [
+    (r"^CPI m/m$", "CPI", 1), (r"^Non-Farm Employment Change$", "Payrolls (NFP)", 1), (r"^PPI m/m$", "PPI", 1),
+    (r"^ISM Manufacturing PMI$", "ISM manufacturing", None), (r"^ISM Services PMI$", "ISM services", None),
+    (r"^Unemployment Claims$", "Jobless claims", None), (r"^(Prelim|Revised) UoM Consumer Sentiment$", "Michigan", None),
+    (r"^JOLTS Job Openings$", "JOLTS", 2), (r"^Retail Sales m/m$", "Retail sales", 1),
+    (r"^Core PCE Price Index m/m$", "PCE", 1), (r"^FOMC Statement$", "FOMC", None),
+    (r"^(Advance|Prelim|Final) GDP q/q$", "GDP", None), (r"^FOMC Meeting Minutes$", "FOMC minutes", None),
+    (r"^Fed Chair .* Speaks$", "Fed Chair speaks", None), (r"^CB Consumer Confidence$", "Consumer confidence", None),
+    (r"^Durable Goods Orders m/m$", "Durable goods", None), (r"^Housing Starts$", "Housing starts", None),
+    (r"^New Home Sales$", "New home sales", None),
 ]
 
 
-def _valor(s) -> str | None:
-    s = str(s or "").replace("&nbsp;", " ").strip()
+def _txt(s) -> str | None:
+    s = str(s or "").strip()
     return s or None
 
 
-def nasdaq_fila(r: dict, d: datetime) -> dict | None:
-    """Fila de Nasdaq -> evento, o None si el pais no interesa. La hora ('gmt') ya viene en hora de Nueva York."""
-    pais = PAISES.get(r.get("country"))
-    nombre = _valor(r.get("eventName"))
-    if not pais or not nombre:
+def ff_fila(r: dict) -> dict | None:
+    """Evento de ForexFactory -> evento, o None si la divisa o el tipo no interesan."""
+    pais, imp, titulo = DIVISAS.get(r.get("country")), FF_IMP.get(r.get("impact")), _txt(r.get("title"))
+    if not pais or not imp or not titulo:
         return None
-    hora = _valor(r.get("gmt")) or ""
-    hora = hora if re.fullmatch(r"\d{2}:\d{2}", hora) else ""
-    imp, nm = 1, nombre
-    for p, rx, i, etiqueta, retraso in IMPORTANCIA:
-        if p == pais and re.search(rx, nombre):
-            imp = i
-            if etiqueta:
-                nm = etiqueta if retraso is None else f"{etiqueta} ({_ref_month(d, retraso)})"
-            break
-    return {"date": d.strftime("%Y-%m-%d"), "time": hora, "name": nm, "country": pais, "imp": imp,
-            "actual": _valor(r.get("actual")), "forecast": _valor(r.get("consensus")), "previous": _valor(r.get("previous"))}
+    if pais == "EZ":
+        pais = next((p for pre, p in EUR_PAIS if titulo.startswith(pre)), "EZ")
+    try:
+        ny = _ny(datetime.fromisoformat(r["date"]))
+    except (KeyError, ValueError):
+        return None
+    hora = ny.strftime("%H:%M")
+    e = {"date": ny.strftime("%Y-%m-%d"), "time": "" if hora == "00:00" else hora,  # 00:00: dia entero o sin hora
+         "name": titulo, "country": pais, "imp": imp,
+         "forecast": _txt(r.get("forecast")), "previous": _txt(r.get("previous")), "actual": None}
+    if pais == "US":
+        et = next(((n, lag) for rx, n, lag in FF_NAMES if re.search(rx, titulo)), None)
+        if et:
+            e["titulo"] = titulo
+            e["name"] = et[0] if et[1] is None else f"{et[0]} ({_ref_month(ny, et[1])})"
+        else:
+            e["solo_cal"] = True
+    return e
 
 
-def nasdaq_dia(d: datetime) -> list[dict]:
-    req = urllib.request.Request(NASDAQ_URL.format(d.strftime("%Y-%m-%d")),
-                                 headers={"User-Agent": UA, "Accept": "application/json", "Accept-Language": "en-US,en;q=0.9"})
-    with urllib.request.urlopen(req, timeout=25, context=g._SSL_CTXS[0]) as r:
-        data = json.loads(r.read().decode("utf-8", "replace"))
-    filas = ((data or {}).get("data") or {}).get("rows") or []
-    return [e for e in (nasdaq_fila(f, d) for f in filas) if e]
+def forexfactory() -> list[dict]:
+    return [e for e in (ff_fila(r) for r in json.loads(_get(FF_URL))) if e]
 
 
 # ---------------------------------------------------------------- union
-NASDAQ_ATRAS, NASDAQ_ADELANTE = 7, 21
-
-
 def _clave(e: dict) -> str:
     return f"{e['date']}|{e.get('country', 'US')}|{e['name']}"
 
@@ -255,47 +213,63 @@ def unir(known: dict, evs: list[dict]) -> None:
         known[_clave(e)] = e
 
 
-def _nasdaq_rango(desde: datetime, dias: int) -> list[dict]:
-    out = []
-    for i in range(dias):
-        out += nasdaq_dia(desde + timedelta(days=i))
-        time.sleep(0.4)
-    return out
+CAL_ATRAS, CAL_ADELANTE, OTROS_DIAS = 14, 28, 35
 
 
-def actualizar(solo_hoy: bool = False) -> tuple[list[dict], dict]:
-    """Junta las fuentes con lo guardado (estado) y devuelve los eventos y un resumen por fuente.
-    solo_hoy: solo Nasdaq del dia de hoy (modo calendario del motor, a la hora de cada evento)."""
+def actualizar() -> tuple[list[dict], dict]:
+    """Junta las fuentes con lo guardado (estado), marca y rellena el dato real, y devuelve eventos y resumen."""
     prev = g.read_json(STATE, {}) or {}
     # lo guardado con otra version (otras etiquetas o claves) se descarta: si no, quedarian eventos repetidos
     known = {_clave(e): e for e in prev.get("eventos", [])} if prev.get("version") == VERSION else {}
-    hoy = g.now_ny().replace(hour=0, minute=0, second=0, microsecond=0)
-    if solo_hoy:
-        fuentes = (("nasdaq", lambda: nasdaq_dia(hoy)),)
-    else:
-        fuentes = (("fomc", fomc), ("bea", bea), ("census", census), ("fred", fred),
-                   ("nasdaq", lambda: _nasdaq_rango(hoy - timedelta(days=NASDAQ_ATRAS), NASDAQ_ATRAS + NASDAQ_ADELANTE + 1)))
     res = {}
-    for name, fn in fuentes:
+    for name, fn in (("fomc", fomc), ("bea", bea), ("census", census), ("fred", fred), ("forexfactory", forexfactory)):
         try:
             evs = fn()
             res[name] = len(evs)
             unir(known, evs)
         except Exception as ex:  # noqa: BLE001
             res[name] = f"error: {str(ex)[:80]}"
-    # EE. UU.: lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); otros paises,
-    # solo dentro del rango de Nasdaq
+    hoy = g.now_ny()
+    # EE. UU.: lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); otros paises, 35 dias
     lo_us = (hoy - timedelta(days=365 * GUARDAR_ANOS)).strftime("%Y-%m-%d")
-    lo_otros = (hoy - timedelta(days=NASDAQ_ATRAS)).strftime("%Y-%m-%d")
+    lo_otros = (hoy - timedelta(days=OTROS_DIAS)).strftime("%Y-%m-%d")
     hi = (hoy + timedelta(days=400)).strftime("%Y-%m-%d")
     evs = sorted((e for e in known.values()
                   if (lo_us if e.get("country", "US") == "US" else lo_otros) <= e["date"] <= hi),
                  key=lambda e: (e["date"], e["time"] or "99:99", -e["imp"]))
-    previo = prev.get("fuentes") or {} if solo_hoy else {}
-    g.write_json(STATE, {"eventos": evs, "fuentes": {**previo, **res}, "version": VERSION,
-                         "actualizado": prev.get("actualizado") if solo_hoy else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                         "hoy": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
+    marcar_reales(evs)
+    try:
+        res["reales"] = rellenar_reales(evs)
+    except Exception as ex:  # noqa: BLE001
+        res["reales"] = f"error: {str(ex)[:80]}"
+    g.write_json(STATE, {"eventos": evs, "fuentes": res, "version": VERSION,
+                         "actualizado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
     return evs, res
+
+
+def marcar_reales(evs: list[dict]) -> None:
+    """real: el evento tiene fuente de dato real (reales.REALES). Solo EE. UU. con titulo de ForexFactory."""
+    for e in evs:
+        e["real"] = e.get("country", "US") == "US" and reales.regla(e.get("titulo") or e["name"]) is not None
+
+
+def rellenar_reales(evs: list[dict], now: datetime | None = None) -> int:
+    """Pone el dato real a los eventos de los ultimos 7 dias que ya han pasado y aun no lo tienen."""
+    now = now or datetime.now(timezone.utc)
+    hoy = (now + g._ny_offset(now)).date()
+    lo = (hoy - timedelta(days=7)).isoformat()
+    pend = [e for e in evs if e.get("real") and not e.get("actual") and e.get("time")
+            and lo <= e["date"] <= hoy.isoformat() and _utc(e["date"], e["time"]) <= now]
+    return reales.rellenar(pend) if pend else 0
+
+
+def refrescar_reales() -> int:
+    """Modo calendario del motor: solo el dato real sobre lo guardado (sin pedir ForexFactory)."""
+    st = g.read_json(STATE, {}) or {}
+    n = rellenar_reales(st.get("eventos", []))
+    st["reales"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    g.write_json(STATE, st)
+    return n
 
 
 def _eventos() -> list[dict]:
@@ -303,16 +277,16 @@ def _eventos() -> list[dict]:
 
 
 def publicables() -> list[dict]:
-    """EE. UU. desde hace 45 dias (Summary y estructura de volatilidad)."""
+    """EE. UU. desde hace 45 dias (Summary y estructura de volatilidad), sin los que solo van a la pagina Calendar."""
     lo = (g.now_ny() - timedelta(days=45)).strftime("%Y-%m-%d")
-    return [e for e in _eventos() if e.get("country", "US") == "US" and e["date"] >= lo]
+    return [e for e in _eventos() if e.get("country", "US") == "US" and not e.get("solo_cal") and e["date"] >= lo]
 
 
 def calendario() -> list[dict]:
-    """Todos los paises dentro del rango de Nasdaq (pagina Calendar)."""
+    """Todos los paises dentro del rango de la pagina Calendar."""
     hoy = g.now_ny()
-    lo = (hoy - timedelta(days=NASDAQ_ATRAS)).strftime("%Y-%m-%d")
-    hi = (hoy + timedelta(days=NASDAQ_ADELANTE)).strftime("%Y-%m-%d")
+    lo = (hoy - timedelta(days=CAL_ATRAS)).strftime("%Y-%m-%d")
+    hi = (hoy + timedelta(days=CAL_ADELANTE)).strftime("%Y-%m-%d")
     return [e for e in _eventos() if lo <= e["date"] <= hi]
 
 
@@ -323,10 +297,12 @@ def _utc(fecha: str, hora: str) -> datetime:
     return ny - g._ny_offset(u)
 
 
+REINTENTOS = (6, 16, 31, 61, 121)  # minutos tras el evento mientras falte el dato real (FRED tarda hasta ~2 h)
+
+
 def horas_aviso(evs: list[dict], now: datetime | None = None) -> list[str]:
-    """Instantes (UTC ISO) en que el Worker lanza el modo calendario: hora del evento + 1 min, y + 6 min una sola
-    vez si ya paso y sigue sin dato real (solo publicaciones con cifras: los discursos no tienen 'actual').
-    Eventos de importancia 2 o mas de hoy y manana con hora."""
+    """Instantes (UTC ISO) en que el Worker lanza el modo calendario: hora del evento + 1 min y, si tiene fuente de
+    dato real y aun no lo tiene, el siguiente reintento de REINTENTOS. Importancia 2 o mas, hoy y manana, con hora."""
     now = now or datetime.now(timezone.utc)
     hoy = (now + g._ny_offset(now)).date()
     dias = {hoy.isoformat(), (hoy + timedelta(days=1)).isoformat()}
@@ -337,14 +313,15 @@ def horas_aviso(evs: list[dict], now: datetime | None = None) -> list[str]:
         t = _utc(e["date"], e["time"])
         if t + timedelta(minutes=1) > now:
             out.add(t + timedelta(minutes=1))
-        elif t + timedelta(minutes=6) > now and not e.get("actual") and (e.get("forecast") or e.get("previous")):
-            out.add(t + timedelta(minutes=6))
+        elif e.get("real") and not e.get("actual"):
+            sig = next((t + timedelta(minutes=m) for m in REINTENTOS if t + timedelta(minutes=m) > now), None)
+            if sig:
+                out.add(sig)
     return [t.strftime("%Y-%m-%dT%H:%M:%SZ") for t in sorted(out)]
 
 
 if __name__ == "__main__":
-    import sys
-    evs, res = actualizar(solo_hoy="--hoy" in sys.argv)
+    evs, res = actualizar()
     print(res)
     from collections import Counter
     print(Counter(e.get("country", "US") for e in calendario()))

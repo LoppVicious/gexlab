@@ -11,7 +11,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   grandes. **Daylight** (claro): fondo gris lavanda, tarjetas blancas con sombra suave, acento índigo y letra DM Sans.
   Los rótulos dejan de ir en mayúsculas, los gráficos usan la letra y los colores de cada tema, y el inicio de sesión
   y el alta siguen el mismo estilo.
-- **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (un clic carga el ticker), en el centro el
+- **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (un clic carga el ticker; se pliega con la
+  flecha de su cabecera y el gráfico gana ese ancho, y la elección se recuerda), en el centro el
   gráfico y a la derecha el precio, el régimen, los niveles y el Net GEX. Debajo, un panel con pestañas reúne lo que
   antes era una columna muy larga: **Profile**, **Flows** (rango 1σ, vanna, charm, vencimiento próximo y gamma por
   vencimiento), **Scenarios** y **Data**. La pestaña elegida se recuerda.
@@ -21,7 +22,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   Flows, Scenarios y Data van en el mismo panel de pestañas que el Hub, y las barras laterales, 0DTE y la pista de
   zoom pasan a la misma fila que la lente y las velas.
 - La fila de vencimientos, rango y modelo ocupa una sola línea, con cada etiqueta a la izquierda de su control. La
-  explicación del gráfico pasa a un icono «i» (salvo en By strike, donde es la leyenda de vencimientos).
+  explicación del gráfico pasa a un icono «i». En By strike, **Gamma by expiration** ya no lleva la línea de
+  vencimientos encima del gráfico (empujaba el gráfico y cortaba las barras por abajo): cada vencimiento está en el
+  tooltip.
 
 **Corregido**
 - El título de las pestañas de inicio de sesión y de alta usa un guion en lugar del punto medio. El sistema visual

@@ -159,16 +159,6 @@ function expText(d, iso, withKind = true) {
   const wd = DIAS_SEM[new Date(iso + "T12:00:00Z").getUTCDay()];
   return `${wd} ${ddmm(iso)}${withKind && e ? `, ${KIND_EN[e.kind] || e.kind}` : ""}${n == null ? "" : n <= 0 ? ", today" : `, ${n} d`}`;
 }
-function restText(d) {
-  const rest = (d.expiries || []).filter((x) => x.date !== d.front_expiry);
-  if (!rest.length) return "Other expirations";
-  const c = { diario: 0, semanal: 0, mensual: 0 };
-  rest.forEach((x) => { c[x.kind] = (c[x.kind] || 0) + 1; });
-  const parts = [c.mensual && `${c.mensual} monthly`, c.semanal && `${c.semanal} weekly`,
-    c.diario && `${c.diario} daily`].filter(Boolean).join(", ");
-  const share = rest.reduce((a, x) => a + (x.share || 0), 0);
-  return `Other: ${ddmm(rest[0].date)}–${ddmm(rest[rest.length - 1].date)} (${parts}), ${Math.round(share * 100)}% of gamma`;
-}
 function ordinal(n) { const k = Math.round(n), t = k % 100, u = k % 10; return k + (t >= 11 && t <= 13 ? "th" : u === 1 ? "st" : u === 2 ? "nd" : u === 3 ? "rd" : "th"); }
 function fmtPct(v) { return (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 2) + "%"; }
 /* ============================================================ horas: el servidor trabaja en hora de Nueva York (ET)
@@ -339,7 +329,6 @@ function expLabels(d) { // etiqueta de cada grupo
     return `${g.kind === "mensual" ? "Monthly" : "Weekly"} ${expText(d, g.date, false)}${extra}`;
   });
 }
-function expShares(d) { return d.by_exp.groups.map((g) => g.share); }
 
 // lineas sobre "Por strike" (como el Put & Call Impact de SpotGamma): la gamma o la delta total de los dealers si el
 // precio estuviera en cada nivel, la del proximo vencimiento, la del mensual y el total sin cada uno de ellos
@@ -1108,16 +1097,8 @@ function expiryCaption(d) {
     if (!o.chg_calls) return "";
     return `Change in the ${ddmm(o.prev_date)} session (the OCC publishes it every morning): calls <b>${f(sum(o.chg_calls))}</b>, puts <b>${f(sum(o.chg_puts))}</b>. Up, new contracts; down, closed ones`;
   }
-  if (state.view !== "strike" || state.greek !== "gamma" || state.bars !== "expiry") return "";
-  const sw = (c) => `<span class="capsw" style="background:${c}"></span>`;
-  if (expG(d)) {
-    const cols = expColors(d.by_exp), labs = expLabels(d), sh = expShares(d);
-    return labs.map((l, j) => `<span class="capexp">${sw(cols[j])}${esc(l)}${sh[j] != null ? ` <b>${Math.round(sh[j] * 100)}%</b>` : ""}</span>`).join("");
-  }
-  const f = (d.expiries || []).find((x) => x.date === d.front_expiry);
-  let h = `${sw(C.posFront)}<b>Next expiration:</b> ${esc(expText(d, d.front_expiry))}${f ? `, ${Math.round(f.share * 100)}% of gamma` : ""}`;
-  if (!d.expiries || d.expiries.length > 1) h += `<span class="capsep"></span>${sw(C.pos)}${esc(restText(d))}`;
-  return h;
+  // Gamma por vencimiento no lleva leyenda: el tooltip ya da cada vencimiento y la linea desplazaba el grafico
+  return "";
 }
 
 function draw() {

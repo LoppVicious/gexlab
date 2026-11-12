@@ -216,11 +216,21 @@ $("hubWatch").addEventListener("click", (e) => {
   $("symbol").value = tr.dataset.s; $("spotInput").value = ""; load();
 });
 
+/* watchlist plegable: la columna queda en un carril estrecho y el grafico gana el ancho */
+function hubFold(off, save) {
+  document.body.classList.toggle("hub-folded", off);
+  const b = $("hubFold"), t = off ? "Show watchlist" : "Collapse watchlist";
+  b.setAttribute("aria-expanded", String(!off)); b.title = t; b.setAttribute("aria-label", t);
+  if (save) { store.set("hubFold", off ? "1" : "0"); draw(); }
+}
+$("hubFold").addEventListener("click", () => hubFold(!document.body.classList.contains("hub-folded"), true));
+hubFold(store.get("hubFold", "0") === "1", false);
+
 /* ------------------------------------------------------------ panel de detalle bajo el grafico (Hub y TRACE)
    Profile solo existe en el Hub: en TRACE, si era la pestana elegida, se ve Flows sin cambiar la preferencia. */
 function placeHub() {
   const enHub = !document.body.classList.contains("view-map");
-  // en el Hub la explicacion del grafico pasa a un icono; en By strike se queda porque es la leyenda de vencimientos
+  // en el Hub la explicacion del grafico pasa a un icono; en By strike se queda porque lleva los totales de open interest
   const info = enHub && state.view !== "strike" && !!$("caption").textContent;
   $("caption").classList.toggle("asinfo", info);
   $("capInfo").title = info ? $("caption").textContent : "";

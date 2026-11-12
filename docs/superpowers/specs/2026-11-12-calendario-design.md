@@ -66,10 +66,10 @@ Tabla `REALES`: título de ForexFactory → (fuente, serie, transformación, uni
 | New Home Sales · Existing Home Sales | FRED HSN1F · EXHOSLUSM495S | nivel |
 
 - Un dato es el nuevo solo si la observación más reciente es del **periodo esperado** (mes del evento menos el
-  retraso; trimestre de hace 3 meses para el PIB; semana que acaba como mucho 7 días antes para las peticiones).
+  retraso; trimestre de hace 3 meses para el PIB; semana que acaba como mucho 7 días antes para las peticiones semanales).
   La fecha "desde cuándo vale" de FRED no sirve: cambia con las revisiones.
 - Formato como ForexFactory: decimales y sufijo (`%`, `K`, `M`, `B`) del `previous` o el `forecast` del evento.
-- Se rellenan eventos de EE. UU. de los últimos 7 días con hora pasada, sin `actual` y con entrada en `REALES`.
+- Se rellenan eventos de EE. UU. de los últimos 2 días con hora pasada, sin `actual` y con entrada en `REALES`.
   Cada evento lleva `real: true` si tiene fuente de dato real.
 - BLS: una sola petición POST con todas las series necesarias. FRED: una por serie. Caché por ejecución.
 

@@ -226,7 +226,14 @@ def actualizar() -> tuple[list[dict], dict]:
     """Junta las fuentes con lo guardado (estado), marca y rellena el dato real, y devuelve eventos y resumen."""
     prev = g.read_json(STATE, {}) or {}
     # lo guardado con otra version (otras etiquetas o claves) se descarta: si no, quedarian eventos repetidos
-    known = {_clave(e): e for e in prev.get("eventos", [])} if prev.get("version") == VERSION else {}
+    if prev.get("version") == VERSION:
+        known = {_clave(e): e for e in prev.get("eventos", [])}
+    else:
+        # migracion: FRED solo mira 31 dias atras; se conservan los dias de evento pasados que usa la Validacion
+        hoy_s = g.now_ny().strftime("%Y-%m-%d")
+        known = {_clave(e): e for e in ({**e, "country": "US"} for e in prev.get("eventos", [])
+                                        if e.get("country", "US") == "US" and e["date"] < hoy_s
+                                        and _base(e["name"]) in g.EVENT_NAMES)}
     res = {}
     for name, fn in (("fomc", fomc), ("bea", bea), ("census", census), ("fred", fred), ("forexfactory", forexfactory)):
         try:

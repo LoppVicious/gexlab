@@ -2,7 +2,7 @@
 Uso: .venv/Scripts/python.exe pruebas/test_eventos.py"""
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import eventos as ev  # noqa: E402
@@ -84,6 +84,32 @@ def test_union_ff():
     # solo_nuevos con otra etiqueta de mes: ya existe la publicacion, se salta
     ev.unir(known, [dict(oficial, name="CPI (Sep)")], solo_nuevos=True)
     assert list(known) == ["2026-11-13|US|CPI (Oct)"], known
+
+
+def test_migracion():
+    import json
+    import tempfile
+    import gex_engine
+    hoy = gex_engine.now_ny()
+    pasado = (hoy - timedelta(days=40)).strftime("%Y-%m-%d")
+    futuro = (hoy + timedelta(days=40)).strftime("%Y-%m-%d")
+    viejo = {"version": 3, "eventos": [
+        {"date": pasado, "time": "08:30", "name": "CPI (Sep)", "imp": 3},
+        {"date": pasado, "time": "08:30", "name": "Payrolls (NFP) (Sep)", "imp": 3},
+        {"date": pasado, "time": "08:30", "name": "Retail sales (Sep)", "imp": 2},
+        {"date": futuro, "time": "08:30", "name": "CPI (Dec)", "imp": 3}]}
+    guardado = (ev.STATE, ev.fomc, ev.bea, ev.census, ev.fred, ev.forexfactory, ev.reales.rellenar)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            ev.STATE = os.path.join(d, "eventos.json")
+            with open(ev.STATE, "w", encoding="utf-8") as f:
+                json.dump(viejo, f)
+            ev.fomc = ev.bea = ev.census = ev.fred = ev.forexfactory = lambda: []
+            ev.reales.rellenar = lambda evs: 0
+            evs, _ = ev.actualizar()
+    finally:
+        ev.STATE, ev.fomc, ev.bea, ev.census, ev.fred, ev.forexfactory, ev.reales.rellenar = guardado
+    assert sorted((e["name"], e["country"]) for e in evs) == [("CPI (Sep)", "US"), ("Payrolls (NFP) (Sep)", "US")], evs
 
 
 if __name__ == "__main__":

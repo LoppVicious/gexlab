@@ -168,6 +168,8 @@ def rellenar(evs: list[dict]) -> int:
             errores.append(ex)
     if errores and not any(datos.values()):
         raise RuntimeError(str(errores[0]))
+    for err in errores:
+        print(f"reales: {err}")  # al log del motor
     n = 0
     for e, rg in reglas:
         v = actual(e, datos.get(rg[1]) or [])

@@ -590,6 +590,28 @@ body.view-map #drawerTabs [data-p="profile"] { display: none; }
 .su-day .ev.i3 .imp u { background: var(--neg); }
 .su-day .tag { align-self: flex-start; margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 3px 10px; }
 .su-day .none { font-size: 12.5px; color: var(--faint); }
+.su-day .ev[data-cal] { cursor: default; }
+.su-day .ev[data-cal]:hover span { color: var(--accent); }
+/* tarjeta del calendario (Summary y Calendar) */
+.cal-tip { position: fixed; z-index: 60; width: 260px; padding: 12px 14px; border-radius: 14px; background: var(--surface);
+  border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .28); font-size: 13px; pointer-events: none; }
+.cal-tip[hidden] { display: none; }
+.cal-tip-h { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.cal-tip-h b { font-weight: 700; }
+.cal-tip-s { color: var(--faint); font-size: 12px; margin: 2px 0 10px; }
+.cal-tip-n { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.cal-tip-n dt { color: var(--faint); font-size: 11.5px; }
+.cal-tip-n dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; }
+:is(.cal-tip, .caltable) .pos { color: var(--pos); }
+:is(.cal-tip, .caltable) .neg { color: var(--neg); }
+:is(.cal-tip, .caltable) .pend { color: var(--amber); font-weight: 500; }
+:is(.cal-tip, .caltable) .imp { display: inline-flex; gap: 2px; align-items: flex-end; height: 12px; }
+:is(.cal-tip, .caltable) .imp u { display: block; width: 3px; border-radius: 1px; background: var(--line-strong); }
+:is(.cal-tip, .caltable) .imp u:nth-child(1) { height: 5px; }
+:is(.cal-tip, .caltable) .imp u:nth-child(2) { height: 8px; }
+:is(.cal-tip, .caltable) .imp u:nth-child(3) { height: 12px; }
+:is(.cal-tip, .caltable) .imp.i1 u:nth-child(1), :is(.cal-tip, .caltable) .imp.i2 u:nth-child(-n+2) { background: var(--amber); }
+:is(.cal-tip, .caltable) .imp.i3 u { background: var(--neg); }
 /* indices */
 .su-idx { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .su-ix { padding: 18px 20px 16px; display: flex; flex-direction: column; gap: 10px; position: relative; overflow: hidden; }

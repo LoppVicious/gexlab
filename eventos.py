@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -66,7 +67,7 @@ def fomc() -> list[dict]:
                 d = datetime(year, mm, int(nums[-1]))
             except ValueError:
                 continue
-            out.append({"date": d.strftime("%Y-%m-%d"), "time": "14:00", "name": "FOMC", "imp": 3})
+            out.append({"date": d.strftime("%Y-%m-%d"), "time": "14:00", "name": "FOMC", "country": "US", "imp": 3})
     return out
 
 
@@ -81,10 +82,9 @@ def bea() -> list[dict]:
         summ = s.group(1).replace("\\,", ",").replace("\r\n ", "").replace("\n ", "")
         dt = _ny(datetime.strptime(d.group(1), "%Y%m%dT%H%M%S"))
         if summ.startswith(("Gross Domestic Product", "GDP")):
-            kind = "advance" if "Advance" in summ else "2nd est." if "Second" in summ else "3rd est." if "Third" in summ else ""
-            out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"GDP {kind}".strip(), "imp": 2})
+            out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": "GDP", "country": "US", "imp": 2})
         elif summ.startswith("Personal Income and Outlays"):
-            out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"PCE ({_ref_month(dt)})", "imp": 3})
+            out.append({"date": dt.strftime("%Y-%m-%d"), "time": dt.strftime("%H:%M"), "name": f"PCE ({_ref_month(dt)})", "country": "US", "imp": 3})
     return out
 
 
@@ -109,7 +109,7 @@ def census() -> list[dict]:
             continue
         tm = re.search(r"(\d{1,2}):(\d{2}) ?([AP])\.?M", txt, re.I)
         hh = "08:30" if not tm else f"{(int(tm.group(1)) % 12) + (12 if tm.group(3).upper() == 'P' else 0):02d}:{tm.group(2)}"
-        out.append({"date": f"{m.group(3)}-{mm:02d}-{int(m.group(2)):02d}", "time": hh, "name": lab[1], "imp": lab[2]})
+        out.append({"date": f"{m.group(3)}-{mm:02d}-{int(m.group(2)):02d}", "time": hh, "name": lab[1], "country": "US", "imp": lab[2]})
     return out
 
 
@@ -135,7 +135,7 @@ def fred() -> list[dict]:
             if d.date() > today + timedelta(days=400):
                 continue
             nm = name if lag is None else f"{name} ({_ref_month(d, lag)})"
-            out.append({"date": r["date"], "time": "10:00" if name in ("Michigan", "JOLTS") else "08:30", "name": nm, "imp": imp})
+            out.append({"date": r["date"], "time": "10:00" if name in ("Michigan", "JOLTS") else "08:30", "name": nm, "country": "US", "imp": imp})
     return out
 
 
@@ -234,46 +234,122 @@ def nasdaq_dia(d: datetime) -> list[dict]:
 
 
 # ---------------------------------------------------------------- union
-def actualizar() -> tuple[list[dict], dict]:
-    """Junta las fuentes, conserva lo visto antes (estado) y devuelve los eventos y un resumen por fuente."""
+NASDAQ_ATRAS, NASDAQ_ADELANTE = 7, 21
+
+
+def _clave(e: dict) -> str:
+    return f"{e['date']}|{e.get('country', 'US')}|{e['name']}"
+
+
+def _base(k: str) -> str:
+    """Clave sin el mes de referencia: 'CPI (Oct)' y 'CPI (Sep)' son la misma publicacion; 'CPI, n.s.a' no."""
+    return re.sub(r" \([A-Z][a-z]{2}\)$", "", k)
+
+
+def unir(known: dict, evs: list[dict]) -> None:
+    """Anade evs a known. Misma fecha, pais y etiqueta (sin el mes): gana el que llega."""
+    for e in evs:
+        base = _base(_clave(e))
+        for k in [k for k in known if _base(k) == base]:
+            known.pop(k)
+        known[_clave(e)] = e
+
+
+def _nasdaq_rango(desde: datetime, dias: int) -> list[dict]:
+    out = []
+    for i in range(dias):
+        out += nasdaq_dia(desde + timedelta(days=i))
+        time.sleep(0.4)
+    return out
+
+
+def actualizar(solo_hoy: bool = False) -> tuple[list[dict], dict]:
+    """Junta las fuentes con lo guardado (estado) y devuelve los eventos y un resumen por fuente.
+    solo_hoy: solo Nasdaq del dia de hoy (modo calendario del motor, a la hora de cada evento)."""
     prev = g.read_json(STATE, {}) or {}
-    # lo guardado con otra version (otras etiquetas) se descarta: si no, quedarian eventos repetidos con el nombre viejo
-    known = {f"{e['date']}|{e['name']}": e for e in prev.get("eventos", [])} if prev.get("version") == VERSION else {}
+    # lo guardado con otra version (otras etiquetas o claves) se descarta: si no, quedarian eventos repetidos
+    known = {_clave(e): e for e in prev.get("eventos", [])} if prev.get("version") == VERSION else {}
+    hoy = g.now_ny().replace(hour=0, minute=0, second=0, microsecond=0)
+    if solo_hoy:
+        fuentes = (("nasdaq", lambda: nasdaq_dia(hoy)),)
+    else:
+        fuentes = (("fomc", fomc), ("bea", bea), ("census", census), ("fred", fred),
+                   ("nasdaq", lambda: _nasdaq_rango(hoy - timedelta(days=NASDAQ_ATRAS), NASDAQ_ATRAS + NASDAQ_ADELANTE + 1)))
     res = {}
-    for name, fn in (("fomc", fomc), ("bea", bea), ("census", census), ("forexfactory", forexfactory), ("fred", fred)):
+    for name, fn in fuentes:
         try:
             evs = fn()
             res[name] = len(evs)
-            for e in evs:
-                # la misma publicacion con otra etiqueta de mes: se queda la mas reciente
-                base = e["name"].split(" (")[0]
-                for k in [k for k in known if k.startswith(e["date"] + "|" + base)]:
-                    known.pop(k)
-                known[f"{e['date']}|{e['name']}"] = e
+            unir(known, evs)
         except Exception as ex:  # noqa: BLE001
             res[name] = f"error: {str(ex)[:80]}"
-    # lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); la web recibe 45 dias
-    lo = (datetime.now(timezone.utc) - timedelta(days=365 * GUARDAR_ANOS)).strftime("%Y-%m-%d")
-    hi = (datetime.now(timezone.utc) + timedelta(days=400)).strftime("%Y-%m-%d")
-    evs = sorted((e for e in known.values() if lo <= e["date"] <= hi), key=lambda e: (e["date"], e["time"], -e["imp"]))
-    g.write_json(STATE, {"eventos": evs, "fuentes": res, "version": VERSION,
-                         "actualizado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
+    # EE. UU.: lo pasado se guarda GUARDAR_ANOS (la Validacion marca con ello los dias de evento); otros paises,
+    # solo dentro del rango de Nasdaq
+    lo_us = (hoy - timedelta(days=365 * GUARDAR_ANOS)).strftime("%Y-%m-%d")
+    lo_otros = (hoy - timedelta(days=NASDAQ_ATRAS)).strftime("%Y-%m-%d")
+    hi = (hoy + timedelta(days=400)).strftime("%Y-%m-%d")
+    evs = sorted((e for e in known.values()
+                  if (lo_us if e.get("country", "US") == "US" else lo_otros) <= e["date"] <= hi),
+                 key=lambda e: (e["date"], e["time"] or "99:99", -e["imp"]))
+    previo = prev.get("fuentes") or {} if solo_hoy else {}
+    g.write_json(STATE, {"eventos": evs, "fuentes": {**previo, **res}, "version": VERSION,
+                         "actualizado": prev.get("actualizado") if solo_hoy else datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                         "hoy": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
     return evs, res
 
 
+def _eventos() -> list[dict]:
+    return (g.read_json(STATE, {}) or {}).get("eventos", [])
+
+
 def publicables() -> list[dict]:
-    st = g.read_json(STATE, {}) or {}
-    lo = (datetime.now(timezone.utc) - timedelta(days=45)).strftime("%Y-%m-%d")
-    return [e for e in st.get("eventos", []) if e["date"] >= lo]
+    """EE. UU. desde hace 45 dias (Summary y estructura de volatilidad)."""
+    lo = (g.now_ny() - timedelta(days=45)).strftime("%Y-%m-%d")
+    return [e for e in _eventos() if e.get("country", "US") == "US" and e["date"] >= lo]
+
+
+def calendario() -> list[dict]:
+    """Todos los paises dentro del rango de Nasdaq (pagina Calendar)."""
+    hoy = g.now_ny()
+    lo = (hoy - timedelta(days=NASDAQ_ATRAS)).strftime("%Y-%m-%d")
+    hi = (hoy + timedelta(days=NASDAQ_ADELANTE)).strftime("%Y-%m-%d")
+    return [e for e in _eventos() if lo <= e["date"] <= hi]
+
+
+def _utc(fecha: str, hora: str) -> datetime:
+    """Fecha y hora de Nueva York -> UTC (con zona)."""
+    ny = datetime.strptime(f"{fecha} {hora}", "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+    u = ny - g._ny_offset(ny)
+    return ny - g._ny_offset(u)
+
+
+def horas_aviso(evs: list[dict], now: datetime | None = None) -> list[str]:
+    """Instantes (UTC ISO) en que el Worker lanza el modo calendario: hora del evento + 1 min, y + 6 min una sola
+    vez si ya paso y sigue sin dato real (solo publicaciones con cifras: los discursos no tienen 'actual').
+    Eventos de importancia 2 o mas de hoy y manana con hora."""
+    now = now or datetime.now(timezone.utc)
+    hoy = (now + g._ny_offset(now)).date()
+    dias = {hoy.isoformat(), (hoy + timedelta(days=1)).isoformat()}
+    out = set()
+    for e in evs:
+        if e["imp"] < 2 or not e.get("time") or e["date"] not in dias:
+            continue
+        t = _utc(e["date"], e["time"])
+        if t + timedelta(minutes=1) > now:
+            out.add(t + timedelta(minutes=1))
+        elif t + timedelta(minutes=6) > now and not e.get("actual") and (e.get("forecast") or e.get("previous")):
+            out.add(t + timedelta(minutes=6))
+    return [t.strftime("%Y-%m-%dT%H:%M:%SZ") for t in sorted(out)]
 
 
 if __name__ == "__main__":
     import sys
-    if "--census" in sys.argv:
-        t = _get("https://www.census.gov/economic-indicators/calendar-listview.html")
-        rows = [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", r)).strip() for r in re.findall(r"<tr[^>]*>(.*?)</tr>", t, re.S)]
-        print(len(rows)); print("\n".join(rows[:25]))
-    evs, res = actualizar()
+    evs, res = actualizar(solo_hoy="--hoy" in sys.argv)
     print(res)
-    for e in evs[:60]:
-        print(e)
+    from collections import Counter
+    print(Counter(e.get("country", "US") for e in calendario()))
+    semana = g.now_ny().strftime("%Y-%m-%d")
+    for e in calendario():
+        if e["imp"] >= 2 and e["date"] >= semana:
+            print(e)
+    print(horas_aviso(evs))

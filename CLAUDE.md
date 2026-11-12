@@ -20,9 +20,9 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - `gex_engine.py` — todo el cálculo (cadena, gamma, niveles, perfil, mapa TRACE, escáner, Compass, histórico); lo usa también el navegador
 - `motor.py` — ciclo de Actions (cada 15 min) y modo `rapido` (cada 5 min, 6 índices); publica en R2
 - `fuente_tradier.py` · `almacen.py` (R2 o disco) · `historial500.py` (historial diario a R2 `hist500/`)
-- `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro)
+- `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro: ForexFactory y fuentes oficiales de EE. UU.), `reales.py` (dato real de EE. UU. con BLS y FRED)
 - `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`
-- `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary)
+- `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary), `calendario.js` (tarjeta de eventos y página Calendar)
 - `server.py` — modo PC: misma web y API en local · `pruebas/` — scripts para `comparar.yml`
 - `docs/ARQUITECTURA.md` — flujo completo, claves de R2, los dos motores, pruebas. Leer antes de tocar motor o Worker.
 

@@ -3,7 +3,19 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+
+**Añadido**
+- **Calendar** (en Market, bajo Summary): los datos macro de EE. UU., zona euro, Alemania, Francia, Italia, Reino
+  Unido, Japón, China, Canadá, Australia y Suiza, por días y en tu hora local, con importancia, **Actual**,
+  **Forecast** y **Previous**. Filtro de países (casillas, All y None) e importancia mínima, que se recuerdan; flechas
+  para cambiar de semana (de dos atrás a cuatro adelante) y el próximo dato marcado. Forecast y previous son de la
+  semana en curso; el dato real, solo de EE. UU.
+- En el **Summary**, al pasar el ratón (o tocar en el móvil) por un dato de la semana sale una tarjeta con Actual,
+  Forecast y Previous. Actual en color según quede por encima o por debajo del consenso, y «Pending» mientras no sale.
+- El dato real de EE. UU. llega en uno o dos minutos: a la hora de cada dato se lanza un ciclo solo del calendario
+  (CPI, empleo, PPI y JOLTS de BLS al minuto; ventas minoristas, PCE, peticiones de desempleo, PIB, bienes duraderos y
+  vivienda de FRED, que tarda de 3 minutos a 2 horas), con reintentos hasta que sale.
 
 **Cambiado**
 - **Scanner** como tabla visual: las columnas de Gamma Flip, Call Wall y Put Wall pasan a una barra por fila del

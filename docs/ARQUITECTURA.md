@@ -23,6 +23,15 @@ Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
     `prevclose` en Tradier: última vela anterior o `last` antes de abrir). Antes de las 09:30 el `spot` del paquete es
     el cierre de la última vela escalada. La gamma no consume varianza fuera de horas de mercado: en ese tramo el mapa
     cambia solo con el precio (el open interest es el del cierre anterior). Prueba: `pruebas/premarket_mapa.py`.
+  - **Calendario económico** (`eventos.py`, `reales.py`): ForexFactory da la semana en curso de 11 países con
+    importancia, forecast y previous (sin dato real; como mucho una petición por hora, en el ciclo); Fed, BEA, Census y
+    FRED, las fechas de EE. UU. a meses vista. El dato real solo es de EE. UU.: BLS (CPI, nóminas, paro, salario, PPI,
+    JOLTS) al minuto y FRED (ventas minoristas, PCE, peticiones de desempleo, PIB de avance, bienes duraderos,
+    vivienda) con 3 min a 2 h de retraso; vale solo si la última observación es del periodo esperado.
+    Alarma: Durable Object `RelojCalendario` (binding `RELOJ`, SQLite). El cron */5 le pasa `pub/eventos_horas.json`
+    (eventos de EE. UU. de importancia 2+ de hoy y mañana con fuente de dato real y sin él: hora + 1, 6, 16, 31, 61 y
+    121 min) y la alarma lanza `motor.yml` con `modo=calendario` (`motor.py calendario`: solo el dato real sobre el
+    estado guardado; sin tickers ni ForexFactory; no escribe nada si no hay estado).
   - /api/pub/* sirve R2; /api/pedir lanza un ciclo para tickers nuevos
 Navegador
   - web/nube.js intercepta fetch: usa las vistas precalculadas de R2 o calcula en el navegador
@@ -54,6 +63,13 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
 - `pub/t/SYM/{paquete,vol}.json`, `pub/t/SYM/niveles/*`, `pub/t/SYM/mapa/*`: vistas precalculadas.
 - `pub/l/{lid}/escaner_{dte}.json`, `compass.json`, `validacion_{dte}_{mode}_{model}.json`.
 - `config/config.json`: listas y vistas que escribe el Worker.
+- `estado/eventos.json`: estado del calendario, fuera del tar (lo escriben el ciclo y el modo calendario; manda sobre
+  `cache/eventos.json` del tar). Al cambiar `eventos.VERSION` se conservan los eventos pasados de EE. UU. que usa la
+  Validación. Publica `pub/eventos.json` (EE. UU.: Summary y estructura de volatilidad), `pub/calendario.json`
+  (11 países, de 14 días atrás a 28 adelante: página Calendar) y `pub/eventos_horas.json` (avisos de la alarma).
+- Secretos del calendario: `FRED_API_KEY` y `BLS_API_KEY` (500 consultas al día; sin ella, 25). Pruebas en Actions:
+  `pruebas/prueba_fred.py` (retraso de cada serie) y `pruebas/prueba_bls.py`; sin red: `pruebas/test_eventos.py`,
+  `pruebas/test_reales.py`.
 - `hist500/{SYM}/{fecha}.json.gz`: historial diario para backtests, fuera del estado. Lo lanza el Worker a las 16:30 ET
   (cron de GitHub de respaldo); `hist500/_dias/{fecha}.json` marca la sesión hecha. Se conservan 2 años.
   - `chain`: cadena compacta (`chain_to_min`, contratos con OI o volumen); se recalcula con `parse_chain({"_min": chain})`.
@@ -127,7 +143,7 @@ Los dos:
 - **Validación** (`validation`): muros frente a una referencia (`_base_prob`: fracción de las 500 sesiones previas
   del ticker cuyo máximo o mínimo, en unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del
   muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
-  `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de `cache/eventos.json` (3 años).
+  `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de EE. UU. del calendario (`cache/eventos.json`, 3 años).
 - **Flujo** (`flujo.tick`, `pub/t/{SYM}/flujo.json`, `/api/flow`, `web/flujo.js`): estado por ticker en
   `history/flujo_{SYM}.json.gz` (volumen e IV de la última foto, serie de la sesión y volumen firmado por contrato).
   Lo llama `motor._ticker`; solo guarda el ciclo (`save`), el modo rápido publica un punto provisional.

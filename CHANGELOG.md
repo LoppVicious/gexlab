@@ -3,13 +3,18 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Equity Hub como puesto de trabajo; título de las pestañas de inicio de sesión y alta
+## 2026-11-12 — Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho; título de las pestañas de inicio de sesión y alta
 
 **Cambiado**
 - **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (un clic carga el ticker), en el centro el
   gráfico y a la derecha el precio, el régimen, los niveles y el Net GEX. Debajo, un panel con pestañas reúne lo que
   antes era una columna muy larga: **Profile**, **Flows** (rango 1σ, vanna, charm, vencimiento próximo y gamma por
-  vencimiento), **Scenarios** y **Data**. La pestaña elegida se recuerda. TRACE no cambia.
+  vencimiento), **Scenarios** y **Data**. La pestaña elegida se recuerda.
+- **TRACE**: el mapa ocupa todo el ancho. Encima, una franja con lo que se mira durante la sesión: precio, zona de
+  gamma, el nivel de abajo y el de arriba con su distancia (en puntos y en %) y el precio situado a escala entre los
+  dos, el resto de niveles con el Net GEX y el estado del mapa (preapertura, en vivo, repetición o próxima sesión).
+  Flows, Scenarios y Data van en el mismo panel de pestañas que el Hub, y las barras laterales, 0DTE y la pista de
+  zoom pasan a la misma fila que la lente y las velas.
 - La fila de vencimientos, rango y modelo ocupa una sola línea, con cada etiqueta a la izquierda de su control. La
   explicación del gráfico pasa a un icono «i» (salvo en By strike, donde es la leyenda de vencimientos).
 

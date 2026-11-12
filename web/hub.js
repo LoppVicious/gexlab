@@ -216,27 +216,23 @@ $("hubWatch").addEventListener("click", (e) => {
   $("symbol").value = tr.dataset.s; $("spotInput").value = ""; load();
 });
 
-/* ------------------------------------------------------------ distribucion del Hub: watchlist a la izquierda,
-   niveles a la derecha y el detalle en pestanas bajo el grafico. Flujos, escenarios y datos se pintan en la
-   columna de niveles (app.js) y TRACE los sigue mostrando ahi: se mueven al cajon solo mientras se ve el Hub. */
-const DRAWER = { flows: "facts", scen: "scenBox", data: "meta" };
+/* ------------------------------------------------------------ panel de detalle bajo el grafico (Hub y TRACE)
+   Profile solo existe en el Hub: en TRACE, si era la pestana elegida, se ve Flows sin cambiar la preferencia. */
 function placeHub() {
   const enHub = !document.body.classList.contains("view-map");
-  const pane = (p) => document.querySelector(`#hubDrawer .dpane[data-p="${p}"]`);
-  if (enHub) Object.entries(DRAWER).forEach(([p, id]) => pane(p).append($(id)));
-  else { $("split").after($("facts"), $("scenBox")); document.querySelector(".ladder").append($("meta")); }
   // en el Hub la explicacion del grafico pasa a un icono; en By strike se queda porque es la leyenda de vencimientos
   const info = enHub && state.view !== "strike" && !!$("caption").textContent;
   $("caption").classList.toggle("asinfo", info);
   $("capInfo").title = info ? $("caption").textContent : "";
   $("capInfo").setAttribute("aria-label", $("capInfo").title);
   $("capInfo").hidden = !info;
+  drawerTab(store.get("hubTab", "profile"), true);
 }
-function drawerTab(p) {
+function drawerTab(p, auto) {
+  if (p === "profile" && document.body.classList.contains("view-map")) p = "flows";
+  else if (!auto) store.set("hubTab", p);
   document.querySelectorAll("#drawerTabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.p === p)));
   document.querySelectorAll("#hubDrawer .dpane").forEach((d) => (d.hidden = d.dataset.p !== p));
-  store.set("hubTab", p);
 }
 $("drawerTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) drawerTab(b.dataset.p); });
-drawerTab(store.get("hubTab", "profile"));
 placeHub();

@@ -297,7 +297,7 @@ body.view-map .chart-head .tabs { display: none; }
 .hubside .htitle { margin: 0 6px 8px; }
 .hubside table.hwl td { padding: 7px 6px; font-size: 13px; }
 .hubside table.hwl th { padding: 4px 6px 6px; }
-body.ana-mode:not(.view-map) .hubdrawer { display: block; margin: 12px 24px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px 18px; }
+body.ana-mode .hubdrawer { display: block; margin: 12px 24px 24px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px 18px; }
 #drawerTabs { display: inline-flex; margin-bottom: 14px; }
 #drawerTabs button { padding-left: 16px; padding-right: 16px; }
 .dpane[hidden] { display: none; }
@@ -458,11 +458,11 @@ body.view-map .zoombar { display: none; }
 @media (prefers-reduced-motion: reduce) { .cs-tg i, .cs-tg i::after { transition: none; } }
 
 /* mapa (TRACE): desplegables de lente, velas y barras, e interruptor 0DTE sobre la columna de barras */
-.map-only, .maptools { display: none; }
+.map-only { display: none; }
 body.view-map .map-only { display: block; }
-body.view-map .maptools { display: flex; }
-.maptools { align-items: center; justify-content: space-between; gap: 12px; min-height: 34px; margin: 0 0 2px; padding-left: 6px; }
-.mt-l, .mt-r { display: flex; align-items: center; gap: 8px; }
+/* barras laterales, 0DTE, pista de zoom y "Reset zoom" van en la misma fila que la lente y las velas */
+.chead-r .mt-l, .chead-r .mt-r { display: none; align-items: center; gap: 8px; }
+body.view-map .chead-r .mt-l, body.view-map .chead-r .mt-r { display: flex; }
 .mt-hint { font-size: 12px; color: var(--faint); }
 .mt-hint[hidden], .mt-reset[hidden] { display: none; }
 @media (pointer: coarse) { .mt-hint { display: none; } }
@@ -484,5 +484,56 @@ body.view-map .maptools { display: flex; }
 .dd-s { grid-column: 2; font-size: 12px; line-height: 1.4; color: var(--muted); white-space: normal; }
 @media (prefers-reduced-motion: reduce) { .dd svg { transition: none; } }
 .chead-r { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; }
-body.view-map .maptools.bare { display: none; }
 @media (max-width: 640px) { .dd .dd-k { display: none; } }
+
+/* ---------------------------------------------------------------- TRACE: franja sobre el mapa y mapa a todo el ancho
+   La columna de niveles no se ve en TRACE: lo que se mira en la sesion va en #traceStrip (paintStrip en app.js) y el
+   detalle (Flows, Scenarios, Data) en el mismo panel de pestanas que el Hub. */
+.tstrip { display: none; }
+body.ana-mode.view-map .tstrip:not(:empty) { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; align-items: center;
+  margin: 6px 24px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tstrip > * { padding: 12px 20px; border-left: 1px solid var(--line-soft); min-width: 0; }
+.tstrip > :first-child { border-left: 0; }
+.ts-px { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.ts-px .s { font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+.ts-px b { font-size: 28px; font-weight: 600; letter-spacing: -.02em; }
+.ts-px .up { color: var(--put); } .ts-px .dn { color: var(--call); }
+.ts-zone { display: flex; flex-direction: column; gap: 1px; white-space: nowrap; }
+.ts-zone b { font-size: 14px; } .ts-zone.neg b { color: var(--neg); } .ts-zone.pos b { color: var(--pos); }
+.ts-zone span { font-size: 12px; color: var(--muted); }
+.ts-span { display: grid; grid-template-columns: minmax(0, auto) minmax(56px, 1fr) minmax(0, auto); align-items: center; gap: 16px; }
+.ts-end { display: flex; flex-direction: column; gap: 1px; white-space: nowrap; min-width: 0; }
+.ts-end.r { align-items: flex-end; text-align: right; }
+.ts-end .k { font-size: 11.5px; color: var(--faint); }
+.ts-end .n { font-size: 12.5px; color: var(--muted); max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.ts-end i, .ts-rest i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.ts-end .v { display: flex; align-items: baseline; gap: 8px; }
+.ts-end .v b { font-size: 18px; font-weight: 600; }
+.ts-end .v em { font-style: normal; font-size: 12.5px; font-weight: 600; color: var(--text); }
+.ts-end .v small { font-weight: 400; color: var(--faint); }
+.ts-track { position: relative; height: 34px; }
+.ts-track .seg { position: absolute; left: 0; right: 0; top: 22px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--a), var(--line-strong) 50%, var(--b)); opacity: .8; }
+.ts-track .dot { position: absolute; top: 18px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 3px var(--surface); }
+.ts-track .dot b { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ts-rest { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.ts-rest b { color: var(--text); font-weight: 600; margin-left: 4px; }
+.ts-clock { display: flex; flex-direction: column; gap: 2px; max-width: 200px; }
+.ts-clock b { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+.ts-clock span { font-size: 12px; color: var(--muted); line-height: 1.35; }
+body.ana-mode.view-map .ladder { display: none; }
+body.ana-mode.view-map .stage { grid-template-columns: minmax(0, 1fr); height: max(560px, calc(100vh - 250px)); margin-top: 0; }
+body.view-map #caption { display: none; }
+body.view-map #drawerTabs [data-p="profile"] { display: none; }
+@media (max-width: 1250px) {
+  body.ana-mode.view-map .tstrip:not(:empty) { grid-template-columns: auto auto minmax(0, 1fr); }
+  .ts-rest, .ts-clock { grid-row: 2; border-top: 1px solid var(--line-soft); }
+  .ts-rest { grid-column: 1 / 3; flex-direction: row; flex-wrap: wrap; gap: 6px 18px; border-left: 0; }
+  .ts-clock { grid-column: 3; max-width: none; }
+}
+@media (max-width: 900px) {
+  body.ana-mode.view-map .tstrip:not(:empty) { display: flex; flex-wrap: wrap; margin: 6px 12px 10px; }
+  .tstrip > * { padding: 10px 14px; border-left: 0; }
+  .ts-span { flex: 1 1 100%; border-top: 1px solid var(--line-soft); gap: 14px; }
+  .ts-rest, .ts-clock { flex: 1 1 100%; }
+  body.ana-mode.view-map .stage { height: auto; }
+}

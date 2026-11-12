@@ -183,6 +183,9 @@
   </div>
 </section>
 
+<!-- TRACE: precio, zona y niveles cercanos sobre el mapa (paintStrip en app.js) -->
+<section class="tstrip" id="traceStrip" aria-label="Price and nearest levels"></section>
+
 <main class="stage">
   <aside class="hubside" id="hubSide" aria-label="Watchlist">
     <section class="hubwatch" id="hubWatch" hidden></section>
@@ -204,49 +207,6 @@
       <div class="split-bar"><i class="c" id="splitC"></i><i class="p" id="splitP"></i></div>
       <div class="split-foot"><span id="callPct"></span><span id="putPct"></span></div>
     </div>
-
-    <div class="facts" id="facts" hidden>
-      <div class="fact">
-        <span class="fl" id="emLabel" data-g="range1s">1σ range, 1 session</span>
-        <strong id="emVal">—</strong>
-        <span class="fs" id="emRange"></span>
-      </div>
-      <div class="fact">
-        <span class="fl" data-g="vanna">Vanna, if IV drops 1 pt</span>
-        <strong id="vannaVal">—</strong>
-        <span class="fs" id="vannaSub"></span>
-      </div>
-      <div class="fact">
-        <span class="fl" data-g="charm" id="charmLabel">Charm, per day</span>
-        <strong id="charmVal">—</strong>
-        <span class="fs" id="charmSub"></span>
-      </div>
-      <div class="fact">
-        <span class="fl" id="frontLabel" data-g="front">Next expiration</span>
-        <strong id="frontVal">—</strong>
-        <span class="fs" id="frontSub">of the filter's total gamma</span>
-      </div>
-      <div class="fact" id="liqFact" hidden>
-        <span class="fl" data-g="liq">Hedging vs. volume</span>
-        <strong id="liqVal">—</strong>
-        <span class="fs" id="liqSub"></span>
-      </div>
-      <div class="fact bk-fact">
-        <span class="fl" data-g="buckets">Gamma by expiration</span>
-        <div class="bkbar" id="bkBar"></div>
-        <span class="fs bkleg" id="bkLeg"></span>
-      </div>
-    </div>
-
-    <section class="scen" id="scenBox" hidden>
-      <div class="scen-h"><span data-g="scen">Scenarios</span>
-        <div class="seg boxed" role="radiogroup" id="scenSeg" aria-label="Scenario value"><button role="radio" data-v="gex" aria-checked="true">GEX 1%</button><button role="radio" data-v="flow" aria-checked="false">Hedge flow</button></div>
-      </div>
-      <div class="scen-t" id="scenTable"></div>
-      <p class="scen-n" id="scenNote"></p>
-    </section>
-
-    <dl class="meta" id="meta"></dl>
   </aside>
 
   <section class="chartwrap">
@@ -261,6 +221,17 @@
       <p class="chart-caption" id="caption"></p>
       <span class="capinfo" id="capInfo" tabindex="0" role="note" hidden>i</span>
       <div class="chead-r">
+        <div class="mt-r">
+          <span class="mt-hint" id="zoomHint">Drag up or down on the map to zoom</span>
+          <button class="ghost mt-reset" id="zoomReset" hidden title="Back to the full price range (or double-click the map)">Reset zoom</button>
+        </div>
+        <div class="mt-l" id="mtBars">
+          <div class="popw">
+            <button class="ghost dd" id="barsBtn" aria-haspopup="menu" aria-expanded="false" title="What the side bars show"></button>
+            <div class="cmenu dd-menu left" id="barsMenu" role="menu" aria-label="Side bars" hidden></div>
+          </div>
+          <button class="kl-tg" id="bars0Tg" role="switch" aria-checked="false" title="Side bars with the nearest expiration only"><i aria-hidden="true"></i><span id="bars0Lab">0DTE</span></button>
+        </div>
         <div class="popw map-only">
           <button class="ghost dd" id="lensBtn" aria-haspopup="menu" aria-expanded="false" title="What the map colors show"></button>
           <div class="cmenu dd-menu" id="lensMenu" role="menu" aria-label="Map lens" hidden></div>
@@ -284,19 +255,6 @@
         </div>
       </div>
     </div>
-    <div class="maptools" id="mapTools">
-      <div class="mt-l" id="mtBars">
-        <div class="popw">
-          <button class="ghost dd" id="barsBtn" aria-haspopup="menu" aria-expanded="false" title="What the side bars show"></button>
-          <div class="cmenu dd-menu left" id="barsMenu" role="menu" aria-label="Side bars" hidden></div>
-        </div>
-        <button class="kl-tg" id="bars0Tg" role="switch" aria-checked="false" title="Side bars with the nearest expiration only"><i aria-hidden="true"></i><span id="bars0Lab">0DTE</span></button>
-      </div>
-      <div class="mt-r">
-        <span class="mt-hint" id="zoomHint">Drag up or down on the map to zoom</span>
-        <button class="ghost mt-reset" id="zoomReset" hidden title="Back to the full price range (or double-click the map)">Reset zoom</button>
-      </div>
-    </div>
     <div class="chart" id="chart" role="img" aria-label="Gamma exposure by strike">
       <div class="placeholder" id="placeholder">Type a ticker and press Load.</div>
     </div>
@@ -311,8 +269,7 @@
   </section>
 </main>
 
-<!-- Equity Hub: detalle bajo el grafico, en pestanas. El perfil vive aqui; flujos, escenarios y datos se mueven aqui
-     desde la columna de niveles al entrar en el Hub y vuelven a ella en TRACE (placeHub en hub.js) -->
+<!-- Equity Hub y TRACE: detalle bajo el grafico, en pestanas (Profile solo en el Hub) -->
 <section class="hubdrawer" id="hubDrawer" aria-label="Details">
   <div class="tabs" role="tablist" aria-label="Details" id="drawerTabs">
     <button role="tab" data-p="profile" aria-selected="true">Profile</button>
@@ -321,9 +278,52 @@
     <button role="tab" data-p="data" aria-selected="false">Data</button>
   </div>
   <div class="dpane" data-p="profile" role="tabpanel"><section class="hubcard" id="hubCard" hidden></section></div>
-  <div class="dpane" data-p="flows" role="tabpanel" hidden></div>
-  <div class="dpane" data-p="scen" role="tabpanel" hidden></div>
-  <div class="dpane" data-p="data" role="tabpanel" hidden></div>
+  <div class="dpane" data-p="flows" role="tabpanel" hidden>
+  <div class="facts" id="facts" hidden>
+    <div class="fact">
+      <span class="fl" id="emLabel" data-g="range1s">1σ range, 1 session</span>
+      <strong id="emVal">—</strong>
+      <span class="fs" id="emRange"></span>
+    </div>
+    <div class="fact">
+      <span class="fl" data-g="vanna">Vanna, if IV drops 1 pt</span>
+      <strong id="vannaVal">—</strong>
+      <span class="fs" id="vannaSub"></span>
+    </div>
+    <div class="fact">
+      <span class="fl" data-g="charm" id="charmLabel">Charm, per day</span>
+      <strong id="charmVal">—</strong>
+      <span class="fs" id="charmSub"></span>
+    </div>
+    <div class="fact">
+      <span class="fl" id="frontLabel" data-g="front">Next expiration</span>
+      <strong id="frontVal">—</strong>
+      <span class="fs" id="frontSub">of the filter's total gamma</span>
+    </div>
+    <div class="fact" id="liqFact" hidden>
+      <span class="fl" data-g="liq">Hedging vs. volume</span>
+      <strong id="liqVal">—</strong>
+      <span class="fs" id="liqSub"></span>
+    </div>
+    <div class="fact bk-fact">
+      <span class="fl" data-g="buckets">Gamma by expiration</span>
+      <div class="bkbar" id="bkBar"></div>
+      <span class="fs bkleg" id="bkLeg"></span>
+    </div>
+  </div>
+  </div>
+  <div class="dpane" data-p="scen" role="tabpanel" hidden>
+  <section class="scen" id="scenBox" hidden>
+    <div class="scen-h"><span data-g="scen">Scenarios</span>
+      <div class="seg boxed" role="radiogroup" id="scenSeg" aria-label="Scenario value"><button role="radio" data-v="gex" aria-checked="true">GEX 1%</button><button role="radio" data-v="flow" aria-checked="false">Hedge flow</button></div>
+    </div>
+    <div class="scen-t" id="scenTable"></div>
+    <p class="scen-n" id="scenNote"></p>
+  </section>
+  </div>
+  <div class="dpane" data-p="data" role="tabpanel" hidden>
+    <dl class="meta" id="meta"></dl>
+  </div>
 </section>
 
 <main class="scanner" id="scanner" hidden>

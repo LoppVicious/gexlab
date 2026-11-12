@@ -1090,6 +1090,7 @@ function mapCaption() {
   else if (hm.kind === "next") cap.textContent = `Projection for ${dia}. Candles will appear when the session opens.`;
   else cap.textContent = `Session of ${dia}` + (hm.approx ? ". Approximate: CBOE no longer publishes the contracts that expired that day" : ".") + pre;
   cap.title = hm.approx ? "From now on the app saves a copy of the chain during each session, so future replays will be exact." : "";
+  if (state.data) paintStrip(state.data);
 }
 
 /* ============================================================ pintar */
@@ -1179,6 +1180,7 @@ function paintSide(d) {
   const t = d.totals;
   $("split").hidden = false;
   $("netPct").textContent = fmtBig(t.net_per_pct, true);
+  paintStrip(d);
   const c = Math.abs(t.call_per_pct), p = Math.abs(t.put_per_pct), tot = c + p || 1;
   $("splitC").style.width = (c / tot) * 100 + "%";
   $("splitP").style.width = (p / tot) * 100 + "%";
@@ -1279,7 +1281,34 @@ function showError(msg) {
   clearSide();
 }
 
+// TRACE: franja sobre el mapa con lo que se mira durante la sesion. El precio, la zona de gamma, el nivel de abajo y
+// el de arriba con su distancia (y el precio situado a escala entre los dos), el resto de niveles y el estado del mapa
+function paintStrip(d) {
+  const box = $("traceStrip");
+  if (!d) { box.innerHTML = ""; return; }
+  const g = [];  // niveles con el mismo valor, juntos (Vol Trigger y Put Wall suelen coincidir)
+  levelItems(d).forEach((x) => { const o = g.find((y) => y.v === x.v); if (o) o.name += ", " + x.name; else g.push({ ...x }); });
+  const up = g.filter((x) => x.v > d.spot).sort((a, b) => a.v - b.v)[0];
+  const dn = g.filter((x) => x.v <= d.spot).sort((a, b) => b.v - a.v)[0];
+  // distancia en puntos (enteros en los indices) y en %
+  const dist = (x) => { const v = x.v - d.spot; return `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtNum(Math.abs(v), d.spot >= 1000 ? 0 : 2)} <small>${fmtPct((x.v / d.spot - 1) * 100)}</small>`; };
+  const end = (x, lab, cls) => x ? `<div class="ts-end ${cls}"><span class="k">${lab}</span><span class="n"><i style="background:${x.c}"></i>${x.name}</span>`
+    + `<span class="v"><b>${fmtLevel(x.v)}</b><em>${dist(x)}</em></span></div>` : `<div class="ts-end ${cls}"><span class="k">${lab}</span><span class="n">none in range</span></div>`;
+  const f = up && dn ? Math.min(1, Math.max(0, (d.spot - dn.v) / (up.v - dn.v))) : 0.5;
+  const near = flipSide(d.spot, d.levels.flip_exact, d.levels.flip) === "near", neg = d.regime === "negative";
+  const hc = $("hChg");
+  const hm = state.heat, est = !hm ? "" : hm.pre ? "Pre-market" : hm.live ? "Live" : hm.kind === "next" ? "Next session" : "Replay";
+  box.innerHTML = `<div class="ts-px"><span class="s">${esc(d.symbol)}</span><b>${fmtSpot(d.spot)}</b><span class="${hc.className}">${hc.textContent}</span></div>`
+    + `<div class="ts-zone ${neg ? "neg" : "pos"}"><b>${neg ? "Negative" : "Positive"} gamma</b><span>${near ? "next to the flip, no clear effect" : neg ? "moves tend to accelerate" : "moves tend to be dampened"}</span></div>`
+    + `<div class="ts-span">${end(dn, "Next below", "l")}<div class="ts-track"><span class="seg" style="--a:${dn ? dn.c : C.axis};--b:${up ? up.c : C.axis}"></span>`
+    + `<span class="dot" style="left:${(f * 100).toFixed(1)}%"><b>${fmtSpot(d.spot)}</b></span></div>${end(up, "Next above", "r")}</div>`
+    + `<div class="ts-rest">${g.filter((x) => x !== up && x !== dn).map((x) => `<span><i style="background:${x.c}"></i>${x.name} <b>${fmtLevel(x.v)}</b></span>`).join("")}`
+    + `<span>Net GEX 1% <b>${fmtBig(d.totals.net_per_pct, true)}</b></span></div>`
+    + (est ? `<div class="ts-clock"><b>${est}</b><span>${esc($("caption").textContent.replace(/\.$/, ""))}</span></div>` : "");
+}
+
 function clearSide() {
+  paintStrip(null);
   $("hSym").textContent = $("symbol").value.trim().toUpperCase() || "—";
   $("hName").textContent = "";
   $("hSpot").textContent = "—";
@@ -1496,7 +1525,6 @@ function syncMapTools() {
   // sin columna de barras (pantalla estrecha) no tiene sentido elegir que muestran
   const g = state.geo, narrow = !!(g && g.kind === "map" && g.barsR - g.barsL < 20);
   $("mtBars").style.visibility = narrow ? "hidden" : "";
-  $("mapTools").classList.toggle("bare", narrow && !zoomed);
 }
 
 function bindPopovers() {

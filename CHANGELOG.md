@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Open Interest en una pantalla; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Añadido**
 - **Calendar** (en Market, bajo Summary): los datos macro de EE. UU., zona euro, Alemania, Francia, Italia, Reino
@@ -18,6 +18,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   vivienda de FRED, que tarda de 3 minutos a 2 horas), con reintentos hasta que sale.
 
 **Cambiado**
+- **Open Interest** en una sola pantalla: cifras en fila (OI de calls y puts con su cambio, put/call de OI y de
+  volumen, volumen, max pain con su distancia y los strikes con más OI); los vencimientos pasan a ser columnas con
+  sus barras de calls y puts que se eligen pulsando (Shift para sumar), con los filtros por plazo encima; el gráfico
+  por strike, más limpio, resalta los strikes con más calls y puts, marca precio y max pain en pastillas y ajusta su
+  alto a la ventana; al lado, los contratos que más se abrieron y cerraron, o los más negociados en Volume (con aviso
+  si el volumen supera al OI).
 - **Options Lab** rehecho como constructor de estrategias. Al entrar, una galería de 28 estrategias en cinco familias
   (Directional, Income, Volatility, Neutral, Hedging), cada una con el dibujo de su perfil de pago, una frase y su
   sesgo; se añaden synthetic long y short, bull put y bear call spread, short straddle y strangle, iron butterfly,

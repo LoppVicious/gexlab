@@ -1,8 +1,8 @@
 "use strict";
 /* ============================================================ Open Interest
    OI, cambio de OI frente a la sesion anterior y volumen por strike del ticker de la barra superior, para los
-   vencimientos elegidos. Calls hacia arriba y puts hacia abajo. Al lado: totales, ratio put/call, max pain y los
-   strikes con mas OI; debajo, el OI por vencimiento (se puede elegir pulsando) y los contratos con mas altas y bajas. */
+   vencimientos elegidos. Calls hacia arriba y puts hacia abajo. Arriba: totales, ratio put/call y max pain; los
+   vencimientos como barras que se eligen pulsando; al lado del grafico, los contratos que mas cambian. */
 
 const oiv = {
   sym: "", ch: null, ctrl: null, built: false,
@@ -29,6 +29,10 @@ function oiSelected() {
 }
 
 /* ---------------------------------------------------------------- estructura */
+
+/* ---------------------------------------------------------------- estructura
+   Todo en una pantalla: cifras en fila, los vencimientos como barras que sirven de selector, el grafico por strike
+   (alto ajustado a la ventana) y al lado los contratos que mas cambian o mas se negocian. */
 function oiBuild() {
   $("oiView").innerHTML = `
   <header class="lab-head">
@@ -36,37 +40,42 @@ function oiBuild() {
     <div class="lab-keys" role="radiogroup" id="oiMetric" aria-label="Measure">
       <button role="radio" data-v="oi">Open interest</button><button role="radio" data-v="chg">Change</button><button role="radio" data-v="vol">Volume</button></div>
   </header>
-  <p class="lab-say" id="oiSub"></p>
-  <div class="oi-exps" id="oiExps" role="group" aria-label="Expirations"></div>
-  <div class="lab-read oi-read" id="oiStats"></div>
-  <section class="lab-panel">
-    <div class="lab-cap"><span id="oiLeg"></span>
-      <span class="lab-keys small" role="radiogroup" id="oiRange" aria-label="Strike range">
-        <button role="radio" data-v="5">±5%</button><button role="radio" data-v="10">±10%</button><button role="radio" data-v="20">±20%</button></span></div>
-    <div class="ss-chart oi-chart" id="oiChart" role="img" aria-label="Open interest by strike"></div>
+  <div class="lab-stats" id="oiStats"></div>
+  <section class="lab-panel oi-strip">
+    <div class="oi-strip-h">
+      <div class="lab-keys small" role="radiogroup" id="oiExps" aria-label="Expirations">${OI_MODES.map(([k, t]) => `<button role="radio" data-m="${k}">${t}</button>`).join("")}</div>
+      <span class="oi-strip-say" id="oiSub"></span>
+    </div>
+    <div id="oiByExp"></div>
   </section>
-  <div class="oi-grid2">
-    <section class="lab-panel"><div class="lab-cap"><span>By expiration</span><span>click a bar to see only that one</span></div><div class="oi-bxw" id="oiByExp"></div></section>
-    <section class="lab-panel"><div class="lab-cap"><span>Biggest changes</span><span id="oiChgSub"></span></div><div id="oiMovers"></div></section>
+  <div class="oi-main">
+    <section class="lab-panel oi-plot">
+      <div class="lab-tools">
+        <span class="lab-legend lab-tleg" id="oiLeg"></span>
+        <span class="lab-keys small" role="radiogroup" id="oiRange" aria-label="Strike range">
+          <button role="radio" data-v="5">±5%</button><button role="radio" data-v="10">±10%</button><button role="radio" data-v="20">±20%</button></span>
+      </div>
+      <div class="oi-chart" id="oiChart" role="img" aria-label="Open interest by strike"></div>
+    </section>
+    <section class="lab-panel oi-side"><div class="oi-side-h"><b id="oiSideT"></b><span id="oiChgSub"></span></div><div id="oiMovers"></div></section>
   </div>
   <p class="tl-note">Open interest is published once a day, before the open: the contracts left open at the previous close. The change compares it with the session before; volume is today's so far. Max pain is the price at which the options of the chosen expirations would be worth the least at expiration.</p>`;
   const segSync = () => {
     for (const b of $("oiMetric").querySelectorAll("button")) b.setAttribute("aria-checked", String(b.dataset.v === oiv.metric));
     for (const b of $("oiRange").querySelectorAll("button")) b.setAttribute("aria-checked", String(+b.dataset.v === oiv.range));
+    for (const b of $("oiExps").querySelectorAll("button")) b.setAttribute("aria-checked", String(b.dataset.m === oiv.mode));
   };
   oiv.segSync = segSync; segSync();
-  $("oiMetric").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.metric = b.dataset.v; store.set("oiTMetric", oiv.metric); segSync(); oiRender(); });
-  $("oiRange").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.range = +b.dataset.v; store.set("oiTRange", String(oiv.range)); segSync(); oiRender(); });
+  $("oiMetric").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.metric = b.dataset.v; store.set("oiTMetric", oiv.metric); oiRender(); });
+  $("oiRange").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; oiv.range = +b.dataset.v; store.set("oiTRange", String(oiv.range)); oiRender(); });
   $("oiExps").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
-    if (b.dataset.m) { oiv.mode = b.dataset.m; oiv.pick = []; }
-    else oiPick(b.dataset.k, e.shiftKey || e.ctrlKey || e.metaKey);
-    store.set("oiTMode", oiv.mode === "pick" ? "all" : oiv.mode);
+    oiv.mode = b.dataset.m; oiv.pick = []; store.set("oiTMode", oiv.mode);
     oiRender();
   });
   $("oiByExp").addEventListener("click", (e) => { const r = e.target.closest("[data-k]"); if (r) { oiPick(r.dataset.k, e.shiftKey || e.ctrlKey || e.metaKey); oiRender(); } });
   $("oiChart").addEventListener("mousemove", oiProbe);
-  $("oiChart").addEventListener("mouseleave", () => toolTip($("oiChart"), null));
+  $("oiChart").addEventListener("mouseleave", () => { toolTip($("oiChart"), null); const h = $("oiHover"); if (h) h.setAttribute("visibility", "hidden"); });
   oiv.built = true;
 }
 // elegir un vencimiento (con mayusculas o control, se suma a los elegidos)
@@ -136,33 +145,38 @@ function oiAggregate() {
   return { rows, strikes, t, pain, cWall, pWall, sel };
 }
 
+
 /* ---------------------------------------------------------------- pintar */
 function oiRender() {
   if (!oiv.ch) return;
-  const ch = oiv.ch, S = ch.spot;
+  const ch = oiv.ch;
+  oiv.segSync();
   $("oiSym").innerHTML = spotLabel(ch);
-  const nsel = oiSelected().size, nall = ch.live.length;
-  $("oiSub").innerHTML = `Where ${esc(ch.symbol)} options are open${nsel === nall ? " across all expirations" : `, in ${nsel} of ${nall} expirations`}${ch.hasPrev ? `, and what changed since the <b>${shortDate(ch.prevDate)}</b> session` : ""}.${oiv.metric === "chg" && !ch.hasPrev ? " No previous session is saved for this ticker yet: the change appears after its next daily update." : ""}`;
-  // vencimientos
-  const live = oiDays().slice(0, 18);
-  $("oiExps").innerHTML = OI_MODES.map(([k, t]) => `<button type="button" data-m="${k}" class="mode" aria-pressed="${oiv.mode === k}">${t}</button>`).join("") +
-    `<span class="oi-sep"></span>` + live.map((d) => `<button type="button" data-k="${d.iso}" aria-pressed="${oiv.mode === "pick" && oiv.pick.includes(d.iso)}" title="Shift-click to add more expirations">${shortDate(d.iso)}${d.monthly ? '<i class="vm">M</i>' : ""}<small>${fmtNum(Math.max(d.days, 0), d.days < 1 ? 1 : 0)}d</small></button>`).join("");
+  const nsel = oiDays().filter((d) => d.idx.some((i) => oiSelected().has(i))).length, nall = oiDays().length;
+  $("oiSub").innerHTML = `${nsel === nall ? `All <b>${nall}</b> expirations` : `<b>${nsel}</b> of ${nall} expirations`}${ch.hasPrev ? `, change vs. <b>${shortDate(ch.prevDate)}</b>` : ""}. Click a bar to see one; Shift-click to add more.${oiv.metric === "chg" && !ch.hasPrev ? " No previous session is saved for this ticker yet." : ""}`;
   const a = oiAggregate();
   oiv.agg = a;
-  oiChart(a);
   oiStats(a);
   oiByExp();
   oiMovers(a);
+  oiChart(a);
+}
+
+// alto del grafico: lo que deja libre la ventana, para ver cifras, vencimientos y grafico sin bajar
+function oiFitH(W) {
+  const q = (sel) => { const e = document.querySelector(sel); return e ? e.offsetHeight : 0; };
+  const fit = window.innerHeight - (q("header.bar") + q("#oiView .lab-head") + q("#oiStats") + q(".oi-strip") + q(".oi-plot .lab-tools") + 104);
+  return Math.round(Math.max(300, Math.min(W < 700 ? 380 : 620, fit)));
 }
 
 function oiChart(a) {
   const box = $("oiChart"), S = oiv.ch.spot, met = oiv.metric;
   const lo = S * (1 - oiv.range / 100), hi = S * (1 + oiv.range / 100);
   let bins = a.strikes.filter((b) => b.K >= lo && b.K <= hi);
-  const W = Math.max(320, box.clientWidth), H = Math.max(320, Math.min(480, Math.round(W * 0.42)));
-  const pad = { l: 62, r: 16, t: 26, b: 34 };
+  const W = Math.max(320, box.clientWidth), H = oiFitH(W);
+  const pad = { l: 54, r: 12, t: 30, b: 28 };
   // demasiados strikes para el ancho: se agrupan en tramos redondos
-  const maxBars = Math.floor((W - pad.l - pad.r) / 5);
+  const maxBars = Math.floor((W - pad.l - pad.r) / 6);
   if (bins.length > maxBars) {
     const step = axisTicks(0, (hi - lo) / maxBars * 1.0001, 1)[1] || (hi - lo) / maxBars;
     const m = new Map();
@@ -175,7 +189,8 @@ function oiChart(a) {
     }
     bins = [...m.values()].sort((x, y) => x.K - y.K);
   }
-  if (!bins.length) { box.innerHTML = `<div class="placeholder"><div>No open interest in this range.</div></div>`; return; }
+  oiLegend(a, met);
+  if (!bins.length) { box.innerHTML = `<div class="placeholder"><div>No open interest in this range.</div></div>`; oiv.geo = null; return; }
   const up = (b) => (met === "oi" ? b.cOI : met === "vol" ? b.cVol : b.cChg);
   const dn = (b) => (met === "oi" ? -b.pOI : met === "vol" ? -b.pVol : b.pChg);
   let y0 = 0, y1 = 0;
@@ -184,107 +199,145 @@ function oiChart(a) {
     else { y1 = Math.max(y1, up(b), met === "oi" ? b.cPrev : 0); y0 = Math.min(y0, dn(b), met === "oi" ? -b.pPrev : 0); }
   }
   if (y0 === 0 && y1 === 0) { y0 = -1; y1 = 1; }
-  const sp = y1 - y0; y1 += sp * 0.06; y0 -= sp * 0.06;
+  const sp = y1 - y0; y1 += sp * 0.08; y0 -= sp * 0.08;
   const X = scale(lo, hi, pad.l, W - pad.r), Y = scale(y0, y1, H - pad.b, pad.t), zy = Y(0);
   const keys = bins.map((b) => b.K);
   let gap = Infinity; for (let i = 1; i < keys.length; i++) gap = Math.min(gap, keys[i] - keys[i - 1]);
   if (!isFinite(gap)) gap = (hi - lo) / 40;
-  const bw = Math.max(1.2, Math.min(18, (X(lo + gap) - X(lo)) * 0.78));
-  const yt = axisTicks(y0, y1, 6);
+  const bw = Math.max(1.5, Math.min(22, (X(lo + gap) - X(lo)) * 0.72)), rx = Math.min(3, bw / 3);
+  const yt = axisTicks(y0, y1, 6), xt = axisTicks(lo, hi, Math.max(4, Math.round(W / 100)));
+  // barras de cada lado: un rectangulo redondeado solo por fuera (el lado del cero queda recto)
+  const bar = (x, w, v, col, op) => {
+    if (!v) return "";
+    const y = Y(v), h = Math.max(Math.abs(y - zy), 1), top = v > 0;
+    const r = Math.min(rx, h / 2, w / 2), x2 = x + w;
+    const d = top ? `M${x},${zy}V${y + r}Q${x},${y} ${x + r},${y}H${x2 - r}Q${x2},${y} ${x2},${y + r}V${zy}Z`
+      : `M${x},${zy}V${zy + h - r}Q${x},${zy + h} ${x + r},${zy + h}H${x2 - r}Q${x2},${zy + h} ${x2},${zy + h - r}V${zy}Z`;
+    return `<path d="${d}" fill="${col}" opacity="${op}"/>`;
+  };
+  const cTop = met === "oi" && a.cWall ? a.cWall.K : null, pTop = met === "oi" && a.pWall ? a.pWall.K : null;
   let bars = "";
   for (const b of bins) {
-    const x = X(b.K);
+    const x = X(b.K), hot = (k) => k != null && (b.from != null ? k >= b.from && k <= b.to : k === b.K);
     if (met === "chg") {
       const hw = bw / 2;
-      const r = (v, col, dx) => `<rect x="${(x + dx).toFixed(1)}" y="${Math.min(Y(v), zy).toFixed(1)}" width="${hw.toFixed(1)}" height="${Math.max(Math.abs(Y(v) - zy), v ? 0.8 : 0).toFixed(1)}" fill="${col}"/>`;
-      bars += r(up(b), C.call, -hw) + r(dn(b), C.put, 0);
+      bars += bar(x - hw, hw, up(b), C.call, 0.9) + bar(x, hw, dn(b), C.put, 0.9);
     } else {
-      bars += `<rect x="${(x - bw / 2).toFixed(1)}" y="${Y(up(b)).toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(zy - Y(up(b)), up(b) ? 0.8 : 0).toFixed(1)}" fill="${C.call}" opacity=".85"/>`;
-      bars += `<rect x="${(x - bw / 2).toFixed(1)}" y="${zy.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(Y(dn(b)) - zy, dn(b) ? 0.8 : 0).toFixed(1)}" fill="${C.put}" opacity=".85"/>`;
+      bars += bar(x - bw / 2, bw, up(b), C.call, hot(cTop) ? 1 : 0.78) + bar(x - bw / 2, bw, dn(b), C.put, hot(pTop) ? 1 : 0.78);
       if (met === "oi" && oiv.ch.hasPrev && bw >= 3) {   // OI de la sesion anterior: una marca sobre cada barra
-        if (b.cPrev !== b.cOI) bars += `<line x1="${x - bw / 2 - 1}" x2="${x + bw / 2 + 1}" y1="${Y(b.cPrev)}" y2="${Y(b.cPrev)}" stroke="${C.muted}" stroke-width="1.4"/>`;
-        if (b.pPrev !== b.pOI) bars += `<line x1="${x - bw / 2 - 1}" x2="${x + bw / 2 + 1}" y1="${Y(-b.pPrev)}" y2="${Y(-b.pPrev)}" stroke="${C.muted}" stroke-width="1.4"/>`;
+        if (b.cPrev !== b.cOI) bars += `<line x1="${x - bw / 2 - 1.5}" x2="${x + bw / 2 + 1.5}" y1="${Y(b.cPrev)}" y2="${Y(b.cPrev)}" stroke="${C.text}" stroke-width="1.4" opacity=".55"/>`;
+        if (b.pPrev !== b.pOI) bars += `<line x1="${x - bw / 2 - 1.5}" x2="${x + bw / 2 + 1.5}" y1="${Y(-b.pPrev)}" y2="${Y(-b.pPrev)}" stroke="${C.text}" stroke-width="1.4" opacity=".55"/>`;
       }
     }
   }
-  const vline = (v, col, lab, dash, row) => (v >= lo && v <= hi ? `<line x1="${X(v)}" x2="${X(v)}" y1="${pad.t - 6}" y2="${H - pad.b}" stroke="${col}" stroke-dasharray="${dash}" stroke-width="1.2"/><text x="${X(v) + 5}" y="${pad.t - 10 + row * 12}" fill="${col}" font-size="11.5">${lab}</text>` : "");
-  const xt = axisTicks(lo, hi, Math.max(4, Math.round(W / 110)));
+  // cifra encima del strike con mas calls y debajo del de mas puts
+  const tag = (k, v, col, below) => (k == null || k < lo || k > hi ? "" : `<text x="${X(k)}" y="${below ? Y(v) + 14 : Y(v) - 6}" fill="${col}" font-size="11" font-weight="700" text-anchor="middle">${fmtNum(k, k % 1 ? 1 : 0)}</text>`);
+  const tags = met === "oi" ? tag(cTop, a.cWall.cOI, C.call, false) + tag(pTop, -a.pWall.pOI, C.put, true) : "";
+  // lineas verticales con su etiqueta en pastilla arriba
+  const pill = (v, col, lab, row, dash) => {
+    if (v < lo || v > hi) return "";
+    const x = X(v), w = lab.length * 6.3 + 14, bx = Math.max(pad.l, Math.min(W - pad.r - w, x - w / 2)), by = 4 + row * 0;
+    return `<line x1="${x}" x2="${x}" y1="${pad.t - 6}" y2="${H - pad.b}" stroke="${col}" stroke-dasharray="${dash}" stroke-width="1.2"/>
+      <rect x="${bx}" y="${by}" width="${w}" height="18" rx="9" fill="${col}"/><text x="${bx + w / 2}" y="${by + 12.5}" fill="${C.surface}" font-size="11" font-weight="700" text-anchor="middle">${lab}</text>`;
+  };
+  const painLab = a.pain != null ? `Max pain ${px(a.pain)}` : "", spotLab = `${px(S)}`;
+  // si las dos pastillas se pisan, max pain se desplaza a un lado
+  const near = a.pain != null && Math.abs(X(a.pain) - X(S)) < (painLab.length + spotLab.length) * 3.3 + 18;
+  const painPill = a.pain == null ? "" : near
+    ? (() => { const x = X(a.pain); return `<line x1="${x}" x2="${x}" y1="${pad.t - 6}" y2="${H - pad.b}" stroke="${C.amber}" stroke-dasharray="5 4" stroke-width="1.2"/><text x="${x + (a.pain >= S ? 6 : -6)}" y="${pad.t + 6}" fill="${C.amber}" font-size="11" font-weight="700" text-anchor="${a.pain >= S ? "start" : "end"}">${painLab}</text>`; })()
+    : pill(a.pain, C.amber, painLab, 0, "5 4");
   box.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="${LAB_MONO}">
-    <defs>${graphPaper("oi", pad.l, pad.t)}</defs>
-    <rect x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}" height="${H - pad.t - pad.b}" fill="url(#oiGP)"/>
-    <rect x="${pad.l}" y="${pad.t}" width="${W - pad.l - pad.r}" height="${H - pad.t - pad.b}" fill="none" stroke="${C.axis}"/>
-    ${yt.map((v) => `<text x="${pad.l - 8}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11" text-anchor="end">${fmtBig(Math.abs(v))}</text>`).join("")}
-    ${xt.map((v) => `<text x="${X(v)}" y="${H - pad.b + 18}" fill="${C.faint}" font-size="11.5" text-anchor="middle">${fmtNum(v, hi - lo < 20 ? 1 : 0)}</text>`).join("")}
-    <text x="${pad.l + 6}" y="${pad.t + 14}" fill="${C.call}" font-size="11.5" font-weight="600" font-family="${SANS}">${met === "chg" ? "Calls (left)" : "Calls"}</text>
-    <text x="${pad.l + 6}" y="${H - pad.b - 7}" fill="${C.put}" font-size="11.5" font-weight="600" font-family="${SANS}">${met === "chg" ? "Puts (right)" : "Puts"}</text>
+    ${yt.map((v) => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${C.grid}"/><text x="${pad.l - 8}" y="${Y(v) + 4}" fill="${C.faint}" font-size="11" text-anchor="end">${fmtBig(Math.abs(v))}</text>`).join("")}
+    ${xt.map((v) => `<text x="${X(v)}" y="${H - pad.b + 18}" fill="${C.faint}" font-size="11" text-anchor="middle">${fmtNum(v, hi - lo < 20 ? 1 : 0)}</text>`).join("")}
+    <rect id="oiHover" y="${pad.t - 6}" height="${H - pad.b - pad.t + 6}" width="${Math.max(bw + 8, 10)}" rx="6" fill="${C.text}" opacity=".07" visibility="hidden"/>
     ${bars}
     <line x1="${pad.l}" x2="${W - pad.r}" y1="${zy}" y2="${zy}" stroke="${C.muted}"/>
-    ${vline(S, C.spotline, `Spot ${px(S)}`, "1 3", 0)}
-    ${a.pain != null ? vline(a.pain, C.amber, `Max pain ${px(a.pain)}`, "5 4", 1) : ""}
-    <line id="oiHover" y1="${pad.t}" y2="${H - pad.b}" stroke="${C.muted}" visibility="hidden"/>
+    ${tags}
+    ${painPill}${pill(S, C.text, spotLab, 0, "2 3")}
   </svg>`;
-  $("oiLeg").innerHTML = met === "oi" ? `Contracts open by strike${oiv.ch.hasPrev ? `<span class="oi-tick"></span>previous session` : ""}` :
-    met === "vol" ? "Contracts traded today by strike" : "Contracts added (up) or closed (down) since the previous session";
-  oiv.geo = { X, Y, bins, lo, hi, pad };
+  oiv.geo = { X, Y, bins, lo, hi, pad, bw };
+}
+function oiLegend(a, met) {
+  const sq = (c) => `<i style="background:${c}"></i>`;
+  $("oiLeg").innerHTML = met === "chg"
+    ? `<span>${sq(C.call)}Calls added or closed</span><span>${sq(C.put)}Puts added or closed</span><span class="oi-leg-t">since the previous session, by strike</span>`
+    : `<span>${sq(C.call)}Calls</span><span>${sq(C.put)}Puts</span>${met === "oi" && oiv.ch.hasPrev ? `<span><i class="oi-tick"></i>Previous session</span>` : ""}${a.pain != null ? `<span><i class="dash" style="border-color:${C.amber}"></i>Max pain</span>` : ""}<span class="oi-leg-t">${met === "oi" ? "contracts open by strike" : "contracts traded today by strike"}</span>`;
 }
 
 function oiProbe(e) {
   const g = oiv.geo, box = $("oiChart"); if (!g) return;
   const svg = box.querySelector("svg"); if (!svg) return;
-  const px = e.clientX - svg.getBoundingClientRect().left, hv = $("oiHover");
-  if (px < g.pad.l || px > g.X(g.hi)) { toolTip(box, null); if (hv) hv.setAttribute("visibility", "hidden"); return; }
-  const x = g.X.inv(px);
+  const mx = e.clientX - svg.getBoundingClientRect().left, hv = $("oiHover");
+  if (mx < g.pad.l || mx > g.X(g.hi)) { toolTip(box, null); if (hv) hv.setAttribute("visibility", "hidden"); return; }
+  const x = g.X.inv(mx);
   const b = g.bins.reduce((p, q) => (Math.abs(q.K - x) < Math.abs(p.K - x) ? q : p));
-  hv.setAttribute("x1", g.X(b.K)); hv.setAttribute("x2", g.X(b.K)); hv.setAttribute("visibility", "visible");
-  const ch = (v) => (v > 0 ? `<em class="up">+${fmtNum(v)}</em>` : v < 0 ? `<em class="dn">−${fmtNum(-v)}</em>` : `<em>0</em>`);
+  hv.setAttribute("x", g.X(b.K) - Math.max(g.bw + 8, 10) / 2); hv.setAttribute("visibility", "visible");
+  const ch = (v) => (!oiv.ch.hasPrev ? "" : v > 0 ? `<em class="up">+${fmtNum(v)}</em>` : v < 0 ? `<em class="dn">−${fmtNum(-v)}</em>` : `<em>0</em>`);
   const lab = b.from != null && b.from !== b.to ? `${px(b.from)} to ${px(b.to)}` : px(b.K);
-  toolTip(box, `<div class="tt-h">Strike ${lab}</div>
-    <div class="tt-r"><span><i style="background:${C.call}"></i>Call OI</span><b>${fmtNum(b.cOI)} ${oiv.ch.hasPrev ? ch(b.cChg) : ""}</b></div>
-    <div class="tt-r"><span><i style="background:${C.put}"></i>Put OI</span><b>${fmtNum(b.pOI)} ${oiv.ch.hasPrev ? ch(b.pChg) : ""}</b></div>
-    <div class="tt-r"><span>Volume calls / puts</span><b>${fmtNum(b.cVol)} / ${fmtNum(b.pVol)}</b></div>`, px, e.clientY - svg.getBoundingClientRect().top);
+  const pc = b.cOI ? fmtNum(b.pOI / b.cOI, 2) : "—", S = oiv.ch.spot;
+  toolTip(box, `<div class="tt-h">Strike ${lab} <small>${b.K >= S ? "+" : "−"}${fmtNum(Math.abs(b.K / S - 1) * 100, 1)}%</small></div>
+    <div class="tt-r"><span><i style="background:${C.call}"></i>Call OI</span><b>${fmtNum(b.cOI)} ${ch(b.cChg)}</b></div>
+    <div class="tt-r"><span><i style="background:${C.put}"></i>Put OI</span><b>${fmtNum(b.pOI)} ${ch(b.pChg)}</b></div>
+    <div class="tt-r"><span>Volume, calls and puts</span><b>${fmtNum(b.cVol)} / ${fmtNum(b.pVol)}</b></div>
+    <div class="tt-r"><span>Put/call at this strike</span><b>${pc}</b></div>`, mx, e.clientY - svg.getBoundingClientRect().top);
 }
 
 function oiStats(a) {
   const t = a.t, ch = oiv.ch, S = ch.spot;
   const pc = t.cOI ? t.pOI / t.cOI : null, pcv = t.cVol ? t.pVol / t.cVol : null;
-  const chg = (v) => (ch.hasPrev ? `<em class="${v > 0 ? "up" : v < 0 ? "dn" : ""}">${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v))}</em>` : "");
-  const cell = (k, v, sub, cls = "") => `<div class="lab-r ${cls}"><span>${k}</span><b>${v}</b><small>${sub}</small></div>`;
+  const chg = (v) => (ch.hasPrev ? ` <small class="${v > 0 ? "up" : v < 0 ? "dn" : ""}">${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v))}</small>` : "");
+  const it = (k, v, cls = "", hint = "") => `<div class="lab-st ${cls}"${hint ? ` title="${esc(hint)}"` : ""}><span>${k}</span><b>${v}</b></div>`;
   $("oiStats").innerHTML =
-    cell('<i class="lamp" style="background:var(--call)"></i>Call OI', fmtBig(t.cOI), `${chg(t.cChg)} ${ch.hasPrev ? "since last session" : ""}`) +
-    cell('<i class="lamp" style="background:var(--put)"></i>Put OI', fmtBig(t.pOI), `${chg(t.pChg)} ${ch.hasPrev ? "since last session" : ""}`) +
-    cell("Put/call", pc == null ? "—" : fmtNum(pc, 2), pcv == null ? "no volume yet" : `${fmtNum(pcv, 2)} in today's volume`) +
-    cell("Max pain", a.pain == null ? "—" : px(a.pain), a.pain == null ? "" : `${a.pain >= S ? "+" : "−"}${fmtNum(Math.abs(a.pain / S - 1) * 100, 1)}% from ${px(S)}`, "amb") +
-    cell("Top call strike", a.cWall ? px(a.cWall.K) : "—", a.cWall ? `${fmtBig(a.cWall.cOI)} contracts` : "") +
-    cell("Top put strike", a.pWall ? px(a.pWall.K) : "—", a.pWall ? `${fmtBig(a.pWall.pOI)} contracts` : "");
+    it("Call OI", fmtBig(t.cOI) + chg(t.cChg), "", ch.hasPrev ? "Change since the previous session in small" : "") +
+    it("Put OI", fmtBig(t.pOI) + chg(t.pChg), "", ch.hasPrev ? "Change since the previous session in small" : "") +
+    it("Put/call OI", pc == null ? "—" : fmtNum(pc, 2), pc == null ? "" : pc > 1.2 ? "up" : pc < 0.7 ? "dn" : "", "Puts open per call open") +
+    it("Put/call volume", pcv == null ? "—" : fmtNum(pcv, 2), "", "Puts traded per call traded today") +
+    it("Volume", t.cVol + t.pVol ? fmtBig(t.cVol + t.pVol) : "—", "", "Contracts traded today in the chosen expirations") +
+    it("Max pain", a.pain == null ? "—" : `${px(a.pain)} <small>${a.pain >= S ? "+" : "−"}${fmtNum(Math.abs(a.pain / S - 1) * 100, 1)}%</small>`, "amb", "Price at which the chosen options would be worth the least at expiration") +
+    it("Top call strike", a.cWall ? `${px(a.cWall.K)} <small>${fmtBig(a.cWall.cOI)}</small>` : "—", "", "Strike with the most call contracts open, within 25% of the price") +
+    it("Top put strike", a.pWall ? `${px(a.pWall.K)} <small>${fmtBig(a.pWall.pOI)}</small>` : "—", "", "Strike with the most put contracts open, within 25% of the price");
 }
 
+// OI de cada vencimiento (calls arriba, puts abajo, en raiz cuadrada para que se vean los pequenos); sirven para elegir fechas
 function oiByExp() {
-  const box = $("oiByExp"), ch = oiv.ch, sel = oiSelected(), all = oiv.mode === "all";
-  const live = oiDays().slice(0, 24);
+  const box = $("oiByExp"), ch = oiv.ch, sel = oiSelected();
+  const live = oiDays().slice(0, 30);
   const tot = live.map((e) => {
     let c = 0, p = 0;
     const ix = new Set(e.idx);
     for (const x of ch.rows) if (ix.has(x.e)) { if (x.call) c += x.oi; else p += x.oi; }
     return { e, c, p };
   });
-  const mx = Math.max(1, ...tot.map((x) => x.c + x.p));
-  box.innerHTML = `<div class="oi-bx">${tot.map(({ e, c, p }) => `<button type="button" data-k="${e.iso}" class="${!all && e.idx.some((i) => sel.has(i)) ? "on" : ""}" title="${shortDate(e.iso)}: ${fmtNum(c)} calls, ${fmtNum(p)} puts">
-      <span class="oi-bx-bar"><i style="height:${(c / mx * 100).toFixed(1)}%;background:${C.call}"></i><i style="height:${(p / mx * 100).toFixed(1)}%;background:${C.put}"></i></span>
-      <span class="oi-bx-l">${shortDate(e.iso).replace(/ '\d\d$/, "")}${e.monthly ? '<i class="vm">M</i>' : ""}</span></button>`).join("")}</div>`;
+  const mc = Math.max(1, ...tot.map((x) => x.c)), mp = Math.max(1, ...tot.map((x) => x.p));
+  box.innerHTML = `<div class="oi-bx">${tot.map(({ e, c, p }) => {
+    const on = e.idx.some((i) => sel.has(i));
+    return `<button type="button" data-k="${e.iso}" class="${on ? "on" : "off"}" title="${shortDate(e.iso)}: ${fmtNum(c)} calls, ${fmtNum(p)} puts open">
+      <span class="oi-bx-c"><i style="height:${(Math.sqrt(c / mc) * 100).toFixed(1)}%;background:${C.call}"></i></span>
+      <span class="oi-bx-p"><i style="height:${(Math.sqrt(p / mp) * 100).toFixed(1)}%;background:${C.put}"></i></span>
+      <span class="oi-bx-l">${shortDate(e.iso).replace(/ '\d\d$/, "")}</span><span class="oi-bx-d">${e.monthly ? "M " : ""}${fmtNum(Math.max(e.days, 0), 0)}d</span></button>`;
+  }).join("")}</div>`;
 }
 
+// al lado: contratos abiertos y cerrados (OI y cambio) o los mas negociados (volumen)
 function oiMovers(a) {
   const box = $("oiMovers"), ch = oiv.ch;
+  const row = (x, val, cls = "") => {
+    const e = ch.exps[x.e];
+    return `<tr><td class="l"><b>${fmtNum(x.K, x.K % 1 ? 1 : 0)}</b> <i class="oi-cp ${x.call ? "c" : "p"}">${x.call ? "C" : "P"}</i><small>${shortDate(e.iso).replace(/ '\d\d$/, "")}</small></td><td>${fmtNum(x.oi)}</td><td class="${cls}">${val}</td></tr>`;
+  };
+  if (oiv.metric === "vol") {
+    $("oiSideT").textContent = "Most traded today"; $("oiChgSub").textContent = "contracts";
+    const top = a.rows.filter((x) => x.vol > 0).sort((p, q) => q.vol - p.vol).slice(0, 14);
+    box.innerHTML = top.length ? `<table class="oi-t"><thead><tr><th class="l">Contract</th><th>OI</th><th>Volume</th></tr></thead><tbody>${top.map((x) => row(x, `${fmtNum(x.vol)}${x.oi && x.vol > x.oi ? ' <em class="oi-hot" title="More contracts traded today than were open: mostly new positions">&gt; OI</em>' : ""}`)).join("")}</tbody></table>` : `<p class="re-empty">No volume yet today.</p>`;
+    return;
+  }
+  $("oiSideT").textContent = "Biggest changes";
   if (!ch.hasPrev) { $("oiChgSub").textContent = ""; box.innerHTML = `<p class="re-empty">No previous session saved for ${esc(ch.symbol)} yet.</p>`; return; }
-  $("oiChgSub").textContent = `contracts, vs. ${shortDate(ch.prevDate)}`;
+  $("oiChgSub").textContent = `vs. ${shortDate(ch.prevDate)}`;
   const rows = a.rows.filter((x) => x.prev != null && x.oi !== x.prev).map((x) => ({ ...x, d: x.oi - x.prev }));
   const add = rows.filter((x) => x.d > 0).sort((p, q) => q.d - p.d).slice(0, 7);
   const cut = rows.filter((x) => x.d < 0).sort((p, q) => p.d - q.d).slice(0, 7);
-  const tr = (x) => {
-    const e = ch.exps[x.e];
-    return `<tr><td class="l"><b>${fmtNum(x.K, x.K % 1 ? 1 : 0)} ${x.call ? "call" : "put"}</b><small>${shortDate(e.iso)}</small></td><td>${fmtNum(x.oi)}</td><td class="${x.d > 0 ? "up" : "dn"}">${x.d > 0 ? "+" : "−"}${fmtNum(Math.abs(x.d))}</td><td>${fmtNum(x.vol)}</td></tr>`;
-  };
-  const tbl = (t, list) => `<div><h4>${t}</h4>${list.length ? `<table class="oi-t"><thead><tr><th class="l">Contract</th><th>OI</th><th>Change</th><th>Volume</th></tr></thead><tbody>${list.map(tr).join("")}</tbody></table>` : `<p class="re-empty">None</p>`}</div>`;
-  box.innerHTML = `<div class="oi-movers">${tbl("Opened", add)}${tbl("Closed", cut)}</div>`;
+  const tbl = (t, list) => `<h4>${t}</h4>${list.length ? `<table class="oi-t"><thead><tr><th class="l">Contract</th><th>OI</th><th>Change</th></tr></thead><tbody>${list.map((x) => row(x, `${x.d > 0 ? "+" : "−"}${fmtNum(Math.abs(x.d))}`, x.d > 0 ? "up" : "dn")).join("")}</tbody></table>` : `<p class="re-empty">None</p>`}`;
+  box.innerHTML = tbl("Opened", add) + tbl("Closed", cut);
 }
 function renderOI() { if (oiv.built && oiv.ch) oiRender(); }

@@ -3111,7 +3111,6 @@ function bindMacro() {
 
 /* ============================================================ resumen */
 const sm = { data: null, at: 0, ctrl: null };
-const SUM_LV = [["call_wall", "Call Wall", "call"], ["flip", "Gamma Flip", "amber"], ["vt", "Vol Trigger", "vt"], ["put_wall", "Put Wall", "put"]];
 function sumStatus() { const d = sm.data; return d ? `Summary at ${nyHHMM(d.computed_at)}` : ""; }
 
 async function loadSummary(refresh = false) {
@@ -3119,7 +3118,7 @@ async function loadSummary(refresh = false) {
   sm.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
   setStatus("busy", "Preparing the summary…");
-  if (!sm.data) $("sumIdx").innerHTML = SUMMARY_SYMS.map((s) => `<section class="scard"><div class="st">${s}</div><p class="empty">Loading…</p></section>`).join("");
+  if (!sm.data) $("sumBody").innerHTML = `<p class="empty">Loading…</p>`;
   try {
     const r = await fetch("/api/summary" + (refresh ? "?refresh=1" : ""), { signal: sm.ctrl.signal });
     const d = await r.json();
@@ -3130,7 +3129,7 @@ async function loadSummary(refresh = false) {
     if (e.name === "AbortError") return;
     if (state.mode === "summary") {
       setStatus("err", sm.data ? "Could not refresh" : "No data");
-      if (!sm.data) $("sumIdx").innerHTML = `<section class="scard"><p class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</p></section>`;
+      if (!sm.data) $("sumBody").innerHTML = `<p class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</p>`;
     }
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
@@ -3146,96 +3145,6 @@ function localTime(iso, withDay) {
   return `${day} at ${t}`;
 }
 
-function sumIndexCard(c) {
-  if (c.error) return `<section class="scard"><div class="st">${esc(c.symbol)}</div><p class="empty">${esc(c.error)}</p></section>`;
-  const neg = c.regime === "negative";
-  const dec = c.spot >= 1000 ? 0 : 2;
-  const lv = (v) => (v == null ? "—" : fmtNum(v, Number.isInteger(v) ? 0 : decFor(c.step)));
-  const f = c.flip_exact;
-  const fd = f ? (c.spot / f - 1) * 100 : null;
-  let read;
-  const fs = flipSide(c.spot, f, c.levels.flip.v);
-  if (f == null) read = `No gamma crossing in the range: the regime is <b>${neg ? "negative" : "positive"}</b> all around the price.`;
-  else if (fs === "near") read = `Next to the Gamma Flip (<b>${lv(c.levels.flip.v)}</b>, ${sgnPct(fd / 100)}): a transition zone, with no clear dealer effect. Watch which way it breaks.`;
-  else read = `${fd >= 0 ? "Above" : "Below"} the Gamma Flip (<b>${lv(c.levels.flip.v)}</b>, ${sgnPct(fd / 100)}). ` +
-    (neg ? "Dealers amplify moves: more volatility and trend." : "Dealers dampen moves: tighter ranges and mean reversion.");
-  const rows = SUM_LV.map(([k, name, ck]) => ({ k, name: k === "vt" && c.is_index === false ? "Hedge Wall" : name, col: C[ck], ...c.levels[k] })).filter((x) => x.v != null);
-  const ag = c.abs_gamma;
-  if (ag && ag.v != null && !rows.some((x) => x.v === ag.v)) rows.push({ k: "abs", name: "Absolute gamma", col: C.muted, ...ag });
-  rows.push({ k: "spot", name: c.implied ? "Price (implied)" : "Price", v: c.spot, d: null });
-  rows.sort((a, b) => b.v - a.v);
-  const li = rows.map((x) => x.k === "spot"
-    ? `<li class="spot"><span class="n" data-g="spot"><i></i>${x.name}</span><span class="v">${fmtNum(x.v, dec)}</span><span class="d"></span></li>`
-    : `<li><span class="n" data-g="${x.k === "vt" && c.is_index === false ? "hedge" : x.k}"><i style="background:${x.col}"></i>${x.name}</span><span class="v">${lv(x.v)}</span><span class="d">${sgnPct(x.d / 100)}</span></li>`).join("");
-  const em = c.moves && c.moves.d1, m5 = c.moves && c.moves.d5;
-  const emTxt = em ? `±${fmtNum(em.pct, 2)}% <span style="color:var(--faint)">${fmtNum(em.lo, dec)}–${fmtNum(em.hi, dec)}</span>` : "—";
-  const m5Txt = m5 ? `±${fmtNum(m5.pct, 2)}% <span style="color:var(--faint)">${fmtNum(m5.lo, dec)}–${fmtNum(m5.hi, dec)}</span>` : "—";
-  const chg = c.chg;
-  return `<section class="scard link" data-sym="${esc(c.symbol)}">
-    <div class="sh"><span class="st">${esc(c.symbol)}<small>${esc(c.name || "")}</small></span><span class="sc ${chg > 0 ? "up" : chg < 0 ? "dn" : ""}">${chg != null ? fmtPct(chg) : ""}</span></div>
-    <div class="srow"><span class="sp">${fmtNum(c.spot, dec)}</span><span class="pill ${neg ? "neg" : "pos"}"><i></i>${neg ? "Negative" : "Positive"} gamma</span></div>
-    <p class="sread">${read}</p>
-    <ul class="slv">${li}</ul>
-    <div class="sfoot"><span data-g="range1s">1σ range, ${rangeLabel(em)}</span><b>${emTxt}</b></div>
-    <div class="sfoot"><span data-g="range1s">1σ range, 5 sessions</span><b>${m5Txt}</b></div>
-    <div class="sfoot"><span data-g="gex1">GEX per 1%</span><b>${fmtBig(c.net_per_pct, true)}${c.prev_net != null ? ` <span style="color:var(--faint);font-weight:400">(${ddmm(c.prev_date)}: ${fmtBig(c.prev_net, true)})</span>` : ""}</b></div>
-  </section>`;
-}
-
-function sumSpark(points, col, W = 300) {
-  const H = 70, p = 6;
-  const xs = points.map((q) => q.days), ys = points.map((q) => q.v);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const xOf = (v) => p + ((v - x0) / Math.max(1, x1 - x0)) * (W - 2 * p);
-  const yOf = (v) => H - p - ((v - y0) / Math.max(1e-9, y1 - y0)) * (H - 2 * p);
-  const d = points.map((q, k) => `${k ? "L" : "M"}${xOf(q.days).toFixed(1)},${yOf(q.v).toFixed(1)}`).join("");
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><path d="${d}" fill="none" stroke="${col}" stroke-width="2"/>` +
-    points.map((q, k) => `<circle cx="${xOf(q.days)}" cy="${yOf(q.v)}" r="${k ? 2.5 : 3.5}" fill="${col}"/>`).join("") + `</svg>`;
-}
-
-function renderSummary() {
-  const d = sm.data;
-  if (!d) return;
-  const s = d.session;
-  const dateTxt = d.indices.find((c) => !c.error);
-  $("sumSub").textContent = dateTxt ? `Options data from ${nyHHMM(dateTxt.quote_time)} on ${longDate(dateTxt.quote_time.slice(0, 10))}, risk-free rate ${fmtNum(d.rate.r * 100, 2)}%` : "";
-  $("sumSess").innerHTML = s.open ? `Market open, closes at <b>${localTime(s.close_utc)}</b>` : `Market closed, opens <b>${localTime(s.next_open_utc, true)}</b>`;
-  $("sumIdx").innerHTML = d.indices.map(sumIndexCard).join("");
-
-  const v = d.vix;
-  if (v.error) $("sumVix").innerHTML = `<div class="st">VIX curve</div><p class="empty">${esc(v.error)}</p>`;
-  else {
-    $("sumVix").innerHTML = `<div class="sh"><span class="st">VIX futures curve<small>close ${ddmm(v.date)}</small></span><span class="pill ${SHAPE_CLASS[v.shape.code]}"><i></i>${esc(SHAPE_LABEL[v.shape.code] || v.shape.label)}</span></div>
-      <div class="sspark" id="sumSpark"></div>
-      <div class="sfacts">
-        <div><span data-g="vix">VIX</span><b>${fmtNum(v.vix_close, 2)}</b></div>
-        <div><span data-g="m1">M1 ${monLabel(v.m1_exp)}</span><b>${fmtNum(v.m1, 2)}</b></div>
-        <div><span data-g="slope">M2 / M1</span><b>${sgnPct(v.spread)}</b></div>
-        <div><span data-g="vix3m">VIX / VIX3M</span><b style="color:${v.vix_vix3m >= 1 ? C.amber : C.text}">${v.vix_vix3m ? fmtNum(v.vix_vix3m, 2) : "—"}</b></div>
-      </div>
-      <p class="sread">Slope at the <b>${ordinal(v.spread_pct_rank)}</b> percentile of the last year. ${v.streak} ${v.streak === 1 ? "session" : "sessions"} in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1).</p>`;
-  }
-  if (!v.error) { const sp = $("sumSpark"); sp.innerHTML = sumSpark(v.points, SHAPE_COLOR(v.shape.code), Math.max(200, sp.clientWidth)); }
-  const c = d.cot;
-  if (c.error) $("sumCot").innerHTML = `<div class="st">COT</div><p class="empty">${esc(c.error)}</p>`;
-  else {
-    const list = c.extremes.slice(0, 7).map((x) => `<li data-k="${x.key}"><span>${esc(x.name)} (${esc(x.group)})</span><em>net ${fmtBig(x.net)} (${x.chg > 0 ? "+" : ""}${fmtBig(x.chg)})</em><b>${fmtNum(x.index, 0)}</b></li>`).join("");
-    $("sumCot").innerHTML = `<div class="sh"><span class="st">COT extremes<small>3-year index, ${c.report_date ? ddmm(c.report_date) : ""}</small></span><span class="pill"><i style="background:var(--amber)"></i>${c.extremes.length} ${c.extremes.length === 1 ? "extreme" : "extremes"}</span></div>
-      ${list ? `<ul class="sext">${list}</ul>` : `<p class="empty">No group is above 90 or below 10 in its 3-year range.</p>`}
-      <p class="sread">Above 90, the longest net position of the period; below 10, the shortest. At extremes, speculative positioning is usually read as a contrarian signal.</p>`;
-  }
-}
-
-function bindSummary() {
-  $("sumView").addEventListener("click", (e) => {
-    const ck = e.target.closest(".sext li[data-k]");
-    if (ck) { cot.sel = ck.dataset.k; store.set("cotSel", ck.dataset.k); setMode("cot"); return; }
-    const card = e.target.closest(".scard.link");
-    if (!card) return;
-    if (card.dataset.sym) { $("symbol").value = card.dataset.sym; $("spotInput").value = ""; setMode("analysis"); load(); return; }
-    if (card.dataset.go) setMode(card.dataset.go);
-  });
-}
 
 /* ============================================================ glosario flotante */
 const GLOSSARY = {
@@ -3544,4 +3453,5 @@ async function init() {
   setView(state.view);
   if (state.mode === "scanner") { load(); setMode("scanner"); } else if (["vix", "cot", "summary", "vol", "risk", "calc", ...Object.keys(TOOLS)].includes(state.mode)) { setMode(state.mode); } else { setMode("analysis"); }
 }
-init();
+// se arranca cuando todos los scripts de la pagina han cargado (hub.js, resumen.js, lab.js... definen partes que init usa)
+document.addEventListener("DOMContentLoaded", init);

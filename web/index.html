@@ -11,7 +11,7 @@
 <title>GEX Lab</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="sg.css">
 <link rel="stylesheet" href="herramientas.css">
@@ -433,12 +433,8 @@
     </div>
     <p class="sumsess" id="sumSess"></p>
   </div>
-  <div class="sumgrid" id="sumIdx"></div>
-  <div class="sumgrid two">
-    <section class="scard link" id="sumVix" data-go="vix"></section>
-    <section class="scard link" id="sumCot" data-go="cot"></section>
-  </div>
-  <p class="scan-note">Indices with expirations up to 45 days and the standard dealer convention. Click a card to open its detail.</p>
+  <div id="sumBody"></div>
+  <p class="scan-note">Indices with expirations up to 45 days and the standard dealer convention. Click an index or a panel to open its detail.</p>
 </main>
 
 <main class="macro" id="volView" hidden>
@@ -581,6 +577,7 @@
 <script src="nube.js"></script>
 <script src="app.js"></script>
 <script src="hub.js"></script>
+<script src="resumen.js"></script>
 <script src="historico.js"></script>
 <script src="vol.js"></script>
 <script src="corr.js"></script>

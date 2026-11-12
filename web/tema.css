@@ -1,7 +1,8 @@
 /* GEX Lab - tema visual. Se carga el ultimo: sg.css pone la estructura y este archivo la identidad.
-   Oscuro "Bento": negro puro, bloques muy redondeados sin bordes, barra lateral flotante, lo elegido en blanco y letra
-   Manrope con cifras grandes. Claro "Daylight": gris lavanda, tarjetas blancas con sombra suave, acento indigo y letra
-   DM Sans. Los colores de los graficos estan en THEMES (app.js) y deben coincidir con estos tokens. */
+   Los dos temas comparten forma: letra Manrope con cifras grandes, barra lateral flotante, bloques muy redondeados sin
+   bordes y controles en pastilla. Solo cambia el color: oscuro "Bento" (negro puro, lo elegido en blanco) y claro
+   "Daylight" (gris lavanda, tarjetas blancas con sombra suave, acento indigo). Los colores de los graficos estan en
+   THEMES (app.js) y deben coincidir con estos tokens. */
 
 :root, :root[data-theme="dark"] {
   --ink: #000; --surface: #121214; --surface-2: #1a1a1d;
@@ -21,8 +22,7 @@
   --pos: #6a3df0; --neg: #e11d6a; --put: #0b9b6a; --call: #e5484d; --amber: #c27c0e;
   --btn: #f3f4f9; --btn-hover: #eceef5; --pop: #ffffff; --hover: #f3f4f9; --seg-on: #ffffff; --knob: #ffffff;
   --scroll: #d3d7e3; --shadow: rgba(17, 20, 43, .14); --side: #ffffff; --side-on: rgba(81, 69, 229, .09);
-  --panel: #ffffff; --panel-r: 20px; --ctl-r: 10px; --on-text: #fff;
-  --sans: "DM Sans", -apple-system, "Segoe UI", Roboto, sans-serif; --mono: var(--sans);
+  --panel: #ffffff; --on-text: #fff;
 }
 
 /* ---------------------------------------------------------------- letra: la del tema en toda la interfaz y en los graficos */
@@ -51,34 +51,35 @@ body { font-family: var(--sans); background: var(--ink); }
 .tstrip > *, .ladder, .hubside, .hubcard, .hubwatch { border-color: var(--line-soft); }
 .scard.link:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
 
-/* ---------------------------------------------------------------- barra lateral y superior */
-.side .item { border-radius: 12px; }
-:root[data-theme="dark"] .side { margin: 12px 0 12px 12px; height: calc(100vh - 24px); border: 0; border-radius: 24px; }
-:root[data-theme="dark"] .side .item { color: var(--muted); }
-:root[data-theme="dark"] .side .item[aria-current="page"], :root[data-theme="dark"] .side .item[aria-current="page"] svg { color: #000; background: #fafafa; }
-:root[data-theme="light"] .side { border-right: 1px solid #eceef5; }
-:root[data-theme="light"] .side .item { color: var(--muted); font-weight: 500; }
-:root[data-theme="light"] .side .item[aria-current="page"] { color: var(--accent); background: var(--side-on); font-weight: 600; }
-.bar { border-bottom: 0; }
-:root[data-theme="light"] .bar { background: rgba(242, 243, 248, .86); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
-.ticker { border-color: transparent; border-radius: 999px; background: var(--surface); }
-:root[data-theme="light"] .ticker { border-radius: 12px; border-color: #e1e4ee; box-shadow: 0 1px 2px rgba(17, 20, 43, .05); }
-.ticker .go { border-radius: 999px; font-weight: 700; }
-:root[data-theme="dark"] .ticker .go, :root[data-theme="dark"] .ticker .go:hover { background: #fafafa; color: #000; }
-:root[data-theme="light"] .ticker .go, :root[data-theme="light"] .ticker .go:hover { background: var(--accent); color: #fff; border-radius: 9px; }
-:root[data-theme="dark"] .quick button.on { color: #000; background: #fafafa; border-radius: 999px; }
+/* ---------------------------------------------------------------- barra lateral flotante y barra superior */
+.side { border: 0; }
+@media (min-width: 901px) { .side { margin: 12px 0 12px 12px; height: calc(100vh - 24px); border-radius: 24px; } }
+@media (max-width: 900px) { .side { border-radius: 0 24px 24px 0; } }
+:root[data-theme="light"] .side { box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
+.side .item { border-radius: 12px; color: var(--muted); font-weight: 600; }
+.side .item[aria-current="page"], .side .item[aria-current="page"] svg { color: var(--on-text); }
+.side .item[aria-current="page"] { background: var(--seg-on-strong, var(--text)); font-weight: 700; }
+:root[data-theme="light"] .side .item[aria-current="page"] { background: var(--accent); }
+.bar { border-bottom: 0; background: var(--ink); }
+.ticker { border: 0; border-radius: 999px; background: var(--surface); }
+:root[data-theme="light"] .ticker { box-shadow: 0 1px 2px rgba(17, 20, 43, .06); }
+.ticker .go, .ticker .go:hover { border-radius: 999px; font-weight: 700; color: var(--on-text); }
+:root[data-theme="dark"] .ticker .go, :root[data-theme="dark"] .ticker .go:hover { background: #fafafa; }
+:root[data-theme="light"] .ticker .go, :root[data-theme="light"] .ticker .go:hover { background: var(--accent); }
+.quick button.on { color: var(--on-text); border-radius: 999px; }
+:root[data-theme="dark"] .quick button.on { background: #fafafa; }
+:root[data-theme="light"] .quick button.on { background: var(--accent); }
 
 /* ---------------------------------------------------------------- controles: segmentos, pestanas, botones */
 .seg.boxed, .tabs, .modes { border: 0; border-radius: var(--ctl-r); background: var(--btn); padding: 3px; }
 .seg.boxed button, .tabs button, .modes button { border-radius: var(--ctl-r); font-weight: 600; }
-:root[data-theme="light"] .seg.boxed button, :root[data-theme="light"] .tabs button { border-radius: 8px; }
 .seg.boxed button[aria-checked="true"], .tabs button[aria-selected="true"], .modes button[aria-selected="true"] {
   background: var(--seg-on); color: var(--on-text); box-shadow: none; font-weight: 700; }
 :root[data-theme="light"] .seg.boxed button[aria-checked="true"], :root[data-theme="light"] .tabs button[aria-selected="true"], :root[data-theme="light"] .modes button[aria-selected="true"] {
   color: var(--accent); box-shadow: 0 1px 3px rgba(17, 20, 43, .12); }
 .seg button[aria-checked="true"], .seg.compact button[aria-checked="true"] { color: var(--text); background: var(--btn-hover); }
 .ghost, .setbtn, .iconbtn, .dd, .vchip, .vexp { border-radius: var(--ctl-r); }
-:root[data-theme="light"] :is(.ghost, .setbtn, .iconbtn, .dd) { background: #fff; border-color: #e1e4ee; }
+:root[data-theme="light"] :is(.ghost, .setbtn, .iconbtn, .dd) { background: #fff; border-color: transparent; box-shadow: 0 1px 2px rgba(17, 20, 43, .08); }
 .ghost:hover, .iconbtn:hover { color: var(--text); border-color: var(--line-strong); background: var(--hover); }
 .switch[aria-checked="true"] .track, .kl-tg[aria-checked="true"] i, .cs-tg[aria-checked="true"] i { background: var(--accent); }
 .pill { border-radius: 999px; }

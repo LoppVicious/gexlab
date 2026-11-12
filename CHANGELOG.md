@@ -3,14 +3,21 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Cambiado**
-- **Aspecto de toda la web**, con dos temas que se alternan con el botón de la barra lateral. **Bento** (oscuro): negro
-  puro, bloques muy redondeados sin bordes, barra lateral flotante, lo elegido en blanco y letra Manrope con cifras
-  grandes. **Daylight** (claro): fondo gris lavanda, tarjetas blancas con sombra suave, acento índigo y letra DM Sans.
-  Los rótulos dejan de ir en mayúsculas, los gráficos usan la letra y los colores de cada tema, y el inicio de sesión
-  y el alta siguen el mismo estilo.
+- **Aspecto de toda la web**, con dos temas que se alternan con el botón de la barra lateral y comparten forma: letra
+  Manrope con cifras grandes, barra lateral flotante, bloques muy redondeados sin bordes y controles en pastilla. Solo
+  cambia el color: **Bento** (oscuro) en negro puro con lo elegido en blanco, y **Daylight** (claro) en gris lavanda con
+  tarjetas blancas de sombra suave y acento índigo. Los rótulos dejan de ir en mayúsculas, los gráficos usan los colores
+  de cada tema, y el inicio de sesión y el alta siguen el mismo estilo.
+- **Summary** rehecho como parte de mercado: cuenta atrás hasta la apertura y la semana con los datos macro (importancia
+  en tres marcas, hora local) y los vencimientos; SPX, NDX y RUT con su **terreno de gamma** (perfil de gamma por precio
+  coloreado como el mapa de TRACE, con muros, flip, precio y banda de 1σ), GEX por 1 % y su cambio, 1σ de la semana,
+  gamma que vence y niveles movidos desde ayer; **Volatility** (curva del VIX frente a ayer y hace una semana,
+  estructura VIX9D a VIX1Y, IV frente a RV de SPX); **Correlation and dispersion** (un año de COR1M y DSPX con bandas de
+  percentil); mapa de régimen de la watchlist; flujo de opciones de SPX con la actividad inusual; y extremos del COT en
+  medidores. Cada panel lleva a su página.
 - **Equity Hub** reorganizado en tres columnas: a la izquierda la watchlist (ordenada de la que más sube a la que más baja en el
   día; un clic carga el ticker; se pliega con la
   flecha de su cabecera y el gráfico gana ese ancho, y la elección se recuerda), en el centro el
@@ -29,6 +36,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   tooltip.
 
 **Corregido**
+- Al abrir la web con Options Lab como última pantalla salía en blanco (`showLab is not defined`): la app arranca
+  ahora cuando han cargado todos sus scripts.
 - El título de las pestañas de inicio de sesión y de alta usa un guion en lugar del punto medio. El sistema visual
   «Papel técnico» que se probó hoy se ha retirado: la web conserva sus colores y su letra de siempre.
 

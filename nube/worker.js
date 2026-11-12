@@ -543,6 +543,41 @@ function tocaHistorial(d) {
 }
 
 
+// ------------------------------------------------------------------ alarma del calendario (Durable Object)
+// Una sola instancia guarda los instantes de aviso que publica el motor (pub/eventos_horas.json: hora de cada
+// evento + 1 min y reintentos mientras falte el dato real) y pone la alarma en el proximo. Al sonar lanza el motor
+// en modo calendario (solo eventos). El cron */5 le vuelve a pasar la lista: si se pierde la alarma, vuelve en 5 min.
+export class RelojCalendario {
+  constructor(ctx, env) { this.ctx = ctx; this.env = env; }
+
+  async fetch(req) {
+    const lista = await req.json().catch(() => []);
+    const ts = [...new Set((Array.isArray(lista) ? lista : []).map((s) => Date.parse(s)))]
+      .filter((t) => Number.isFinite(t) && t > Date.now()).sort((a, b) => a - b).slice(0, 200);
+    await this.ctx.storage.put("ts", ts);
+    const cur = await this.ctx.storage.getAlarm();
+    if (ts.length && cur !== ts[0]) await this.ctx.storage.setAlarm(ts[0]);
+    else if (!ts.length && cur != null) await this.ctx.storage.deleteAlarm();
+    return new Response(JSON.stringify({ proxima: ts[0] ? new Date(ts[0]).toISOString() : null }));
+  }
+
+  async alarm() {
+    const ok = await dispatch(this.env, { modo: "calendario" });
+    if (!ok) console.log("calendario: no se pudo lanzar el motor");
+    const ts = ((await this.ctx.storage.get("ts")) || []).filter((t) => t > Date.now() + 1000);
+    await this.ctx.storage.put("ts", ts);
+    if (ts.length) await this.ctx.storage.setAlarm(ts[0]);
+  }
+}
+
+async function programarCalendario(env) {
+  if (!env.RELOJ) return;
+  const d = await r2json(env, "pub/eventos_horas.json");
+  if (!d || !Array.isArray(d.horas)) return;
+  const reloj = env.RELOJ.get(env.RELOJ.idFromName("calendario"));
+  await reloj.fetch("https://reloj/programar", { method: "POST", body: JSON.stringify(d.horas) });
+}
+
 export default {
   async scheduled(event, env, ctx) {
     const d = new Date(event.scheduledTime);
@@ -550,6 +585,7 @@ export default {
     if (toca(d)) ctx.waitUntil(dispatch(env, { modo: "ciclo" }));
     if (tocaRapido(d)) ctx.waitUntil(dispatch(env, { modo: "rapido" }));
     if (tocaHistorial(d)) ctx.waitUntil(dispatch(env, {}, "historial500.yml"));
+    ctx.waitUntil(programarCalendario(env).catch((e) => console.log("calendario:", e.message)));
   },
 
   async fetch(req, env) {

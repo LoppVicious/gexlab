@@ -33,6 +33,14 @@ database_id = "$DBID"
 binding = "R2"
 bucket_name = "gexlab"
 
+[[durable_objects.bindings]]
+name = "RELOJ"
+class_name = "RelojCalendario"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RelojCalendario"]
+
 [triggers]
 crons = ["*/5 * * * *"]
 TOML
@@ -49,7 +57,7 @@ if ! OUT=$($W deploy 2>&1); then echo "$OUT" | grep -Ei "error|subdomain|https:/
 echo "$OUT" | grep -Ei "https://" || true
 printf '%s' "$GEX_SETUP_CODE" | $W secret put GEX_SETUP_CODE >/dev/null
 printf '%s' "$GH_DISPATCH_TOKEN" | $W secret put GH_DISPATCH_TOKEN >/dev/null
-echo "    secretos al dia; reloj cada 5 min (indices en tiempo real) y cada 15 min (ciclo completo)"
+echo "    secretos al dia; reloj cada 5 min (indices en tiempo real), cada 15 min (ciclo completo) y alarma del calendario"
 # la app se llamaba "gexlab": se borra el Worker antiguo para que su reloj no lance el motor dos veces
 if $W deployments list --name gexlab >/dev/null 2>&1; then
   $W delete --name gexlab --force 2>&1 | grep -Ei "delet|error|success" || true

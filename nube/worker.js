@@ -563,7 +563,7 @@ export class RelojCalendario {
 
   async alarm() {
     const ok = await dispatch(this.env, { modo: "calendario" });
-    if (!ok) console.log("calendario: no se pudo lanzar el motor");
+    if (!ok) throw new Error("calendario: dispatch fallido"); // Cloudflare reintenta alarm() con espera creciente
     const ts = ((await this.ctx.storage.get("ts")) || []).filter((t) => t > Date.now() + 1000);
     await this.ctx.storage.put("ts", ts);
     if (ts.length) await this.ctx.storage.setAlarm(ts[0]);

@@ -282,10 +282,29 @@ def refrescar_reales() -> int:
     """Modo calendario del motor: solo el dato real sobre lo guardado (sin pedir ForexFactory). Vuelve a marcar
     `real` con las reglas actuales de reales.REALES, para que las marcas guardadas no queden viejas."""
     st = g.read_json(STATE, {}) or {}
-    marcar_reales(st.get("eventos", []))
-    n = rellenar_reales(st.get("eventos", []))
+    if not st.get("eventos"):  # sin estado no se escribe nada: pisaria el de R2 con uno vacio
+        return 0
+    marcar_reales(st["eventos"])
+    try:
+        n = rellenar_reales(st["eventos"])
+    except Exception as e:  # noqa: BLE001
+        n = 0
+        st.setdefault("fuentes", {})["reales"] = f"error: {e}"
     st["reales"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     g.write_json(STATE, st)
+    return n
+
+
+def conservar_reales(evs: list[dict], otros: list[dict]) -> int:
+    """Copia el dato real (actual) de `otros` a los eventos de `evs` que aun no lo tienen (misma clave): asi un
+    estado leido antes de otra escritura no pierde lo que esa escritura recogio. Devuelve cuantos copia."""
+    por_clave = {_clave(o): o for o in otros if o.get("actual")}
+    n = 0
+    for e in evs:
+        o = por_clave.get(_clave(e))
+        if o and not e.get("actual"):
+            e["actual"] = o["actual"]
+            n += 1
     return n
 
 
@@ -319,8 +338,9 @@ REINTENTOS = (6, 16, 31, 61, 121)  # minutos tras el evento mientras falte el da
 
 def horas_aviso(evs: list[dict], now: datetime | None = None) -> list[str]:
     """Instantes (UTC ISO) en que el Worker lanza el modo calendario: solo para eventos con fuente de dato real
-    (real) y aun sin el, que son los unicos que ese modo puede actualizar: hora del evento + 1 min y despues el
-    siguiente reintento de REINTENTOS. Importancia 2 o mas, hoy y manana, con hora."""
+    (real) y aun sin el, que son los unicos que ese modo puede actualizar: hora del evento + 1 min y todos los
+    reintentos de REINTENTOS que no hayan pasado (si uno acierta, el evento deja de avisar). Importancia 2 o mas,
+    hoy y manana, con hora."""
     now = now or datetime.now(timezone.utc)
     hoy = (now + g._ny_offset(now)).date()
     dias = {hoy.isoformat(), (hoy + timedelta(days=1)).isoformat()}
@@ -329,9 +349,7 @@ def horas_aviso(evs: list[dict], now: datetime | None = None) -> list[str]:
         if e["imp"] < 2 or not e.get("time") or e["date"] not in dias or not e.get("real") or e.get("actual"):
             continue
         t = _utc(e["date"], e["time"])
-        sig = next((t + timedelta(minutes=m) for m in (1,) + REINTENTOS if t + timedelta(minutes=m) > now), None)
-        if sig:
-            out.add(sig)
+        out.update(t + timedelta(minutes=m) for m in (1,) + REINTENTOS if t + timedelta(minutes=m) > now)
     return [t.strftime("%Y-%m-%dT%H:%M:%SZ") for t in sorted(out)]
 
 

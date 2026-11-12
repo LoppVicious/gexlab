@@ -445,7 +445,7 @@ def traer_eventos(st) -> None:
     """El estado del calendario de R2 manda sobre la copia del tar (el modo calendario no guarda el tar)."""
     import eventos
     d = almacen.get_json(st, EVENTOS_KEY)
-    if d:
+    if d and d.get("eventos"):
         os.makedirs(os.path.dirname(eventos.STATE), exist_ok=True)
         g.write_json(eventos.STATE, d)
 
@@ -465,8 +465,16 @@ def fase_calendario(st, completo: bool) -> None:
             evs, res = eventos.actualizar()
             log(f"calendario: {len(evs)} eventos ({', '.join(f'{k} {v}' for k, v in res.items())})")
         else:
+            if not (g.read_json(eventos.STATE, {}) or {}).get("eventos"):
+                log("calendario: sin estado, nada que hacer")
+                return
             log(f"calendario: {eventos.refrescar_reales()} datos reales nuevos")
-        almacen.put_json(st, EVENTOS_KEY, g.read_json(eventos.STATE, {}))
+        # el ciclo y este modo pueden solaparse: antes de escribir se recoge lo que el otro haya guardado
+        actual = g.read_json(eventos.STATE, {}) or {}
+        otro = almacen.get_json(st, EVENTOS_KEY) or {}
+        if eventos.conservar_reales(actual.get("eventos", []), otro.get("eventos", [])):
+            g.write_json(eventos.STATE, actual)
+        almacen.put_json(st, EVENTOS_KEY, actual)
         subir(st, "pub/eventos.json", eventos.publicables())
         subir(st, "pub/calendario.json", {"eventos": eventos.calendario(),
                                           "actualizado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
@@ -576,7 +584,10 @@ def publicar_generales(st) -> None:
 def ciclo() -> int:
     st = almacen.abrir()
     restaurar_estado(st)
-    traer_eventos(st)  # la Validacion (fase_listas) marca los dias de evento con el calendario al dia
+    try:
+        traer_eventos(st)  # la Validacion (fase_listas) marca los dias de evento con el calendario al dia
+    except Exception as e:  # noqa: BLE001
+        err("calendario", e)
     importar(st)
     cfg = leer_config(st)
     syms = cfg["universo"]

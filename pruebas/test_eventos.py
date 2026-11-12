@@ -57,15 +57,52 @@ def test_avisos():
     utc = lambda h, m: datetime(2026, 11, 13, h, m, tzinfo=timezone.utc)  # noqa: E731
     # solo avisan los eventos con fuente de dato real (real) que aun no lo tienen; el resto no (el modo calendario
     # no puede actualizarlos)
-    assert ev.horas_aviso(evs, utc(13, 0)) == ["2026-11-13T13:31:00Z"]
-    # sin dato real: el siguiente reintento (T+6, 16, 31, 61, 121) que no haya pasado
-    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T13:36:00Z"]
-    assert ev.horas_aviso(evs, utc(13, 40)) == ["2026-11-13T13:46:00Z"]
+    # todos los que quedan por venir (T+1, 6, 16, 31, 61, 121)
+    assert ev.horas_aviso(evs, utc(13, 0)) == ["2026-11-13T13:31:00Z", "2026-11-13T13:36:00Z", "2026-11-13T13:46:00Z",
+                                               "2026-11-13T14:01:00Z", "2026-11-13T14:31:00Z", "2026-11-13T15:31:00Z"]
+    assert ev.horas_aviso(evs, utc(13, 32)) == ["2026-11-13T13:36:00Z", "2026-11-13T13:46:00Z", "2026-11-13T14:01:00Z",
+                                                "2026-11-13T14:31:00Z", "2026-11-13T15:31:00Z"]
+    assert ev.horas_aviso(evs, utc(15, 0)) == ["2026-11-13T15:31:00Z"]
     assert ev.horas_aviso(evs, utc(15, 40)) == []
     for x in evs[:2]:
         x["actual"] = "0.3%"
     assert ev.horas_aviso(evs, utc(13, 32)) == []
     assert ev.horas_aviso(evs, utc(13, 0)) == []
+
+
+def test_conservar_reales():
+    a = [{"date": "2026-11-13", "name": "CPI (Oct)", "actual": None},
+         {"date": "2026-11-13", "name": "PPI (Oct)", "actual": "0.1%"},
+         {"date": "2026-11-13", "name": "Retail sales (Oct)", "actual": None}]
+    b = [{"date": "2026-11-13", "name": "CPI (Oct)", "actual": "0.4%"},
+         {"date": "2026-11-13", "name": "PPI (Oct)", "actual": "9.9%"}]
+    assert ev.conservar_reales(a, b) == 1
+    assert [e["actual"] for e in a] == ["0.4%", "0.1%", None], a
+
+
+def test_refrescar_sin_estado_y_con_error():
+    import json
+    import tempfile
+    import gex_engine
+    hoy = gex_engine.now_ny().strftime("%Y-%m-%d")
+    guardado = (ev.STATE, ev.reales.rellenar)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            ev.STATE = os.path.join(d, "eventos.json")
+            assert ev.refrescar_reales() == 0 and not os.path.exists(ev.STATE)  # sin estado no escribe
+            e0 = {"date": hoy, "time": "00:00", "name": "PPI (Oct)", "titulo": "PPI m/m", "country": "US", "imp": 3}
+            with open(ev.STATE, "w", encoding="utf-8") as f:
+                json.dump({"version": ev.VERSION, "eventos": [e0]}, f)
+
+            def falla(evs):
+                raise RuntimeError("BLS caido")
+            ev.reales.rellenar = falla
+            assert ev.refrescar_reales() == 0
+            with open(ev.STATE, encoding="utf-8") as f:
+                st = json.load(f)
+            assert st["fuentes"]["reales"] == "error: BLS caido" and st["reales"], st
+    finally:
+        ev.STATE, ev.reales.rellenar = guardado
 
 
 def test_union_ff():
@@ -130,7 +167,8 @@ def test_refrescar_marca_real():
             evs = ev._eventos()
             assert evs[0]["real"] is True, evs
             base = ev._utc(hoy, "23:59") - timedelta(minutes=5)
-            assert ev.horas_aviso(evs, base) == [(ev._utc(hoy, "23:59") + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")]
+            horas = ev.horas_aviso(evs, base)
+            assert horas[0] == (ev._utc(hoy, "23:59") + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ"), horas
     finally:
         ev.STATE, ev.reales.rellenar = guardado
 

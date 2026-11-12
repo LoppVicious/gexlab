@@ -95,8 +95,8 @@ Tabla `REALES`: título de ForexFactory → (fuente, serie, transformación, uni
 ### Instantes de aviso
 
 Solo hay avisos para eventos de hoy y mañana con importancia 2+, hora, fuente de dato real (`real: true`) y sin
-`actual` todavía (el modo calendario no puede actualizar los demás): `T + 1 min` y, si ya pasó y sigue sin dato,
-el siguiente de `T + 6, 16, 31, 61, 121 min` que no haya pasado. Sin duplicados.
+`actual` todavía (el modo calendario no puede actualizar los demás): `T + 1 min` y todos los de
+`T + 6, 16, 31, 61, 121 min` que no hayan pasado (si uno recoge el dato, el evento deja de avisar). Sin duplicados.
 
 ## Alarma en el Worker (Durable Object)
 

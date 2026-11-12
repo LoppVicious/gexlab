@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       modo:
-        description: "ciclo (todo), ticker (calculo puntual) o rapido (indices en tiempo real)"
+        description: "ciclo (todo), ticker (calculo puntual), rapido (indices en tiempo real) o calendario (solo eventos)"
         type: choice
-        options: [ciclo, ticker, rapido]
+        options: [ciclo, ticker, rapido, calendario]
         default: ciclo
       tickers:
         description: "Tickers separados por espacios (solo modo ticker)"
@@ -44,6 +44,7 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
           MODO: ${{ inputs.modo }}
           TICKERS: ${{ inputs.tickers }}
@@ -52,6 +53,7 @@ jobs:
           case "$MODO" in
             ticker) python motor.py ticker $TICKERS ;;
             rapido) python motor.py rapido ;;
+            calendario) python motor.py calendario ;;
             *) python motor.py ciclo ;;
           esac
       - name: Guardar almacen provisional

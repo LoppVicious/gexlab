@@ -225,7 +225,8 @@ CAL_ATRAS, CAL_ADELANTE, OTROS_DIAS = 14, 28, 35
 def actualizar() -> tuple[list[dict], dict]:
     """Junta las fuentes con lo guardado (estado), marca y rellena el dato real, y devuelve eventos y resumen."""
     prev = g.read_json(STATE, {}) or {}
-    # lo guardado con otra version (otras etiquetas o claves) se descarta: si no, quedarian eventos repetidos
+    # lo guardado con otra version (otras etiquetas o claves) se descarta salvo los eventos de EE. UU. pasados
+    # que usa la Validacion; el resto se conservaria con claves viejas y quedarian eventos repetidos
     if prev.get("version") == VERSION:
         known = {_clave(e): e for e in prev.get("eventos", [])}
     else:

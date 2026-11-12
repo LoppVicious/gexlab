@@ -6,6 +6,8 @@ GEX Lab - motor en la nube (GitHub Actions).
   python motor.py rapido           ciclo ligero de los indices en tiempo real (TIEMPO_REAL), cada 5 min con el
                                    mercado abierto: cadena y velas de 5 min de Tradier, paquetes y vistas; no guarda
                                    el estado (el historial de niveles y el flujo los lleva el ciclo de 15 min)
+  python motor.py calendario       solo el dato real del calendario macro (BLS y FRED): lo lanza la alarma del
+                                   Worker a la hora de cada evento + 1 min; no toca tickers ni guarda el tar
 
 Cada ciclo:
   1. recupera el estado (historial, flujo, copias de la cadena, caches) del almacen
@@ -42,6 +44,7 @@ import gex_engine as g  # noqa: E402
 g.CACHE_TTL = 900
 
 ESTADO_KEY = "estado/estado.tar.gz"
+EVENTOS_KEY = "estado/eventos.json"  # estado del calendario: aparte del tar, lo escriben el ciclo y el modo calendario
 COPIAS_PREFIX = "estado/copias/"
 COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
@@ -419,18 +422,7 @@ def fase_macro(st) -> None:
             subir(st, f"pub/cot_hist/{m[0]}.json", macro.cot_history(m[0]))
         except Exception as e:  # noqa: BLE001
             err(f"cot {m[0]}", e)
-    try:  # calendario macro: como mucho cada 6 h
-        import eventos
-        st_ev = g.read_json(eventos.STATE, {}) or {}
-        last = st_ev.get("actualizado")
-        fred_nueva = st_ev.get("version") != eventos.VERSION or (
-            bool(os.environ.get("FRED_API_KEY")) and not (st_ev.get("fuentes") or {}).get("fred"))
-        if fred_nueva or not last or (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)).total_seconds() > 6 * 3600:
-            evs, res = eventos.actualizar()
-            log(f"calendario: {len(evs)} eventos ({', '.join(f'{k} {v}' for k, v in res.items())})")
-        subir(st, "pub/eventos.json", eventos.publicables())
-    except Exception as e:  # noqa: BLE001
-        err("calendario", e)
+    fase_calendario(st, completo=True)
     log("macro: curva VIX, COT y Resumen")
 
 
@@ -447,6 +439,40 @@ def _borrar_vistas_viejas(st, sym: str, hechas: set) -> int:
     except Exception as e:  # noqa: BLE001
         err(f"{sym} limpieza de vistas", e)
     return n
+
+
+def traer_eventos(st) -> None:
+    """El estado del calendario de R2 manda sobre la copia del tar (el modo calendario no guarda el tar)."""
+    import eventos
+    d = almacen.get_json(st, EVENTOS_KEY)
+    if d:
+        os.makedirs(os.path.dirname(eventos.STATE), exist_ok=True)
+        g.write_json(eventos.STATE, d)
+
+
+def fase_calendario(st, completo: bool) -> None:
+    """completo (ciclo): todas las fuentes como mucho cada hora (ForexFactory limita peticiones) y, si no toca,
+    solo el dato real. Modo calendario: solo el dato real. Publica siempre eventos, calendario y avisos."""
+    try:
+        import eventos
+        traer_eventos(st)  # justo antes de usarlo, para no pisar lo que haya publicado el otro modo
+        st_ev = g.read_json(eventos.STATE, {}) or {}
+        last = st_ev.get("actualizado")
+        fred_nueva = bool(os.environ.get("FRED_API_KEY")) and not (st_ev.get("fuentes") or {}).get("fred")
+        vieja = (st_ev.get("version") != eventos.VERSION or fred_nueva or not last or
+                 (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)).total_seconds() > 3600)
+        if completo and vieja:
+            evs, res = eventos.actualizar()
+            log(f"calendario: {len(evs)} eventos ({', '.join(f'{k} {v}' for k, v in res.items())})")
+        else:
+            log(f"calendario: {eventos.refrescar_reales()} datos reales nuevos")
+        almacen.put_json(st, EVENTOS_KEY, g.read_json(eventos.STATE, {}))
+        subir(st, "pub/eventos.json", eventos.publicables())
+        subir(st, "pub/calendario.json", {"eventos": eventos.calendario(),
+                                          "actualizado": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")})
+        subir(st, "pub/eventos_horas.json", {"horas": eventos.horas_aviso(eventos._eventos())})
+    except Exception as e:  # noqa: BLE001
+        err("calendario", e)
 
 
 def fase_vistas(st, syms: list[str], vistas: list[dict], listas: dict) -> None:
@@ -550,6 +576,7 @@ def publicar_generales(st) -> None:
 def ciclo() -> int:
     st = almacen.abrir()
     restaurar_estado(st)
+    traer_eventos(st)  # la Validacion (fase_listas) marca los dias de evento con el calendario al dia
     importar(st)
     cfg = leer_config(st)
     syms = cfg["universo"]
@@ -639,11 +666,21 @@ def rapido() -> int:
         return 0
     return tickers(TIEMPO_REAL, ligero=True)
 
+def calendario() -> int:
+    """Lo lanza la alarma del Worker a la hora de cada evento + 1 min (y reintentos): solo el dato real del
+    calendario, sin tickers ni ForexFactory."""
+    st = almacen.abrir()
+    fase_calendario(st, completo=False)
+    esperar_subidas()
+    log(f"calendario terminado, {len(_errores)} errores")
+    return 1 if _errores else 0
+
 
 if __name__ == "__main__":
     modo = sys.argv[1] if len(sys.argv) > 1 else "ciclo"
     try:
-        sys.exit(ciclo() if modo == "ciclo" else tickers(sys.argv[2:]) if modo == "ticker" else rapido() if modo == "rapido" else 2)
+        sys.exit(ciclo() if modo == "ciclo" else tickers(sys.argv[2:]) if modo == "ticker" else rapido() if modo == "rapido"
+                 else calendario() if modo == "calendario" else 2)
     except Exception:  # noqa: BLE001
         traceback.print_exc()
         sys.exit(1)

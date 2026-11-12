@@ -36,6 +36,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   tooltip.
 
 **Corregido**
+- En tema claro, la sección activa de la barra lateral lleva un tinte índigo suave con el texto en índigo, en lugar
+  de un bloque de color intenso que dejaba el texto oscuro e ilegible.
 - Al abrir la web con Options Lab como última pantalla salía en blanco (`showLab is not defined`): la app arranca
   ahora cuando han cargado todos sus scripts.
 - El título de las pestañas de inicio de sesión y de alta usa un guion en lugar del punto medio. El sistema visual

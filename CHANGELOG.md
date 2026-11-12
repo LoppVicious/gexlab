@@ -3,9 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
+## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; Volatility con vista general; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Cambiado**
+- **Volatility dashboard**: nueva vista **Overview** (la de entrada) con las cuatro gráficas a la vez (Term
+  structure, Skew, Skew by expiration y Realized vs. implied) y la matriz por strike fijo debajo. Al pulsar una se
+  abre en grande con sus controles; las pestañas cambian de vista sin volver a la general, y Esc vuelve. Cada cifra
+  de arriba lleva una conclusión breve («Options are cheap», «Short-dated vol elevated», «Puts in demand»...),
+  resaltada si es notable, con su criterio en el texto de ayuda.
 - **Aspecto de toda la web**, con dos temas que se alternan con el botón de la barra lateral y comparten forma: letra
   Manrope con cifras grandes, barra lateral flotante, bloques muy redondeados sin bordes y controles en pastilla. Solo
   cambia el color: **Bento** (oscuro) en negro puro con lo elegido en blanco, y **Daylight** (claro) en gris lavanda con

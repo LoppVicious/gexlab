@@ -441,11 +441,12 @@
   <div class="vhead">
     <div class="vtitle"><span class="vsym" id="vSym">—</span><span class="vname" id="vName"></span><span class="vspot" id="vSpot"></span></div>
     <div class="tabs" role="tablist" aria-label="Volatility view" id="volTabs">
-      <button role="tab" data-v="matrix" aria-selected="false">Fixed-strike matrix</button>
-      <button role="tab" data-v="term" aria-selected="true">Term structure</button>
+      <button role="tab" data-v="overview" aria-selected="true" title="All the views at once (Esc from any view)"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" fill="currentColor"><rect x="1" y="1" width="6" height="6" rx="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5"/></svg>Overview</button>
+      <button role="tab" data-v="term" aria-selected="false">Term structure</button>
       <button role="tab" data-v="skew" aria-selected="false">Skew</button>
       <button role="tab" data-v="shape" aria-selected="false">Skew by expiration</button>
       <button role="tab" data-v="realized" aria-selected="false">Realized vs. implied</button>
+      <button role="tab" data-v="matrix" aria-selected="false">Fixed-strike matrix</button>
     </div>
     <span class="scan-status" id="volStatus"></span>
   </div>
@@ -456,6 +457,7 @@
     <div class="vmatrix" id="volMatrix" hidden></div>
     <div class="tip" id="volTip" hidden></div>
   </div>
+  <div class="vgrid" id="volGrid" hidden></div>
   <p class="scan-note" id="volNote"></p>
 </main>
 

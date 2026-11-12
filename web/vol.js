@@ -7,11 +7,13 @@
    - Skew: IV por strike o por delta de los vencimientos elegidos, con la sesion anterior y la banda 10-90
    - Skew por vencimiento: risk reversal y butterfly de 25 delta
    - Realizada frente a implicita: cono de Yang-Zhang del ultimo ano con la IV ATM del mismo plazo
-   - Matriz por strike fijo: IV por vencimiento y strike, coloreada por el cambio frente a la sesion anterior */
+   - Matriz por strike fijo: IV por vencimiento y strike, coloreada por el cambio frente a la sesion anterior
+   La vista Overview (por defecto) muestra las cuatro graficas y la matriz a la vez; al pulsar una se abre en grande
+   con sus controles, y las pestanas (o Esc) permiten cambiar de vista o volver sin pasar por la principal. */
 
 const vol = {
   data: null, sym: "", at: 0, ctrl: null, events: null, geo: null,
-  tab: store.get("volTab", "term"),
+  tab: store.get("volTab", "overview"),
   axis: store.get("volAxis", "strike"),
   sel: [],                                   // vencimientos elegidos en el skew
   show: Object.assign({ fwd: true, d1: true, w1: false, band: true, ev: true, cc: true, iv: true }, JSON.parse(store.get("volShow", "{}"))),
@@ -186,10 +188,39 @@ function renderTerm(W, H) {
 
 /* ------------------------------------------------------------ resumen de la superficie */
 const pts2 = (v) => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v * 100), 1) + " pts";
+// Overview: las cuatro graficas a la vez y la matriz debajo; cada tarjeta abre su vista en grande
+const VOL_VIEWS = [["term", "Term structure", "ATM implied volatility by expiration"], ["skew", "Skew", "Implied volatility by strike"],
+  ["shape", "Skew by expiration", "25-delta risk reversal and butterfly"], ["realized", "Realized vs. implied", "Realized cone of the last year and ATM implied"]];
+function renderVolGrid() {
+  const g = $("volGrid");
+  const open = `<span class="vg-open">Open<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M4.5 2.5h5v5M9.5 2.5 3 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>`;
+  g.innerHTML = VOL_VIEWS.map(([k, t, s]) => `<section class="vg-cell" data-v="${k}" tabindex="0" role="button" aria-label="Open ${t}"><header><h3>${t}</h3><span>${s}</span>${open}</header><div class="vg-ch" data-k="${k}"></div></section>`).join("")
+    + `<section class="vg-cell vg-mat" data-v="matrix" tabindex="0" role="button" aria-label="Open the fixed-strike matrix"><header><h3>Fixed-strike matrix</h3><span>IV by expiration and strike, colored by the change from the previous session</span>${open}</header><div class="vmatrix">${renderMatrix()}</div></section>`;
+  const draw = { term: renderTerm, skew: renderSkew, shape: renderShape, realized: renderRealized };
+  g.querySelectorAll(".vg-ch").forEach((c) => { c.innerHTML = draw[c.dataset.k](Math.max(300, c.clientWidth), Math.max(240, c.clientHeight)); });
+}
+
+// conclusion de cada cifra: una frase corta y si es notable (se resalta)
+function volVerdicts() {
+  const d = vol.data, s = d.summary || {}, v = {};
+  const cone = d.realized && d.realized.cone && d.realized.cone[30];
+  if (s.iv30 != null && cone) v.iv = s.iv30 > cone[3] ? ["Above the usual realized range", 1] : s.iv30 < cone[1] ? ["Below the usual realized range", 0] : ["Within the usual realized range", 0];
+  const yz = d.realized && d.realized.yz;
+  if (yz && yz[10] != null && yz[20] != null) v.rv = yz[10] > yz[20] * 1.05 ? ["Realized vol picking up", 1] : yz[10] < yz[20] * 0.95 ? ["Realized vol cooling", 0] : ["Realized vol steady", 0];
+  if (s.vrp != null) v.vrp = s.vrp >= 0.01 ? ["Options are rich", 1] : s.vrp <= -0.01 ? ["Options are cheap", 0] : ["Options fairly priced", 0];
+  if (s.atm30 != null && s.atm90 != null) v.term = s.atm30 > s.atm90 ? ["Near-term stress", 1] : s.atm7 != null && s.atm7 > s.atm30 ? ["Short-dated vol elevated", 1] : ["Calm curve", 0];
+  if (s.rr25 != null) v.skew = s.rr25 < -0.03 ? ["Puts in demand", 1] : s.rr25 > 0.01 ? ["Calls in demand", 1] : ["Flat skew", 0];
+  v.ev = s.event ? ["Binary event ahead", 1] : ["No event premium", 0];
+  return v;
+}
+
 function volSummary() {
   const d = vol.data, s = d.summary;
   if (!s) return "";
-  const tile = (k, v, sub, cls = "", tip = "") => `<div class="vstat"${tip ? ` title="${esc(tip)}"` : ""}><span class="k">${k}</span><span class="v ${cls}">${v}</span><span class="s">${sub}</span></div>`;
+  // cada cifra lleva debajo su conclusion (ver volVerdicts)
+  const vd = volVerdicts(), VD = { "IV30": vd.iv, "Realized 20d": vd.rv, "Variance premium": vd.vrp, "Term structure": vd.term, "Skew 30d": vd.skew, "Event priced": vd.ev };
+  const say = (x) => (x ? `<span class="vd${x[1] ? " hot" : ""}">${x[0]}</span>` : "");
+  const tile = (k, v, sub, cls = "", tip = "") => `<div class="vstat"${tip ? ` title="${esc(tip)}"` : ""}><span class="k">${k}</span><span class="v ${cls}">${v}</span>${say(VD[k])}<span class="s">${sub}</span></div>`;
   const out = [];
   out.push(tile("IV30", pct(s.iv30 ?? s.atm30), s.iv30 != null ? `Model-free, like the ${d.symbol === "VIX" ? "VVIX" : "VIX"}. ATM: ${pct(s.atm30)}` : "ATM (no model-free value)",
     "", "30-day implied volatility from the whole strip of out-of-the-money options, with the VIX formula. On the SPX it matches the VIX."));
@@ -440,6 +471,7 @@ function volNote() {
   const d = vol.data, b = d.bands || {};
   const band = b.days >= 15 ? `The band is the range between the 10th and 90th percentiles of the last ${b.days} sessions.` :
     `The percentile band will appear once 15 sessions are saved (there are ${b.days || 0} today).`;
+  if (vol.tab === "overview") return "Click a panel to open it full size with its options. The tabs switch between views directly, and Esc comes back here. The verdicts under each figure are rules of thumb on today's values, not forecasts.";
   if (vol.tab === "term") return `ATM IV for each expiration (that of the out-of-the-money option at each strike, interpolated at the implied forward). Forward IV is the implied volatility between one expiration and the previous one: it isolates what the market prices for that stretch, for example an event. Amber circles: stretches whose forward variance stands out from the normal one and from their neighbors; the figure is the one-day move priced on top. ${band} Events: Fed, BEA, Census and the current week from ForexFactory.`;
   if (vol.tab === "shape") return "Shape of the smile at each expiration. Risk reversal: IV of the 25-delta call minus that of the 25-delta put (negative means puts cost more; in the VIX it is usually positive). Butterfly: average of both 25-delta wings minus ATM IV, the curvature of the smile, which grows when the market pays for large moves either way. The dashed line is the previous session.";
   if (vol.tab === "realized") {
@@ -458,9 +490,11 @@ function renderVol() {
   $("volSum").innerHTML = volSummary();
   $("volCtl").innerHTML = volControls();
   $("volNote").textContent = volNote();
-  const isM = vol.tab === "matrix";
+  const isM = vol.tab === "matrix", isO = vol.tab === "overview";
+  document.querySelector("#volView .vpanel").hidden = isO; $("volGrid").hidden = !isO;
   $("volMatrix").hidden = !isM; $("volChart").hidden = isM;
   $("volTip").hidden = true;
+  if (isO) { renderVolGrid(); return; }
   if (isM) { $("volMatrix").innerHTML = renderMatrix(); return; }
   const el = $("volChart");
   const W = Math.max(320, el.clientWidth), H = Math.max(340, el.clientHeight);
@@ -549,6 +583,13 @@ function bindVol() {
     }
     const mt = e.target.closest("#volMatSeg button");
     if (mt) { vol.mshow = mt.dataset.v; store.set("volMat", vol.mshow); renderVol(); }
+  });
+  // Overview: cada tarjeta abre su vista; Esc vuelve a Overview desde cualquier vista
+  $("volGrid").addEventListener("click", (e) => { const c = e.target.closest(".vg-cell[data-v]"); if (c) setVolTab(c.dataset.v); });
+  $("volGrid").addEventListener("keydown", (e) => { const c = e.target.closest(".vg-cell[data-v]"); if (c && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setVolTab(c.dataset.v); } });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || state.mode !== "vol" || vol.tab === "overview" || (e.target.closest && e.target.closest("input, textarea, [role=dialog]"))) return;
+    setVolTab("overview");
   });
   $("volChart").addEventListener("mousemove", volTip);
   $("volChart").addEventListener("mouseleave", () => { $("volTip").hidden = true; const hl = $("volChart").querySelector("#vhl"); if (hl) hl.setAttribute("visibility", "hidden"); });

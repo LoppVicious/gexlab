@@ -49,7 +49,7 @@ function suHero(d) {
   const vixExp = d.vix && d.vix.m1_exp, evs = su.ev || [];
   const day = (x) => {
     const D = suDate(x);
-    const it = evs.filter((e) => e.date === x).map((e) => `<div class="ev i${e.imp}" data-cal="${calReg(e)}" tabindex="0"><span>${esc(e.name)}</span><i class="imp"><u></u><u></u><u></u></i><time>${nyHHMM(x + " " + e.time) || e.time}</time></div>`);
+    const it = evs.filter((e) => e.date === x).map((e) => `<div class="ev i${calImp(e)}" data-cal="${calReg(e)}" tabindex="0"><span>${esc(e.name)}</span><i class="imp"><u></u><u></u><u></u></i><time>${nyHHMM(x + " " + e.time) || esc(e.time)}</time></div>`);
     const tags = []; if (opex.includes(x)) tags.push("Monthly OPEX"); if (x === vixExp) tags.push("VIX expiration");
     return `<div class="su-day${x === today ? " on" : ""}"><b>${x === today ? "Today" : SU_DIA[D.getDay()]}<small>${SU_MES[D.getMonth()]} ${D.getDate()}</small></b>`
       + (it.join("") || (tags.length ? "" : `<span class="none">${su.ev ? "No releases" : "…"}</span>`)) + tags.map((t) => `<span class="tag">${t}</span>`).join("") + `</div>`;

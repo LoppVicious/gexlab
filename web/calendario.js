@@ -2,6 +2,8 @@
 /* ============================================================ Calendario economico
    - Tarjeta (Summary y Calendar): al pasar el raton o tocar un evento, Actual, Forecast y Previous.
    - Pagina Calendar: 11 paises de 14 dias atras a 28 adelante, filtro de paises e importancia (preferencias).
+     Los dias y las horas van en la hora local del usuario (un dato de Japon a las 18:50 de Nueva York es el dia
+     siguiente en Europa).
    Datos: /api/calendario (motor: eventos.py con ForexFactory y fuentes oficiales; reales.py, BLS y FRED). Los
    elementos con data-cal="clave" abren la tarjeta. Solo EE. UU. tiene dato real (e.real). */
 
@@ -15,6 +17,11 @@ const calKey = (e) => `${e.country || "US"}|${e.date}|${e.time}|${e.name}`;
 function calReg(e) { const k = calKey(e); calEv.set(k, e); return esc(k); }
 const calWhen = (e) => (e.time ? nyDate(`${e.date} ${e.time}`) : null);
 const calTitle = (e) => e.titulo || e.name;
+const calImp = (e) => +e.imp | 0;
+// fecha local (YYYY-MM-DD) de un Date
+const calIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+// dia local del evento; los de dia entero se quedan en su fecha
+const calDia = (e) => { const t = calWhen(e); return t ? calIso(t) : e.date; };
 
 // "194K", "-0.4%", "1,710K", "15.6B" -> {v, u}; null si no es una cifra
 function calNum(s) {
@@ -35,19 +42,20 @@ function calActual(e) {
 function calImpBars(imp) { return `<i class="imp i${imp}" title="${CAL_IMP[imp] || ""} impact"><u></u><u></u><u></u></i>`; }
 
 function calCard(e) {
-  const t = calWhen(e), d = suDate(e.date);
+  const t = calWhen(e), d = suDate(calDia(e));
   const cuando = `${SU_DIA[d.getDay()]} ${SU_MES[d.getMonth()]} ${d.getDate()}${t ? ", " + hhmm(t) : ""}`;
-  return `<div class="cal-tip-h"><b>${esc(calTitle(e))}</b>${calImpBars(e.imp)}</div>
+  return `<div class="cal-tip-h"><b>${esc(calTitle(e))}</b>${calImpBars(calImp(e))}</div>
     <div class="cal-tip-s">${esc(CAL_NOMBRE[e.country || "US"] || e.country)}, ${cuando}</div>
     <dl class="cal-tip-n"><div><dt>Actual</dt><dd>${calActual(e)}</dd></div>
     <div><dt>Forecast</dt><dd>${esc(e.forecast || "—")}</dd></div><div><dt>Previous</dt><dd>${esc(e.previous || "—")}</dd></div></dl>`;
 }
 
-let calTipEl = null;
+let calTipEl = null, calTipK = "";   // clave del evento de la tarjeta abierta
 function calTip(el) {
   const e = el && calEv.get(el.dataset.cal);
-  if (!e) { if (calTipEl) calTipEl.hidden = true; return; }
+  if (!e) { if (calTipEl) calTipEl.hidden = true; calTipK = ""; return; }
   if (!calTipEl) { calTipEl = document.createElement("div"); calTipEl.className = "cal-tip"; calTipEl.setAttribute("role", "tooltip"); document.body.appendChild(calTipEl); }
+  calTipK = el.dataset.cal;
   calTipEl.innerHTML = calCard(e);
   calTipEl.hidden = false;
   const r = el.getBoundingClientRect(), w = calTipEl.offsetWidth, h = calTipEl.offsetHeight;
@@ -55,31 +63,44 @@ function calTip(el) {
   const y = r.bottom + 6 + h > innerHeight ? r.top - h - 6 : r.bottom + 6;
   calTipEl.style.left = `${x}px`; calTipEl.style.top = `${Math.max(8, y)}px`;
 }
+// tras volver a pintar (recarga de datos), la tarjeta abierta toma los datos nuevos del mismo evento
+function calTipRefresh() {
+  if (!calTipEl || calTipEl.hidden || !calTipK) return;
+  const e = calEv.get(calTipK);
+  if (e) calTipEl.innerHTML = calCard(e); else calTip(null);
+}
 document.addEventListener("pointerover", (ev) => { if (ev.pointerType !== "touch") calTip(ev.target.closest("[data-cal]")); });
 document.addEventListener("focusin", (ev) => calTip(ev.target.closest("[data-cal]")));
+// con el raton la tarjeta ya sale al pasar por encima; el clic solo abre y cierra en pantallas tactiles
 document.addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-cal]");
-  calTip(el && !(calTipEl && !calTipEl.hidden && calTipEl.dataset.k === el.dataset.cal) ? el : null);
-  if (calTipEl) calTipEl.dataset.k = el && !calTipEl.hidden ? el.dataset.cal : "";
+  if (el && ev.pointerType === "mouse") return;
+  calTip(el && el.dataset.cal !== calTipK ? el : null);
+});
+document.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Escape") return;
+  calTip(null);
+  const d = $("calPaisesBox");
+  if (d && d.open) { d.open = false; d.querySelector("summary").focus(); }
 });
 addEventListener("scroll", () => calTip(null), { passive: true, capture: true });
 
 // ------------------------------------------------------------ pagina Calendar
-const cal = { data: null, at: 0, ctrl: null, lunes: null };
+// lunes: semana que se ve (fecha local); movida: el usuario ha cambiado de semana con las flechas
+const cal = { data: null, at: 0, ctrl: null, lunes: null, movida: false };
 const calLunes = (iso) => { const d = suDate(iso); return suAdd(iso, -((d.getDay() + 6) % 7)); };
 function calPaisesSel() {
   try { const a = JSON.parse(store.get("calPaises", "null")); if (Array.isArray(a)) return new Set(a); } catch { /* */ }
   return new Set(CAL_PAISES.map((p) => p[0]));
 }
 const calImpMin = () => +store.get("calImp", "2");
-// fecha de hoy en Nueva York (YYYY-MM-DD)
-function calHoyNY() { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date()); }
 
 // estado de la barra superior: "YYYY-MM-DD HH:MM" en UTC
 const calStatusTxt = () => (cal.data && cal.data.actualizado ? `Calendar updated ${localTime(cal.data.actualizado.replace(" ", "T") + ":00Z", true)}` : "Calendar");
 
 function showCal() {
-  if (cal.data) { renderCal(); setStatus("", calStatusTxt()); }
+  renderCal();   // con o sin datos: deja la semana, los filtros y las flechas listos
+  if (cal.data) setStatus("", calStatusTxt());
   if (!cal.data || Date.now() - cal.at > 60000) loadCal();
 }
 
@@ -87,12 +108,13 @@ async function loadCal(refresh = false) {
   if (cal.ctrl) cal.ctrl.abort();
   cal.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
-  setStatus("busy", "Loading the calendar…");
+  // la recarga de cada minuto no cambia el estado: solo la primera carga y la que pide el usuario
+  if (!cal.data || refresh) setStatus("busy", "Loading the calendar…");
   if (!cal.data) $("calTable").innerHTML = `<tbody><tr><td class="empty">Loading the calendar…</td></tr></tbody>`;
   try {
     const r = await fetch("/api/calendario" + (refresh ? "?refresh=1" : ""), { signal: cal.ctrl.signal });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Could not load the calendar");
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !Array.isArray(d.eventos)) throw new Error(d.error || "Could not load the calendar");
     cal.data = d; cal.at = Date.now();
     if (state.mode === "calendar") { renderCal(); setStatus("", calStatusTxt()); }
   } catch (e) {
@@ -104,40 +126,51 @@ async function loadCal(refresh = false) {
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
 
+// casillas de paises: se crean una vez; al pintar solo se marcan (asi no se pierde el foco del teclado)
+function calPaisesInit() {
+  $("calPaises").innerHTML = CAL_PAISES.map(([c, n]) => `<label><input type="checkbox" value="${c}"> ${esc(n)}</label>`).join("");
+}
+
 function renderCal() {
   const evs = (cal.data && cal.data.eventos) || [];
-  const hoy = calHoyNY();
-  if (!cal.lunes) cal.lunes = calLunes(hoy);
+  const hoy = calIso(new Date());
+  // pestaña abierta de un dia para otro: si el usuario no ha navegado, se pasa a la semana nueva
+  if (!cal.lunes || (!cal.movida && cal.lunes !== calLunes(hoy))) { cal.lunes = calLunes(hoy); cal.movida = false; }
   const fin = suAdd(cal.lunes, 6), sel = calPaisesSel(), min = calImpMin();
-  const lo = evs.length ? calLunes(evs[0].date) : cal.lunes, hi = evs.length ? evs[evs.length - 1].date : fin;
+  const dias = evs.map(calDia).sort();
+  const lo = dias.length ? calLunes(dias[0]) : cal.lunes, hi = dias.length ? dias[dias.length - 1] : fin;
   $("calPrev").disabled = cal.lunes <= lo; $("calNext").disabled = fin >= hi;
   const a = suDate(cal.lunes), b = suDate(fin);
   $("calWeek").textContent = `${SU_MES[a.getMonth()]} ${a.getDate()} to ${SU_MES[b.getMonth()]} ${b.getDate()}`;
   $("calPaisesN").textContent = sel.size === CAL_PAISES.length ? "(all)" : `(${sel.size})`;
-  $("calPaises").innerHTML = CAL_PAISES.map(([c, n]) => `<label><input type="checkbox" value="${c}"${sel.has(c) ? " checked" : ""}> ${esc(n)}</label>`).join("");
+  document.querySelectorAll("#calPaises input").forEach((x) => { x.checked = sel.has(x.value); });
   document.querySelectorAll("#calImpSeg button").forEach((x) => x.setAttribute("aria-checked", String(+x.dataset.v === min)));
-  const vis = evs.filter((e) => e.date >= cal.lunes && e.date <= fin && sel.has(e.country || "US") && e.imp >= min);
-  const ahora = new Date(), prox = vis.find((e) => { const t = calWhen(e); return t && t > ahora; });
+  const vis = evs.filter((e) => { const d = calDia(e); return d >= cal.lunes && d <= fin && sel.has(e.country || "US") && calImp(e) >= min; });
+  const ahora = new Date(), cuando = (e) => { const t = calWhen(e); return t ? t.getTime() : -Infinity; };
+  const prox = vis.filter((e) => cuando(e) > ahora.getTime()).sort((x, y) => cuando(x) - cuando(y))[0];
   let html = `<thead><tr><th>Time</th><th>Country</th><th>Event</th><th>Impact</th><th>Actual</th><th>Forecast</th><th>Previous</th></tr></thead>`;
   for (let i = 0; i < 7; i++) {
-    const x = suAdd(cal.lunes, i), dia = vis.filter((e) => e.date === x);
+    const x = suAdd(cal.lunes, i), dia = vis.filter((e) => calDia(e) === x).sort((p, q) => cuando(p) - cuando(q) || calImp(q) - calImp(p));
     if (!dia.length) continue;
     const D = suDate(x);
     html += `<tbody${x === hoy ? ' class="hoy"' : ""}><tr class="cal-dia"><th colspan="7">${x === hoy ? "Today, " : ""}${SU_DIA[D.getDay()]} ${SU_MES[D.getMonth()]} ${D.getDate()}</th></tr>`
-      + dia.map((e) => { const t = calWhen(e);
-        return `<tr data-cal="${calReg(e)}" class="i${e.imp}${e === prox ? " prox" : ""}"><td class="num">${t ? hhmm(t) : "All day"}</td><td><span class="cal-pais">${esc(e.country || "US")}</span></td>`
-          + `<td class="cal-ev">${esc(calTitle(e))}<span class="cal-fp">F ${esc(e.forecast || "—")}, P ${esc(e.previous || "—")}</span></td><td>${calImpBars(e.imp)}</td>`
+      + dia.map((e) => { const t = calWhen(e), imp = calImp(e);
+        return `<tr data-cal="${calReg(e)}" class="i${imp}${e === prox ? " prox" : ""}"><td class="num">${t ? hhmm(t) : "All day"}</td><td><span class="cal-pais">${esc(e.country || "US")}</span></td>`
+          + `<td class="cal-ev">${esc(calTitle(e))}<span class="cal-fp">F ${esc(e.forecast || "—")}, P ${esc(e.previous || "—")}</span></td><td>${calImpBars(imp)}</td>`
           + `<td class="num">${calActual(e)}</td><td class="num cal-f">${esc(e.forecast || "—")}</td><td class="num cal-f">${esc(e.previous || "—")}</td></tr>`; }).join("")
       + `</tbody>`;
   }
-  if (!vis.length) html += `<tbody><tr><td class="empty" colspan="7">No releases for these countries and impact this week.</td></tr></tbody>`;
+  if (!vis.length) html += `<tbody><tr><td class="empty" colspan="7">${cal.data ? "No releases for these countries and impact this week." : "Loading the calendar…"}</td></tr></tbody>`;
   $("calTable").innerHTML = html;
+  calTipRefresh();
 }
 
 function bindCal() {
-  $("calPrev").addEventListener("click", () => { cal.lunes = suAdd(cal.lunes, -7); renderCal(); });
-  $("calNext").addEventListener("click", () => { cal.lunes = suAdd(cal.lunes, 7); renderCal(); });
-  $("calToday").addEventListener("click", () => { cal.lunes = null; renderCal(); });
+  calPaisesInit();
+  const mover = (n) => { if (!cal.lunes) return; cal.lunes = suAdd(cal.lunes, n); cal.movida = true; renderCal(); };
+  $("calPrev").addEventListener("click", () => mover(-7));
+  $("calNext").addEventListener("click", () => mover(7));
+  $("calToday").addEventListener("click", () => { cal.lunes = null; cal.movida = false; renderCal(); });
   $("calPaises").addEventListener("change", () => {
     store.set("calPaises", JSON.stringify([...document.querySelectorAll("#calPaises input:checked")].map((x) => x.value)));
     renderCal();

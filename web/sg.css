@@ -618,7 +618,7 @@ body.view-map #drawerTabs [data-p="profile"] { display: none; }
 .cal-paises { position: relative; }
 .cal-paises > summary { list-style: none; cursor: pointer; }
 .cal-paises > summary::-webkit-details-marker { display: none; }
-.cal-paises-menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 220px; padding: 10px 12px;
+.cal-paises-menu { position: absolute; z-index: 50; top: calc(100% + 6px); left: 0; min-width: 220px; max-width: calc(100vw - 24px); padding: 10px 12px;
   border-radius: 14px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .28); }
 .cal-paises-all { display: flex; gap: 6px; margin-bottom: 8px; }
 #calPaises label { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; cursor: pointer; }
@@ -628,6 +628,8 @@ body.view-map #drawerTabs [data-p="profile"] { display: none; }
 .caltable .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* body.scan pone nowrap a todas las celdas (.scan td): el evento debe partirse en pantallas estrechas */
 .caltable .cal-ev { white-space: normal; }
+/* body.scan tambien pone cursor de enlace a las filas: aqui no hay clic (la tarjeta sale al pasar el raton) */
+.caltable tbody tr { cursor: default; }
 .caltable .cal-dia th { padding-top: 16px; font-size: 13px; color: var(--muted); }
 .caltable tbody.hoy .cal-dia th { color: var(--accent); }
 .caltable tr.i1 .cal-ev { color: var(--muted); }
@@ -640,6 +642,8 @@ body.view-map #drawerTabs [data-p="profile"] { display: none; }
   .caltable .cal-f, .caltable thead th:nth-child(n+6) { display: none; }
   .cal-fp { display: block; font-size: 12px; color: var(--faint); font-weight: 400; margin-top: 2px; }
   .caltable th, .caltable td { padding: 7px 6px; }
+  /* el boton de paises puede quedar a la derecha al partirse la barra: el menu se ancla a la pantalla */
+  .cal-paises-menu { position: fixed; top: auto; left: 12px; right: 12px; min-width: 0; max-width: none; margin-top: 6px; }
 }
 /* indices */
 .su-idx { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }

@@ -279,8 +279,10 @@ def rellenar_reales(evs: list[dict], now: datetime | None = None) -> int:
 
 
 def refrescar_reales() -> int:
-    """Modo calendario del motor: solo el dato real sobre lo guardado (sin pedir ForexFactory)."""
+    """Modo calendario del motor: solo el dato real sobre lo guardado (sin pedir ForexFactory). Vuelve a marcar
+    `real` con las reglas actuales de reales.REALES, para que las marcas guardadas no queden viejas."""
     st = g.read_json(STATE, {}) or {}
+    marcar_reales(st.get("eventos", []))
     n = rellenar_reales(st.get("eventos", []))
     st["reales"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
     g.write_json(STATE, st)

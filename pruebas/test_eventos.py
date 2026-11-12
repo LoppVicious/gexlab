@@ -112,6 +112,29 @@ def test_migracion():
     assert sorted((e["name"], e["country"]) for e in evs) == [("CPI (Sep)", "US"), ("Payrolls (NFP) (Sep)", "US")], evs
 
 
+def test_refrescar_marca_real():
+    import json
+    import tempfile
+    import gex_engine
+    hoy = gex_engine.now_ny().strftime("%Y-%m-%d")
+    e0 = {"date": hoy, "time": "23:59", "name": "PPI (Oct)", "titulo": "PPI m/m", "country": "US", "imp": 3,
+          "real": False, "actual": None}
+    guardado = (ev.STATE, ev.reales.rellenar)
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            ev.STATE = os.path.join(d, "eventos.json")
+            with open(ev.STATE, "w", encoding="utf-8") as f:
+                json.dump({"version": ev.VERSION, "eventos": [e0]}, f)
+            ev.reales.rellenar = lambda evs: 0
+            ev.refrescar_reales()
+            evs = ev._eventos()
+            assert evs[0]["real"] is True, evs
+            base = ev._utc(hoy, "23:59") - timedelta(minutes=5)
+            assert ev.horas_aviso(evs, base) == [(ev._utc(hoy, "23:59") + timedelta(minutes=1)).strftime("%Y-%m-%dT%H:%M:%SZ")]
+    finally:
+        ev.STATE, ev.reales.rellenar = guardado
+
+
 if __name__ == "__main__":
     for nombre, fn in list(globals().items()):
         if nombre.startswith("test_"):

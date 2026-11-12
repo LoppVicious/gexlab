@@ -28,6 +28,7 @@
   <nav>
     <div class="sec">Market</div>
       <button class="item" id="navSummary" data-title="Summary" title="Summary"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z"/></svg><span class="lbl">Summary</span></button>
+      <button class="item" id="navCal" data-title="Calendar" title="Calendar"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12.5" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg><span class="lbl">Calendar</span></button>
     <div class="sec">Signals</div>
       <button class="item" id="navTrace" data-title="TRACE" title="TRACE"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M3 8h14M3 12.5h14" opacity=".55"/><path d="M6 14l2.5-3 2 1.5L14 7"/></svg><span class="lbl">TRACE</span></button>
       <button class="item" id="navHub" data-title="Equity Hub" title="Equity Hub"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V9M8 16V5M12 16v-6M16 16V7"/></svg><span class="lbl">Equity Hub</span></button>
@@ -432,6 +433,33 @@
   </div>
   <div id="sumBody"></div>
   <p class="scan-note">Indices with expirations up to 45 days and the standard dealer convention. Click an index or a panel to open its detail.</p>
+</main>
+
+<main class="macro cal" id="calView" hidden>
+  <div class="scan-bar">
+    <div class="cal-nav">
+      <button class="ghost" id="calPrev" aria-label="Previous week">‹</button>
+      <button class="ghost" id="calToday">Today</button>
+      <button class="ghost" id="calNext" aria-label="Next week">›</button>
+      <span class="cal-week" id="calWeek"></span>
+    </div>
+    <details class="cal-paises" id="calPaisesBox">
+      <summary class="ghost">Countries <span id="calPaisesN"></span></summary>
+      <div class="cal-paises-menu">
+        <div class="cal-paises-all"><button class="ghost" data-todos="1">All</button><button class="ghost" data-todos="0">None</button></div>
+        <div id="calPaises"></div>
+      </div>
+    </details>
+    <div class="ctl inline">
+      <span class="cap" id="capCalImp">Impact</span>
+      <div class="seg boxed" role="radiogroup" aria-labelledby="capCalImp" id="calImpSeg">
+        <button role="radio" data-v="1">All</button>
+        <button role="radio" data-v="2">Medium+</button>
+        <button role="radio" data-v="3">High</button>
+      </div>
+    </div>
+  </div>
+  <div class="tablewrap"><table class="caltable" id="calTable"></table></div>
 </main>
 
 <main class="macro" id="volView" hidden>

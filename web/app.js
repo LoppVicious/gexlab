@@ -2149,6 +2149,7 @@ const TOOLS = {
   oi: { view: "oiView", ticker: true, show: () => showOI(), render: () => renderOI(), load: (r) => loadOI(r) },
   lab: { view: "labView", ticker: true, show: () => showLab(), render: () => renderLab(), load: (r) => loadLab(r) },
   flow: { view: "flowView", ticker: true, show: () => showFlow(), render: () => renderFlow(), load: (r) => loadFlow(r) },
+  calendar: { view: "calView", ticker: false, show: () => showCal(), render: () => renderCal(), load: (r) => loadCal(r) },
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
 };
 function setMode(m) {
@@ -3290,6 +3291,7 @@ function glossaryHide() {
 /* ============================================================ barra lateral y tema */
 const NAV = {
   navSummary: { t: "Summary", go: () => setMode("summary") },
+  navCal: { t: "Calendar", go: () => setMode("calendar") },
   navTrace: { t: "TRACE", go: () => { setMode("analysis"); if (state.view !== "map") setView("map"); } },
   navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView(state.hubView || "impact"); } },
   navVol: { t: "Volatility dashboard", go: () => setMode("vol") },
@@ -3306,6 +3308,7 @@ const NAV = {
 function currentNav() {
   const m = state.mode;
   if (m === "summary") return "navSummary";
+  if (m === "calendar") return "navCal";
   if (m === "analysis") return state.view === "map" ? "navTrace" : "navHub";
   if (m === "vol") return "navVol";
   if (m === "vix") return "navVix";

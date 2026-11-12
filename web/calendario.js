@@ -63,3 +63,97 @@ document.addEventListener("click", (ev) => {
   if (calTipEl) calTipEl.dataset.k = el && !calTipEl.hidden ? el.dataset.cal : "";
 });
 addEventListener("scroll", () => calTip(null), { passive: true, capture: true });
+
+// ------------------------------------------------------------ pagina Calendar
+const cal = { data: null, at: 0, ctrl: null, lunes: null };
+const calLunes = (iso) => { const d = suDate(iso); return suAdd(iso, -((d.getDay() + 6) % 7)); };
+function calPaisesSel() {
+  try { const a = JSON.parse(store.get("calPaises", "null")); if (Array.isArray(a)) return new Set(a); } catch { /* */ }
+  return new Set(CAL_PAISES.map((p) => p[0]));
+}
+const calImpMin = () => +store.get("calImp", "2");
+// fecha de hoy en Nueva York (YYYY-MM-DD)
+function calHoyNY() { return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date()); }
+
+// estado de la barra superior: "YYYY-MM-DD HH:MM" en UTC
+const calStatusTxt = () => (cal.data && cal.data.actualizado ? `Calendar updated ${localTime(cal.data.actualizado.replace(" ", "T") + ":00Z", true)}` : "Calendar");
+
+function showCal() {
+  if (cal.data) { renderCal(); setStatus("", calStatusTxt()); }
+  if (!cal.data || Date.now() - cal.at > 60000) loadCal();
+}
+
+async function loadCal(refresh = false) {
+  if (cal.ctrl) cal.ctrl.abort();
+  cal.ctrl = new AbortController();
+  $("refreshBtn").classList.add("spin");
+  setStatus("busy", "Loading the calendar…");
+  if (!cal.data) $("calTable").innerHTML = `<tbody><tr><td class="empty">Loading the calendar…</td></tr></tbody>`;
+  try {
+    const r = await fetch("/api/calendario" + (refresh ? "?refresh=1" : ""), { signal: cal.ctrl.signal });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Could not load the calendar");
+    cal.data = d; cal.at = Date.now();
+    if (state.mode === "calendar") { renderCal(); setStatus("", calStatusTxt()); }
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    if (state.mode === "calendar") {
+      setStatus("err", cal.data ? "Could not refresh" : "No data");
+      if (!cal.data) $("calTable").innerHTML = `<tbody><tr><td class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</td></tr></tbody>`;
+    }
+  } finally { $("refreshBtn").classList.remove("spin"); }
+}
+
+function renderCal() {
+  const evs = (cal.data && cal.data.eventos) || [];
+  const hoy = calHoyNY();
+  if (!cal.lunes) cal.lunes = calLunes(hoy);
+  const fin = suAdd(cal.lunes, 6), sel = calPaisesSel(), min = calImpMin();
+  const lo = evs.length ? calLunes(evs[0].date) : cal.lunes, hi = evs.length ? evs[evs.length - 1].date : fin;
+  $("calPrev").disabled = cal.lunes <= lo; $("calNext").disabled = fin >= hi;
+  const a = suDate(cal.lunes), b = suDate(fin);
+  $("calWeek").textContent = `${SU_MES[a.getMonth()]} ${a.getDate()} to ${SU_MES[b.getMonth()]} ${b.getDate()}`;
+  $("calPaisesN").textContent = sel.size === CAL_PAISES.length ? "(all)" : `(${sel.size})`;
+  $("calPaises").innerHTML = CAL_PAISES.map(([c, n]) => `<label><input type="checkbox" value="${c}"${sel.has(c) ? " checked" : ""}> ${esc(n)}</label>`).join("");
+  document.querySelectorAll("#calImpSeg button").forEach((x) => x.setAttribute("aria-checked", String(+x.dataset.v === min)));
+  const vis = evs.filter((e) => e.date >= cal.lunes && e.date <= fin && sel.has(e.country || "US") && e.imp >= min);
+  const ahora = new Date(), prox = vis.find((e) => { const t = calWhen(e); return t && t > ahora; });
+  let html = `<thead><tr><th>Time</th><th>Country</th><th>Event</th><th>Impact</th><th>Actual</th><th>Forecast</th><th>Previous</th></tr></thead>`;
+  for (let i = 0; i < 7; i++) {
+    const x = suAdd(cal.lunes, i), dia = vis.filter((e) => e.date === x);
+    if (!dia.length) continue;
+    const D = suDate(x);
+    html += `<tbody${x === hoy ? ' class="hoy"' : ""}><tr class="cal-dia"><th colspan="7">${x === hoy ? "Today, " : ""}${SU_DIA[D.getDay()]} ${SU_MES[D.getMonth()]} ${D.getDate()}</th></tr>`
+      + dia.map((e) => { const t = calWhen(e);
+        return `<tr data-cal="${calReg(e)}" class="i${e.imp}${e === prox ? " prox" : ""}"><td class="num">${t ? hhmm(t) : "All day"}</td><td><span class="cal-pais">${esc(e.country || "US")}</span></td>`
+          + `<td class="cal-ev">${esc(calTitle(e))}<span class="cal-fp">F ${esc(e.forecast || "—")}, P ${esc(e.previous || "—")}</span></td><td>${calImpBars(e.imp)}</td>`
+          + `<td class="num">${calActual(e)}</td><td class="num cal-f">${esc(e.forecast || "—")}</td><td class="num cal-f">${esc(e.previous || "—")}</td></tr>`; }).join("")
+      + `</tbody>`;
+  }
+  if (!vis.length) html += `<tbody><tr><td class="empty" colspan="7">No releases for these countries and impact this week.</td></tr></tbody>`;
+  $("calTable").innerHTML = html;
+}
+
+function bindCal() {
+  $("calPrev").addEventListener("click", () => { cal.lunes = suAdd(cal.lunes, -7); renderCal(); });
+  $("calNext").addEventListener("click", () => { cal.lunes = suAdd(cal.lunes, 7); renderCal(); });
+  $("calToday").addEventListener("click", () => { cal.lunes = null; renderCal(); });
+  $("calPaises").addEventListener("change", () => {
+    store.set("calPaises", JSON.stringify([...document.querySelectorAll("#calPaises input:checked")].map((x) => x.value)));
+    renderCal();
+  });
+  document.querySelector(".cal-paises-all").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-todos]");
+    if (!b) return;
+    store.set("calPaises", JSON.stringify(b.dataset.todos === "1" ? CAL_PAISES.map((p) => p[0]) : []));
+    renderCal();
+  });
+  $("calImpSeg").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-v]");
+    if (b) { store.set("calImp", b.dataset.v); renderCal(); }
+  });
+  document.addEventListener("click", (e) => { const d = $("calPaisesBox"); if (d.open && !d.contains(e.target)) d.open = false; });
+  // abierta: se recarga cada minuto (el motor publica el dato real un par de minutos despues del evento)
+  setInterval(() => { if (state.mode === "calendar" && !document.hidden) loadCal(); }, 60000);
+}
+document.addEventListener("DOMContentLoaded", bindCal);

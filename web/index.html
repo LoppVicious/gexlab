@@ -558,39 +558,24 @@
 <main class="macro tool" id="oiView" hidden></main>
 <main class="macro tool" id="labView" hidden></main>
 <main class="macro cot" id="cotView" hidden>
-  <div class="scan-bar">
-    <span class="cotdate" id="cotDate"></span>
-    <div class="ctl inline">
-      <span class="cap" id="capCotWin">COT index</span>
-      <div class="seg boxed" role="radiogroup" aria-labelledby="capCotWin" id="cotWinSeg">
-        <button role="radio" data-v="3y" title="Where the current net sits within its 3-year range">3 years</button>
-        <button role="radio" data-v="1y" title="Where the current net sits within its 1-year range">1 year</button>
-      </div>
-    </div>
-    <div class="spacer"></div>
-    <span class="scan-status" id="cotStatus"></span>
+  <header class="lab-head">
+    <div class="lab-title"><span class="lab-sym" id="cotDate"></span></div>
+    <div class="lab-keys" role="radiogroup" id="cotWinSeg" aria-label="Range for the COT index">
+      <button role="radio" data-v="3y" title="Where the current net sits within its 3-year range">3 years</button><button role="radio" data-v="1y" title="Where the current net sits within its 1-year range">1 year</button></div>
+  </header>
+  <div class="cot-main">
+    <section class="lab-panel cot-list" id="cotList" aria-label="Markets">
+      <div class="cot-lh"><span>Market</span><span><i class="cot-dot am"></i>Asset mgrs</span><span><i class="cot-dot lf"></i>Lev. funds</span><span><i class="cot-dot dl"></i>Dealers</span></div>
+      <div id="cotBody"></div>
+    </section>
+    <section class="lab-panel cot-det" id="cotDetail">
+      <div class="cot-dh"><h2 id="cotTitle"></h2><span id="cotCap"></span></div>
+      <div class="lab-stats cot-groups" id="cotGroups"></div>
+      <p class="cot-say" id="cotSay"></p>
+      <div class="cot-chart" id="cotChart" role="img" aria-label="Positioning history"></div>
+    </section>
   </div>
-  <div class="tablewrap">
-    <table class="scan cottable" id="cotTable">
-      <thead>
-        <tr class="grp"><th class="l" rowspan="2">Market</th><th rowspan="2" title="Open contracts and weekly change">Open interest</th>
-          <th colspan="2" class="gh"><span data-g="asset_mgr">Asset managers</span></th>
-          <th colspan="2" class="gh"><span data-g="lev_money">Leveraged funds</span></th>
-          <th colspan="2" class="gh"><span data-g="dealer">Dealers</span></th></tr>
-        <tr class="sub"><th>Net (Δ week)</th><th class="l"><span data-g="cot_index">Index</span></th><th>Net (Δ week)</th><th class="l"><span data-g="cot_index">Index</span></th><th>Net (Δ week)</th><th class="l"><span data-g="cot_index">Index</span></th></tr>
-      </thead>
-      <tbody id="cotBody"></tbody>
-    </table>
-  </div>
-  <div class="cotdetail" id="cotDetail" hidden>
-    <div class="mchart-head">
-      <span class="mtitle" id="cotTitle"></span>
-      <p class="chart-caption" id="cotCap"></p>
-    </div>
-    <div class="mchart" id="cotChart" role="img" aria-label="Positioning history"></div>
-    <div class="tip" id="cotTip" hidden></div>
-  </div>
-  <p class="scan-note">CFTC Traders in Financial Futures report, futures only. Positions as of Tuesday's close, published Friday at 15:30 ET (21:30 in Barcelona; 20:30 in the weeks when the European and US clock changes don't line up). Net = longs − shorts, in contracts. The index places the current net within its range (0 = the shortest of the period, 100 = the longest); above 90 or below 10 it is flagged as extreme. In bonds, leveraged funds are structurally short because of the basis trade (they buy the cash bond and sell the future) and asset managers are long: compare each group with its own range, not with its sign. Click a market to see its history.</p>
+  <p class="scan-note">CFTC Traders in Financial Futures report, futures only. Positions as of Tuesday's close, published Friday at 15:30 ET (21:30 in Barcelona; 20:30 in the weeks when the European and US clock changes don't line up). Net = longs − shorts, in contracts. The index places the current net within its range (0 = the shortest of the period, 100 = the longest); above 90 or below 10 it is flagged as extreme. In bonds, leveraged funds are structurally short because of the basis trade (they buy the cash bond and sell the future) and asset managers are long: compare each group with its own range, not with its sign.</p>
 </main>
 
 <footer class="foot">

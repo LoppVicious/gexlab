@@ -36,7 +36,7 @@ function oiSelected() {
 function oiBuild() {
   $("oiView").innerHTML = `
   <header class="lab-head">
-    <div class="lab-title"><h1>Open Interest</h1><span class="lab-sym" id="oiSym"></span></div>
+    <div class="lab-title"><span class="lab-sym" id="oiSym"></span></div>
     <div class="lab-keys" role="radiogroup" id="oiMetric" aria-label="Measure">
       <button role="radio" data-v="oi">Open interest</button><button role="radio" data-v="chg">Change</button><button role="radio" data-v="vol">Volume</button></div>
   </header>

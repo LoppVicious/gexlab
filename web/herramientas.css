@@ -338,3 +338,52 @@ select.lab-in option { background: var(--pop); color: var(--text); }
 #labView.lab-on-build .lab-title { display: none; }
 #labView.lab-on-build .lab-head .lab-keys { position: absolute; right: 0; top: 4px; }
 .lab-tleg { flex: 1; min-width: 0; padding: 0 0 0 10px !important; }
+
+/* COT: lista de mercados a la izquierda y el elegido a la derecha, todo en una pantalla */
+.cot-main { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 12px; align-items: stretch; }
+.cot-list { padding: 10px 8px; display: flex; flex-direction: column; min-height: 0; }
+#cotBody { flex: 1; display: flex; flex-direction: column; }
+.cot-lh, .cot-row { display: grid; grid-template-columns: minmax(0, 1fr) 70px 70px 70px; align-items: center; gap: 8px; }
+.cot-lh { padding: 2px 10px 8px; color: var(--faint); font-size: 11.5px; font-weight: 700; }
+.cot-lh span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.cot-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.cot-dot.am { background: var(--pos); } .cot-dot.lf { background: var(--neg); } .cot-dot.dl { background: var(--put); }
+.cot-sec { color: var(--muted); font-size: 11.5px; font-weight: 800; padding: 10px 10px 4px; }
+.cot-row { width: 100%; flex: 1 1 auto; max-height: 50px; border: 0; background: none; color: var(--text); text-align: left; padding: 6px 10px; border-radius: 12px; cursor: pointer; }
+.cot-row:hover { background: var(--hover); }
+.cot-row.sel { background: var(--accent-soft); }
+.cot-row.sel .cot-m b { color: var(--accent); }
+.cot-row.err { cursor: default; }
+.cot-m { display: flex; flex-direction: column; min-width: 0; }
+.cot-m b { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cot-m small { color: var(--faint); font-size: 11px; }
+.cot-ix { position: relative; display: block; height: 20px; border-radius: 6px; background: var(--btn); overflow: hidden; }
+.cot-ix i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--v); border-radius: 6px; background: var(--c); opacity: .32; }
+.cot-ix b { position: absolute; top: 50%; left: calc(var(--v) + 6px); transform: translateY(-50%); font-size: 12px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1; }
+.cot-ix.in b { left: auto; right: calc(100% - var(--v) + 6px); color: var(--text); }
+.cot-ix.ext i { opacity: .7; }
+.cot-ix.ext b { color: var(--text); }
+.cot-ix.ext { box-shadow: inset 0 0 0 1.5px var(--amber); }
+.cot-legend { color: var(--faint); font-size: 11.5px; line-height: 1.45; padding: 8px 10px 2px; }
+.cot-tr { position: relative; width: 48px; height: 6px; border-radius: 999px; background: linear-gradient(90deg, var(--line-strong) 10%, var(--btn-hover) 10% 90%, var(--line-strong) 90%); flex: none; }
+.cot-tr i { position: absolute; top: -3px; width: 4px; height: 12px; border-radius: 999px; background: var(--muted); transform: translateX(-2px); }
+.cot-gauge.ext .cot-tr i { background: var(--amber); }
+.cot-lh span:not(:first-child) { justify-content: flex-start; }
+.cot-det { padding: 14px 18px 8px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cot-dh { display: flex; align-items: baseline; gap: 6px 14px; flex-wrap: wrap; }
+.cot-dh h2 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.01em; }
+.cot-dh h2 small { color: var(--faint); font-size: 12.5px; font-weight: 600; margin-left: 4px; }
+.cot-dh > span { color: var(--faint); font-size: 12px; }
+.cot-groups { gap: 12px 40px; }
+.cot-g span { display: inline-flex; align-items: center; gap: 6px; }
+.cot-gauge { display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; }
+.cot-gauge .cot-tr { width: 72px; }
+.cot-gauge em { font-style: normal; color: var(--faint); font-size: 11.5px; font-weight: 600; }
+.cot-gauge.ext em { color: var(--amber); }
+.cot-gauge.plain { height: 12px; }
+.cot-say { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.cot-say b { color: var(--text); font-weight: 700; }
+.cot-chart { position: relative; min-height: 280px; }
+.cot-chart svg { display: block; overflow: visible; }
+@media (max-width: 1100px) { .cot-main { grid-template-columns: minmax(0, 1fr); } }
+

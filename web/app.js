@@ -2969,7 +2969,7 @@ async function loadCot(refresh = false) {
   cot.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
   setStatus("busy", "Loading the COT…");
-  if (!cot.data) $("cotBody").innerHTML = `<tr class="loading"><td colspan="8" class="l">Downloading the CFTC report…</td></tr>`;
+  if (!cot.data) $("cotBody").innerHTML = `<p class="empty">Downloading the CFTC report…</p>`;
   try {
     const r = await fetch("/api/cot" + (refresh ? "?refresh=1" : ""), { signal: cot.ctrl.signal });
     const d = await r.json();
@@ -2981,45 +2981,45 @@ async function loadCot(refresh = false) {
     if (e.name === "AbortError") return;
     if (state.mode === "cot") {
       setStatus("err", cot.data ? "Could not refresh" : "No data");
-      if (!cot.data) $("cotBody").innerHTML = `<tr class="err"><td colspan="8" class="l">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</td></tr>`;
+      if (!cot.data) $("cotBody").innerHTML = `<p class="empty err">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</p>`;
     }
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
 
-function cotIdx(g) {
-  const v = cot.win === "1y" ? g.index1y : g.index3y;
-  if (v == null) return `<span class="cidx"><span class="cbar"></span><b>—</b></span>`;
+// indice COT de un grupo en la ventana elegida (0 = el neto mas corto del periodo, 100 = el mas largo)
+function cotIx(g) { const v = g && (cot.win === "1y" ? g.index1y : g.index3y); return v == null ? null : v; }
+// indice de un grupo en la lista: relleno del color del grupo hasta el valor y la cifra pegada a su final (dentro si
+// cabe, fuera si el relleno es corto); los extremos (90 o mas, 10 o menos) con el relleno intenso y borde ambar
+function cotIdx(g, ck, k) {
+  const v = cotIx(g);
+  if (v == null) return `<span class="cot-ix"><b>—</b></span>`;
   const ext = v >= 90 || v <= 10;
-  return `<span class="cidx${ext ? " ext" : ""}" title="${ext ? "Extreme for the period" : ""}"><span class="cbar"><i style="left:${v.toFixed(1)}%"></i></span><b>${fmtNum(v, 0)}</b></span>`;
+  return `<span class="cot-ix${ext ? " ext" : ""}${v >= 38 ? " in" : ""}" style="--c:${C[ck]};--v:${Math.max(v, 2).toFixed(1)}%" title="${COT_LABEL[k]}: index ${fmtNum(v, 0)}${ext ? `, near the ${v >= 90 ? "longest" : "shortest"} of the period` : ""}"><i></i><b>${fmtNum(v, 0)}</b></span>`;
 }
+const cotWinTxt = () => (cot.win === "1y" ? "1-year" : `${(cot.data && cot.data.years) || 3}-year`);
 
+// lista de mercados a la izquierda: nombre y el indice de cada grupo; el elegido se ve a la derecha
 function renderCot() {
   const d = cot.data;
   if (!d) return;
-  $("cotDate").innerHTML = d.report_date
-    ? `Positions as of <b>${longDate(d.report_date)}</b>, published ${longDate(d.release)}`
-    : "No report";
+  $("cotDate").innerHTML = d.report_date ? `Positions as of ${longDate(d.report_date)}, published ${longDate(d.release)}` : "No report";
   $("cotWinSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cot.win)));
   let html = "", grp = "";
   for (const m of d.markets) {
-    if (m.group !== grp) { grp = m.group; html += `<tr class="sec"><td colspan="8" class="l">${esc(grp)}</td></tr>`; }
-    if (m.error) { html += `<tr class="err"><td class="l"><span class="tk">${esc(m.name)}</span></td><td colspan="7" class="l">${esc(m.error)}</td></tr>`; continue; }
-    const cells = COT_SHOW.map(([k]) => {
-      const g = m.groups[k];
-      const dc = g.chg > 0 ? "up" : g.chg < 0 ? "dn" : "";
-      return `<td class="gs" title="Long ${fmtNum(g.long)}, short ${fmtNum(g.short)}, net ${fmtNum(g.net)} (${g.pct_oi != null ? sgnPct(g.pct_oi) : "—"} of open interest)"><span class="lv">${fmtBig(g.net)}</span><span class="dl ${dc}">${g.chg > 0 ? "+" : ""}${fmtBig(g.chg)}</span></td><td class="l">${cotIdx(g)}</td>`;
-    }).join("");
-    html += `<tr data-k="${m.key}" class="${m.key === cot.sel ? "sel" : ""}"><td class="l"><span class="tk">${esc(m.name)}</span><span class="nm">${esc(m.key)}${m.note ? " (" + esc(m.note) + ")" : ""}</span></td>
-      <td><span class="lv">${fmtBig(m.oi)}</span><span class="dl ${m.oi_chg > 0 ? "up" : m.oi_chg < 0 ? "dn" : ""}">${m.oi_chg > 0 ? "+" : ""}${fmtBig(m.oi_chg)}</span></td>${cells}</tr>`;
+    if (m.group !== grp) { grp = m.group; html += `<div class="cot-sec">${esc(grp)}</div>`; }
+    if (m.error) { html += `<div class="cot-row err"><span class="cot-m"><b>${esc(m.name)}</b><small>${esc(m.error)}</small></span></div>`; continue; }
+    html += `<button type="button" class="cot-row${m.key === cot.sel ? " sel" : ""}" data-k="${m.key}"><span class="cot-m"><b>${esc(m.name)}</b><small>${esc(m.key)}</small></span>${COT_SHOW.map(([k, ck]) => cotIdx(m.groups[k], ck, k)).join("")}</button>`;
   }
   $("cotBody").innerHTML = html;
   loadCotHist(cot.sel);
 }
 
 async function loadCotHist(key) {
+  if (!cot.data.markets.some((m) => m.key === key && !m.error)) key = (cot.data.markets.find((m) => !m.error) || {}).key;
+  if (!key) return;
   cot.sel = key; store.set("cotSel", key);
-  $("cotBody").querySelectorAll("tr[data-k]").forEach((tr) => tr.classList.toggle("sel", tr.dataset.k === key));
-  $("cotDetail").hidden = false;
+  $("cotBody").querySelectorAll(".cot-row[data-k]").forEach((r) => r.classList.toggle("sel", r.dataset.k === key));
+  cotDetail();
   if (!cot.hist[key]) {
     $("cotChart").innerHTML = `<div class="empty">Loading…</div>`;
     try {
@@ -3032,6 +3032,29 @@ async function loadCotHist(key) {
   if (cot.sel === key) renderCotChart();
 }
 
+// cabecera del mercado elegido: cifras de cada grupo y una frase con los extremos
+function cotDetail() {
+  const m = cot.data.markets.find((x) => x.key === cot.sel); if (!m) return;
+  $("cotTitle").innerHTML = `${esc(m.name)} <small>${esc(m.key)}${m.note ? `, ${esc(m.note)}` : ""}</small>`;
+  const sg = (v) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v))}`;
+  const chg = (v) => `<small class="${v > 0 ? "up" : v < 0 ? "dn" : ""}">${sg(v)} wk</small>`;
+  const cell = (k, ck) => {
+    const g = m.groups[k], v = cotIx(g);
+    return `<div class="lab-st cot-g" title="Long ${fmtNum(g.long)}, short ${fmtNum(g.short)}${g.pct_oi != null ? `, net ${sgnPct(g.pct_oi)} of open interest` : ""}">
+      <span><i class="cot-dot" style="background:${C[ck]}"></i>${COT_LABEL[k]}</span><b>${sg(g.net)} ${chg(g.chg)}</b>
+      <span class="cot-gauge${v != null && (v >= 90 || v <= 10) ? " ext" : ""}"><span class="cot-tr"><i style="left:${(v ?? 50).toFixed(1)}%"></i></span><em>${v == null ? "—" : `Index ${fmtNum(v, 0)}`}</em></span></div>`;
+  };
+  $("cotGroups").innerHTML = `<div class="lab-st cot-g"><span>Open interest</span><b>${fmtBig(m.oi)} ${chg(m.oi_chg)}</b><span class="cot-gauge plain"><em>contracts</em></span></div>` + COT_SHOW.map(([k, ck]) => cell(k, ck)).join("");
+  const ext = COT_SHOW.map(([k]) => [k, cotIx(m.groups[k])]).filter(([, v]) => v != null && (v >= 90 || v <= 10));
+  const big = COT_SHOW.map(([k]) => [k, m.groups[k]]).sort((a, b) => Math.abs(b[1].chg) - Math.abs(a[1].chg))[0];
+  const say = ext.length
+    ? ext.map(([k, v]) => `<b>${COT_LABEL[k]}</b> are near their ${v >= 90 ? "longest" : "shortest"} net position of the ${cotWinTxt()} range (index ${fmtNum(v, 0)})`).join("; ") + "."
+    : `No group is at an extreme of its ${cotWinTxt()} range.`;
+  const wk = big && big[1].chg ? ` The biggest move this week: <b>${COT_LABEL[big[0]]}</b> ${big[1].chg > 0 ? "added" : "cut"} ${fmtBig(Math.abs(big[1].chg))} contracts net.` : "";
+  const bond = m.group === "Treasuries" ? " In bonds, compare each group with its own range: leveraged funds are structurally short (basis trade)." : "";
+  $("cotSay").innerHTML = say + wk + bond + (m.weeks && m.weeks < 52 ? " Short history: the index is unreliable." : "");
+}
+
 function cotWindow(full) {
   // misma ventana que el índice COT elegido: 3 años o las últimas 52 semanas
   const n = full.dates.length, a = cot.win === "1y" ? Math.max(0, n - 52) : 0;
@@ -3041,69 +3064,71 @@ function cotWindow(full) {
   return { ...full, dates: cut(full.dates), oi: cut(full.oi), price: cut(full.price), net };
 }
 
+// historial del neto por grupo (y el precio de referencia en el eje derecho); alto ajustado a la ventana
 function renderCotChart() {
   const full = cot.hist[cot.sel], el = $("cotChart");
-  if (!full || $("cotDetail").hidden) return;
-  const h = cotWindow(full);
-  const oneY = cot.win === "1y";
-  const m = cot.data.markets.find((x) => x.key === cot.sel) || {};
-  $("cotTitle").textContent = `${h.name}: net position by group, ${oneY ? "last year" : cot.data.years + " years"}`;
-  $("cotCap").textContent = h.price_ref ? `Contracts. ${document.documentElement.dataset.theme === "light" ? "Gray" : "White"} line: ${h.price_ref} at Tuesday's close for each report${/^(SHY|IEI|IEF|TLT|QQQ|IWM|DIA)$/.test(h.price_ref) ? " (reference ETF)" : ""}.` : "Contracts.";
-  const W = Math.max(320, el.clientWidth), H = Math.max(260, el.clientHeight);
-  const pad = { l: 60, r: h.price_ref ? 58 : 20, t: W < 640 ? 46 : 30, b: 28 };
-  const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
-  const n = h.dates.length;
+  if (!full) return;
+  const h = cotWindow(full), oneY = cot.win === "1y";
+  $("cotCap").textContent = `Net contracts by group, ${oneY ? "last year" : `${cot.data.years} years`}${h.price_ref ? `; dashed line: ${h.price_ref}${/^(SHY|IEI|IEF|TLT|QQQ|IWM|DIA)$/.test(h.price_ref) ? " (reference ETF)" : ""} at each Tuesday's close` : ""}`;
+  const top = el.getBoundingClientRect().top + window.scrollY;
+  const W = Math.max(320, el.clientWidth), H = Math.round(Math.max(280, Math.min(640, window.innerHeight - top - 24)));
+  const pad = { l: 58, r: h.price_ref ? 62 : 72, t: 14, b: 28 };
+  const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b, n = h.dates.length;
   const vals = COT_SHOW.flatMap(([k]) => h.net[k]);
-  const yt = niceTicks(Math.min(0, ...vals), Math.max(0, ...vals), Math.max(3, Math.round((B - T) / 50)));
+  const yt = niceTicks(Math.min(0, ...vals), Math.max(0, ...vals), Math.max(3, Math.round((B - T) / 55)));
   const xOf = (i) => L + (i / Math.max(1, n - 1)) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
   let s = "";
   for (const v of yt.ticks) {
-    s += `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${v === 0 ? C.axis : C.grid}"/>`;
+    s += `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${v === 0 ? C.muted : C.grid}"/>`;
     s += txt(L - 8, yOf(v) + 4, fmtBig(v), { a: "end", mono: true, fs: 11 });
   }
+  let pOf = null;
   const pr = h.price.filter((v) => v != null);
   if (pr.length > 2) {
     const pt = niceTicks(Math.min(...pr), Math.max(...pr), 4);
-    const pOf = (v) => B - ((v - pt.lo) / (pt.hi - pt.lo)) * (B - T);
+    pOf = (v) => B - ((v - pt.lo) / (pt.hi - pt.lo)) * (B - T);
     const pts = h.price.map((v, i) => (v != null ? `${xOf(i).toFixed(1)},${pOf(v).toFixed(1)}` : null)).filter(Boolean);
-    s += `<polyline points="${pts.join(" ")}" fill="none" stroke="${C.text}" stroke-opacity="0.35" stroke-width="1.2"/>`;
+    s += `<polyline points="${pts.join(" ")}" fill="none" stroke="${C.text}" stroke-opacity=".4" stroke-width="1.3" stroke-dasharray="4 3"/>`;
     for (const v of pt.ticks) if (v >= pt.lo && v <= pt.hi) s += txt(R + 8, pOf(v) + 4, fmtSpot(v), { mono: true, fs: 11 });
-  }
-  for (const [k, ck] of COT_SHOW) {
-    const c = C[ck];
-    const pts = h.net[k].map((v, i) => `${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
-    s += `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="1.8"/>`;
-    const lv = h.net[k][n - 1];
-    s += `<circle cx="${xOf(n - 1)}" cy="${yOf(lv)}" r="3.5" fill="${c}"/>`;
   }
   let prevY = "";
   h.dates.forEach((dt, i) => {
     const y = dt.slice(0, 4), mo = dt.slice(5, 7);
     const show = oneY ? true : mo === "01" || mo === "07";
-    if (i > 0 && show && dt.slice(0, 7) !== prevY) s += txt(xOf(i), B + 18, mo === "01" ? y : MESES[+mo - 1], { a: "middle", fs: 11 });
+    if (i > 0 && show && dt.slice(0, 7) !== prevY) s += txt(xOf(i), B + 19, mo === "01" ? y : MESES[+mo - 1], { a: "middle", fs: 11 });
     prevY = dt.slice(0, 7);
   });
-  const litems = COT_SHOW.map(([k, ck]) => [COT_LABEL[k] || k, C[ck], ""]);
-  const lgW = litems.reduce((a, [lab]) => a + textW(lab, 12) + 44, 0);
-  s += lgW <= R - L ? legendRows(litems, L, L + lgW, 12) : legendRows(litems, 8, W - 8, 12);
-  cot.geo = { L, R, n, xOf };
+  for (const [k, ck] of COT_SHOW) {
+    const c = C[ck], pts = h.net[k].map((v, i) => `${xOf(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(" ");
+    s += `<polyline points="${pts}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round"/>`;
+    const lv = h.net[k][n - 1];
+    s += `<circle cx="${xOf(n - 1)}" cy="${yOf(lv)}" r="4" fill="${c}" stroke="${C.surface}" stroke-width="1.5"/>`;
+    if (!h.price_ref) s += txt(R + 8, yOf(lv) + 4, fmtBig(lv), { mono: true, fs: 11, c });
+  }
+  s += `<g id="cotProbe" visibility="hidden"><line y1="${T}" y2="${B}" stroke="${C.muted}"/></g>`;
+  cot.geo = { L, R, n, xOf, yOf, pOf };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
-  if (m.weeks && m.weeks < 52) $("cotCap").textContent += " Short history: the index is unreliable.";
 }
 
 function cotTip(e) {
-  const g = cot.geo;
+  const g = cot.geo, el = $("cotChart");
   if (!cot.hist[cot.sel] || !g) return;
   const h = cotWindow(cot.hist[cot.sel]);
-  const rect = $("cotChart").getBoundingClientRect();
-  const i = Math.round(((e.clientX - rect.left - g.L) / (g.R - g.L)) * (g.n - 1));
-  if (i < 0 || i >= g.n) return macroTip("cotTip", null, e, "");
-  const rows = COT_SHOW.map(([k, ck]) => {
-    const lab = COT_LABEL[k], c = C[ck];
-    return `<div class="r"><span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${c};margin-right:6px"></i>${lab}</span><b>${fmtNum(h.net[k][i])}</b></div>`;
-  }).join("");
-  macroTip("cotTip", null, e, `<div class="t">${fullDate(h.dates[i])}</div>${rows}
-    <div class="r">Open interest <b>${fmtNum(h.oi[i])}</b></div>${h.price[i] != null ? `<div class="r">${esc(h.price_ref)} <b>${fmtSpot(h.price[i])}</b></div>` : ""}`);
+  const rect = el.getBoundingClientRect(), mx = e.clientX - rect.left;
+  const i = Math.round(((mx - g.L) / (g.R - g.L)) * (g.n - 1)), pr = el.querySelector("#cotProbe");
+  if (i < 0 || i >= g.n) { toolTip(el, null); if (pr) pr.setAttribute("visibility", "hidden"); return; }
+  const x = g.xOf(i);
+  pr.setAttribute("visibility", "visible");
+  const ln = pr.querySelector("line"); ln.setAttribute("x1", x); ln.setAttribute("x2", x);
+  pr.querySelectorAll("circle").forEach((c) => c.remove());
+  for (const [k, ck] of COT_SHOW) {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("cx", x); c.setAttribute("cy", g.yOf(h.net[k][i])); c.setAttribute("r", "4"); c.setAttribute("fill", C[ck]);
+    c.setAttribute("stroke", C.surface); c.setAttribute("stroke-width", "1.5"); pr.appendChild(c);
+  }
+  const rows = COT_SHOW.map(([k, ck]) => `<div class="tt-r"><span><i style="background:${C[ck]}"></i>${COT_LABEL[k]}</span><b>${fmtNum(h.net[k][i])}</b></div>`).join("");
+  toolTip(el, `<div class="tt-h">${fullDate(h.dates[i])}</div>${rows}
+    <div class="tt-r"><span>Open interest</span><b>${fmtNum(h.oi[i])}</b></div>${h.price[i] != null ? `<div class="tt-r"><span>${esc(h.price_ref)}</span><b>${fmtSpot(h.price[i])}</b></div>` : ""}`, x, e.clientY - rect.top);
 }
 
 function bindMacro() {
@@ -3111,8 +3136,8 @@ function bindMacro() {
   $("vxHist").addEventListener("mousemove", vixHistTip);
   for (const id of ["vxCurve", "vxHist"]) $(id).addEventListener("mouseleave", () => { $("vxTip").hidden = true; });
   $("cotChart").addEventListener("mousemove", cotTip);
-  $("cotChart").addEventListener("mouseleave", () => { $("cotTip").hidden = true; });
-  $("cotBody").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-k]"); if (tr) loadCotHist(tr.dataset.k); });
+  $("cotChart").addEventListener("mouseleave", () => { toolTip($("cotChart"), null); const p = $("cotChart").querySelector("#cotProbe"); if (p) p.setAttribute("visibility", "hidden"); });
+  $("cotBody").addEventListener("click", (e) => { const r = e.target.closest(".cot-row[data-k]"); if (r) loadCotHist(r.dataset.k); });
   $("cotWinSeg").addEventListener("click", (e) => {
     const b = e.target.closest("button"); if (!b) return;
     cot.win = b.dataset.v; store.set("cotWin", cot.win); renderCot();

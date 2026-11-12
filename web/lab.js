@@ -278,7 +278,7 @@ function labSentence(st) {
 function labBuild() {
   $("labView").innerHTML = `
   <header class="lab-head">
-    <div class="lab-title"><h1>Options Lab</h1><span class="lab-sym" id="labSym"></span></div>
+    <div class="lab-title"><span class="lab-sym" id="labSym"></span></div>
     <div class="lab-keys" role="radiogroup" aria-label="Prices" id="labMode">
       <button role="radio" data-v="live">Live chain</button><button role="radio" data-v="hyp">Hypothetical</button></div>
   </header>

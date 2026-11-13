@@ -109,6 +109,12 @@ de activos. Apuntar en este plan, debajo de este paso, los nombres exactos de co
 fuente da error o no trae participaciones, sus ETFs quedarán en `sin_aum`; si ninguna sirve, el bloque saldrá
 siempre `ausente` y se anota en `docs/ESTADO.md` (Task 11).
 
+**Resultado (2026-11-13, ejecutada en local: son webs públicas):** ProShares da `Date` (`MM/DD/YYYY`) y
+`Assets Under Management` por día, más reciente arriba. Direxion no da NAV: cabecera con
+`Shares Outstanding:<n>` y luego las posiciones con `MarketValue` y `HoldingsPercent`; el AUM se saca como
+`MarketValue x 100 / HoldingsPercent` de la posición mayor (`_aum_direxion` cambia respecto a la Task 6).
+Valores reales: TQQQ 33.600 M$, SOXL 17.300 M$, TNA 1.180 M$.
+
 ---
 
 ### Task 2: `report_calc.py`, utilidades y bloque de vol realizada

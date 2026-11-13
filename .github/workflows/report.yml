@@ -1,0 +1,38 @@
+name: Report semanal
+# Paquete de datos y graficos de la semana en R2 report/{fecha}/ (report_semanal.py). Lo lanza /report-semanal
+# desde Claude Code; el texto del report lo escribe Claude Code con ese paquete.
+on:
+  workflow_dispatch:
+    inputs:
+      fecha:
+        description: "Ultima sesion de la semana (YYYY-MM-DD); vacio = la ultima guardada"
+        required: false
+        default: ""
+concurrency:
+  group: report
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-nube.txt
+      - run: pip install -q -r requirements-nube.txt matplotlib
+      - run: python pruebas/test_report.py
+      - name: Calcular y publicar
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          GEX_ALMACEN: r2
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          FECHA: ${{ inputs.fecha }}
+        run: python report_semanal.py ${FECHA:+--fecha "$FECHA"}

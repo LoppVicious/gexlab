@@ -6,6 +6,7 @@
 // aqui solo se guarda y se compara su SHA-256. La contrasena nunca sale del navegador y el servidor no gasta CPU.
 
 import { takes } from "./takes.js";   // Founder Takes (wrangler lo empaqueta)
+import { report } from "./report.js";   // report semanal: rutas con token propio, sin sesion
 
 const ITER = 310000;
 const SESSION_DAYS = 30;
@@ -604,6 +605,7 @@ export default {
         const o = req.headers.get("Origin");
         if (o && o !== url.origin) return json(403, { error: "Origin not allowed" });
       }
+      if (p.startsWith("/api/report/")) return await report(req, env, url, { json, body, SEC_HEADERS });
       if (PUBLIC.has(p)) {
         if (p.startsWith("/api/")) return await publicApi(req, env, url);
         // las paginas se sirven sin ".html" (/login, /setup)

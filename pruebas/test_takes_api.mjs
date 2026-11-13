@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { takes } from "../nube/takes.js";
+import { takes, escribirTake, validarTake } from "../nube/takes.js";
 
 function d1() {
   const db = new DatabaseSync(":memory:");
@@ -153,5 +153,18 @@ test("rechazos: SVG, PDF falso, enlace javascript y rutas de archivo raras", asy
   assert.equal((await llama(env, ADMIN, "GET", "/api/takes")).d.takes.length, 0);   // nada a medias
   assert.equal((await llama(env, ADMIN, "GET", "/api/takes/archivo/1/config.json")).status, 400);
   assert.equal((await llama(env, ADMIN, "GET", "/api/takes/archivo/../config/config.json")).status, 404);   // la URL ya quita el ..
+  assert.equal(env.R2.m.size, 0);
+});
+
+test("escribirTake deshace el Take nuevo y los archivos subidos si falla a mitad", async () => {
+  const env = entorno();
+  let n = 0;
+  const put = env.R2.put;
+  env.R2.put = async (k, v, o) => { if (++n === 2) throw new Error("R2 caido"); return put(k, v, o); };
+  const t = validarTake({ titulo: "x", cuerpo: "y", adjuntos: [{ tipo: "imagen", archivo: "a0" }, { tipo: "imagen", archivo: "a1" }] },
+    new Map([["a0", { nombre: "a.png", bytes: PNG }], ["a1", { nombre: "b.png", bytes: PNG }]]), new Map());
+  await assert.rejects(escribirTake(env, "claude", t, null, new Map()), /R2 caido/);
+  assert.equal(env.DB.db.prepare("SELECT COUNT(*) AS n FROM takes").get().n, 0);
+  assert.equal(env.DB.db.prepare("SELECT COUNT(*) AS n FROM takes_adjuntos").get().n, 0);
   assert.equal(env.R2.m.size, 0);
 });

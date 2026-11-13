@@ -25,4 +25,5 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
           GEX_SETUP_CODE: ${{ secrets.GEX_SETUP_CODE }}
+          REPORT_TOKEN: ${{ secrets.REPORT_TOKEN }}
         run: bash nube/desplegar.sh

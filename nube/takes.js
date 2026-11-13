@@ -198,30 +198,49 @@ async function guardar(req, env, me, id, h) {
     }
   }
   const t = validarTake(datos, archivos, previos);   // un Error aqui lo convierte worker.js en 400 con su mensaje
-  const ts = ahora();
-  if (id == null) {
-    const r = await env.DB.prepare("INSERT INTO takes (titulo, cuerpo, etiquetas, estado, autor, creado) VALUES (?, ?, ?, 'borrador', ?, ?) RETURNING id")
-      .bind(t.titulo, t.cuerpo, JSON.stringify(t.etiquetas), me.user, ts).first();
-    id = r.id;
-  } else {
-    await env.DB.prepare("UPDATE takes SET titulo = ?, cuerpo = ?, etiquetas = ?, editado = ? WHERE id = ?")
-      .bind(t.titulo, t.cuerpo, JSON.stringify(t.etiquetas), ts, id).run();
+  return h.json(200, { id: await escribirTake(env, me.user, t, id, previos) });
+}
+
+// Escribe un Take ya validado (validarTake): fila, archivos nuevos en R2 y lista de adjuntos. id null = nuevo.
+// Si algo falla, borra lo subido en esta llamada y, si el Take era nuevo, su fila. Lo usa tambien nube/report.js
+export async function escribirTake(env, autor, t, id, previos) {
+  const nuevo = id == null, subidos = [];
+  try {
+    const ts = ahora();
+    if (nuevo) {
+      const r = await env.DB.prepare("INSERT INTO takes (titulo, cuerpo, etiquetas, estado, autor, creado) VALUES (?, ?, ?, 'borrador', ?, ?) RETURNING id")
+        .bind(t.titulo, t.cuerpo, JSON.stringify(t.etiquetas), autor, ts).first();
+      id = r.id;
+    } else {
+      await env.DB.prepare("UPDATE takes SET titulo = ?, cuerpo = ?, etiquetas = ?, editado = ? WHERE id = ?")
+        .bind(t.titulo, t.cuerpo, JSON.stringify(t.etiquetas), ts, id).run();
+    }
+    // primero los archivos nuevos a R2; luego la lista de adjuntos de una vez; al final se borran los quitados
+    for (const a of t.adjuntos) {
+      if (!a.nuevo) continue;
+      a.r2 = `takes/${id}/${rand()}.${a.nuevo.ext}`;
+      await env.R2.put(a.r2, a.nuevo.bytes, { httpMetadata: { contentType: a.nuevo.mime } });
+      subidos.push(a.r2);
+    }
+    const sigue = new Set(t.adjuntos.filter((a) => a.id != null).map((a) => a.id));
+    const quitar = [...previos.values()].filter((a) => !sigue.has(a.id) && a.r2).map((a) => a.r2);
+    const ins = "INSERT INTO takes_adjuntos (take_id, orden, tipo, url, r2, titulo, texto, fuente) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM takes_adjuntos WHERE take_id = ?").bind(id),
+      ...t.adjuntos.map((a, i) => env.DB.prepare(ins).bind(id, i, a.tipo, a.url, a.r2, a.titulo, a.texto, a.fuente)),
+    ]);
+    if (quitar.length) await env.R2.delete(quitar);
+    return id;
+  } catch (e) {
+    if (subidos.length) await env.R2.delete(subidos).catch(() => {});
+    if (nuevo && id != null) {
+      await env.DB.batch([
+        env.DB.prepare("DELETE FROM takes_adjuntos WHERE take_id = ?").bind(id),
+        env.DB.prepare("DELETE FROM takes WHERE id = ?").bind(id),
+      ]).catch(() => {});
+    }
+    throw e;
   }
-  // primero los archivos nuevos a R2; luego la lista de adjuntos de una vez; al final se borran los quitados
-  for (const a of t.adjuntos) {
-    if (!a.nuevo) continue;
-    a.r2 = `takes/${id}/${rand()}.${a.nuevo.ext}`;
-    await env.R2.put(a.r2, a.nuevo.bytes, { httpMetadata: { contentType: a.nuevo.mime } });
-  }
-  const sigue = new Set(t.adjuntos.filter((a) => a.id != null).map((a) => a.id));
-  const quitar = [...previos.values()].filter((a) => !sigue.has(a.id) && a.r2).map((a) => a.r2);
-  const ins = "INSERT INTO takes_adjuntos (take_id, orden, tipo, url, r2, titulo, texto, fuente) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM takes_adjuntos WHERE take_id = ?").bind(id),
-    ...t.adjuntos.map((a, i) => env.DB.prepare(ins).bind(id, i, a.tipo, a.url, a.r2, a.titulo, a.texto, a.fuente)),
-  ]);
-  if (quitar.length) await env.R2.delete(quitar);
-  return h.json(200, { id });
 }
 
 async function estado(req, env, me, id, h) {

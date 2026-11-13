@@ -92,6 +92,23 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
 `GH_DISPATCH_TOKEN`), usuarios, listas editables (historial diario y tickers fijos del motor en `config/fijos.json`, que
 `motor.leer_config` suma al universo), lanzar ciclo o historial (`/api/admin/lanzar`) y el CHANGELOG (se copia a `dist/`).
 
+**Founder Takes (Research ▸ Takes):** entradas del admin con texto Markdown, etiquetas y adjuntos (enlace, cita, PDF,
+imagen). Solo en la nube (en el PC, `/api/takes` responde que no está). Código: `nube/takes.js` (validación y rutas;
+lo importa `worker.js` y wrangler lo empaqueta), `web/takes.js` (página: listado, detalle y editor),
+`web/takes-md.js` (Markdown mínimo que escapa todo el HTML; solo enlaces http/https) y `web/takes.css`.
+- D1: `takes` (estado `borrador` o `publicado`; `publicado` es la fecha de la primera publicación), `takes_adjuntos`
+  (por orden) y `takes_autores` (usuarios que pueden escribir borradores; el admin los marca en `/admin`).
+- R2: `takes/<take_id>/<24 hex>.<ext>`, solo PDF, PNG, JPEG y WebP, comprobados por los primeros bytes y la extensión
+  (SVG no); 20 MB por archivo, 8 por Take. Se sirven por `/api/takes/archivo/<take_id>/<archivo>` solo si el Take es
+  visible para quien lo pide.
+- Rutas: `GET /api/takes` (lista sin cuerpo, con extracto), `GET /api/takes/:id`, `POST /api/takes` y
+  `PUT /api/takes/:id` (multipart: campo `datos` en JSON y `archivoN`; al editar, los adjuntos existentes se conservan
+  por `id` y los quitados se borran de R2), `POST /api/takes/:id/estado` y `DELETE /api/takes/:id` (solo admin).
+- Permisos: todos leen lo publicado; el autor ve y edita sus borradores (no los publica); el admin, todo. Las
+  escrituras (POST, PUT, DELETE) exigen el mismo origen.
+- Pruebas sin red: `node --test pruebas/test_takes.mjs pruebas/test_takes_api.mjs` (la segunda ejecuta las rutas con el
+  esquema real sobre `node:sqlite` y R2 imitado).
+
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El motor solo precalcula la lente Gamma del mapa. Las lentes `delta` y `charm` (`heatmap(lens=...)`, clave con
 `_delta`/`_charm` en `nube.js`) no están en R2: el navegador las calcula con el paquete y las guarda en memoria hasta

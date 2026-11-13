@@ -3,6 +3,21 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-13 — Founder Takes
+
+**Añadido**
+- **Founder Takes** (en el menú, sección Research): notas, lecturas de mercado y material de research del fundador.
+  Cada Take lleva texto (con títulos, negrita, cursiva, listas, citas y enlaces), etiquetas libres y los adjuntos que
+  hagan falta: enlaces a noticias o hilos de X con una nota, citas de research con su fuente, imágenes y PDFs (hasta
+  20 MB cada uno). El listado se filtra por etiquetas (se recuerda el filtro) y con un buscador.
+- El administrador escribe, publica, despublica y borra. Los borradores no los ve nadie más. Desde `/admin` puede dar
+  a otra cuenta permiso para preparar borradores ("Allow drafts"); esa cuenta no puede publicar.
+- Editor con vista previa, etiquetas con autocompletado, adjuntos que se reordenan, y capturas pegadas o arrastradas.
+  Al subir un PDF recuerda que el research de pago se cita con un extracto y un enlace, no entero.
+
+**Cambiado**
+- Las peticiones que modifican datos con PUT o DELETE también deben venir de la propia web, como ya pasaba con POST.
+
 ## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Open Interest, COT y Options flow en una pantalla; Validation con los veredictos arriba; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho
 
 **Añadido**

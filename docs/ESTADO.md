@@ -3,6 +3,9 @@
 Última revisión: 2026-11-11. Cambios hechos: ver `CHANGELOG.md`.
 
 ## Pendiente / ideas apuntadas por el usuario
+- **Founder Takes, siguientes pasos posibles** (primera versión el 2026-11-13): tarjeta del último Take en Summary,
+  Takes junto a cada ticker, avisos al publicar. Cuando haya 30-40 entradas, ver qué etiquetas merecen filtro o
+  pestaña propia.
 - **Dealer Hedge Ratio** (en espera): COT TFF de dealers en ES y VX (en % del OI, z-score de 3 años) + pendiente de la curva del VIX.
   - Va como tarjeta en COT y alerta en Resumen.
   - Validar antes con el histórico de la CFTC desde 2010.

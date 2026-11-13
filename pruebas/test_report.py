@@ -30,9 +30,10 @@ def cierres(fechas, rets, inicio=100.0):
 
 
 def test_percentil():
-    assert rc.percentil(5, list(range(1, 11))) == 50.0
-    assert rc.percentil(0, [1, 2]) == 0.0
+    assert rc.percentil(5, list(range(1, 11)), minimo=1) == 50.0
+    assert rc.percentil(0, [1, 2], minimo=1) == 0.0
     assert rc.percentil(None, [1]) is None and rc.percentil(1, []) is None
+    assert rc.percentil(5, list(range(1, 11))) is None and rc.percentil(5, list(range(100))) == 6.0
     assert rc.extremo(10) and rc.extremo(90) and not rc.extremo(50) and not rc.extremo(None)
 
 
@@ -110,7 +111,7 @@ def test_bloque_gamma():
     b = rc.bloque_gamma(semanas, {"SPY": [float(x) for x in range(1, 101)]})
     d = b["datos"]["SPY"]
     assert d["regimen"] == "negativa" and d["cruces"] == [{"fecha": "2026-11-10", "a": "negativa"}], d
-    assert d["cambio"]["call_wall"] == 4.8 and d["net_pct"] == 0.0, d
+    assert d["cambio"]["call_wall"] == 4.8 and d["net_pct"] == 0.0 and d["net_n"] == 100, d
     assert b["destacado"] and len(b["por_que"]) == 3, b["por_que"]
 
 def test_graficos():
@@ -172,7 +173,8 @@ def test_armar_paquete():
     almacen.put_json(st, "hist500/_indices_vol/historico.json.gz",
                      {"series": {"VIX": [[d, 0, 0, 0, c] for d, c in cierres(f, [-r for r in rets], 20.0)]}})
     fred = lambda serie: cierres(f, rets)
-    p, graficos = rs.armar(st, sesiones[-1], fred=fred, aum=lambda sym: None, dibujar=False)
+    p, graficos = rs.armar(st, sesiones[-1], fred=fred, aum=lambda sym: None,
+                         precios=lambda sym: cierres(f, rets), dibujar=False)
     b = p["bloques"]
     assert p["fecha"] == sesiones[-1] and p["sesiones"] == sesiones and p["previa"] == previa
     assert b["gamma"]["estado"] == "ok" and "SPY" in b["gamma"]["datos"], b["gamma"]

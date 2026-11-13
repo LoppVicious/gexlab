@@ -39,6 +39,11 @@ def _titulo(ax, t):
     ax.set_title(t, loc="left", color=C["text"], fontsize=14, fontweight="bold")
 
 
+def _leyenda(ax, ncol):
+    """Encima del grafico, a la derecha del titulo: dentro tapaba barras y lineas."""
+    ax.legend(frameon=False, labelcolor=C["muted"], ncol=ncol, loc="lower right", bbox_to_anchor=(1, 1), fontsize=10)
+
+
 def gamma(sym: str, d: dict) -> bytes:
     """Spot de la semana con flip, call wall y put wall (incluye la ultima sesion de la semana anterior)."""
     filas = ([d["previa"]] if d.get("previa") else []) + d["dias"]
@@ -49,7 +54,7 @@ def gamma(sym: str, d: dict) -> bytes:
         ax.step(x, [f.get(k) for f in filas], where="mid", color=col, linewidth=1.6, label=et)
     ax.plot(x, [f.get("spot") for f in filas], color=C["text"], linewidth=2.4, marker="o", label="Spot")
     _titulo(ax, f"{sym}: spot vs gamma levels (week)")
-    ax.legend(frameon=False, labelcolor=C["muted"], ncol=4, loc="upper left")
+    _leyenda(ax, 4)
     return _png(fig)
 
 
@@ -64,7 +69,7 @@ def vol_real(nombre: str, d: dict) -> bytes:
     ax.axvspan(x[-1] - 0.5, x[-1] + 0.5, color=C["grid"], zorder=0)
     ax.set_ylabel("%", color=C["muted"])
     _titulo(ax, f"{nombre}: realized vol on up days vs down days (monthly)")
-    ax.legend(frameon=False, labelcolor=C["muted"], loc="upper left")
+    _leyenda(ax, 2)
     return _png(fig)
 
 
@@ -106,5 +111,5 @@ def etf(d: dict) -> bytes:
     ax.axhline(0, color=C["axis"], linewidth=1)
     ax.set_ylabel("$bn", color=C["muted"])
     _titulo(ax, "Leveraged ETFs: estimated close rebalance by underlying")
-    ax.legend(frameon=False, labelcolor=C["muted"], ncol=len(subs), loc="upper left")
+    _leyenda(ax, len(subs))
     return _png(fig)

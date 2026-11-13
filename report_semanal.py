@@ -133,13 +133,11 @@ def _indice(st, sym) -> dict:
     return almacen.get_json(st, f"{H}_niveles/{sym}.json.gz") or {}
 
 
-def _spots(st, sym, hasta) -> list:
-    out = []
-    for f, lv in sorted(_indice(st, sym).items()):
-        s = _snap(lv)
-        if f <= hasta and s and s.get("spot"):
-            out.append((f, float(s["spot"])))
-    return out
+def cierres_cboe(sym: str) -> list:
+    """Cierres diarios de CBOE (desde 2004 en los ETFs grandes): [(fecha, cierre)] ascendente. hist500/_niveles
+    solo tiene las sesiones desde que existe el historial, pocas para percentiles de un ano."""
+    h = g.fetch_aux("historical", sym, ttl=0) or {}
+    return sorted((r["date"], float(r["close"])) for r in h.get("data") or [] if r.get("date") and r.get("close"))
 
 
 # ------------------------------------------------------------------ bloques
@@ -165,9 +163,13 @@ def _vol_real(st, ses, fred):
     return rc.bloque_vol_real({k: fred(s) for k, s in FRED_INDICES.items()}, vix, ses)
 
 
-def _etf(st, ses, aum):
+def _etf(ses, aum, precios):
+    activos = {e: aum(e) for e in rc.ETF_APAL}
+    if not any(activos.values()):
+        raise ValueError("Sin AUM de ningun ETF apalancado")
     subs = sorted({s for s, _ in rc.ETF_APAL.values()})
-    return rc.bloque_etf({e: aum(e) for e in rc.ETF_APAL}, {s: v for s in subs if (v := _spots(st, s, ses[-1]))}, ses)
+    spots = {s: [(f, c) for f, c in v if f <= ses[-1]] for s in subs if (v := precios(s))}
+    return rc.bloque_etf(activos, spots, ses)
 
 
 def _vol_strike(st, ses, previa):
@@ -210,13 +212,13 @@ def _dibujar(bloques) -> dict:
     return out
 
 
-def armar(st, fecha=None, fred=fred_serie, aum=aum_etf, dibujar=True) -> tuple:
+def armar(st, fecha=None, fred=fred_serie, aum=aum_etf, precios=cierres_cboe, dibujar=True) -> tuple:
     """(paquete, {nombre: bytes PNG}) de la semana que acaba en fecha (o en la ultima sesion guardada)."""
     ses, previa = semana_de(sesiones_guardadas(st), fecha)
     bloques = {
         "gamma": _bloque("gamma", lambda: _gamma(st, ses, previa)),
         "vol_real": _bloque("vol_real", lambda: _vol_real(st, ses, fred)),
-        "etf_apal": _bloque("etf_apal", lambda: _etf(st, ses, aum)),
+        "etf_apal": _bloque("etf_apal", lambda: _etf(ses, aum, precios)),
         "vol_strike": _bloque("vol_strike", lambda: _vol_strike(st, ses, previa)),
     }
     graficos = _dibujar(bloques) if dibujar else {}

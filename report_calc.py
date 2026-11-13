@@ -15,18 +15,19 @@ P_REBAL = 90                   # rebalanceo de ETFs apalancados (dia o semana, e
 UMBRAL_WALL = 0.02             # movimiento relativo de una wall en la semana
 UMBRAL_ATM_1M = 1.5            # puntos de IV ATM a 1 mes, a strike fijo
 UMBRAL_SKEW_1M = 1.0           # puntos de skew 25P-25C a 1 mes
+MIN_MUESTRA = 30               # sin al menos estos datos no se da percentil (un percentil sobre 6 sesiones no dice nada)
 
 
 def _r(x, n=1):
     return None if x is None or not math.isfinite(x) else round(float(x), n)
 
 
-def percentil(x, serie):
-    """Percentil (0-100) de x en la serie: % de valores <= x. None sin dato o sin serie."""
+def percentil(x, serie, minimo=MIN_MUESTRA):
+    """Percentil (0-100) de x en la serie: % de valores <= x. None sin dato o con menos de `minimo` valores."""
     if x is None or not math.isfinite(x):
         return None
     s = np.asarray([v for v in serie if v is not None and math.isfinite(v)], dtype=float)
-    if not s.size:
+    if s.size < max(1, minimo):
         return None
     return round(100.0 * float((s <= x).mean()), 1)
 
@@ -287,9 +288,10 @@ def bloque_gamma(semanas: dict, hist_net: dict) -> dict:
             a, b = (prev or {}).get(k), ult.get(k)
             cambio[k] = _r(100 * (b / a - 1)) if a and b else None
         net_pct = percentil(ult.get("net_per_pct"), hist_net.get(sym, []))
+        net_n = len(hist_net.get(sym, []))
         datos[sym] = {"dias": [{"fecha": f, **{k: s.get(k) for k in CAMPOS_GAMMA}} for f, s in dias],
                       "previa": ({"fecha": w["previa"][0], **{k: prev.get(k) for k in CAMPOS_GAMMA}} if prev else None),
-                      "regimen": regimen(ult), "cruces": cruces, "cambio": cambio, "net_pct": net_pct}
+                      "regimen": regimen(ult), "cruces": cruces, "cambio": cambio, "net_pct": net_pct, "net_n": net_n}
         for c in cruces:
             por_que.append(f"{sym}: el spot paso a gamma {c['a']} el {c['fecha']}")
         for k, v in cambio.items():

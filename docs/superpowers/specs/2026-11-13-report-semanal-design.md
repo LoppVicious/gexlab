@@ -66,8 +66,8 @@ Ejecutarlo dos veces la misma semana crea otro borrador; el skill lo avisa y el 
 ### Bloque `gamma`: gamma y niveles
 
 - Tickers: los de `GAMMA = SPX NDX SPY QQQ IWM VIX` que tengan `hist500/` esa semana (hoy SPY, QQQ, IWM y VIX).
-- Por sesión: spot, gamma neta, flip, call wall y put wall de `levels` (motor Perfil, filtro estándar, posición tras
-  el cierre). Cambio frente a la última sesión de la semana anterior.
+- Por sesión: spot, gamma neta, flip, call wall y put wall de `levels["standard"]["spotgamma"]["all"]` (posición
+  estándar, motor Perfil, todos los vencimientos; foto tras el cierre). Cambio frente a la última sesión de la semana anterior.
 - Percentil de la gamma neta frente al último año de `hist500/_niveles/`.
 - Destacado si: el spot cruza el flip durante la semana; una wall se mueve más de `UMBRAL_WALL` (2 %); la gamma neta
   está por debajo del percentil 10 o por encima del 90.
@@ -119,6 +119,8 @@ porque llevan fondo propio. Las tablas van como imagen: el Markdown de Takes (`w
 - Autenticación propia: cabecera `Authorization: Bearer <REPORT_TOKEN>`, comparación en tiempo constante. Secreto
   del Worker `REPORT_TOKEN` (`wrangler secret put`). Sin el secreto configurado, las rutas responden 404.
   No usan la sesión de usuario y no sirven para nada más.
+- `GET /api/report/ultimo`: devuelve `report/ultimo.json` (`{"fecha": F}`), que el script escribe al acabar; así el
+  skill sabe qué semana calculó el workflow cuando no se le pasa fecha.
 - `GET /api/report/{F}`: devuelve `report/{F}/paquete.json` (404 si no existe). `F` validada como `YYYY-MM-DD`.
 - `GET /api/report/{F}/g/{nombre}.png`: el gráfico; `nombre` validado (`[a-z0-9_]{1,40}`).
 - `POST /api/report/{F}/take`: JSON `{titulo, cuerpo, etiquetas, graficos: [{nombre, nota}]}`. Pasa por las mismas

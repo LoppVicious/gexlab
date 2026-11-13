@@ -48,7 +48,8 @@ export function extracto(md, n = 300) {
   const t = String(md || "")
     .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .replace(/^\s{0,3}(#{1,3}|>|[-*]|\d{1,3}[.)])\s+/gm, "")
-    .replace(/[*_`]/g, "")
+    .replace(/[*`]/g, "")
+    .replace(/(^|[^\w])_+|_+(?![\w])/g, "$1")   // los _ de cursiva, no los de dentro de una palabra o URL
     .replace(/\s+/g, " ").trim();
   return t.length > n ? t.slice(0, n - 1).trimEnd() + "…" : t;
 }

@@ -38,6 +38,7 @@ test("limpiarEtiquetas recorta, quita duplicados sin mirar mayusculas y limita",
 
 test("extracto quita el Markdown y corta con puntos suspensivos", () => {
   assert.equal(extracto("# Title\n\n**Bold** and [link](https://a.com)\n- item"), "Title Bold and link item");
+  assert.equal(extracto("_italic_ and `code` at https://x.com/some_user"), "italic and code at https://x.com/some_user");
   const largo = extracto("a ".repeat(400), 300);
   assert.equal(largo.length, 300);
   assert.ok(largo.endsWith("…"));

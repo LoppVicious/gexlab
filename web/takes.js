@@ -102,7 +102,7 @@ async function tkAbre(id, pinta = true) {
 function tkAdjunto(a) {
   const nota = a.texto ? `<span class="tk-adj-n">${esc(a.texto)}</span>` : "";
   if (a.tipo === "enlace") {
-    return `<a class="tk-adj" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer"><span class="tk-kind">Link</span><span class="tk-adj-t">${esc(a.titulo || tkDominio(a.url))}</span><span class="tk-adj-d">${esc(tkDominio(a.url))}</span>${nota}</a>`;
+    return `<a class="tk-adj" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer"><span class="tk-kind">Link</span><span class="tk-adj-t">${esc(a.titulo || tkDominio(a.url))}</span><span class="tk-adj-d">${a.titulo ? esc(tkDominio(a.url)) : ""}</span>${nota}</a>`;
   }
   if (a.tipo === "pdf") {
     return `<div class="tk-adj"><span class="tk-kind">PDF</span><span class="tk-adj-t">${esc(a.titulo)}</span><a class="ghost tk-open" href="${esc(a.src)}" target="_blank" rel="noopener">Open PDF</a>${nota}</div>`;

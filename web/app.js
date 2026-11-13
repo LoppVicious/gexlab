@@ -2152,6 +2152,7 @@ const TOOLS = {
   flow: { view: "flowView", ticker: true, show: () => showFlow(), render: () => renderFlow(), load: (r) => loadFlow(r) },
   calendar: { view: "calView", ticker: false, show: () => showCal(), render: () => renderCal(), load: (r) => loadCal(r) },
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
+  takes: { view: "takesView", ticker: false, show: () => showTakes(), render: () => renderTakes(), load: (r) => loadTakes(r) },
 };
 function setMode(m) {
   if (m === "risk" || m === "calc") m = "lab";   // secciones anteriores, unidas en Options Lab
@@ -3358,6 +3359,7 @@ const NAV = {
   navVol: { t: "Volatility dashboard", go: () => setMode("vol") },
   navVix: { t: "VIX curve", go: () => setMode("vix") },
   navCorr: { t: "Correlation", go: () => setMode("corr") },
+  navTakes: { t: "Founder Takes", go: () => setMode("takes") },
   navScan: { t: "Scanner", go: () => { setMode("scanner"); setScanView("table"); } },
   navCompass: { t: "Compass", go: () => { setMode("scanner"); setScanView("compass"); } },
   navValid: { t: "Validation", go: () => { setMode("scanner"); setScanView("valid"); } },
@@ -3374,6 +3376,7 @@ function currentNav() {
   if (m === "vol") return "navVol";
   if (m === "vix") return "navVix";
   if (m === "corr") return "navCorr";
+  if (m === "takes") return "navTakes";
   if (m === "cot") return "navCot";
   if (m === "oi") return "navOI";
   if (m === "flow") return "navFlow";

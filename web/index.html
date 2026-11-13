@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="sg.css">
 <link rel="stylesheet" href="herramientas.css">
+<link rel="stylesheet" href="takes.css">
 <link rel="stylesheet" href="tema.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f8"</script>
 </head>
@@ -36,6 +37,8 @@
       <button class="item" id="navVol" data-title="Volatility dashboard" title="Volatility dashboard"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Volatility dashboard</span></button>
       <button class="item" id="navVix" data-title="VIX curve" title="VIX curve"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">VIX curve</span></button>
       <button class="item" id="navCorr" data-title="Correlation" title="Implied correlation and dispersion"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/></svg><span class="lbl">Correlation</span></button>
+    <div class="sec">Research</div>
+      <button class="item" id="navTakes" data-title="Founder Takes" title="Founder Takes"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h7l3 3V16a.5.5 0 0 1-.5.5h-9.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M12 3.5V7h3M7.5 10h5M7.5 13h3.5"/></svg><span class="lbl">Takes</span></button>
     <div class="sec">Console</div>
       <button class="item" id="navScan" data-title="Scanner" title="Scanner"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg><span class="lbl">Scanner</span></button>
       <button class="item" id="navCompass" data-title="Compass" title="Compass"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z"/></svg><span class="lbl">Compass</span></button>
@@ -543,6 +546,15 @@
   </section>
 </main>
 
+<main class="macro tk" id="takesView" hidden>
+  <div class="scan-bar tk-bar">
+    <input class="tk-q" id="tkQ" type="search" placeholder="Search takes" aria-label="Search takes" autocomplete="off">
+    <button class="ghost tk-primary" id="tkNew" hidden>New take</button>
+  </div>
+  <div class="tk-tags" id="tkTags" role="group" aria-label="Filter by tag"></div>
+  <div class="tk-body" id="tkBody"></div>
+</main>
+
 <main class="macro" id="flowView" hidden>
   <header class="lab-head">
     <div class="lab-title"><span class="lab-sym"><b id="fSym">—</b> <span id="fName"></span> <span id="fSpot"></span></span><span class="fbadge" title="Classified from the volume between engine snapshots, not from individual trades">Estimate</span></div>
@@ -601,6 +613,8 @@
 <script src="historico.js"></script>
 <script src="vol.js"></script>
 <script src="corr.js"></script>
+<script src="takes-md.js"></script>
+<script src="takes.js"></script>
 <script src="flujo.js"></script>
 <script src="opciones.js"></script>
 <script src="oi.js"></script>

@@ -253,6 +253,8 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
+        if url.path == "/api/takes" or url.path.startswith("/api/takes/"):
+            return self._json(404, {"error": "Founder Takes are available in the cloud version."})
         if url.path != "/api/gex":
             return super().do_GET()
         try:

@@ -159,11 +159,11 @@
       const d = await call("/api/admin/usuarios");
       $("users").innerHTML = d.usuarios.map((u) => {
         const yo = u.usuario === ME.user;
-        return `<tr class="${u.inactivo ? "off" : ""}"><td>${esc(u.usuario)}${u.rol === "admin" ? '<span class="badge adm">admin</span>' : ""}${u.inactivo ? '<span class="badge">disabled</span>' : ""}</td>
+        return `<tr class="${u.inactivo ? "off" : ""}"><td>${esc(u.usuario)}${u.rol === "admin" ? '<span class="badge adm">admin</span>' : ""}${u.autor && u.rol !== "admin" ? '<span class="badge">drafts</span>' : ""}${u.inactivo ? '<span class="badge">disabled</span>' : ""}</td>
         <td>${esc((u.creado || "").slice(0, 10))}</td><td>${esc(u.ultimo ? u.ultimo.slice(0, 16) : "—")}</td><td class="n">${u.tickers}</td>
         <td class="n">${u.sesiones ? '<span class="on-dot" title="Signed in"></span>' : '<span class="mute">—</span>'}</td>
         <td class="act"><button class="linkbtn" data-a="contrasena" data-u="${esc(u.usuario)}">Password</button>${yo ? "" :
-          `<button class="linkbtn" data-a="${u.inactivo ? "activar" : "desactivar"}" data-u="${esc(u.usuario)}">${u.inactivo ? "Enable" : "Disable"}</button><button class="linkbtn danger" data-a="borrar" data-u="${esc(u.usuario)}">Delete</button>`}</td></tr>`;
+          `${u.rol === "admin" ? "" : `<button class="linkbtn" data-a="${u.autor ? "noautor" : "autor"}" data-u="${esc(u.usuario)}" title="Founder Takes: can create and edit their own drafts">${u.autor ? "Revoke drafts" : "Allow drafts"}</button>`}<button class="linkbtn" data-a="${u.inactivo ? "activar" : "desactivar"}" data-u="${esc(u.usuario)}">${u.inactivo ? "Enable" : "Disable"}</button><button class="linkbtn danger" data-a="borrar" data-u="${esc(u.usuario)}">Delete</button>`}</td></tr>`;
       }).join("");
     } catch (x) { umsg(x.message, true); }
   }
@@ -201,7 +201,8 @@
       } else {
         if (a === "borrar" && prompt(`The account ${u} will be deleted along with its list and preferences. Type ${u} to confirm:`) !== u) return;
         await call("/api/admin/usuarios", { accion: a, usuario: u });
-        umsg({ activar: `${u} enabled.`, desactivar: `${u} disabled; their sessions have been closed.`, borrar: `${u} deleted.` }[a]);
+        umsg({ activar: `${u} enabled.`, desactivar: `${u} disabled; their sessions have been closed.`, borrar: `${u} deleted.`,
+          autor: `${u} can now write Founder Takes drafts.`, noautor: `${u} can no longer write Founder Takes drafts.` }[a]);
       }
       loadUsers();
     } catch (x) { umsg(x.message, true); }

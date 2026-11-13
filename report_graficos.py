@@ -36,12 +36,14 @@ def _png(fig) -> bytes:
 
 
 def _titulo(ax, t):
-    ax.set_title(t, loc="left", color=C["text"], fontsize=14, fontweight="bold")
+    ax.set_title(t, loc="left", color=C["text"], fontsize=14, fontweight="bold", pad=30)
 
 
 def _leyenda(ax, ncol):
-    """Encima del grafico, a la derecha del titulo: dentro tapaba barras y lineas."""
-    ax.legend(frameon=False, labelcolor=C["muted"], ncol=ncol, loc="lower right", bbox_to_anchor=(1, 1), fontsize=10)
+    """Entre el titulo y el grafico, a la izquierda: dentro tapaba barras y lineas, y a la derecha del titulo
+    chocaba con los titulos largos."""
+    ax.legend(frameon=False, labelcolor=C["muted"], ncol=ncol, loc="lower left", bbox_to_anchor=(0, 1), fontsize=10,
+              borderaxespad=0.2)
 
 
 def gamma(sym: str, d: dict) -> bytes:

@@ -5,6 +5,8 @@
 // Contrasenas: el navegador aplica PBKDF2-SHA256 (310.000 iteraciones, sal por usuario) y envia el resultado;
 // aqui solo se guarda y se compara su SHA-256. La contrasena nunca sale del navegador y el servidor no gasta CPU.
 
+import { takes } from "./takes.js";   // Founder Takes (wrangler lo empaqueta)
+
 const ITER = 310000;
 const SESSION_DAYS = 30;
 const MAX_FAILS = 5;
@@ -340,7 +342,7 @@ async function createUser(env, usuario, sal, clave, rol) {
 async function admin(req, env, me) {
   if (req.method === "GET") {
     const rows = (await env.DB.prepare(
-      "SELECT u.usuario, u.rol, u.inactivo, u.creado, u.cambiado, (SELECT COUNT(*) FROM sesiones s WHERE s.usuario = u.usuario AND s.exp > ?) AS sesiones, (SELECT MAX(s.creada) FROM sesiones s WHERE s.usuario = u.usuario) AS ultimo, l.json AS lista FROM usuarios u LEFT JOIN listas l ON l.usuario = u.usuario ORDER BY u.creado",
+      "SELECT u.usuario, u.rol, u.inactivo, u.creado, u.cambiado, (SELECT COUNT(*) FROM sesiones s WHERE s.usuario = u.usuario AND s.exp > ?) AS sesiones, (SELECT MAX(s.creada) FROM sesiones s WHERE s.usuario = u.usuario) AS ultimo, l.json AS lista, EXISTS(SELECT 1 FROM takes_autores ta WHERE ta.usuario = u.usuario) AS autor FROM usuarios u LEFT JOIN listas l ON l.usuario = u.usuario ORDER BY u.creado",
     ).bind(nowS()).all()).results || [];
     for (const r of rows) {
       let n = DEFAULT_WATCH.length;
@@ -365,7 +367,9 @@ async function admin(req, env, me) {
       await env.DB.prepare("UPDATE usuarios SET inactivo = ? WHERE usuario = ?").bind(b.accion === "desactivar" ? 1 : 0, u).run();
       if (b.accion === "desactivar") await env.DB.prepare("DELETE FROM sesiones WHERE usuario = ?").bind(u).run();
     } else if (b.accion === "borrar") {
-      for (const t of ["sesiones", "prefs", "listas", "usuarios"]) await env.DB.prepare(`DELETE FROM ${t} WHERE usuario = ?`).bind(u).run();
+      for (const t of ["sesiones", "prefs", "listas", "takes_autores", "usuarios"]) await env.DB.prepare(`DELETE FROM ${t} WHERE usuario = ?`).bind(u).run();
+    } else if (b.accion === "autor" || b.accion === "noautor") {   // Founder Takes: puede crear y editar sus borradores
+      await env.DB.prepare(b.accion === "autor" ? "INSERT OR IGNORE INTO takes_autores (usuario) VALUES (?)" : "DELETE FROM takes_autores WHERE usuario = ?").bind(u).run();
     } else throw new Error("Unknown action");
   }
   const nuevos = await syncConfig(env);
@@ -460,6 +464,10 @@ async function api(req, env, url, me) {
   if (p === "/api/admin/usuarios") {
     if (!me.admin) return json(403, { error: "Administrator only" });
     return admin(req, env, me);
+  }
+  if (p === "/api/takes" || p.startsWith("/api/takes/")) {
+    const r = await takes(req, env, url, me, { json, body, SEC_HEADERS });
+    if (r) return r;
   }
   return json(404, { error: "not found" });
 }
@@ -592,7 +600,7 @@ export default {
     const url = new URL(req.url);
     const p = url.pathname;
     try {
-      if (req.method === "POST") { // las escrituras solo desde la propia web
+      if (req.method !== "GET" && req.method !== "HEAD") { // las escrituras solo desde la propia web
         const o = req.headers.get("Origin");
         if (o && o !== url.origin) return json(403, { error: "Origin not allowed" });
       }

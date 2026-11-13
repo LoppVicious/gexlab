@@ -2,6 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validarTake, tipoArchivo, limpiarEtiquetas, urlSegura, extracto, LIM } from "../nube/takes.js";
+import { createRequire } from "node:module";
+const { tkMarkdown } = createRequire(import.meta.url)("../web/takes-md.js");
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -105,4 +107,36 @@ test("validarTake conserva adjuntos existentes por id y rechaza ids ajenos", () 
 test("validarTake limita longitudes", () => {
   assert.throws(() => validarTake({ titulo: "x".repeat(LIM.titulo + 1), cuerpo: "x" }, new Map(), sinPrevios), /Title too long/);
   assert.throws(() => validarTake({ cuerpo: "x".repeat(LIM.cuerpo + 1) }, new Map(), sinPrevios), /Text too long/);
+});
+
+test("tkMarkdown escapa todo el HTML", () => {
+  const h = tkMarkdown('<script>alert(1)</script>\n\n<img src=x onerror="alert(1)">');
+  assert.ok(!h.includes("<script"));
+  assert.ok(!h.includes("<img"));
+  assert.ok(h.includes("&lt;script&gt;"));
+  assert.ok(h.includes("&quot;alert(1)&quot;"));
+});
+
+test("tkMarkdown no crea enlaces javascript:", () => {
+  const h = tkMarkdown("[x](javascript:alert(1))");
+  assert.ok(!h.includes("href"));
+  assert.ok(h.includes("[x](javascript:alert(1))"));
+});
+
+test("tkMarkdown: titulos, listas, citas, negrita, cursiva y codigo", () => {
+  assert.equal(tkMarkdown("# Big\n## Mid"), "<h2>Big</h2><h3>Mid</h3>");
+  assert.equal(tkMarkdown("- a\n- b"), "<ul><li>a</li><li>b</li></ul>");
+  assert.equal(tkMarkdown("1. a\n2. b"), "<ol><li>a</li><li>b</li></ol>");
+  assert.equal(tkMarkdown("> quoted"), "<blockquote><p>quoted</p></blockquote>");
+  assert.equal(tkMarkdown("**b** *i* _j_ `c`"), "<p><strong>b</strong> <em>i</em> <em>j</em> <code>c</code></p>");
+  assert.equal(tkMarkdown("line 1\nline 2\n\npara 2"), "<p>line 1<br>line 2</p><p>para 2</p>");
+});
+
+test("tkMarkdown: enlaces con nueva pestana y URLs sueltas sin cursivas dentro", () => {
+  const a = '<a href="https://a.com/x" target="_blank" rel="noopener noreferrer">';
+  assert.equal(tkMarkdown("[see](https://a.com/x)"), `<p>${a}see</a></p>`);
+  const h = tkMarkdown("thread https://x.com/some_user_name/status/1.");
+  assert.ok(h.includes('href="https://x.com/some_user_name/status/1"'));
+  assert.ok(!h.includes("<em>"));
+  assert.ok(h.endsWith("</a>.</p>"));
 });

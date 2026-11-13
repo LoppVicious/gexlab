@@ -109,6 +109,18 @@ lo importa `worker.js` y wrangler lo empaqueta), `web/takes.js` (página: listad
 - Pruebas sin red: `node --test pruebas/test_takes.mjs pruebas/test_takes_api.mjs` (la segunda ejecuta las rutas con el
   esquema real sobre `node:sqlite` y R2 imitado).
 
+**Report semanal (borrador de Take):** `/report-semanal` en Claude Code (`.claude/skills/report-semanal/`) lanza
+`report.yml`, que ejecuta `report_semanal.py` (lectura y paquete), `report_calc.py` (cálculos y umbrales de
+destacado) y `report_graficos.py` (PNG, paleta Daylight). Lee `hist500/` (niveles, cadenas al cierre, familia VIX),
+FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apalancados).
+- R2: `report/{F}/paquete.json`, `report/{F}/g/{nombre}.png` y `report/ultimo.json` (`{"fecha": F}`). No se borran.
+- Worker (`nube/report.js`): `GET /api/report/ultimo`, `GET /api/report/{F}`, `GET /api/report/{F}/g/{nombre}.png`
+  y `POST /api/report/{F}/take` (crea un borrador de la cuenta `claude` con los PNG elegidos, con
+  `validarTake`/`escribirTake` de `nube/takes.js`). Solo con `Authorization: Bearer <REPORT_TOKEN>`; sin el secreto,
+  404. Secreto de GitHub `REPORT_TOKEN` (lo pone `desplegar.sh` en el Worker) y, en el PC, `GEXLAB_REPORT_TOKEN`.
+- Pruebas: `python pruebas/test_report.py` (sin red; los gráficos solo si hay matplotlib) y
+  `node --test pruebas/test_report_api.mjs`. Spec y plan en `docs/superpowers/`.
+
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El motor solo precalcula la lente Gamma del mapa. Las lentes `delta` y `charm` (`heatmap(lens=...)`, clave con
 `_delta`/`_charm` en `nube.js`) no están en R2: el navegador las calcula con el paquete y las guarda en memoria hasta

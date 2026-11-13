@@ -3,6 +3,9 @@
 Última revisión: 2026-11-11. Cambios hechos: ver `CHANGELOG.md`.
 
 ## Pendiente / ideas apuntadas por el usuario
+- **Report semanal** (primera versión el 2026-11-13, `/report-semanal`): siguientes posibles: report diario sin LLM,
+  tarea programada, percentiles de rebalanceo con el histórico de AUM de ProShares (lo publica por día), ajustar los
+  umbrales de destacado tras los primeros reports.
 - **Founder Takes, siguientes pasos posibles** (primera versión el 2026-11-13): tarjeta del último Take en Summary,
   Takes junto a cada ticker, avisos al publicar. Cuando haya 30-40 entradas, ver qué etiquetas merecen filtro o
   pestaña propia.

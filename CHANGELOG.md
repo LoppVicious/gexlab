@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-13 — Founder Takes
+## 2026-11-13 — Founder Takes y report semanal
 
 **Añadido**
 - **Founder Takes** (en el menú, sección Research): notas, lecturas de mercado y material de research del fundador.
@@ -15,7 +15,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - Editor con vista previa, etiquetas con autocompletado, adjuntos que se reordenan, y capturas pegadas o arrastradas.
   Al subir un PDF recuerda que el research de pago se cita con un extracto y un enlace, no entero.
 
+- **Report semanal** en Founder Takes: un borrador semanal con lo destacable de la semana en gamma y niveles, vol
+  realizada en subidas y bajadas, rebalanceo estimado de los ETFs apalancados y vol a strike fijo, con gráficos.
+  Lo prepara Claude a partir de los datos de GEX Lab; el administrador lo revisa y lo publica.
+
 **Cambiado**
+- Si un Take no se puede guardar a mitad, no quedan archivos sueltos ni un Take a medias.
 - Las peticiones que modifican datos con PUT o DELETE también deben venir de la propia web, como ya pasaba con POST.
 
 ## 2026-11-12 — Nuevo aspecto: Bento (oscuro) y Daylight (claro); Summary nuevo; calendario económico con dato real; Options Lab como constructor de estrategias; Open Interest, COT y Options flow en una pantalla; Validation con los veredictos arriba; Volatility con vista general; Scanner visual; Equity Hub como puesto de trabajo; TRACE con el mapa a todo el ancho

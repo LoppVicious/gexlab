@@ -11,6 +11,7 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - Local: doble clic en `Abrir GEX Lab.bat` (crea `.venv`) o `.venv\Scripts\python.exe server.py` → http://127.0.0.1:8765
 - Comprobar: `node --check web\app.js` (cada JS tocado); Python: `python -c "import gex_engine"`.
   Takes: `node --test pruebas/test_takes.mjs pruebas/test_takes_api.mjs`.
+  Report semanal: `python pruebas/test_report.py` y `node --test pruebas/test_report_api.mjs`; se genera con `/report-semanal` en Claude Code.
 - Historial local: `$env:GEX_ALMACEN="local:./data/x"; python historial500.py --forzar AAPL`
 - Deploy: push a `main` (`web/**`, `nube/**` o `gex_engine.py` lanza `desplegar.yml`). El usuario recarga con Ctrl+F5.
 - Pruebas reales en Actions: `gh api -X POST repos/LoppVicious/gexlab/actions/workflows/comparar.yml/dispatches -f ref=main -f 'inputs[script]=motores.py'`
@@ -22,7 +23,8 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - `motor.py` — ciclo de Actions (cada 15 min) y modo `rapido` (cada 5 min, 6 índices); publica en R2
 - `fuente_tradier.py` · `almacen.py` (R2 o disco) · `historial500.py` (historial diario a R2 `hist500/`)
 - `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro: ForexFactory y fuentes oficiales de EE. UU.), `reales.py` (dato real de EE. UU. con BLS y FRED)
-- `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes
+- `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes; `nube/report.js` — rutas del report semanal (token propio)
+- `report_semanal.py` (paquete y PNG en R2 `report/`), `report_calc.py` (cálculos y umbrales), `report_graficos.py` (matplotlib); skill `.claude/skills/report-semanal/`
 - `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary), `calendario.js` (tarjeta de eventos y página Calendar), `takes.js`/`takes-md.js`/`takes.css` (Founder Takes)
 - `server.py` — modo PC: misma web y API en local · `pruebas/` — scripts para `comparar.yml`
 - `docs/ARQUITECTURA.md` — flujo completo, claves de R2, los dos motores, pruebas. Leer antes de tocar motor o Worker.

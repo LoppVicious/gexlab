@@ -13,6 +13,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - Estudio que lo respalda (`pruebas/regimen_gamma.py`): el GEX predice el rango del día siguiente más allá del VIX y
   del rango reciente, en 2011-2018 y en 2019-2026. No predice la dirección ni el cierre de los gaps.
 
+**Corregido**
+- **Ticker inexistente:** un ticker que no está en el directorio de opciones de CBOE (una errata como APPL) ya no
+  llega nunca al motor. Al abrirlo, la web avisa de inmediato de que no tiene opciones, en lugar de lanzar el motor en
+  cada refresco (fallaba cada 10 minutos y mandaba un correo de error de GitHub cada vez); al añadirlo a una lista,
+  no se añade y sale un aviso.
+
 ## 2026-11-13 — Founder Takes y report semanal
 
 **Añadido**

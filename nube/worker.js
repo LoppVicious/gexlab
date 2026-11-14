@@ -167,8 +167,20 @@ async function dispatch(env, inputs, workflow = "motor.yml") {
   return r.status === 204;
 }
 
+// Tickers que no estan en el directorio de CBOE (los que tienen opciones): el motor nunca los calcula, ni puntuales
+// ni en las listas; una errata (APPL) lo haria fallar en cada refresco. Si el directorio no se pudo descargar
+// (solo trae los indices), no se filtra
+async function desconocidosDe(env, syms) {
+  const dir = await symbols(env);
+  if (dir.length <= 100) return [];
+  const conocidos = new Set(dir.map(([s]) => s));
+  return syms.filter((s) => !conocidos.has(s));
+}
+
 async function pedir(env, syms) {
   // calculo puntual de tickers sin paquete; como mucho un lanzamiento cada 4 min por ticker
+  const desconocidos = await desconocidosDe(env, syms);
+  syms = syms.filter((s) => !desconocidos.includes(s));
   const fresh = [];
   for (const s of syms.slice(0, 10)) {
     const r = await env.DB.prepare("SELECT t FROM pedidos WHERE simbolo = ?").bind(s).first();
@@ -177,7 +189,7 @@ async function pedir(env, syms) {
     await env.DB.prepare("INSERT INTO pedidos (simbolo, t) VALUES (?, ?) ON CONFLICT(simbolo) DO UPDATE SET t = excluded.t").bind(s, nowS()).run();
   }
   const ok = fresh.length ? await dispatch(env, { modo: "ticker", tickers: fresh.join(" ") }) : true;
-  return { ok, symbols: syms.slice(0, 10), lanzados: fresh };
+  return { ok, symbols: syms.slice(0, 10), lanzados: fresh, desconocidos };
 }
 
 // ------------------------------------------------------------------ datos publicados por el motor (R2 pub/)
@@ -400,13 +412,14 @@ async function api(req, env, url, me) {
       const b = await body(req);
       const syms = [];
       for (const x of b.symbols || []) { const s = normalize(x); if (s && !syms.includes(s)) syms.push(s); }
-      const d = { symbols: syms.slice(0, MAX_WATCH), updated: stamp().slice(0, 10) };
+      const desconocidos = await desconocidosDe(env, syms);
+      const d = { symbols: syms.filter((s) => !desconocidos.includes(s)).slice(0, MAX_WATCH), updated: stamp().slice(0, 10) };
       await env.DB.prepare("INSERT INTO listas (usuario, json) VALUES (?, ?) ON CONFLICT(usuario) DO UPDATE SET json = excluded.json").bind(me.user, JSON.stringify(d)).run();
       const nuevos = await syncConfig(env);
       // tickers nuevos en la lista: un ciclo completo del motor (paquete, escaner, Compass y Validacion de la lista).
       // Si ya hay uno en marcha, GitHub deja este en cola y empieza al terminar
       const ciclo = nuevos.length ? await dispatch(env, { modo: "ciclo" }) : false;
-      return json(200, { ...d, nuevos, ciclo });
+      return json(200, { ...d, nuevos, ciclo, desconocidos });
     }
     const r = await env.DB.prepare("SELECT json FROM listas WHERE usuario = ?").bind(me.user).first();
     let d = { symbols: DEFAULT_WATCH };
@@ -418,7 +431,9 @@ async function api(req, env, url, me) {
     const b = await body(req);
     const syms = [...new Set((b.symbols || []).map(normalize).filter(Boolean))];
     if (!syms.length) return json(400, { error: "Invalid ticker" });
-    return json(200, await pedir(env, syms));
+    const r = await pedir(env, syms);
+    if (!r.symbols.length) return json(404, { error: `${r.desconocidos.join(", ")} has no listed options (check the ticker)` });
+    return json(200, r);
   }
   if (p.startsWith("/api/pub/")) {
     const rest = p.slice(9);

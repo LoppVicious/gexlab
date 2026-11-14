@@ -2149,7 +2149,10 @@ function watchlist() { return (state.watch && state.watch.length ? state.watch :
 function saveWatch(w) {
   state.watch = w.slice();
   fetch("/api/watchlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbols: w }) })
-    .then((r) => r.json()).then((d) => { if (d.symbols) state.watch = d.symbols; }).catch(() => {});
+    .then((r) => r.json()).then((d) => {
+      if (d.symbols) state.watch = d.symbols;
+      if (d.desconocidos && d.desconocidos.length) toast("Ticker not found", `${d.desconocidos.join(", ")} has no listed options and was not added. Check the ticker.`);
+    }).catch(() => {});
 }
 async function initWatchlist() {
   try {

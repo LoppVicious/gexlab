@@ -179,6 +179,11 @@ Los dos:
 - **Correlación** (`macro.correlation`, `pub/correlacion.json`, `/api/corr`, `web/corr.js`): índices COR y DSPX de
   CBOE (en `CBOE_VOL_INDICES`) con la cotización de hoy, percentil y banda del último año y 504 sesiones de historia.
   La publica `fase_macro`.
+- **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de
+  SqueezeMetrics (CSV público desde 2011), percentil frente a las 252 sesiones previas y quintil. Para cada quintil,
+  con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del
+  rango implícito (`breaks`). La web multiplica el rango de 1σ de SPX, SPY y XSP por `ratio` (`paintEmRegime`) si el
+  GEX es de antes de la sesión del rango. La publica `fase_macro`. Estudio: `pruebas/regimen_gamma.py`.
 - **Posicionamiento en `compute`:** `scenarios` (GEX por 1 % y flujo de cobertura en la rejilla `SCEN_SPOT` ×
   `SCEN_IV`; la IV se desplaza reescalando la varianza total de cada contrato), `buckets` (`EXP_BUCKETS`),
   `totals.net_per_pct_after` (sin el próximo vencimiento) y `liquidity` (ADV$ de 20 sesiones de CBOE, flujos en % del

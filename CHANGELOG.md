@@ -3,6 +3,16 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX
+
+**Añadido**
+- **Equity Hub, rango de 1σ de SPX, SPY y XSP:** una línea más con el rango corregido por el régimen de gamma del
+  SPX (GEX diario de SqueezeMetrics frente al último año, de muy bajo a muy alto). Desde 2012, con gamma muy alta el SPX
+  cerró fuera del rango implícito el 9 % de las sesiones y con gamma muy baja el 30 %; el rango ajustado es el que de
+  verdad contuvo el 68,3 % de los cierres en cada régimen. Al pasar el ratón, el detalle.
+- Estudio que lo respalda (`pruebas/regimen_gamma.py`): el GEX predice el rango del día siguiente más allá del VIX y
+  del rango reciente, en 2011-2018 y en 2019-2026. No predice la dirección ni el cierre de los gaps.
+
 ## 2026-11-13 — Founder Takes y report semanal
 
 **Añadido**

@@ -412,7 +412,7 @@ def fase_listas(st, listas: dict) -> None:
 def fase_macro(st) -> None:
     import macro
     for key, fn in (("vix", macro.vix_curve), ("cot", macro.cot), ("resumen", macro.summary),
-                    ("correlacion", macro.correlation)):
+                    ("correlacion", macro.correlation), ("regimen", macro.gamma_regime)):
         try:
             subir(st, f"pub/{key}.json", fn())
         except Exception as e:  # noqa: BLE001
@@ -423,7 +423,7 @@ def fase_macro(st) -> None:
         except Exception as e:  # noqa: BLE001
             err(f"cot {m[0]}", e)
     fase_calendario(st, completo=True)
-    log("macro: curva VIX, COT y Resumen")
+    log("macro: curva VIX, COT, Resumen y régimen de gamma")
 
 
 def _borrar_vistas_viejas(st, sym: str, hechas: set) -> int:

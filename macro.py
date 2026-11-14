@@ -696,3 +696,60 @@ def _correlation() -> dict:
            "vix": _stats([v for _, v in series["VIX"]]) if "VIX" in series else None,
            "computed_at": g.now_ny().strftime("%Y-%m-%d %H:%M")}
     return out
+
+
+# ---------------------------------------------------------------- regimen de gamma del SPX
+SM_URL = "https://squeezemetrics.com/monitor/static/DIX.csv"
+REG_VENTANA = 252                 # percentil del GEX frente al ultimo ano (el GEX crece con el mercado)
+REG_SIGMA = 0.6827                # cuantil de |rendimiento| / sigma que da el rango de 1 sigma ajustado
+_reg_cache: dict[str, tuple[float, dict]] = {}
+
+
+def gamma_regime() -> dict:
+    hit = _reg_cache.get("r")
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    res = _gamma_regime()
+    _reg_cache["r"] = (time.time(), res)
+    return res
+
+
+def _gamma_regime() -> dict:
+    """Regimen de gamma del SPX con el GEX diario de SqueezeMetrics (CSV publico desde 2011) y su calibracion.
+
+    El GEX de la fecha t sale del cierre de t y vale para la sesion siguiente. El regimen es el quintil del percentil
+    del GEX frente a las 252 sesiones previas. Para cada quintil, con toda la historia: el cuantil 68,3 % de
+    |rendimiento de cierre a cierre| / sigma del VIX del dia anterior (VIX / raiz(252)) es el factor que convierte el
+    rango implicito de 1 sigma en el que de verdad contuvo el 68,3 % de los cierres, y `breaks` es la fraccion de
+    dias que cerraron fuera del rango implicito. Estudio completo: pruebas/regimen_gamma.py."""
+    filas = csv.DictReader(io.StringIO(fetch_text(SM_URL)))
+    serie = sorted((f["date"], float(f["gex"])) for f in filas if f.get("date") and f.get("gex"))
+    if len(serie) < REG_VENTANA + 50:
+        raise ValueError("SqueezeMetrics GEX history is too short")
+    fechas = [d for d, _ in serie]
+    G = np.array([v for _, v in serie])
+    pct = np.full(len(G), np.nan)
+    for k in range(REG_VENTANA, len(G)):
+        pct[k] = (G[k - REG_VENTANA:k] < G[k]).mean()
+    quint = {fechas[k]: int(min(4, pct[k] * 5)) for k in range(REG_VENTANA, len(G))}
+
+    spx, _ = g.history_ohlc("SPX")
+    vix, _ = g.history_ohlc("VIX")
+    dias = sorted(set(spx) & set(vix))
+    z, q = [], []
+    for a, b in zip(dias, dias[1:]):
+        if a not in quint or spx[a][3] <= 0 or vix[a][3] <= 0:
+            continue
+        sig = vix[a][3] / 100 / np.sqrt(252)
+        z.append(abs(np.log(spx[b][3] / spx[a][3])) / sig)
+        q.append(quint[a])
+    z, q = np.array(z), np.array(q)
+    grupos = [{"q": k + 1, "n": int((q == k).sum()),
+               "ratio": round(float(np.quantile(z[q == k], REG_SIGMA)), 3),
+               "breaks": round(float((z[q == k] > 1).mean()), 4)} for k in range(5)]
+    hoy = quint[fechas[-1]]
+    return {"date": fechas[-1], "gex": float(G[-1]), "pct": round(float(pct[-1]) * 100, 1), "q": hoy + 1,
+            "ratio": grupos[hoy]["ratio"], "breaks": grupos[hoy]["breaks"],
+            "all": {"n": int(len(z)), "ratio": round(float(np.quantile(z, REG_SIGMA)), 3),
+                    "breaks": round(float((z > 1).mean()), 4)},
+            "groups": grupos, "since": fechas[REG_VENTANA], "source": "SqueezeMetrics"}

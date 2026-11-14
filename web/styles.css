@@ -458,6 +458,7 @@ body.macro-mode .controls + * { margin-top: 0; }
 .mside .regime { margin: 12px 0 4px; }
 .mside .facts { margin-top: 10px; }
 .fact .fs.warn { color: var(--amber); }
+.fact .fs b { font-weight: 600; } .fact .fs .nw { white-space: nowrap; } .fact .fs b.neg { color: var(--neg); } .fact .fs b.pos { color: var(--pos); }
 .mnote { color: var(--faint); font-size: 12px; line-height: 1.5; margin: auto 0 0; padding-top: 16px; }
 .mcharts { position: relative; display: flex; flex-direction: column; min-height: 0; padding: 14px 18px 12px; }
 .mchart-head { display: flex; align-items: baseline; gap: 14px; padding: 2px 4px 6px; }

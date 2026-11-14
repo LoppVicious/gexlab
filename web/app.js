@@ -683,6 +683,35 @@ function syncRange(d) {
 }
 function move1(d) { return d.moves && d.moves.d1; }
 function sessLabel(iso) { return iso ? `${DIAS_SEM[new Date(iso + "T12:00:00").getDay()]} ${+iso.slice(8, 10)}` : ""; }
+// Regimen de gamma del SPX (GEX de SqueezeMetrics, /api/regimen): corrige el rango implicito de 1σ con lo que de
+// verdad se movio el SPX desde 2012 en cada quintil del GEX (estudio en pruebas/regimen_gamma.py). Solo familia S&P 500.
+const EM_REG_SYMS = new Set(["SPX", "SPY", "XSP"]);
+const EM_REG_NAMES = ["very low", "low", "average", "high", "very high"];
+let emRegData = null, emRegAt = 0;
+async function emRegimeData() {
+  if (emRegData && Date.now() - emRegAt < 30 * 60e3) return emRegData;
+  try {
+    const r = await fetch("/api/regimen");
+    if (r.ok) { emRegData = await r.json(); emRegAt = Date.now(); }
+  } catch { /* sin dato: la tarjeta queda como antes */ }
+  return emRegData;
+}
+async function paintEmRegime(d, em) {
+  const el = $("emRegime");
+  el.hidden = true;
+  if (!em || !em.session || !EM_REG_SYMS.has(d.symbol)) return;
+  const rg = await emRegimeData();
+  // el GEX de una fecha vale para la sesion siguiente; si es de hace mas de una semana, no se usa
+  if (!rg || !rg.ratio || state.data !== d || !(rg.date < em.session) || Date.parse(em.session) - Date.parse(rg.date) > 6 * 864e5) return;
+  const pct = em.pct * rg.ratio, lo = d.spot * (1 - pct / 100), hi = d.spot * (1 + pct / 100);
+  const share = (v) => `${fmtNum(v * 100, 0)}%`;
+  el.innerHTML = `SqueezeMetrics gamma <b class="${rg.q <= 2 ? "neg" : rg.q >= 4 ? "pos" : ""}">${EM_REG_NAMES[rg.q - 1]}</b>: ±${fmtNum(pct, 2)}% <span class="nw">(${fmtSpot(lo)} – ${fmtSpot(hi)})</span>`;
+  el.title = `1σ range adjusted for the SPX gamma regime, from the ${rg.source} GEX of ${ddmm(rg.date)}: percentile ${fmtNum(rg.pct, 0)} of the last year (quintile ${rg.q} of 5). ` +
+    `Since ${rg.since.slice(0, 4)}, in this regime the SPX closed outside the implied 1σ move on ${share(rg.breaks)} of sessions (all sessions: ${share(rg.all.breaks)}), ` +
+    `and 68.3% of closes stayed within ${fmtNum(rg.ratio, 2)}× the implied move (all sessions: ${fmtNum(rg.all.ratio, 2)}×). ` +
+    `Implied volatility usually overstates the move; low gamma narrows that gap, high gamma widens it. Calibrated with the VIX, applied here to the options-implied range.`;
+  el.hidden = false;
+}
 function rangeLabel(em) { return em ? (em.partial ? `rest of ${sessLabel(em.session)}` : sessLabel(em.session)) : "1 session"; }
 
 function emBand(d, xOf, top, bottom, small, left, right) {
@@ -1179,6 +1208,7 @@ function paintSide(d) {
   $("emRange").textContent = em ? `${fmtSpot(em.lo)} – ${fmtSpot(em.hi)}${m5 ? ` (5 sessions ±${fmtNum(m5.pct, 2)}%)` : ""}` : "no ATM IV";
   $("emRange").title = `1 standard deviation range (68.3%) implied by options: ATM variance interpolated over market hours.` +
     (st ? ` ATM straddle for ${ddmm(st.expiry)}: ±${fmtNum(st.pct, 2)}% (average move, ≈ 0.8σ).` : "");
+  paintEmRegime(d, em);
   const vf = t.vanna_flow, cf = t.charm_flow;
   $("vannaVal").textContent = fmtBig(Math.abs(vf), true);
   $("vannaSub").textContent = vf >= 0 ? "hedge buying" : "hedge selling";

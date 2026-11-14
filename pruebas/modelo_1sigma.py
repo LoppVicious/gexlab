@@ -11,7 +11,7 @@ Regresión logística por Newton (macro.logit_fit). Entrena en 2012-2019 y prueb
 referencias: la frecuencia fija de entrenamiento y una logística solo con log VIX. Se comparan Brier y log-loss
 fuera de muestra, y la calibración por deciles. Sin eventos macro: no hay calendario histórico anterior a 2026.
 
-Uso: python pruebas/modelo_1sigma.py"""
+Uso: python pruebas/modelo_1sigma.py [precio vol]   (por defecto SPX VIX; p. ej. QQQ VXN)"""
 import os
 import sys
 
@@ -23,11 +23,21 @@ import macro  # noqa: E402
 CORTE = "2020-01-01"
 
 
-def main():
-    X, y, f, nombres = macro.datos_1sigma()
+def main(precio="SPX", vol="VIX"):
+    X, y, f, nombres = macro.datos_1sigma(precio, vol)
     tr, te = f < CORTE, f >= CORTE
-    print(f"días: {len(y)} ({f[0]} a {f[-1]}); entrenamiento {int(tr.sum())}, prueba {int(te.sum())}; "
-          f"rompe el 1σ: {y[tr].mean():.1%} / {y[te].mean():.1%}")
+    print(f"{precio} con {vol}. días: {len(y)} ({f[0]} a {f[-1]}); entrenamiento {int(tr.sum())}, prueba "
+          f"{int(te.sum())}; rompe el 1σ: {y[tr].mean():.1%} / {y[te].mean():.1%}")
+    # lo que usa el rango ajustado: por quintil del GEX del SPX, % de días fuera del 1σ (toda la historia)
+    q = np.minimum(4, (X[:, nombres.index("gex")] * 5).astype(int))
+    print("por quintil del GEX del SPX: " + ", ".join(f"Q{k + 1} {y[q == k].mean():.1%}" for k in range(5)))
+    i2 = [nombres.index(c) for c in macro.SIGMA1_MODELO]
+    m2 = macro.logit_fit(X[tr][:, i2], y[tr])
+    b2m = np.mean((macro.logit_prob(X[te][:, i2], m2) - y[te]) ** 2)
+    m2r = macro.logit_fit(X[te][:, i2], y[te])
+    b2r = np.mean((macro.logit_prob(X[tr][:, i2], m2r) - y[tr]) ** 2)
+    print(f"modelo publicado ({', '.join(macro.SIGMA1_MODELO)}): Brier {b2m:.4f} en 2020-hoy "
+          f"(fija {np.mean((y[tr].mean() - y[te]) ** 2):.4f}); al revés {b2r:.4f} (fija {np.mean((y[te].mean() - y[tr]) ** 2):.4f})")
 
     def evalua(nombre, p):
         p = np.clip(p, 1e-6, 1 - 1e-6)
@@ -60,4 +70,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(*sys.argv[1:3])

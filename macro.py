@@ -744,27 +744,39 @@ def _gamma_regime() -> dict:
     dias que cerraron fuera del rango implicito. Estudio completo: pruebas/regimen_gamma.py."""
     fechas, G, pct = _gex_percentil()
     quint = {fechas[k]: int(min(4, pct[k] * 5)) for k in range(REG_VENTANA, len(G))}
+    hoy = quint[fechas[-1]]
+    spx = _calibrar_quintiles("SPX", "VIX", quint, hoy)
+    # Nasdaq-100: el mismo régimen (GEX del SPX) calibrado con QQQ (CBOE no publica el histórico del NDX) y el VXN;
+    # en el estudio separa sus días casi igual que los del SPX (fuera del 1σ: 33,5 % con gamma muy baja, 13,1 % muy alta)
+    try:
+        ndx = {**_calibrar_quintiles("QQQ", "VXN", quint, hoy), "proxy": "QQQ", "vol": "VXN"}
+    except Exception:  # noqa: BLE001  (sin históricos del Nasdaq, el SPX sigue)
+        ndx = None
+    return {"date": fechas[-1], "gex": float(G[-1]), "pct": round(float(pct[-1]) * 100, 1), "q": hoy + 1, **spx,
+            "since": fechas[REG_VENTANA], "source": "SqueezeMetrics", "ndx": ndx}
 
-    spx, _ = g.history_ohlc("SPX")
-    vix, _ = g.history_ohlc("VIX")
-    dias = sorted(set(spx) & set(vix))
+
+def _calibrar_quintiles(precio: str, vol: str, quint: dict[str, int], hoy: int) -> dict:
+    """Por quintil del GEX del día anterior: cuantil 68,3 % de |rendimiento| / sigma de `vol` (`ratio`) y fracción de
+    cierres fuera del 1σ (`breaks`), más la probabilidad de la sesión siguiente (`p1s`)."""
+    px, _ = g.history_ohlc(precio)
+    vv, _ = g.history_ohlc(vol)
+    dias = sorted(set(px) & set(vv))
     z, q = [], []
     for a, b in zip(dias, dias[1:]):
-        if a not in quint or spx[a][3] <= 0 or vix[a][3] <= 0:
+        if a not in quint or px[a][3] <= 0 or vv[a][3] <= 0:
             continue
-        sig = vix[a][3] / 100 / np.sqrt(252)
-        z.append(abs(np.log(spx[b][3] / spx[a][3])) / sig)
+        sig = vv[a][3] / 100 / np.sqrt(252)
+        z.append(abs(np.log(px[b][3] / px[a][3])) / sig)
         q.append(quint[a])
     z, q = np.array(z), np.array(q)
     grupos = [{"q": k + 1, "n": int((q == k).sum()),
                "ratio": round(float(np.quantile(z[q == k], REG_SIGMA)), 3),
                "breaks": round(float((z[q == k] > 1).mean()), 4)} for k in range(5)]
-    hoy = quint[fechas[-1]]
-    return {"date": fechas[-1], "gex": float(G[-1]), "pct": round(float(pct[-1]) * 100, 1), "q": hoy + 1,
-            "ratio": grupos[hoy]["ratio"], "breaks": grupos[hoy]["breaks"],
+    return {"ratio": grupos[hoy]["ratio"], "breaks": grupos[hoy]["breaks"],
             "all": {"n": int(len(z)), "ratio": round(float(np.quantile(z, REG_SIGMA)), 3),
                     "breaks": round(float((z > 1).mean()), 4)},
-            "groups": grupos, "since": fechas[REG_VENTANA], "source": "SqueezeMetrics", "p1s": prob_1sigma()}
+            "groups": grupos, "p1s": prob_1sigma(precio, vol)}
 
 
 # ---------------------------------------------------------------- régimen de la curva del VIX
@@ -837,20 +849,20 @@ SIGMA1_VARS = ["gex", "r9", "r3", "rv5", "lvix"]
 SIGMA1_MODELO = ["gex", "r9"]
 
 
-def datos_1sigma() -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
-    """Filas (variables del cierre de t-1), objetivo (el SPX cerró en t fuera del 1σ del VIX de t-1) y fechas t. La
-    última fila de `hoy` (atributo de la función tras llamarla) son las variables del último cierre, para la sesión
-    siguiente. Variables en SIGMA1_VARS; estudio en pruebas/modelo_1sigma.py."""
+def datos_1sigma(precio: str = "SPX", vol: str = "VIX") -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    """Filas (variables del cierre de t-1), objetivo (`precio` cerró en t fuera del 1σ de `vol` en t-1: el SPX con el
+    VIX, el QQQ con el VXN) y fechas t. El GEX es siempre el del SPX (SqueezeMetrics) y la curva, la del VIX; `lvix`
+    es el log de `vol`. Variables en SIGMA1_VARS; estudio en pruebas/modelo_1sigma.py."""
     fg, _, pg = _gex_percentil()
     gex = {f: p for f, p in zip(fg, pg) if np.isfinite(p)}
 
     def cierres(sym):
         d, _ = g.history_ohlc(sym)
         return {k: v[3] for k, v in d.items() if v[3] > 0}
-    spx, vix, v3, v9 = (cierres(s) for s in ("SPX", "VIX", "VIX3M", "VIX9D"))
-    dias = [f for f in sorted(spx) if f in vix and f in v3 and f in v9 and f in gex]
-    C = np.array([spx[f] for f in dias])
-    V = np.array([vix[f] for f in dias])
+    px, vix, v3, v9, vv = (cierres(s) for s in (precio, "VIX", "VIX3M", "VIX9D", vol))
+    dias = [f for f in sorted(px) if f in vix and f in v3 and f in v9 and f in gex and f in vv]
+    C = np.array([px[f] for f in dias])
+    V = np.array([vv[f] for f in dias])
     sig = V / 100 / np.sqrt(252)
     ar = np.abs(np.r_[np.nan, np.diff(np.log(C))])
     filas = []
@@ -859,8 +871,18 @@ def datos_1sigma() -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
         filas.append([gex[f], v9[f] / vix[f], vix[f] / v3[f], np.mean(ar[i - 4:i + 1]) / sig[i], np.log(V[i])])
     Xall = np.array(filas)                       # fila k: variables del cierre de dias[k + 5]
     X, Y, F = Xall[:-1], (ar[6:] > sig[5:-1]).astype(float), np.array(dias[6:])
-    datos_1sigma.hoy = (dias[-1], Xall[-1])
     return X, Y, F, list(SIGMA1_VARS)
+
+
+def _vars_hoy() -> tuple[str, dict[str, float]]:
+    """Variables de SIGMA1_MODELO del último cierre con GEX y curva del VIX (no dependen del subyacente: el histórico
+    de QQQ llega con una sesión de retraso)."""
+    fg, _, pg = _gex_percentil()
+    fecha, p = next((f, x) for f, x in zip(reversed(fg), reversed(pg)) if np.isfinite(x))
+    q = {s: (g.history_ohlc(s)[0].get(fecha) or (0, 0, 0, 0))[3] for s in ("VIX", "VIX9D", "VIX3M")}
+    if not all(q.values()):
+        raise LookupError(f"no VIX family close for {fecha}")
+    return fecha, {"gex": float(p), "r9": q["VIX9D"] / q["VIX"], "r3": q["VIX"] / q["VIX3M"]}
 
 
 def logit_fit(X: np.ndarray, y: np.ndarray, l2: float = 1e-3, iters: int = 50) -> dict:
@@ -884,18 +906,19 @@ def logit_prob(X: np.ndarray, m: dict) -> np.ndarray:
     return 1 / (1 + np.exp(-Z @ m["w"]))
 
 
-def prob_1sigma() -> dict | None:
-    """Probabilidad de que el SPX cierre la sesión siguiente fuera del 1σ del VIX, con la logística de SIGMA1_MODELO
-    ajustada con toda la historia. `base`: frecuencia de toda la historia; `p10`/`p90`: rango habitual del modelo."""
+def prob_1sigma(precio: str = "SPX", vol: str = "VIX") -> dict | None:
+    """Probabilidad de que `precio` cierre la sesión siguiente fuera del 1σ de `vol`, con la logística de
+    SIGMA1_MODELO ajustada con toda la historia. `base`: frecuencia de toda la historia; `p10`/`p90`: rango
+    habitual del modelo."""
     try:
-        X, y, f, nombres = datos_1sigma()
+        X, y, f, nombres = datos_1sigma(precio, vol)
+        fecha, hoy = _vars_hoy()
     except Exception:  # noqa: BLE001  (sin históricos la línea del Equity Hub sigue sin la probabilidad)
         return None
     i = [nombres.index(c) for c in SIGMA1_MODELO]
     m = logit_fit(X[:, i], y)
-    fecha, xh = datos_1sigma.hoy
-    p = float(logit_prob(xh[i][None, :], m)[0])
+    p = float(logit_prob(np.array([[hoy[c] for c in SIGMA1_MODELO]]), m)[0])
     ph = logit_prob(X[:, i], m)
     return {"p": round(p, 4), "date": fecha, "base": round(float(y.mean()), 4),
             "p10": round(float(np.quantile(ph, 0.1)), 4), "p90": round(float(np.quantile(ph, 0.9)), 4),
-            "vars": {c: round(float(xh[nombres.index(c)]), 4) for c in SIGMA1_MODELO}, "since": str(f[0])}
+            "vars": {c: round(hoy[c], 4) for c in SIGMA1_MODELO}, "since": str(f[0])}

@@ -11,6 +11,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   dos datos, la gamma del SPX y la parte corta de la curva del VIX (VIX9D/VIX), que se probó con años que no había
   visto: acierta más que el porcentaje fijo y está bien calibrado (los días a los que da un 8 % rompieron el 7,5 % de
   las veces; los de un 40 %, el 37 %). En rojo si es claramente mayor de lo normal, en violeta si es menor.
+- **Equity Hub, rango ajustado y probabilidad del 1σ también en NDX, QQQ y XND:** la gamma del SPX separa también los
+  días del Nasdaq (fuera del 1σ del VXN el 33,5 % de las sesiones con gamma muy baja y el 13,1 % con muy alta), así
+  que se aplica con su propia calibración (QQQ y VXN desde 2012). El Russell (RUT, IWM) no la tiene: CBOE no publica
+  la historia de su índice de volatilidad.
 - **VIX curve, "SPX after similar curves":** qué hizo el SPX desde 2009 tras cada tramo de VIX/VIX3M (rendimiento
   medio a 20 sesiones, % de veces al alza y volatilidad realizada siguiente menos el VIX), con el tramo de hoy
   resaltado. Cuanto más plana o invertida la curva, mejor fue el SPX después (+0,5 % con contango profundo, +2,8 % en

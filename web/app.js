@@ -684,8 +684,10 @@ function syncRange(d) {
 function move1(d) { return d.moves && d.moves.d1; }
 function sessLabel(iso) { return iso ? `${DIAS_SEM[new Date(iso + "T12:00:00").getDay()]} ${+iso.slice(8, 10)}` : ""; }
 // Regimen de gamma del SPX (GEX de SqueezeMetrics, /api/regimen): corrige el rango implicito de 1σ con lo que de
-// verdad se movio el SPX desde 2012 en cada quintil del GEX (estudio en pruebas/regimen_gamma.py). Solo familia S&P 500.
-const EM_REG_SYMS = new Set(["SPX", "SPY", "XSP"]);
+// verdad se movio cada indice desde 2012 en cada quintil del GEX (estudio en pruebas/regimen_gamma.py) y da la
+// probabilidad de cerrar fuera del 1σ (pruebas/modelo_1sigma.py). S&P 500 calibrado con el SPX y el VIX; Nasdaq-100
+// con el mismo GEX del SPX, calibrado con QQQ y el VXN (bloque `ndx`). El Russell no: CBOE no da historico del RVX.
+const EM_REG_SYMS = { SPX: "spx", SPY: "spx", XSP: "spx", NDX: "ndx", QQQ: "ndx", XND: "ndx" };
 const EM_REG_NAMES = ["very low", "low", "average", "high", "very high"];
 let emRegData = null, emRegAt = 0;
 async function emRegimeData() {
@@ -699,24 +701,32 @@ async function emRegimeData() {
 async function paintEmRegime(d, em) {
   const el = $("emRegime");
   el.hidden = true;
-  if (!em || !em.session || !EM_REG_SYMS.has(d.symbol)) return;
+  const fam = EM_REG_SYMS[d.symbol];
+  if (!em || !em.session || !fam) return;
   const rg = await emRegimeData();
   // el GEX de una fecha vale para la sesion siguiente; si es de hace mas de una semana, no se usa
   if (!rg || !rg.ratio || state.data !== d || !(rg.date < em.session) || Date.parse(em.session) - Date.parse(rg.date) > 6 * 864e5) return;
-  const pct = em.pct * rg.ratio, lo = d.spot * (1 - pct / 100), hi = d.spot * (1 + pct / 100);
+  const c = fam === "ndx" ? rg.ndx : rg;               // calibracion del indice (el regimen es el mismo)
+  if (!c || !c.ratio) return;
+  const idx = fam === "ndx" ? "Nasdaq-100" : "SPX", volIdx = fam === "ndx" ? "VXN" : "VIX";
+  const pct = em.pct * c.ratio, lo = d.spot * (1 - pct / 100), hi = d.spot * (1 + pct / 100);
   const share = (v) => `${fmtNum(v * 100, 0)}%`;
   el.innerHTML = `SqueezeMetrics gamma <b class="${rg.q <= 2 ? "neg" : rg.q >= 4 ? "pos" : ""}">${EM_REG_NAMES[rg.q - 1]}</b>: ±${fmtNum(pct, 2)}% <span class="nw">(${fmtSpot(lo)} – ${fmtSpot(hi)})</span>`;
   el.title = `1σ range adjusted for the SPX gamma regime, from the ${rg.source} GEX of ${ddmm(rg.date)}: percentile ${fmtNum(rg.pct, 0)} of the last year (quintile ${rg.q} of 5). ` +
-    `Since ${rg.since.slice(0, 4)}, in this regime the SPX closed outside the implied 1σ move on ${share(rg.breaks)} of sessions (all sessions: ${share(rg.all.breaks)}), ` +
-    `and 68.3% of closes stayed within ${fmtNum(rg.ratio, 2)}× the implied move (all sessions: ${fmtNum(rg.all.ratio, 2)}×). ` +
-    `Implied volatility usually overstates the move; low gamma narrows that gap, high gamma widens it. Calibrated with the VIX, applied here to the options-implied range.`;
+    (fam === "ndx" ? `The Nasdaq-100 uses the same SPX gamma, calibrated with QQQ and the VXN (CBOE publishes no NDX history; QQQ tracks it). ` : "") +
+    `Since ${rg.since.slice(0, 4)}, in this regime the ${idx} closed outside its implied 1σ move on ${share(c.breaks)} of sessions (all sessions: ${share(c.all.breaks)}), ` +
+    `and 68.3% of closes stayed within ${fmtNum(c.ratio, 2)}× the implied move (all sessions: ${fmtNum(c.all.ratio, 2)}×). ` +
+    `Implied volatility usually overstates the move; low gamma narrows that gap, high gamma widens it. Calibrated with the ${volIdx}, applied here to the options-implied range.`;
   // probabilidad de cerrar fuera del 1σ (macro.prob_1sigma): logistica con el GEX y VIX9D/VIX, validada fuera de muestra
-  const p1 = rg.p1s;
+  const p1 = c.p1s;
   if (p1 && p1.date === rg.date) {
     const hiP = p1.p >= p1.base * 1.25, loP = p1.p <= p1.base * 0.75;
     el.innerHTML += `<br>Chance of closing outside 1σ: <b class="${hiP ? "neg" : loP ? "pos" : ""}">${share(p1.p)}</b> <span class="nw">(usually ${share(p1.base)})</span>`;
-    el.title += ` Chance of closing outside the VIX 1σ move in the next session: a logistic model on the GEX percentile and VIX9D / VIX (${fmtNum(p1.vars.r9, 2)} today), fitted on all sessions since ${p1.since.slice(0, 4)}. ` +
-      `Trained on 2012-2019 it beat the fixed ${share(p1.base)} on 2020-2026 and the other way round, and it stays calibrated: days given 8% broke 7.5% of the time, days given 40% broke 37%. It ranges between ${share(p1.p10)} and ${share(p1.p90)} on 9 days out of 10. No macro events in the model.`;
+    el.title += ` Chance of closing outside the ${volIdx} 1σ move in the next session: a logistic model on the SPX GEX percentile and VIX9D / VIX (${fmtNum(p1.vars.r9, 2)} today), fitted on all sessions since ${p1.since.slice(0, 4)}. ` +
+      (fam === "ndx"
+        ? `Trained on 2012-2019 it beat the fixed ${share(p1.base)} on 2020-2026 and the other way round (about 3.5% better Brier). `
+        : `Trained on 2012-2019 it beat the fixed ${share(p1.base)} on 2020-2026 and the other way round, and it stays calibrated: days given 8% broke 7.5% of the time, days given 40% broke 37%. `) +
+      `It ranges between ${share(p1.p10)} and ${share(p1.p90)} on 9 days out of 10. No macro events in the model.`;
   }
   el.hidden = false;
 }

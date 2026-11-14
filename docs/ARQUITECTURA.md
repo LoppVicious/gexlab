@@ -214,6 +214,10 @@ Los dos:
   (`datos_1sigma`). Estudio fuera de muestra con las cinco variables candidatas: `pruebas/modelo_1sigma.py` (Brier
   0,1469 frente a 0,1539 de la frecuencia fija en 2020-hoy entrenando con 2012-2019; aguanta al revés y está
   calibrado). Sin eventos macro: no hay calendario histórico anterior a 2026.
+  `ndx`: el mismo régimen (GEX del SPX) calibrado con QQQ y el VXN (`_calibrar_quintiles`, `prob_1sigma("QQQ", "VXN")`;
+  CBOE no publica el histórico del NDX); la web lo aplica a NDX, QQQ y XND. Fuera del 1σ del VXN: 33,5 % con gamma
+  muy baja, 13,1 % muy alta; Brier 0,1745 frente a 0,1805 (y al revés 0,1606 frente a 0,1668). El Russell no tiene:
+  CBOE no da histórico del RVX. Las variables del día (`_vars_hoy`) solo usan el GEX y la familia VIX.
 - **Régimen de la curva del VIX** (`macro.curva_tramos`, campo `regime` de `vix_curve`, `renderVixRegime`): con los
   cierres de CBOE (VIX3M desde 2009, VIX9D desde 2011), por tramos de VIX/VIX3M y de VIX9D/VIX, rendimiento del SPX a 5
   y 20 sesiones, % al alza y volatilidad realizada de las 20 sesiones siguientes menos el VIX; `q3`/`q9`: tramo de hoy

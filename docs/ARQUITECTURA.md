@@ -186,7 +186,9 @@ Los dos:
 - **Señales de skew** (`skew.py`, `pub/skew.json`, `/api/skew`, `web/skewsig.js`, página Skew signal): tres señales
   transversales sobre las acciones del historial diario, con la cadena del cierre de `hist500` (skew y call-put, en el
   mensual estándar más cercano a 30 días entre 14 y 60: los semanales de acciones poco líquidas daban alas absurdas):
-  - put skew = IV put 25Δ − ATM (Xing, Zhang y Zhao, 2010; se espera IC negativo);
+  - put skew = IV put 25Δ − ATM, solo con contratos de horquilla de como mucho el 35 % (`SK_HORQUILLA`; el
+    vencimiento se elige con la cadena completa) (Xing, Zhang y Zhao, 2010; se espera IC negativo). Sin el filtro,
+    GILD salía primera (+5,0) con puts de horquilla del 61 %;
   - call − put = media ponderada por OI de IV call − IV put del mismo strike a ±5 % del spot, solo con horquilla de
     como mucho el 25 % en las dos patas (Cremers y Weinbaum, 2010; se espera IC positivo). Usa la IV de CBOE
     (`iv_raw`): la del motor sale del forward por paridad y la diferencia es cero por construcción; con un forward

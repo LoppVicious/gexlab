@@ -3,7 +3,8 @@
 Son señales transversales: ordenan las acciones del historial diario entre sí cada sesión; no predicen el mercado.
 
   skew de puts (Xing, Zhang y Zhao, 2010): cuando las puts fuera de dinero se encarecen frente a las de en el
-    dinero, alguien paga por protección y la acción tiende a ir peor que las demás. skew = IV put 25 delta − IV ATM.
+    dinero, alguien paga por protección y la acción tiende a ir peor que las demás. skew = IV put 25 delta − IV ATM,
+    solo con contratos de horquilla estrecha (SK_HORQUILLA).
     Hipótesis: IC negativo.
   diferencia call-put (Cremers y Weinbaum, 2010): media ponderada por OI de IV call − IV put del mismo strike, en
     strikes a ±5 % del spot con horquilla de como mucho el 25 % en las dos patas. Si las calls están caras frente a
@@ -43,6 +44,10 @@ DIAS_MIN, DIAS_MAX = 14, 60     # ventana del vencimiento mensual (días natural
 CP_BANDA = 0.05                 # strikes a ±5 % del spot para la diferencia call-put
 CP_HORQUILLA = 0.25             # horquilla máxima de cada pata, en fracción del punto medio
 CP_MIN_PARES = 2
+# horquilla máxima de los contratos del skew: las puts lejanas son baratas y su horquilla relativa es mayor, por eso
+# más holgada que la de call-put. Con 0,35 se quedan sin lectura GILD, HON, NTES, XPEV, PM, JD, BIDU y BKNG (alas de
+# opciones poco líquidas) y las líquidas no cambian; con 0,25 caían también PEP, AMGN, TMUS o FTNT
+SK_HORQUILLA = 0.35
 CAMBIO = 5                      # sesiones para el cambio
 HORIZONTES = (5, 20)            # sesiones de la prueba en adelante
 MIN_TICKERS = 20                # acciones mínimas para puntuar una sesión
@@ -92,15 +97,26 @@ def _call_put(ch: dict, dia: str, spot: float) -> float | None:
     return round(num / den, 5) if n >= CP_MIN_PARES and den > 0 else None
 
 
+def _estrechas(ch: dict, maximo: float) -> dict:
+    """La cadena solo con los contratos cotizados con horquilla de como mucho `maximo` del punto medio."""
+    b, a = ch["bid"], ch["ask"]
+    m = (b > 0) & (a >= b) & ((a - b) <= maximo * (a + b) / 2)
+    n = len(m)
+    return {k: (x[m] if isinstance(x, np.ndarray) and x.shape[:1] == (n,) else x) for k, x in ch.items()}
+
+
 def punto(ch: dict, spot: float, now: datetime) -> list | None:
-    """[IV ATM, IV put 25 delta, IV call − IV put] del mensual más cercano a 30 días (None donde no se puede)."""
+    """[IV ATM, IV put 25 delta, IV call − IV put] del mensual más cercano a 30 días (None donde no se puede).
+    El vencimiento se elige con la cadena completa; el skew sale solo de contratos con horquilla de como mucho
+    SK_HORQUILLA (si no quedan strikes suficientes, sin lectura)."""
     sm = [s for s in volatilidad.smiles_from_chain(ch, spot, now)
           if s.get("monthly") and DIAS_MIN <= s["dte"] <= DIAS_MAX]
     if not sm:
         return None
-    s = min(sm, key=lambda x: abs(x["dte"] - 30))
-    atm, p25 = volatilidad.atm_iv(s, spot), volatilidad.iv_at_delta(s, -0.25)
-    cp = _call_put(ch, s["exp"], spot) if "iv_raw" in ch else None
+    exp = min(sm, key=lambda x: abs(x["dte"] - 30))["exp"]
+    s = next((x for x in volatilidad.smiles_from_chain(_estrechas(ch, SK_HORQUILLA), spot, now) if x["exp"] == exp), None)
+    atm, p25 = (volatilidad.atm_iv(s, spot), volatilidad.iv_at_delta(s, -0.25)) if s else (None, None)
+    cp = _call_put(ch, exp, spot) if "iv_raw" in ch else None
     out = [round(atm, 5) if atm else None, round(p25, 5) if p25 else None, cp]
     return out if any(x is not None for x in out) else None
 

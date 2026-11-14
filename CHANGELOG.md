@@ -19,7 +19,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   informada, y la investigación (Cremers y Weinbaum, 2010) encuentra que esas acciones van mejor que el resto. Tiene
   su propia prueba en adelante; la columna de lectura va en el sentido que espera cada estudio. Solo cuenta strikes a
   ±5 % del precio con horquilla estrecha en la call y en la put: las acciones con opciones poco líquidas (GILD, BKNG,
-  HON, JD, T) se quedan sin lectura en lugar de dar ruido.
+  HON, JD, T) se quedan sin lectura en lugar de dar ruido. El put skew aplica el mismo criterio (horquilla de como
+  mucho el 35 %, más holgada porque las puts lejanas son baratas): GILD salía primera con puts de horquilla del 61 %.
 - **Skew signal, tercera señal: Options volume (O/S):** contratos de opciones negociados × 100 frente a acciones
   negociadas en el día. Quien tiene malas noticias suele operar con opciones, porque ponerse corto en la acción
   cuesta más, y la investigación (Johnson y So, 2012) encuentra que las acciones con O/S alto van peor que el resto.

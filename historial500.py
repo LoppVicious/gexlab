@@ -259,15 +259,9 @@ def leer_indice(st, sym: str) -> dict:
         return {}
 
 
-def publicar_skew(st) -> None:
+def publicar_skew(st, guardados: list[str] | None = None) -> None:
     try:
-        lista = []
-        for a in lista_tickers(st)[0]:
-            try:
-                lista.append(g.normalize(a))
-            except ValueError:
-                pass
-        r = skew.publicar(st, lista)
+        r = skew.publicar(st, guardados)
         if r:
             log(f"skew: {r['stocks']} acciones el {r['date']}, sin lectura {len(r['missing'])}; " + "; ".join(
                 f"{k}: {v['sessions']} sesiones, " + ", ".join(f"{h}d {e['n']} evaluadas" for h, e in v["eval"].items())
@@ -374,7 +368,7 @@ def main(args: list[str]) -> int:
     if puntos:
         try:
             log(f"skew: {len(puntos)} tickers, indice con {skew.actualizar(st, sesion, puntos)} sesiones")
-            publicar_skew(st)
+            publicar_skew(st, ok)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
     borrados = podar(st, sesion)

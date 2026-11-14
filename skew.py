@@ -236,10 +236,14 @@ def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | N
             "change_days": CAMBIO, "min_sessions": MIN_FECHAS}
 
 
-def publicar(st, lista: list[str] | None = None) -> dict | None:
+def publicar(st, guardados: list[str] | None = None) -> dict | None:
+    """Las acciones "sin lectura" son las que el historial guardó en la última sesión (hist500/_dias/, campo ok) y no
+    dan valor; las añadidas a la lista que aún no tienen ningún día guardado no cuentan."""
     idx = almacen.get_json(st, INDICE) or {}
     if not idx:
         return None
-    res = calcular(idx, dict(g.load_symbols()), lista)
+    if guardados is None:
+        guardados = (almacen.get_json(st, f"hist500/_dias/{max(idx)}.json") or {}).get("ok")
+    res = calcular(idx, dict(g.load_symbols()), guardados)
     almacen.put_json(st, "pub/skew.json", res)
     return res

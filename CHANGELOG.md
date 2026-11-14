@@ -36,8 +36,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   cada refresco (fallaba cada 10 minutos y mandaba un correo de error de GitHub cada vez); al añadirlo a una lista,
   no se añade y sale un aviso.
 - **Skew signal:** la tabla ocupaba solo la mitad del alto en pantallas anchas (la nota del pie se quedaba con la otra
-  mitad), y EWY, un ETF, salía como acción. Al pie se listan ahora las acciones de la lista sin lectura ese día
-  (opciones demasiado finas o sin strikes útiles en el mensual, como NIO a menos de 3 $), para que cuadre el número.
+  mitad), y EWY, un ETF, salía como acción. Al pie se listan ahora las acciones guardadas ese día que no dan lectura
+  (opciones demasiado finas o sin strikes útiles en el mensual, como NIO a menos de 3 $), para que cuadre el número;
+  las recién añadidas a la lista no cuentan hasta su primer día guardado.
 
 ## 2026-11-13 — Founder Takes y report semanal
 

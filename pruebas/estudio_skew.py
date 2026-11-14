@@ -22,6 +22,11 @@ if idx:
         print(f"{k} (signo esperado {sg['sign']:+d}): {sg['sessions']} sesiones puntuadas")
         for h, e in sg["eval"].items():
             print(f"  {h} sesiones: {e}")
+        dg = sg.get("diag") or {}
+        print(f"  diagnóstico: correlación con el rendimiento de las {skew.CAMBIO} sesiones previas {dg.get('past')}")
+        for parte in ("level", "change", "neutral"):
+            for h, e in (dg.get(parte) or {}).items():
+                print(f"    {parte} {h}: IC {e['ic']} t {e['t']} n {e['n']}/{e['need']}")
         filas = sorted((x for x in r["rows"] if k in x), key=lambda x: -x[k]["score"])
         fmt = lambda x: f"{x['sym']} {x[k]['v'] * 100:+.1f}"  # noqa: E731
         print("  arriba:", ", ".join(fmt(x) for x in filas[:8]))

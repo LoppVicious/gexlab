@@ -199,7 +199,12 @@ Los dos:
     negativo).
   Puntuación = media de los percentiles transversales del nivel y de su cambio en 5 sesiones; solo acciones (fuera
   índices, VIX y ETF, por el nombre del directorio de símbolos). Prueba en adelante con los cierres del índice: IC de
-  rangos a 5 y 20 sesiones (t de Newey-West) y diferencial entre quintiles; veredicto desde 20 sesiones evaluadas.
+  rangos a 10 y 40 sesiones (plazos de swing; t de Newey-West) y diferencial entre quintiles; veredicto desde 20
+  sesiones evaluadas y nunca menos que el horizonte (`need`: 40 a 40 sesiones, porque las ventanas se solapan).
+  Diagnóstico (`diag`, solo en el JSON y en `pruebas/estudio_skew.py`): la misma prueba solo con el nivel (`level`),
+  solo con el cambio (`change`) y con la puntuación neutralizada por el rendimiento de las 5 sesiones previas
+  (`neutral`, residuo de la regresión transversal de rangos), y `past`, la correlación media entre puntuación y ese
+  rendimiento previo. Sirve para saber si una señal que va al revés es solo reversión a corto plazo.
   `missing`: acciones de la lista sin lectura ese día. La publica `historial500.py` tras cada cierre.
   Consenso (`consenso`, `combinar`, señal `combo`, pestaña por defecto): cada señal vota alcista o bajista si está en
   los dos quintiles extremos de su lado; hay coincidencia (`match`) con al menos dos votos en el mismo sentido y

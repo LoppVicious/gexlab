@@ -4,7 +4,8 @@
    acciones del historial diario, en el mensual mas cercano a 30 dias:
      skew: IV put 25 delta − ATM; la hipotesis espera IC negativo (puts caras, la accion va peor)
      cp:   IV call − IV put del mismo strike (CBOE, ponderada por OI); la hipotesis espera IC positivo
-   Cada una con su puntuacion (nivel y cambio en 5 sesiones) y su prueba en adelante a 5 y 20 sesiones.
+   Cada una con su puntuacion (nivel y cambio en 5 sesiones) y su prueba en adelante a los horizontes que trae el
+   JSON (claves de `eval`; hoy 10 y 40 sesiones).
    A la izquierda la prueba de la señal elegida; a la derecha el ranking de hoy.
    Nombres con prefijo ssk/SigSkew: vol.js ya usa renderSkew. */
 
@@ -71,8 +72,9 @@ function renderSigSkew() {
   document.querySelectorAll("#sskSeg button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === key)));
 
   // prueba en adelante: "funciona" si el IC va en el sentido de la hipotesis con t de al menos 2
-  const e5 = sg.eval["5"], e20 = sg.eval["20"], need = d.min_sessions;
-  const ok = e20.enough || e5.enough, ev = e20.enough ? e20 : e5;
+  const hs = Object.keys(sg.eval).map(Number).sort((a, b) => a - b);
+  const eS = sg.eval[hs[0]], eL = sg.eval[hs[hs.length - 1]], need = (e) => e.need ?? d.min_sessions;
+  const ok = eL.enough || eS.enough, ev = eL.enough ? eL : eS;
   const right = ok && ev.ic * sg.sign > 0, works = right && ev.t != null && ev.t * sg.sign >= 2;
   $("sskTitle").textContent = `${cfg.name}, forward test`;
   const st = $("sskState");
@@ -82,7 +84,7 @@ function renderSigSkew() {
   const sd = sg.date || d.date, rowsN = d.rows.filter((r) => r[key]).length;
   $("sskSub").textContent = `${rowsN} stocks, close of ${longDate(sd)}${sd !== d.date ? " (the share volume of " + ddmm(d.date) + " is not out yet)" : ""}. ${sg.sessions} session${sg.sessions === 1 ? "" : "s"} scored${sg.first ? " since " + ddmm(sg.first) : ""}`;
   $("sskRead").textContent = !ok
-    ? `The forward test needs ${need} evaluated sessions per horizon before it says anything: today ${e5.n} at 5 sessions and ${e20.n} at 20. Until then the ranking is a watch list, not a signal.`
+    ? `The forward test needs ${need(eS)} evaluated sessions at ${hs[0]} sessions and ${need(eL)} at ${hs[hs.length - 1]} before it says anything: today ${eS.n} and ${eL.n}. Until then the ranking is a watch list, not a signal.`
     : works ? cfg.works
       : `In our own data this signal has not ${right ? "been strong enough yet" : "pointed the way the research expects"}. Treat the ranking as context, not as a signal.`;
   const want = sg.sign < 0 ? "negative" : "positive";
@@ -90,10 +92,10 @@ function renderSigSkew() {
     const v = e.n ? `IC ${sskSigned(e.ic, 3)}` : "—";
     // la t con pocas sesiones solapadas no significa nada: solo se muestra con el minimo de la prueba
     const s = e.n ? `${e.n} session${e.n === 1 ? "" : "s"}${e.enough && e.t != null ? `, t ${fmtNum(e.t, 1)}` : ", too few to judge"}. Top − bottom quintile: ${sskSigned(e.spread * 100, 2)}%`
-      : `no sessions evaluated yet (needs ${need})`;
+      : `no sessions evaluated yet (needs ${need(e)})`;
     return `<div class="fact"><span class="fl">${l}</span><strong>${v}</strong><span class="fs${e.n && !e.enough ? " warn" : ""}">${s}</span></div>`;
   };
-  $("sskFacts").innerHTML = fact("Next 5 sessions", e5) + fact("Next 20 sessions", e20) +
+  $("sskFacts").innerHTML = fact(`Next ${hs[0]} sessions`, eS) + fact(`Next ${hs[hs.length - 1]} sessions`, eL) +
     (key === "combo"
       ? `<div class="fact"><span class="fl">If the signals add up</span><strong>IC positive</strong><span class="fs">the more bullish the combined score, the stronger the stock afterwards</span></div>`
       : `<div class="fact"><span class="fl">The research expects</span><strong>IC ${want}</strong><span class="fs">${sg.sign < 0 ? "a high score, then a weaker stock" : "a high score, then a stronger stock"}</span></div>`);

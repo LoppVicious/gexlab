@@ -26,8 +26,10 @@ Solo acciones: fuera índices, VIX y ETF.
 Índice: hist500/_skew.json.gz = {fecha: {SYM: [atm, put25, cierre, call−put, contratos, acciones]}} (None donde no
 se puede medir); se reconstruye con los días guardados (el volumen de la acción de días pasados, del histórico
 diario de CBOE). Prueba en adelante con los cierres del índice: IC = correlación de rangos entre
-puntuación y rendimiento a 5 y 20 sesiones, con t de Newey-West (las ventanas se solapan), y diferencial = quintil
-alto − quintil bajo. Publica pub/skew.json (/api/skew)."""
+puntuación y rendimiento a 10 y 40 sesiones (unas dos semanas y unos dos meses: plazos de swing), con t de Newey-West
+(las ventanas se solapan), y diferencial = quintil alto − quintil bajo. Diagnóstico por señal (`diag`): la misma prueba
+solo con el nivel, solo con el cambio y con la puntuación neutralizada por el rendimiento de las CAMBIO sesiones
+previas, para saber por qué falla una señal si falla. Publica pub/skew.json (/api/skew)."""
 from __future__ import annotations
 
 import re
@@ -49,9 +51,10 @@ CP_MIN_PARES = 2
 # opciones poco líquidas) y las líquidas no cambian; con 0,25 caían también PEP, AMGN, TMUS o FTNT
 SK_HORQUILLA = 0.35
 CAMBIO = 5                      # sesiones para el cambio
-HORIZONTES = (5, 20)            # sesiones de la prueba en adelante
+HORIZONTES = (10, 40)           # sesiones de la prueba en adelante: unas dos semanas y unos dos meses (swing)
 MIN_TICKERS = 20                # acciones mínimas para puntuar una sesión
-MIN_FECHAS = 20                 # sesiones evaluadas mínimas para dar un veredicto
+MIN_FECHAS = 20                 # sesiones evaluadas mínimas para dar un veredicto (y nunca menos que el horizonte:
+                                # las ventanas se solapan y a 40 sesiones, 20 serían media ventana independiente)
 SALTO = 0.5                     # |rendimiento| mayor: split o dato roto, fuera
 # señal: nivel por acción a partir de la fila del índice, y signo del IC que espera la hipótesis
 SENALES = {
@@ -210,8 +213,11 @@ def puntuaciones(idx: dict[str, dict], acciones: set[str], nivel) -> dict[str, d
         rc = np.full(len(syms), np.nan)
         if len(con) >= MIN_TICKERS:
             rc[con] = _pct(np.array([filas[syms[k]]["chg"] for k in con]))
-        for k, s in enumerate(syms):
+        for k, s in enumerate(syms):  # lv y ch: cada parte por separado, para el diagnóstico
             filas[s]["score"] = round(float(np.nanmean([rk[k], rc[k]])), 4)
+            filas[s]["lv"] = round(float(rk[k]), 4)
+            if not np.isnan(rc[k]):
+                filas[s]["ch"] = round(float(rc[k]), 4)
         out[f] = filas
     return out
 
@@ -240,12 +246,62 @@ def evaluar(idx: dict[str, dict], punt: dict[str, dict[str, dict]]) -> dict:
             difs.append(float(rt[sc >= q[1]].mean() - rt[sc <= q[0]].mean()))
             usadas.append(f)
         x = np.array(ics)
-        res[str(h)] = {"n": len(ics), "first": usadas[0] if usadas else None, "last": usadas[-1] if usadas else None,
+        need = max(MIN_FECHAS, h)
+        res[str(h)] = {"n": len(ics), "need": need, "first": usadas[0] if usadas else None, "last": usadas[-1] if usadas else None,
                        "ic": round(float(x.mean()), 4) if len(x) else None,
                        "t": round(t, 2) if len(x) >= 3 and (t := _t_nw(x, h - 1)) is not None else None,
                        "spread": round(float(np.mean(difs)), 5) if difs else None,
-                       "enough": len(ics) >= MIN_FECHAS}
+                       "enough": len(ics) >= need}
     return res
+
+
+def _parte(punt: dict[str, dict[str, dict]], clave: str) -> dict[str, dict[str, dict]]:
+    """Una sola parte de la puntuación (lv: nivel, ch: cambio) como `score`, para evaluarla aparte."""
+    out = {}
+    for f, filas in punt.items():
+        d = {s: {"score": r[clave]} for s, r in filas.items() if clave in r}
+        if len(d) >= MIN_TICKERS:
+            out[f] = d
+    return out
+
+
+def _neutral(idx: dict[str, dict], punt: dict[str, dict[str, dict]]) -> tuple[dict, float | None]:
+    """Puntuación sin la parte que explica el rendimiento de las CAMBIO sesiones previas: residuo de la regresión
+    transversal de su percentil sobre el del rendimiento previo. Si una señal funciona al revés de lo esperado solo
+    por reversión a corto plazo (puts caras y mucho volumen de opciones tras una caída, y luego rebote), aquí deja de
+    hacerlo. Devuelve también la correlación media de rangos entre puntuación y rendimiento previo."""
+    fechas = sorted(idx)
+    pos = {f: i for i, f in enumerate(fechas)}
+    out, cors = {}, []
+    for f, filas in punt.items():
+        if pos[f] < CAMBIO:
+            continue
+        prev = idx[fechas[pos[f] - CAMBIO]]
+        syms, sc, rt = [], [], []
+        for s, r in filas.items():
+            a, b = (prev.get(s) or [None] * 3)[2], idx[f][s][2]
+            if a and a > 0 and b and abs(b / a - 1) < SALTO:
+                syms.append(s)
+                sc.append(r["score"])
+                rt.append(b / a - 1)
+        if len(syms) < MIN_TICKERS:
+            continue
+        x, y = _pct(np.array(rt)), _pct(np.array(sc))
+        cors.append(float(np.corrcoef(x, y)[0, 1]))
+        b1, b0 = np.polyfit(x, y, 1)
+        out[f] = {s: {"score": round(float(v), 4)} for s, v in zip(syms, y - (b0 + b1 * x))}
+    return out, (round(float(np.mean(cors)), 4) if cors else None)
+
+
+def diagnostico(idx: dict[str, dict], punt: dict[str, dict[str, dict]], partes: bool = True) -> dict:
+    """La prueba en adelante de cada parte de la puntuación y de la puntuación neutralizada (ver _neutral).
+    `past`: correlación media entre la puntuación y el rendimiento previo (cerca de ±1, la señal es casi solo eso)."""
+    neu, past = _neutral(idx, punt)
+    d = {"past": past, "neutral": evaluar(idx, neu)}
+    if partes:
+        d["level"] = evaluar(idx, _parte(punt, "lv"))
+        d["change"] = evaluar(idx, _parte(punt, "ch"))
+    return d
 
 
 def _direccion(nombre: str, score: float) -> float:
@@ -305,9 +361,9 @@ def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | N
         # CBOE, que publica el de un día una sesión más tarde
         ultima = max(punt) if punt else None
         senales[nombre] = {"sign": signo, "sessions": len(punt), "first": min(punt) if punt else None,
-                           "date": ultima, "eval": evaluar(idx, punt)}
+                           "date": ultima, "eval": evaluar(idx, punt), "diag": diagnostico(idx, punt)}
         for s, r in (punt.get(ultima) or {}).items():
-            filas.setdefault(s, {"sym": s, "name": nombres.get(s, "")})[nombre] = r
+            filas.setdefault(s, {"sym": s, "name": nombres.get(s, "")})[nombre] = {k: r[k] for k in ("v", "chg", "score")}
     if not filas:
         raise LookupError(f"Not enough history yet: the signals need at least {MIN_TICKERS} stocks on the same session.")
     for nombre in SENALES:  # quintil de cada señal (5 = puntuación más alta)
@@ -321,7 +377,8 @@ def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | N
     # consenso: su propia prueba en adelante con la puntuación combinada de cada sesión (positiva = alcista)
     comb = combinar(punts)
     senales["combo"] = {"sign": 1, "sessions": len(comb), "first": min(comb) if comb else None,
-                        "date": max(comb) if comb else None, "eval": evaluar(idx, comb)}
+                        "date": max(comb) if comb else None, "eval": evaluar(idx, comb),
+                        "diag": diagnostico(idx, comb, partes=False)}
     # acciones de la lista sin lectura hoy (opciones demasiado finas o sin put de 25 delta en el mensual)
     sin = sorted(s for s in acciones if s not in filas and (lista is None or s in lista))
     return {"date": hoy, "stocks": len(filas), "rows": sorted(filas.values(), key=lambda r: r["sym"]),

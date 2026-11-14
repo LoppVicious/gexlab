@@ -30,9 +30,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   combina con su cambio en 5 sesiones. La investigación (Xing, Zhang y Zhao, 2010) encuentra que las acciones con el
   skew más caro tienden a ir peor que el resto en las semanas siguientes. Fuera índices, ETF y VIX.
 - A la izquierda, la prueba en adelante con nuestros propios datos: correlación entre la puntuación y el rendimiento
-  de las 5 y 20 sesiones siguientes. Hasta tener 20 sesiones evaluadas dice "Collecting data" y no muestra la t
-  (con pocas sesiones no significa nada): mientras tanto el ranking es una lista para vigilar, no una señal. Al
-  pulsar una acción se abre su Volatility dashboard.
+  de las 10 y 40 sesiones siguientes (unas dos semanas y unos dos meses: plazos de swing). Hasta tener 20 sesiones
+  evaluadas a 10 y 40 a 40 dice "Collecting data" y no muestra la t (con pocas sesiones no significa nada): mientras
+  tanto el ranking es una lista para vigilar, no una señal. Por detrás se guarda un diagnóstico (nivel y cambio por
+  separado, y la puntuación sin el efecto del rendimiento de la semana previa) para saber por qué falla una señal si
+  falla. Al pulsar una acción se abre su Volatility dashboard.
 - **Skew signal, segunda señal: Call−put IV** (selector encima de la tabla): IV de las calls menos la de las puts en
   los mismos strikes cercanos al precio, ponderada por OI. Si las calls están caras frente a las puts hay compra
   informada, y la investigación (Cremers y Weinbaum, 2010) encuentra que esas acciones van mejor que el resto. Tiene

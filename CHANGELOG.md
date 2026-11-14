@@ -6,6 +6,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 ## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew, call−put IV y volumen de opciones) para swings en acciones; régimen de la curva del VIX
 
 **Añadido**
+- **Equity Hub, probabilidad de cerrar fuera del 1σ (SPX, SPY y XSP):** bajo el rango ajustado por la gamma, la
+  probabilidad de que el SPX cierre la próxima sesión fuera del 1σ, frente a la habitual (19 %). Sale de un modelo con
+  dos datos, la gamma del SPX y la parte corta de la curva del VIX (VIX9D/VIX), que se probó con años que no había
+  visto: acierta más que el porcentaje fijo y está bien calibrado (los días a los que da un 8 % rompieron el 7,5 % de
+  las veces; los de un 40 %, el 37 %). En rojo si es claramente mayor de lo normal, en violeta si es menor.
 - **VIX curve, "SPX after similar curves":** qué hizo el SPX desde 2009 tras cada tramo de VIX/VIX3M (rendimiento
   medio a 20 sesiones, % de veces al alza y volatilidad realizada siguiente menos el VIX), con el tramo de hoy
   resaltado. Cuanto más plana o invertida la curva, mejor fue el SPX después (+0,5 % con contango profundo, +2,8 % en

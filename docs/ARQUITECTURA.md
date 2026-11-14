@@ -209,6 +209,11 @@ Los dos:
   con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del
   rango implícito (`breaks`). La web multiplica el rango de 1σ de SPX, SPY y XSP por `ratio` (`paintEmRegime`) si el
   GEX es de antes de la sesión del rango. La publica `fase_macro`. Estudio: `pruebas/regimen_gamma.py`.
+  `p1s` (`prob_1sigma`): probabilidad de que el SPX cierre la sesión siguiente fuera del 1σ del VIX, logística
+  (`logit_fit`, Newton) sobre el percentil del GEX y VIX9D/VIX (`SIGMA1_MODELO`) ajustada con toda la historia
+  (`datos_1sigma`). Estudio fuera de muestra con las cinco variables candidatas: `pruebas/modelo_1sigma.py` (Brier
+  0,1469 frente a 0,1539 de la frecuencia fija en 2020-hoy entrenando con 2012-2019; aguanta al revés y está
+  calibrado). Sin eventos macro: no hay calendario histórico anterior a 2026.
 - **Régimen de la curva del VIX** (`macro.curva_tramos`, campo `regime` de `vix_curve`, `renderVixRegime`): con los
   cierres de CBOE (VIX3M desde 2009, VIX9D desde 2011), por tramos de VIX/VIX3M y de VIX9D/VIX, rendimiento del SPX a 5
   y 20 sesiones, % al alza y volatilidad realizada de las 20 sesiones siguientes menos el VIX; `q3`/`q9`: tramo de hoy

@@ -710,6 +710,14 @@ async function paintEmRegime(d, em) {
     `Since ${rg.since.slice(0, 4)}, in this regime the SPX closed outside the implied 1σ move on ${share(rg.breaks)} of sessions (all sessions: ${share(rg.all.breaks)}), ` +
     `and 68.3% of closes stayed within ${fmtNum(rg.ratio, 2)}× the implied move (all sessions: ${fmtNum(rg.all.ratio, 2)}×). ` +
     `Implied volatility usually overstates the move; low gamma narrows that gap, high gamma widens it. Calibrated with the VIX, applied here to the options-implied range.`;
+  // probabilidad de cerrar fuera del 1σ (macro.prob_1sigma): logistica con el GEX y VIX9D/VIX, validada fuera de muestra
+  const p1 = rg.p1s;
+  if (p1 && p1.date === rg.date) {
+    const hiP = p1.p >= p1.base * 1.25, loP = p1.p <= p1.base * 0.75;
+    el.innerHTML += `<br>Chance of closing outside 1σ: <b class="${hiP ? "neg" : loP ? "pos" : ""}">${share(p1.p)}</b> <span class="nw">(usually ${share(p1.base)})</span>`;
+    el.title += ` Chance of closing outside the VIX 1σ move in the next session: a logistic model on the GEX percentile and VIX9D / VIX (${fmtNum(p1.vars.r9, 2)} today), fitted on all sessions since ${p1.since.slice(0, 4)}. ` +
+      `Trained on 2012-2019 it beat the fixed ${share(p1.base)} on 2020-2026 and the other way round, and it stays calibrated: days given 8% broke 7.5% of the time, days given 40% broke 37%. It ranges between ${share(p1.p10)} and ${share(p1.p90)} on 9 days out of 10. No macro events in the model.`;
+  }
   el.hidden = false;
 }
 function rangeLabel(em) { return em ? (em.partial ? `rest of ${sessLabel(em.session)}` : sessLabel(em.session)) : "1 session"; }

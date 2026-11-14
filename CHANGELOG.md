@@ -20,6 +20,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - Estudio que lo respalda (`pruebas/regimen_gamma.py`): el GEX predice el rango del día siguiente más allá del VIX y
   del rango reciente, en 2011-2018 y en 2019-2026. No predice la dirección ni el cierre de los gaps.
 
+**Cambiado**
+- **Historial diario:** la lista admite hasta 600 tickers (antes 200), para guardar el S&P 500 además de la lista
+  propia. Medido con la ejecución real: unos 4 MB al día por cada 110 tickers; con 560 tickers y 2 años de retención
+  quedan unos 7,5 GB en R2, dentro de los 10 GB gratuitos. La ejecución diaria pasa a durar unos 50 minutos.
+
 **Corregido**
 - **Ticker inexistente:** un ticker que no está en el directorio de opciones de CBOE (una errata como APPL) ya no
   llega nunca al motor. Al abrirlo, la web avisa de inmediato de que no tiene opciones, en lugar de lanzar el motor en

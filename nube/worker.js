@@ -207,7 +207,7 @@ async function fromR2(req, env, key) {
 // La edita el administrador en la web; el trabajo diario la lee de R2. Mientras nadie la haya editado, se muestra
 // la de la ultima ejecucion (hist500/_dias/), que es la del codigo.
 const HIST_KEY = "config/historial500.json";
-const MAX_HIST = 200;
+const MAX_HIST = 600;  // ~560 (S&P 500 + lista propia) caben en los 10 GB gratis de R2 con 2 años de retención
 
 async function r2json(env, key) {
   const o = await env.R2.get(key);

@@ -752,8 +752,14 @@ def _gamma_regime() -> dict:
         ndx = {**_calibrar_quintiles("QQQ", "VXN", quint, hoy), "proxy": "QQQ", "vol": "VXN"}
     except Exception:  # noqa: BLE001  (sin históricos del Nasdaq, el SPX sigue)
         ndx = None
+    gaps = {}
+    for clave, precio, vol in (("spx", "SPY", "VIX"), ("ndx", "QQQ", "VXN")):
+        try:
+            gaps[clave] = gap_tramos(precio, vol)
+        except Exception:  # noqa: BLE001
+            pass
     return {"date": fechas[-1], "gex": float(G[-1]), "pct": round(float(pct[-1]) * 100, 1), "q": hoy + 1, **spx,
-            "since": fechas[REG_VENTANA], "source": "SqueezeMetrics", "ndx": ndx}
+            "since": fechas[REG_VENTANA], "source": "SqueezeMetrics", "ndx": ndx, "gaps": gaps}
 
 
 def _calibrar_quintiles(precio: str, vol: str, quint: dict[str, int], hoy: int) -> dict:
@@ -922,3 +928,51 @@ def prob_1sigma(precio: str = "SPX", vol: str = "VIX") -> dict | None:
     return {"p": round(p, 4), "date": fecha, "base": round(float(y.mean()), 4),
             "p10": round(float(np.quantile(ph, 0.1)), 4), "p90": round(float(np.quantile(ph, 0.9)), 4),
             "vars": {c: round(hoy[c], 4) for c in SIGMA1_MODELO}, "since": str(f[0])}
+
+
+# ---------------------------------------------------------------- gaps de apertura
+GAP_VARS = ["gap", "dir", "gex", "r9", "prev"]
+GAP_TRAMOS = ((0.1, 0.3), (0.3, 0.6), (0.6, 1.0), (1.0, 99.0))   # |gap| en sigmas diarias
+
+
+def datos_gaps(precio: str, vol: str) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Gaps de apertura de `precio` (SPY o QQQ: sus aperturas son operaciones reales; en el SPX de CBOE hay años con la
+    apertura igual al cierre anterior) de más de 0,1 σ del índice de volatilidad `vol` del día anterior. Devuelve las
+    variables de GAP_VARS conocidas en la apertura (|gap| en σ, dirección, percentil del GEX y VIX9D/VIX del día
+    anterior, rendimiento del día anterior en σ con el signo del gap), si el gap se cerró en la sesión, si el día siguió
+    en la dirección del gap y la fecha. Estudio: pruebas/estudio_gaps.py."""
+    fg, _, pg = _gex_percentil()
+    gex = {f: p for f, p in zip(fg, pg) if np.isfinite(p)}
+    px, _ = g.history_ohlc(precio)
+    cier = {s_: {k: v[3] for k, v in g.history_ohlc(s_)[0].items() if v[3] > 0} for s_ in (vol, "VIX", "VIX9D")}
+    dias = [f for f in sorted(px) if all(f in c for c in cier.values()) and f in gex]
+    X, cierra, sigue, F = [], [], [], []
+    for a0, a, b in zip(dias, dias[1:], dias[2:]):
+        o, h, lo, c = px[b]
+        c1, c0 = px[a][3], px[a0][3]
+        sig = cier[vol][a] / 100 / np.sqrt(252)
+        if min(o, h, lo, c, c1, c0) <= 0 or abs(o - c1) < 1e-9:
+            continue
+        gap = np.log(o / c1) / sig
+        if abs(gap) < 0.1:
+            continue
+        d = 1.0 if gap > 0 else -1.0
+        X.append([abs(gap), d, gex[a], cier["VIX9D"][a] / cier["VIX"][a], d * np.log(c1 / c0) / sig])
+        cierra.append(float(lo <= c1 if d > 0 else h >= c1))
+        sigue.append(float(d * (c - o) > 0))
+        F.append(b)
+    return np.array(X), np.array(cierra), np.array(sigue), np.array(F)
+
+
+def gap_tramos(precio: str, vol: str) -> dict:
+    """Por tamaño del gap (en σ): fracción de gaps que se cerraron en la sesión y de días que siguieron al gap. El
+    estudio fuera de muestra muestra que el tamaño explica casi todo (Brier 0,249 -> 0,213 frente a la frecuencia fija)
+    y que la gamma no añade nada; seguir al gap es una moneda al aire (51 %)."""
+    X, cierra, sigue, F = datos_gaps(precio, vol)
+    filas = []
+    for lo, hi in GAP_TRAMOS:
+        m = (X[:, 0] >= lo) & (X[:, 0] < hi)
+        filas.append({"lo": lo, "hi": hi, "n": int(m.sum()), "fill": _r(float(cierra[m].mean()), 4),
+                      "trend": _r(float(sigue[m].mean()), 4)})
+    return {"proxy": precio, "vol": vol, "since": str(F[0]), "rows": filas,
+            "fill": _r(float(cierra.mean()), 4), "trend": _r(float(sigue.mean()), 4)}

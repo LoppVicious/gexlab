@@ -728,6 +728,17 @@ async function paintEmRegime(d, em) {
         : `Trained on 2012-2019 it beat the fixed ${share(p1.base)} on 2020-2026 and the other way round, and it stays calibrated: days given 8% broke 7.5% of the time, days given 40% broke 37%. `) +
       `It ranges between ${share(p1.p10)} and ${share(p1.p90)} on 9 days out of 10. No macro events in the model.`;
   }
+  // gap de apertura (macro.gap_tramos): en el pre-mercado del indice, el precio (via su ETF) frente al cierre de ayer,
+  // en sigmas del 1σ de la sesion. Lo que se cierra depende casi solo del tamaño; la gamma no añade nada
+  const gp = (rg.gaps || {})[fam];
+  if (gp && d.spot_implied && d.spot_implied.use && d.prev_close > 0 && em.pct > 0) {
+    const gs = Math.log(d.spot / d.prev_close) / (em.pct / 100), row = gp.rows.find((r) => Math.abs(gs) >= r.lo && Math.abs(gs) < r.hi);
+    if (row) {
+      el.innerHTML += `<br>Pre-market gap ${gs > 0 ? "+" : "−"}${fmtNum(Math.abs(gs), 2)}σ: fills the same day <b>${share(row.fill)}</b> <span class="nw">of the time</span>`;
+      el.title += ` Opening gap: the pre-market price against yesterday's close, in units of today's 1σ move. Since ${gp.since.slice(0, 4)} (${gp.proxy} opens), gaps of ${fmtNum(row.lo, 1)}–${row.hi > 50 ? "more" : fmtNum(row.hi, 1)}σ went back to the previous close during the session ${share(row.fill)} of the time (${fmtNum(row.n, 0)} gaps; all gaps: ${share(gp.fill)}). ` +
+        `Size explains almost all of it; the gamma regime adds nothing. Whether the day keeps going the gap's way is a coin flip (${share(row.trend)}).`;
+    }
+  }
   el.hidden = false;
 }
 function rangeLabel(em) { return em ? (em.partial ? `rest of ${sessLabel(em.session)}` : sessLabel(em.session)) : "1 session"; }

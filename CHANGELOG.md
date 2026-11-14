@@ -6,6 +6,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 ## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew, call−put IV y volumen de opciones) para swings en acciones; régimen de la curva del VIX
 
 **Añadido**
+- **Equity Hub, gap de apertura (SPX, XSP y NDX, en el pre-mercado):** con el precio de pre-mercado, el gap frente
+  al cierre de ayer en sigmas de la sesión y cuántas veces se ha cerrado en el mismo día un gap de ese tamaño desde
+  2012 (SPY y QQQ): 74 % los de 0,1-0,3σ, 46 % los de 0,3-0,6σ, 28 % los de 0,6-1σ y 18 % los mayores. Probado
+  fuera de muestra: el tamaño lo explica casi todo y la gamma no añade nada; si el día sigue al gap es una moneda
+  al aire (51 %), por eso no se muestra.
 - **Equity Hub, probabilidad de cerrar fuera del 1σ (SPX, SPY y XSP):** bajo el rango ajustado por la gamma, la
   probabilidad de que el SPX cierre la próxima sesión fuera del 1σ, frente a la habitual (19 %). Sale de un modelo con
   dos datos, la gamma del SPX y la parte corta de la curva del VIX (VIX9D/VIX), que se probó con años que no había

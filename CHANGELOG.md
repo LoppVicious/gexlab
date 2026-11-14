@@ -3,9 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew, call−put IV y volumen de opciones) para swings en acciones
+## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew, call−put IV y volumen de opciones) para swings en acciones; régimen de la curva del VIX
 
 **Añadido**
+- **VIX curve, "SPX after similar curves":** qué hizo el SPX desde 2009 tras cada tramo de VIX/VIX3M (rendimiento
+  medio a 20 sesiones, % de veces al alza y volatilidad realizada siguiente menos el VIX), con el tramo de hoy
+  resaltado. Cuanto más plana o invertida la curva, mejor fue el SPX después (+0,5 % con contango profundo, +2,8 % en
+  backwardation), aunque con mucha más volatilidad: es una inclinación, no una certeza. Si el tramo corto se invierte
+  (VIX9D/VIX por encima de 1,05), avisa de que vender prima ha compensado bastante menos.
 - **Skew signal** (en el menú, sección Signals): las acciones del historial diario ordenadas por lo caras que están sus
   puts. Skew = IV de la put de 25 delta menos la ATM, en el vencimiento mensual más cercano a 30 días, al cierre; se
   combina con su cambio en 5 sesiones. La investigación (Xing, Zhang y Zhao, 2010) encuentra que las acciones con el

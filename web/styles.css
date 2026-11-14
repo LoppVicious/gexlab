@@ -627,3 +627,14 @@ body.macro-mode .foot { display: none; }
 /* el pie no crece: los pies de grafico de .mcharts tienen flex 1 y se quedaban la mitad del alto */
 #skewSigView .mcharts > .ssk-foot { flex: none; margin: 10px 4px 0; }
 .ssk-head { align-items: center; flex-wrap: wrap; }
+/* VIX curve: SPX tras curvas parecidas (renderVixRegime) */
+.vxreg { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.vxreg .fl { color: var(--muted); font-size: 12.5px; cursor: help; }
+.vxreg-since { color: var(--faint); margin-left: 4px; }
+.vxreg-t { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.vxreg-t th { color: var(--faint); font-weight: 500; text-align: right; padding: 3px 4px; }
+.vxreg-t td { text-align: right; padding: 4px; color: var(--muted); border-top: 1px solid var(--line-soft); }
+.vxreg-t .l { text-align: left; }
+.vxreg-t tr.on td { color: var(--text); font-weight: 600; background: var(--accent-soft); }
+.vxreg-note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
+.vxreg-note.warn { color: var(--amber); }

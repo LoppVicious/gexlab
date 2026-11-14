@@ -2850,11 +2850,29 @@ function renderVix() {
     fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "above 1: short-term stress" : "below 1: normal structure") : "no data", ratio >= 1, "vix3m"),
     fact("Streak", `${v.streak} ${v.streak === 1 ? "session" : "sessions"}`, `${lv ? "counting today, " : ""}in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1), ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
+  renderVixRegime(d.regime);
   const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
   const lvNote = d.live ? " Today: each future implied by VIX options (put-call parity) until the settlement is published; small points, weekly expirations." : "";
   $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lvNote}`;
   renderVixCurve();
   renderVixHist();
+}
+
+// Que hizo el SPX tras cada tramo de VIX/VIX3M desde 2009 (macro.curva_tramos), con el de hoy resaltado, y el
+// aviso del tramo corto: con VIX9D/VIX por encima de 1,05 la prima de volatilidad apenas se ha cobrado
+function renderVixRegime(rg) {
+  const el = $("vxReg");
+  el.hidden = !rg || !rg["3m"];
+  if (el.hidden) return;
+  const lab = (f) => (f.lo === 0 ? `< ${fmtNum(f.hi, 2)}` : f.hi > 5 ? `> ${fmtNum(f.lo, 2)}` : `${fmtNum(f.lo, 2)}–${fmtNum(f.hi, 2)}`);
+  const pts = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 1));
+  const rows = rg["3m"].map((f, k) => `<tr class="${k === rg.q3 ? "on" : ""}"><td class="l">${lab(f)}</td><td>${sgnPct(f.r20, 1)}</td><td>${f.up20 == null ? "—" : fmtNum(f.up20 * 100, 0) + "%"}</td><td>${pts(f.vrp)}</td></tr>`).join("");
+  const f9 = rg.q9 != null ? rg["9d"][rg.q9] : null;
+  const short = f9 && rg.q9 === rg["9d"].length - 1
+    ? `<p class="vxreg-note warn">VIX9D / VIX at ${fmtNum(rg.r9, 2)}: the short end is inverted. After days like this, realized volatility came only ${fmtNum(Math.abs(f9.vrp), 1)} points under the VIX (${fmtNum(Math.abs(rg["9d"][1].vrp), 1)} in a normal curve): selling premium has paid much less.</p>`
+    : f9 ? `<p class="vxreg-note">VIX9D / VIX at ${fmtNum(rg.r9, 2)}: after days like this, realized volatility came ${fmtNum(Math.abs(f9.vrp), 1)} points under the VIX.</p>` : "";
+  el.innerHTML = `<div class="fl" title="SPX after each VIX / VIX3M range, from the close: average 20-session return, share of times higher, and realized volatility of those 20 sessions minus the VIX of the day (negative: the VIX overpriced the move). Daily CBOE closes since ${rg.since.slice(0, 4)}. A lean, not a certainty: in backwardation the higher average return comes with much larger swings.">SPX after similar curves <span class="vxreg-since">since ${rg.since.slice(0, 4)}</span></div>
+    <table class="vxreg-t"><thead><tr><th class="l">VIX/VIX3M</th><th>20 sessions</th><th>Higher</th><th title="Realized volatility of the next 20 sessions minus the VIX (points)">RV − VIX</th></tr></thead><tbody>${rows}</tbody></table>${short}`;
 }
 
 function interpAt(arr, days) {

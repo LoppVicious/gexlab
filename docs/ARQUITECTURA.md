@@ -206,6 +206,12 @@ Los dos:
   con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del
   rango implícito (`breaks`). La web multiplica el rango de 1σ de SPX, SPY y XSP por `ratio` (`paintEmRegime`) si el
   GEX es de antes de la sesión del rango. La publica `fase_macro`. Estudio: `pruebas/regimen_gamma.py`.
+- **Régimen de la curva del VIX** (`macro.curva_tramos`, campo `regime` de `vix_curve`, `renderVixRegime`): con los
+  cierres de CBOE (VIX3M desde 2009, VIX9D desde 2011), por tramos de VIX/VIX3M y de VIX9D/VIX, rendimiento del SPX a 5
+  y 20 sesiones, % al alza y volatilidad realizada de las 20 sesiones siguientes menos el VIX; `q3`/`q9`: tramo de hoy
+  con los índices en directo. Estudio con las dos mitades y la t de cada tramo: `pruebas/regimen_vix.py` (cuanto más
+  plana o invertida la curva, mejor el SPX a 20 sesiones, t de 1,4 a 1,9; con VIX9D/VIX > 1,05 la prima de
+  volatilidad cobrada cae a la mitad, y desde 2018 casi a cero).
 - **Posicionamiento en `compute`:** `scenarios` (GEX por 1 % y flujo de cobertura en la rejilla `SCEN_SPOT` ×
   `SCEN_IV`; la IV se desplaza reescalando la varianza total de cada contrato), `buckets` (`EXP_BUCKETS`),
   `totals.net_per_pct_after` (sin el próximo vencimiento) y `liquidity` (ADV$ de 20 sesiones de CBOE, flujos en % del

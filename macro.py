@@ -398,6 +398,7 @@ def _vix_curve() -> dict:
         "contango_share": sum(1 for s in spreads if s >= 0) / len(spreads),
         "history": hist,
         "term": term, "vix_vix3m": ratio,
+        "regime": _regimen_curva(ratio, tmap["VIX9D"] / vix_live if vix_live and tmap.get("VIX9D") else None),
         "term_time": (g.fetch_quote("VIX") or {}).get("timestamp") if live else None,  # sin hora: son cierres
         "term_live": live,
         "computed_at": now.strftime("%Y-%m-%d %H:%M"),
@@ -753,3 +754,66 @@ def _gamma_regime() -> dict:
             "all": {"n": int(len(z)), "ratio": round(float(np.quantile(z, REG_SIGMA)), 3),
                     "breaks": round(float((z > 1).mean()), 4)},
             "groups": grupos, "since": fechas[REG_VENTANA], "source": "SqueezeMetrics"}
+
+
+# ---------------------------------------------------------------- régimen de la curva del VIX
+TRAMOS_3M = ((0, 0.80), (0.80, 0.88), (0.88, 0.95), (0.95, 1.00), (1.00, 9.0))   # VIX/VIX3M
+TRAMOS_9D = ((0, 0.85), (0.85, 0.95), (0.95, 1.05), (1.05, 9.0))                 # VIX9D/VIX
+
+
+def curva_tramos(desde: str | None = None, hasta: str | None = None) -> dict:
+    """Qué hizo el SPX tras cada tramo de la curva del VIX (cierres diarios de CBOE, VIX3M desde 2009 y VIX9D desde
+    2011). Señal del cierre de t; desde ese cierre: rendimiento del SPX a 5 y 20 sesiones y volatilidad realizada de
+    las 20 sesiones siguientes (cierre a cierre, anualizada) menos el VIX de t (negativo: la prima se cobró).
+    Estudio con las dos mitades y la t de cada tramo: pruebas/regimen_vix.py."""
+    def cierres(sym):
+        d, _ = g.history_ohlc(sym)
+        return {k: v[3] for k, v in d.items() if v[3] > 0}
+    spx, vix, v3, v9 = (cierres(s) for s in ("SPX", "VIX", "VIX3M", "VIX9D"))
+    fechas = sorted(set(spx) & set(vix) & set(v3))
+    C = np.array([spx[f] for f in fechas])
+    V = np.array([vix[f] for f in fechas])
+    ratios = {"3m": V / np.array([v3[f] for f in fechas]),
+              "9d": np.array([v9[f] / vix[f] if f in v9 else np.nan for f in fechas])}
+    n = len(fechas)
+    lr = np.diff(np.log(C))
+    f5, f20, rv = (np.full(n, np.nan) for _ in range(3))
+    for i in range(n):
+        if i + 5 < n:
+            f5[i] = C[i + 5] / C[i] - 1
+        if i + 20 < n:
+            f20[i] = C[i + 20] / C[i] - 1
+            rv[i] = lr[i:i + 20].std(ddof=1) * np.sqrt(252) * 100
+    F = np.array(fechas)
+    per = np.ones(n, bool) if desde is None else F >= desde
+    if hasta is not None:
+        per &= F < hasta
+    out = {"since": str(F[per][0]) if per.any() else None, "last": fechas[-1]}
+    for clave, tramos in (("3m", TRAMOS_3M), ("9d", TRAMOS_9D)):
+        R = ratios[clave]
+        filas = []
+        for lo, hi in tramos:
+            m = per & np.isfinite(R) & (R >= lo) & (R < hi)
+            m20 = m & np.isfinite(f20)
+            filas.append({"lo": lo, "hi": hi, "n": int(m.sum()), "n20": int(m20.sum()),
+                          "r5": _r(np.nanmean(f5[m & np.isfinite(f5)])) if m.any() else None,
+                          "r20": _r(f20[m20].mean()) if m20.any() else None,
+                          "up20": _r(float(np.mean(f20[m20] > 0))) if m20.any() else None,
+                          "vrp": _r(float(np.mean(rv[m20] - V[m20])), 2) if m20.any() else None})
+        out[clave] = filas
+    return out
+
+
+def _r(x, d: int = 5):
+    return None if x is None or not np.isfinite(x) else round(float(x), d)
+
+
+def _regimen_curva(r3: float | None, r9: float | None) -> dict | None:
+    """Tabla de curva_tramos con el tramo de hoy (VIX/VIX3M y VIX9D/VIX en directo o al cierre)."""
+    try:
+        t = curva_tramos()
+    except Exception:  # noqa: BLE001  (sin históricos de CBOE la página sigue sin la tarjeta)
+        return None
+    def tramo(r, filas):
+        return next((k for k, f in enumerate(filas) if r is not None and f["lo"] <= r < f["hi"]), None)
+    return {**t, "r3": r3, "r9": r9, "q3": tramo(r3, t["3m"]), "q9": tramo(r9, t["9d"])}

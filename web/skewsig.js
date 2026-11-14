@@ -55,7 +55,8 @@ function renderSigSkew() {
       : "In our own data, expensive put skew has not anticipated underperformance clearly enough. Treat the ranking as context, not as a signal.";
   const fact = (l, e) => {
     const v = e.n ? `IC ${e.ic > 0 ? "+" : e.ic < 0 ? "−" : ""}${fmtNum(Math.abs(e.ic), 3)}` : "—";
-    const s = e.n ? `${e.n} sessions${e.t != null ? `, t ${fmtNum(e.t, 1)}` : ""}. Expensive − cheap quintile: ${e.spread > 0 ? "+" : e.spread < 0 ? "−" : ""}${fmtNum(Math.abs(e.spread) * 100, 2)}%` : `no sessions evaluated yet (needs ${need})`;
+    // la t con pocas sesiones solapadas no significa nada: solo se muestra con el minimo de la prueba
+    const s = e.n ? `${e.n} session${e.n === 1 ? "" : "s"}${e.enough && e.t != null ? `, t ${fmtNum(e.t, 1)}` : `, too few to judge`}. Expensive − cheap quintile: ${e.spread > 0 ? "+" : e.spread < 0 ? "−" : ""}${fmtNum(Math.abs(e.spread) * 100, 2)}%` : `no sessions evaluated yet (needs ${need})`;
     return `<div class="fact"><span class="fl">${l}</span><strong>${v}</strong><span class="fs${e.n && !e.enough ? " warn" : ""}">${s}</span></div>`;
   };
   $("sskFacts").innerHTML = fact("Next 5 sessions", e5) + fact("Next 20 sessions", e20);

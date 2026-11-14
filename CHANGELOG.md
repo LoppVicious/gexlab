@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal para swings en acciones
+## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew y call−put IV) para swings en acciones
 
 **Añadido**
 - **Skew signal** (en el menú, sección Signals): las acciones del historial diario ordenadas por lo caras que están sus
@@ -12,7 +12,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   skew más caro tienden a ir peor que el resto en las semanas siguientes. Fuera índices, ETF y VIX.
 - A la izquierda, la prueba en adelante con nuestros propios datos: correlación entre la puntuación y el rendimiento
   de las 5 y 20 sesiones siguientes. Hasta tener 20 sesiones evaluadas dice "Collecting data" y no muestra la t
-  (con pocas sesiones no significa nada): mientras tanto el ranking es una lista para vigilar, no una señal. Al pulsar una acción se abre su Volatility dashboard.
+  (con pocas sesiones no significa nada): mientras tanto el ranking es una lista para vigilar, no una señal. Al
+  pulsar una acción se abre su Volatility dashboard.
+- **Skew signal, segunda señal: Call−put IV** (selector encima de la tabla): IV de las calls menos la de las puts en
+  los mismos strikes cercanos al precio, ponderada por OI. Si las calls están caras frente a las puts hay compra
+  informada, y la investigación (Cremers y Weinbaum, 2010) encuentra que esas acciones van mejor que el resto. Tiene
+  su propia prueba en adelante; la columna de lectura va en el sentido que espera cada estudio.
 - **Equity Hub, rango de 1σ de SPX, SPY y XSP:** una línea más con el rango corregido por el régimen de gamma del
   SPX (GEX diario de SqueezeMetrics frente al último año, de muy bajo a muy alto). Desde 2012, con gamma muy alta el SPX
   cerró fuera del rango implícito el 9 % de las sesiones y con gamma muy baja el 30 %; el rango ajustado es el que de
@@ -30,6 +35,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   llega nunca al motor. Al abrirlo, la web avisa de inmediato de que no tiene opciones, en lugar de lanzar el motor en
   cada refresco (fallaba cada 10 minutos y mandaba un correo de error de GitHub cada vez); al añadirlo a una lista,
   no se añade y sale un aviso.
+- **Skew signal:** la tabla ocupaba solo la mitad del alto en pantallas anchas (la nota del pie se quedaba con la otra
+  mitad), y EWY, un ETF, salía como acción. Al pie se listan ahora las acciones de la lista sin lectura ese día
+  (opciones demasiado finas o sin strikes útiles en el mensual, como NIO a menos de 3 $), para que cuadre el número.
 
 ## 2026-11-13 — Founder Takes y report semanal
 

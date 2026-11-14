@@ -1,4 +1,4 @@
-"""Estudio (estudio.yml, script=estudio_skew.py): señal de skew con el índice real de hist500/_skew.json.gz.
+"""Estudio (estudio.yml, script=estudio_skew.py): señales de skew y call-put con el índice de hist500/_skew.json.gz.
 
 Solo lee R2. Imprime cuántas sesiones y acciones hay, la prueba en adelante y los extremos del ranking de hoy
 (datos de mercado agregados). El índice lo escribe historial500.py (cada cierre, o --indice para reconstruirlo)."""
@@ -16,10 +16,13 @@ for f in sorted(idx):
     print(f"  {f}: {len(idx[f])} tickers")
 if idx:
     r = skew.calcular(idx, dict(g.load_symbols()))
-    print(f"acciones: {r['stocks']} el {r['date']}; sesiones puntuadas {r['sessions']} desde {r['first']}")
+    print(f"acciones: {r['stocks']} el {r['date']}; sin lectura: {' '.join(r['missing'])}")
     print("excluidos:", " ".join(r["excluded"]))
-    for h, e in r["eval"].items():
-        print(f"{h} sesiones: {e}")
-    fmt = lambda x: f"{x['sym']} {x['skew'] * 100:+.1f}" + (f" ({x['chg'] * 100:+.1f})" if x["chg"] is not None else "")  # noqa: E731
-    print("skew más caro:", ", ".join(fmt(x) for x in r["rows"][:10]))
-    print("skew más barato:", ", ".join(fmt(x) for x in r["rows"][-10:]))
+    for k, sg in r["signals"].items():
+        print(f"{k} (signo esperado {sg['sign']:+d}): {sg['sessions']} sesiones puntuadas")
+        for h, e in sg["eval"].items():
+            print(f"  {h} sesiones: {e}")
+        filas = sorted((x for x in r["rows"] if k in x), key=lambda x: -x[k]["score"])
+        fmt = lambda x: f"{x['sym']} {x[k]['v'] * 100:+.1f}"  # noqa: E731
+        print("  arriba:", ", ".join(fmt(x) for x in filas[:8]))
+        print("  abajo:", ", ".join(fmt(x) for x in filas[-8:]))

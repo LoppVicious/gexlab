@@ -21,7 +21,7 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
             ticker; lo usa la Validacion del motor para tener toda la historia de un ticker recien anadido.
   hist500/_flujo/{SYM}.json.gz: volumen del dia y lado de la ultima operacion por contrato de las ultimas
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
-  hist500/_skew.json.gz y pub/skew.json: skew a 30 dias de cada accion y señal de skew (skew.py).
+  hist500/_skew.json.gz y pub/skew.json: skew de puts y diferencia call-put a 30 dias de cada accion (skew.py).
 Al terminar escribe hist500/_dias/{fecha}.json (resumen) y borra lo que tenga mas de RETENCION_ANOS.
 Nunca toca el estado del motor (estado/estado.tar.gz). Los registros de Actions son publicos: solo se
 escriben tickers, tiempos y tamanos.
@@ -165,11 +165,11 @@ def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None) -> int
     ses_cadena = g.session_date(ch["timestamp"])
     if ses_cadena != sesion:
         raise ValueError(f"la cadena de CBOE es de la sesion {ses_cadena}, no de {sesion}")
-    if puntos is not None:  # skew a 30 dias para la señal de skew (skew.py); el cierre sirve para la prueba en adelante
+    if puntos is not None:  # skew y call-put a 30 dias (skew.py); el cierre sirve para la prueba en adelante
         try:
             p = skew.punto(ch, float(ch["spot"]), g.now_ny())
             if p:
-                puntos[sym] = p + [float(ch["spot"])]
+                puntos[sym] = skew.fila(p, ch["spot"])
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew {sym}: {type(e).__name__}: {str(e)[:120]}")
     # flujo: el historico de las ultimas sesiones (R2) + la de hoy, antes de calcular con posicion "flow"
@@ -261,11 +261,17 @@ def leer_indice(st, sym: str) -> dict:
 
 def publicar_skew(st) -> None:
     try:
-        r = skew.publicar(st)
+        lista = []
+        for a in lista_tickers(st)[0]:
+            try:
+                lista.append(g.normalize(a))
+            except ValueError:
+                pass
+        r = skew.publicar(st, lista)
         if r:
-            e = r["eval"]
-            log(f"skew: {r['stocks']} acciones el {r['date']}, {r['sessions']} sesiones puntuadas; "
-                + ", ".join(f"{h} sesiones: {v['n']} evaluadas" for h, v in e.items()))
+            log(f"skew: {r['stocks']} acciones el {r['date']}, sin lectura {len(r['missing'])}; " + "; ".join(
+                f"{k}: {v['sessions']} sesiones, " + ", ".join(f"{h}d {e['n']} evaluadas" for h, e in v["eval"].items())
+                for k, v in r["signals"].items()))
     except LookupError as e:
         log(f"skew: {e}")
 

@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew y call−put IV) para swings en acciones
+## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew, call−put IV y volumen de opciones) para swings en acciones
 
 **Añadido**
 - **Skew signal** (en el menú, sección Signals): las acciones del historial diario ordenadas por lo caras que están sus
@@ -17,7 +17,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Skew signal, segunda señal: Call−put IV** (selector encima de la tabla): IV de las calls menos la de las puts en
   los mismos strikes cercanos al precio, ponderada por OI. Si las calls están caras frente a las puts hay compra
   informada, y la investigación (Cremers y Weinbaum, 2010) encuentra que esas acciones van mejor que el resto. Tiene
-  su propia prueba en adelante; la columna de lectura va en el sentido que espera cada estudio.
+  su propia prueba en adelante; la columna de lectura va en el sentido que espera cada estudio. Solo cuenta strikes a
+  ±5 % del precio con horquilla estrecha en la call y en la put: las acciones con opciones poco líquidas (GILD, BKNG,
+  HON, JD, T) se quedan sin lectura en lugar de dar ruido.
+- **Skew signal, tercera señal: Options volume (O/S):** contratos de opciones negociados × 100 frente a acciones
+  negociadas en el día. Quien tiene malas noticias suele operar con opciones, porque ponerse corto en la acción
+  cuesta más, y la investigación (Johnson y So, 2012) encuentra que las acciones con O/S alto van peor que el resto.
 - **Equity Hub, rango de 1σ de SPX, SPY y XSP:** una línea más con el rango corregido por el régimen de gamma del
   SPX (GEX diario de SqueezeMetrics frente al último año, de muy bajo a muy alto). Desde 2012, con gamma muy alta el SPX
   cerró fuera del rango implícito el 9 % de las sesiones y con gamma muy baja el 30 %; el rango ajustado es el que de

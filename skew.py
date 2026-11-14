@@ -1,4 +1,4 @@
-"""Señales de opciones para swings en acciones: skew de puts y diferencia de IV call-put.
+"""Señales de opciones para swings en acciones: skew de puts, diferencia de IV call-put y volumen de opciones.
 
 Son señales transversales: ordenan las acciones del historial diario entre sí cada sesión; no predicen el mercado.
 
@@ -6,19 +6,25 @@ Son señales transversales: ordenan las acciones del historial diario entre sí 
     dinero, alguien paga por protección y la acción tiende a ir peor que las demás. skew = IV put 25 delta − IV ATM.
     Hipótesis: IC negativo.
   diferencia call-put (Cremers y Weinbaum, 2010): media ponderada por OI de IV call − IV put del mismo strike, en
-    strikes a ±10 % del spot. Si las calls están caras frente a las puts (desvío de la paridad), hay compra informada
-    y la acción tiende a ir mejor. Hipótesis: IC positivo. Usa la IV de CBOE (`iv_raw`): la del motor sale del
-    forward implícito por paridad y su diferencia es cero por construcción; con un forward sin dividendos salen
-    desvíos de varios puntos por el desfase entre el cierre del subyacente y el de las opciones. La de CBOE da
-    valores pequeños y no castiga a las acciones con dividendo (KO +0,3, PFE +0,1 el 2026-11-13).
+    strikes a ±5 % del spot con horquilla de como mucho el 25 % en las dos patas. Si las calls están caras frente a
+    las puts (desvío de la paridad), hay compra informada y la acción tiende a ir mejor. Hipótesis: IC positivo.
+    Usa la IV de CBOE (`iv_raw`): la del motor sale del forward implícito por paridad y su diferencia es cero por
+    construcción; con un forward sin dividendos salen desvíos de varios puntos por el desfase entre el cierre del
+    subyacente y el de las opciones. La de CBOE no castiga a las acciones con dividendo (KO, PFE), pero en las
+    opciones dentro del dinero con horquilla ancha es ruido: con ±10 % y sin filtro, GILD salía +1,8 por calls de
+    140-165 con 2 $ de horquilla (la de 140 al 51 % frente a la put al 33 %) y BKNG −7,1.
+  volumen de opciones frente a acciones, O/S (Johnson y So, 2012): log(contratos negociados × 100 / acciones
+    negociadas) del día. Quien tiene información negativa la opera en opciones (vender acciones en corto cuesta más),
+    así que un O/S alto anticipa que la acción irá peor. Hipótesis: IC negativo. Todas las series y vencimientos.
 
-Las dos, con la cadena del cierre que guarda historial500.py, en el mensual estándar más cercano a 30 días entre 14 y
-60 (los semanales de acciones poco líquidas dan alas sin sentido: JD tenía una put de 25 delta al 116 % con el ATM
-al 45 %). Puntuación = media del percentil transversal del nivel y de su cambio en 5 sesiones (0 a 1).
+Skew y call-put, con la cadena del cierre que guarda historial500.py, en el mensual estándar más cercano a 30 días
+entre 14 y 60 (los semanales de acciones poco líquidas dan alas sin sentido: JD tenía una put de 25 delta al 116 % con
+el ATM al 45 %). Puntuación = media del percentil transversal del nivel y de su cambio en 5 sesiones (0 a 1).
 Solo acciones: fuera índices, VIX y ETF.
 
-Índice: hist500/_skew.json.gz = {fecha: {SYM: [atm, put25, cierre, call−put]}} (None donde no se puede medir); se
-reconstruye con los días guardados. Prueba en adelante con los cierres del índice: IC = correlación de rangos entre
+Índice: hist500/_skew.json.gz = {fecha: {SYM: [atm, put25, cierre, call−put, contratos, acciones]}} (None donde no
+se puede medir); se reconstruye con los días guardados (el volumen de la acción de días pasados, del histórico
+diario de CBOE). Prueba en adelante con los cierres del índice: IC = correlación de rangos entre
 puntuación y rendimiento a 5 y 20 sesiones, con t de Newey-West (las ventanas se solapan), y diferencial = quintil
 alto − quintil bajo. Publica pub/skew.json (/api/skew)."""
 from __future__ import annotations
@@ -34,8 +40,9 @@ import volatilidad
 
 INDICE = "hist500/_skew.json.gz"
 DIAS_MIN, DIAS_MAX = 14, 60     # ventana del vencimiento mensual (días naturales)
-CP_BANDA = 0.10                 # strikes a ±10 % del spot para la diferencia call-put
-CP_MIN_PARES = 3
+CP_BANDA = 0.05                 # strikes a ±5 % del spot para la diferencia call-put
+CP_HORQUILLA = 0.25             # horquilla máxima de cada pata, en fracción del punto medio
+CP_MIN_PARES = 2
 CAMBIO = 5                      # sesiones para el cambio
 HORIZONTES = (5, 20)            # sesiones de la prueba en adelante
 MIN_TICKERS = 20                # acciones mínimas para puntuar una sesión
@@ -45,6 +52,7 @@ SALTO = 0.5                     # |rendimiento| mayor: split o dato roto, fuera
 SENALES = {
     "skew": (lambda v: v[1] - v[0] if v[0] is not None and v[1] is not None else None, -1),
     "cp": (lambda v: v[3] if len(v) > 3 else None, 1),
+    "os": (lambda v: float(np.log(v[4] * 100 / v[5])) if len(v) > 5 and v[4] and v[5] else None, -1),
 }
 _FONDO = re.compile(r"\b(ETF|ETN|SPDR|Ishares|Proshares|Direxion|Vaneck|Kraneshares|Invesco|Fd|Fund|Trust|Tr)\b", re.I)
 _EMPRESA = re.compile(r"\b(Inc|Corp|Ltd|Hldgs?|Plc|Co|Group|Holdings|Ads)\b", re.I)
@@ -60,9 +68,12 @@ def es_accion(sym: str, nombres: dict[str, str]) -> bool:
 
 
 def _call_put(ch: dict, dia: str, spot: float) -> float | None:
-    """Media ponderada por OI de IV call − IV put (de CBOE) en los strikes del vencimiento a ±CP_BANDA del spot."""
+    """Media ponderada por OI de IV call − IV put (de CBOE) en los strikes del vencimiento a ±CP_BANDA del spot con
+    las dos patas cotizadas y horquilla de como mucho CP_HORQUILLA."""
     m = ch["exp"].astype("datetime64[D]") == np.datetime64(dia)
     K, C, oi, iv = ch["K"][m], ch["call"][m], ch["oi"][m], ch["iv_raw"][m]
+    bid, ask = ch["bid"][m], ch["ask"][m]
+    estrecha = (bid > 0) & (ask >= bid) & ((ask - bid) <= CP_HORQUILLA * (ask + bid) / 2)
     num = den = 0.0
     n = 0
     for k in np.unique(K):
@@ -73,7 +84,7 @@ def _call_put(ch: dict, dia: str, spot: float) -> float | None:
             continue
         c, p = c[0], p[0]
         w = oi[c] + oi[p]
-        if w <= 0 or not (0.01 < iv[c] < 5 and 0.01 < iv[p] < 5):
+        if w <= 0 or not (estrecha[c] and estrecha[p]) or not (0.01 < iv[c] < 5 and 0.01 < iv[p] < 5):
             continue
         num += w * (iv[c] - iv[p])
         den += w
@@ -95,12 +106,15 @@ def punto(ch: dict, spot: float, now: datetime) -> list | None:
 
 
 # ---------------------------------------------------------------- índice en R2
-def fila(p: list, cierre: float) -> list:
-    return [p[0], p[1], float(cierre), p[2]]
+def fila(p: list | None, cierre: float, contratos: float | None, acciones: float | None) -> list:
+    """Fila del índice: [atm, put25, cierre, call−put, contratos de opciones, acciones] (volúmenes del día)."""
+    p = p or [None, None, None]
+    return [p[0], p[1], float(cierre), p[2], float(contratos) if contratos else None,
+            float(acciones) if acciones else None]
 
 
 def actualizar(st, sesion: str, puntos: dict[str, list]) -> int:
-    """puntos: {SYM: [atm, put25, cierre, call−put]}."""
+    """puntos: {SYM: fila}."""
     idx = almacen.get_json(st, INDICE) or {}
     idx[sesion] = puntos
     almacen.put_json(st, INDICE, dict(sorted(idx.items())))
@@ -112,20 +126,27 @@ def reconstruir(st, syms: list[str]) -> int:
     rx = re.compile(r"/(\d{4}-\d{2}-\d{2})\.json\.gz$")
     idx: dict[str, dict] = {}
     for sym in syms:
-        for k in st.list(f"hist500/{sym}/"):
-            m = rx.search(k)
-            if not m:
-                continue
+        claves = [k for k in st.list(f"hist500/{sym}/") if rx.search(k)]
+        if not claves:
+            continue
+        try:  # volumen de la acción de cada día (los archivos del historial no lo guardan)
+            vol = {r["date"]: float(r.get("volume") or 0)
+                   for r in (g.fetch_aux("historical", sym, ttl=6 * 3600) or {}).get("data", [])}
+        except Exception:  # noqa: BLE001
+            vol = {}
+        for k in claves:
+            dia = rx.search(k).group(1)
             d = almacen.get_json(st, k) or {}
             if not d.get("chain") or not d.get("spot"):
                 continue
             try:
                 ch = g.parse_chain({"_min": d["chain"]})
-                p = punto(ch, float(d["spot"]), datetime.fromisoformat(m.group(1) + "T16:00"))
+                p = punto(ch, float(d["spot"]), datetime.fromisoformat(dia + "T16:00"))
             except Exception:  # noqa: BLE001  (un día roto no para el resto)
                 continue
-            if p:
-                idx.setdefault(m.group(1), {})[sym] = fila(p, d["spot"])
+            ov = float(ch["vol"].sum())
+            if p or (ov and vol.get(dia)):
+                idx.setdefault(dia, {})[sym] = fila(p, d["spot"], ov, vol.get(dia))
     almacen.put_json(st, INDICE, dict(sorted(idx.items())))
     return len(idx)
 

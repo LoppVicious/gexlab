@@ -80,9 +80,10 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
     workflow con `indice`). `motor.fase_listas` lo lee para los tickers de las listas y `g.validation(extra=...)` lo
     usa para las sesiones que falten en `history/{SYM}.json` (foto tras el cierre, como la clave `fecha|filtro`).
   - `hist500/_flujo/{SYM}.json.gz`: volumen y lado por contrato de las últimas 8 sesiones (modo flujo).
-  - `hist500/_skew.json.gz`: `{fecha: {SYM: [IV ATM, IV put 25Δ, cierre, IV call − IV put]}}` del mensual más cercano
-    a 30 días (`skew.punto`, None donde no se puede medir); lo escribe `historial500.py` con cada sesión y `--indice` lo
-    reconstruye. De él sale `pub/skew.json`.
+  - `hist500/_skew.json.gz`: `{fecha: {SYM: [IV ATM, IV put 25Δ, cierre, IV call − IV put, contratos, acciones]}}`
+    (`skew.fila`: IV del mensual más cercano a 30 días con `skew.punto`, volúmenes del día; None donde no se puede
+    medir); lo escribe `historial500.py` con cada sesión (volumen de la acción, de `data.volume` de la cadena) y
+    `--indice` lo reconstruye (volumen de días pasados, del histórico diario de CBOE). De él sale `pub/skew.json`.
   - VIX siempre (`SIEMPRE`), aunque no esté en la lista de la web, y sin límite de años (`NUNCA_BORRAR`).
   - `hist500/_indices_vol/{fecha}.json`: OHLC de VIX, VIX9D, VIX3M, VIX6M y VIX1Y y curva de futuros del VIX;
     `_indices_vol/historico.json.gz`: su serie diaria completa de CBOE (VIX desde 1990). No se borran nunca.
@@ -182,14 +183,18 @@ Los dos:
 - **Correlación** (`macro.correlation`, `pub/correlacion.json`, `/api/corr`, `web/corr.js`): índices COR y DSPX de
   CBOE (en `CBOE_VOL_INDICES`) con la cotización de hoy, percentil y banda del último año y 504 sesiones de historia.
   La publica `fase_macro`.
-- **Señales de skew** (`skew.py`, `pub/skew.json`, `/api/skew`, `web/skewsig.js`, página Skew signal): dos señales
-  transversales sobre las acciones del historial diario, con la cadena del cierre de `hist500` y el mensual estándar
-  más cercano a 30 días entre 14 y 60 (los semanales de acciones poco líquidas daban alas absurdas):
+- **Señales de skew** (`skew.py`, `pub/skew.json`, `/api/skew`, `web/skewsig.js`, página Skew signal): tres señales
+  transversales sobre las acciones del historial diario, con la cadena del cierre de `hist500` (skew y call-put, en el
+  mensual estándar más cercano a 30 días entre 14 y 60: los semanales de acciones poco líquidas daban alas absurdas):
   - put skew = IV put 25Δ − ATM (Xing, Zhang y Zhao, 2010; se espera IC negativo);
-  - call − put = media ponderada por OI de IV call − IV put del mismo strike a ±10 % del spot (Cremers y Weinbaum,
-    2010; se espera IC positivo). Usa la IV de CBOE (`iv_raw`): la del motor sale del forward por paridad y la
-    diferencia es cero por construcción; con un forward sin dividendos salen desvíos de varios puntos por el desfase
-    entre el cierre del subyacente y el de las opciones.
+  - call − put = media ponderada por OI de IV call − IV put del mismo strike a ±5 % del spot, solo con horquilla de
+    como mucho el 25 % en las dos patas (Cremers y Weinbaum, 2010; se espera IC positivo). Usa la IV de CBOE
+    (`iv_raw`): la del motor sale del forward por paridad y la diferencia es cero por construcción; con un forward
+    sin dividendos salen desvíos de varios puntos por el desfase entre el cierre del subyacente y el de las opciones.
+    Sin el filtro de horquilla, las opciones dentro del dinero de acciones poco líquidas eran ruido (GILD +1,8 y
+    BKNG −7,1 el 2026-11-13); con él se quedan sin lectura;
+  - O/S = log(contratos × 100 / acciones negociadas) del día, todas las series (Johnson y So, 2012; se espera IC
+    negativo).
   Puntuación = media de los percentiles transversales del nivel y de su cambio en 5 sesiones; solo acciones (fuera
   índices, VIX y ETF, por el nombre del directorio de símbolos). Prueba en adelante con los cierres del índice: IC de
   rangos a 5 y 20 sesiones (t de Newey-West) y diferencial entre quintiles; veredicto desde 20 sesiones evaluadas.

@@ -161,15 +161,17 @@ def cadena_compacta(ch: dict) -> dict:
 
 def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None) -> int:
     g._cache.pop(sym, None)
-    ch = g.parse_chain(g.fetch_chain(sym, force=True))
+    raw = g.fetch_chain(sym, force=True)
+    ch = g.parse_chain(raw)
     ses_cadena = g.session_date(ch["timestamp"])
     if ses_cadena != sesion:
         raise ValueError(f"la cadena de CBOE es de la sesion {ses_cadena}, no de {sesion}")
-    if puntos is not None:  # skew y call-put a 30 dias (skew.py); el cierre sirve para la prueba en adelante
+    if puntos is not None:  # señales de skew.py: skew, call-put y O/S; el cierre sirve para la prueba en adelante
         try:
             p = skew.punto(ch, float(ch["spot"]), g.now_ny())
-            if p:
-                puntos[sym] = skew.fila(p, ch["spot"])
+            ov, sv = float(ch["vol"].sum()), (raw.get("data") or {}).get("volume")
+            if p or (ov and sv):
+                puntos[sym] = skew.fila(p, ch["spot"], ov, sv)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew {sym}: {type(e).__name__}: {str(e)[:120]}")
     # flujo: el historico de las ultimas sesiones (R2) + la de hoy, antes de calcular con posicion "flow"

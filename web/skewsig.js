@@ -9,13 +9,25 @@
    Nombres con prefijo ssk/SigSkew: vol.js ya usa renderSkew. */
 
 const ssk = { data: null, at: 0, ctrl: null, sig: store.get("sskSig", "skew"), sort: "score", dir: -1 };
+const SSK_BEAR = { 5: ["Bearish tilt", "neg"], 4: ["Leaning bearish", "neg"], 3: ["Neutral", ""], 2: ["Leaning bullish", "pos"], 1: ["Bullish tilt", "pos"] };
+const SSK_BULL = { 5: ["Bullish tilt", "pos"], 4: ["Leaning bullish", "pos"], 3: ["Neutral", ""], 2: ["Leaning bearish", "neg"], 1: ["Bearish tilt", "neg"] };
+const sskPts = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v) * 100, 1));
 const SSK_SIG = {
   skew: { name: "Put skew", level: "Skew", levelTip: "25-delta put IV minus ATM IV, about 30 days (volatility points)",
+    caption: "Levels and changes in volatility points.", fmt: sskPts, fmtChg: sskPts,
     works: "Stocks with expensive puts have been lagging the rest, as the research says. The ranking can tilt a swing book: avoid longs at the top, favour them at the bottom.",
-    tilt: { 5: ["Bearish tilt", "neg"], 4: ["Leaning bearish", "neg"], 3: ["Neutral", ""], 2: ["Leaning bullish", "pos"], 1: ["Bullish tilt", "pos"] } },
-  cp: { name: "Call−put IV", level: "Call − put", levelTip: "Open-interest-weighted call IV minus put IV at the same strikes, within 10% of the price (volatility points)",
+    tilt: SSK_BEAR },
+  cp: { name: "Call−put IV", level: "Call − put", levelTip: "Open-interest-weighted call IV minus put IV at the same strikes, within 5% of the price and with tight quotes on both legs (volatility points)",
+    caption: "Levels and changes in volatility points.", fmt: sskPts, fmtChg: sskPts,
     works: "Stocks with calls rich against puts have been beating the rest, as the research says. The ranking can tilt a swing book: favour longs at the top, avoid them at the bottom.",
-    tilt: { 5: ["Bullish tilt", "pos"], 4: ["Leaning bullish", "pos"], 3: ["Neutral", ""], 2: ["Leaning bearish", "neg"], 1: ["Bearish tilt", "neg"] } },
+    tilt: SSK_BULL },
+  // el nivel es log(O/S): en pantalla, el ratio y su cambio en %
+  os: { name: "Options volume", level: "O/S", levelTip: "Option contracts traded × 100 / shares traded, on the day: the share of trading that went through options",
+    caption: "O/S: option contracts × 100 / shares traded. Change: against 5 sessions ago.",
+    fmt: (v) => (v == null ? "—" : fmtNum(Math.exp(v), 2)),
+    fmtChg: (v) => (v == null ? "—" : sskSigned((Math.exp(v) - 1) * 100, 0) + "%"),
+    works: "Stocks with heavy option trading against their share volume have been lagging the rest, as the research says. The ranking can tilt a swing book: avoid longs at the top, favour them at the bottom.",
+    tilt: SSK_BEAR },
 };
 
 function sigSkewStatus() { return ssk.data ? `Skew signals, close of ${ddmm(ssk.data.date)}` : ""; }
@@ -47,7 +59,6 @@ async function loadSigSkew() {
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
 
-const sskPts = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v) * 100, 1));
 const sskSigned = (v, dec) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), dec);
 
 function renderSigSkew() {
@@ -81,6 +92,7 @@ function renderSigSkew() {
   $("sskFacts").innerHTML = fact("Next 5 sessions", e5) + fact("Next 20 sessions", e20) +
     `<div class="fact"><span class="fl">The research expects</span><strong>IC ${want}</strong><span class="fs">${sg.sign < 0 ? "a high score, then a weaker stock" : "a high score, then a stronger stock"}</span></div>`;
 
+  $("sskCap").textContent = `${cfg.caption} Click a stock to open its volatility dashboard.`;
   $("sskLevelTh").textContent = cfg.level;
   $("sskLevelTh").title = cfg.levelTip;
   const val = (r, k) => (k === "sym" ? r.sym : k === "atm" ? r.atm : (r[key] || {})[k]);
@@ -96,8 +108,8 @@ function renderSigSkew() {
     const s = r[key], [tilt, cls] = cfg.tilt[s.q] || ["", ""];
     return `<tr data-s="${esc(r.sym)}" title="${esc(r.name || r.sym)}: open its volatility dashboard">
       <td class="l"><b>${esc(r.sym)}</b></td>
-      <td>${sskPts(s.v)}</td>
-      <td>${sskPts(s.chg)}</td>
+      <td>${cfg.fmt(s.v)}</td>
+      <td>${cfg.fmtChg(s.chg)}</td>
       <td>${r.atm == null ? "—" : fmtNum(r.atm * 100, 1) + "%"}</td>
       <td><span class="ssk-bar"><i style="width:${fmtNum(s.score * 100, 0)}%"></i></span>${fmtNum(s.score * 100, 0)}</td>
       <td class="l"><span class="ssk-tilt ${cls}">${tilt}</span></td></tr>`;

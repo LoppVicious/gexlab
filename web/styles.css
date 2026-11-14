@@ -638,3 +638,5 @@ body.macro-mode .foot { display: none; }
 .vxreg-t tr.on td { color: var(--text); font-weight: 600; background: var(--accent-soft); }
 .vxreg-note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .vxreg-note.warn { color: var(--amber); }
+.ssk-table tr.ssk-group td { cursor: default; background: none; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding-top: 16px; }
+.ssk-table tr.ssk-group:hover td { background: none; }

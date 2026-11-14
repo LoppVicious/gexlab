@@ -248,14 +248,59 @@ def evaluar(idx: dict[str, dict], punt: dict[str, dict[str, dict]]) -> dict:
     return res
 
 
+def _direccion(nombre: str, score: float) -> float:
+    """Puntuación de una señal llevada a dirección: +1 lo más alcista, −1 lo más bajista según su estudio."""
+    return (score - 0.5) * 2 * SENALES[nombre][1]
+
+
+def consenso(r: dict) -> dict | None:
+    """Coincidencia de las señales de una acción. Cada señal vota alcista o bajista si está en los dos quintiles
+    extremos de su lado (put skew y O/S altos, bajista; call-put alto, alcista). Hay coincidencia ("match") con al
+    menos dos votos en el mismo sentido y ninguno en contra. `v`: media de las direcciones (−1 a +1)."""
+    votos, dirs = {}, []
+    for nombre, (_, signo) in SENALES.items():
+        s = r.get(nombre)
+        if not s:
+            continue
+        dirs.append(_direccion(nombre, s["score"]))
+        alto, bajo = s["q"] >= 4, s["q"] <= 2
+        votos[nombre] = (1 if alto else -1 if bajo else 0) * signo
+    if len(dirs) < 2:
+        return None
+    alc, baj = sum(v > 0 for v in votos.values()), sum(v < 0 for v in votos.values())
+    return {"v": round(float(np.mean(dirs)), 4), "n": len(dirs), "votes": votos,
+            "match": "bull" if alc >= 2 and not baj else "bear" if baj >= 2 and not alc else None}
+
+
+def combinar(punts: dict[str, dict]) -> dict[str, dict[str, dict]]:
+    """Puntuación combinada por sesión: media de las direcciones de las señales con dato ese día (al menos dos), y
+    su percentil transversal como `score` (1 = lo más alcista). La usa la prueba en adelante del consenso."""
+    out = {}
+    for f in sorted(set().union(*(p.keys() for p in punts.values()))):
+        syms = set().union(*((p.get(f) or {}).keys() for p in punts.values()))
+        filas = {}
+        for s in syms:
+            d = [_direccion(k, p[f][s]["score"]) for k, p in punts.items() if s in (p.get(f) or {})]
+            if len(d) >= 2:
+                filas[s] = {"v": round(float(np.mean(d)), 4)}
+        if len(filas) < MIN_TICKERS:
+            continue
+        orden = list(filas)
+        for s, sc in zip(orden, _pct(np.array([filas[s]["v"] for s in orden]))):
+            filas[s]["score"] = round(float(sc), 4)
+        out[f] = filas
+    return out
+
+
 def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | None = None) -> dict:
     syms = {s for d in idx.values() for s in d} | set(lista or [])
     acciones = {s for s in syms if es_accion(s, nombres)}
     hoy = max(idx) if idx else None
     filas: dict[str, dict] = {}
     senales = {}
+    punts = {}
     for nombre, (nivel, signo) in SENALES.items():
-        punt = puntuaciones(idx, acciones, nivel)
+        punt = punts[nombre] = puntuaciones(idx, acciones, nivel)
         # cada señal enseña su última sesión con datos: el volumen de la acción de días pasados sale del histórico de
         # CBOE, que publica el de un día una sesión más tarde
         ultima = max(punt) if punt else None
@@ -272,6 +317,11 @@ def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | N
     for r in filas.values():
         if r["sym"] in idx[hoy] and idx[hoy][r["sym"]][0] is not None:
             r["atm"] = idx[hoy][r["sym"]][0]
+        r["combo"] = consenso(r)
+    # consenso: su propia prueba en adelante con la puntuación combinada de cada sesión (positiva = alcista)
+    comb = combinar(punts)
+    senales["combo"] = {"sign": 1, "sessions": len(comb), "first": min(comb) if comb else None,
+                        "date": max(comb) if comb else None, "eval": evaluar(idx, comb)}
     # acciones de la lista sin lectura hoy (opciones demasiado finas o sin put de 25 delta en el mensual)
     sin = sorted(s for s in acciones if s not in filas and (lista is None or s in lista))
     return {"date": hoy, "stocks": len(filas), "rows": sorted(filas.values(), key=lambda r: r["sym"]),

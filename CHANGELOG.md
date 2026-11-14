@@ -30,6 +30,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   negociadas en el día. Quien tiene malas noticias suele operar con opciones, porque ponerse corto en la acción
   cuesta más, y la investigación (Johnson y So, 2012) encuentra que las acciones con O/S alto van peor que el resto.
   Si el volumen de la acción de la última sesión aún no está publicado, enseña la sesión anterior y lo indica.
+- **Skew signal, Consensus** (pestaña por defecto): las acciones en las que al menos dos de las tres señales apuntan
+  en el mismo sentido y ninguna en contra, separadas en alcistas y bajistas, con el voto de cada señal. Tiene su
+  propia prueba en adelante con la puntuación combinada, para saber si juntas funcionan mejor que por separado.
 - **Equity Hub, rango de 1σ de SPX, SPY y XSP:** una línea más con el rango corregido por el régimen de gamma del
   SPX (GEX diario de SqueezeMetrics frente al último año, de muy bajo a muy alto). Desde 2012, con gamma muy alta el SPX
   cerró fuera del rango implícito el 9 % de las sesiones y con gamma muy baja el 30 %; el rango ajustado es el que de

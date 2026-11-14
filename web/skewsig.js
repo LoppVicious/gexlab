@@ -8,11 +8,13 @@
    A la izquierda la prueba de la señal elegida; a la derecha el ranking de hoy.
    Nombres con prefijo ssk/SigSkew: vol.js ya usa renderSkew. */
 
-const ssk = { data: null, at: 0, ctrl: null, sig: store.get("sskSig", "skew"), sort: "score", dir: -1 };
+const ssk = { data: null, at: 0, ctrl: null, sig: store.get("sskSig", "combo"), sort: "score", dir: -1 };
 const SSK_BEAR = { 5: ["Bearish tilt", "neg"], 4: ["Leaning bearish", "neg"], 3: ["Neutral", ""], 2: ["Leaning bullish", "pos"], 1: ["Bullish tilt", "pos"] };
 const SSK_BULL = { 5: ["Bullish tilt", "pos"], 4: ["Leaning bullish", "pos"], 3: ["Neutral", ""], 2: ["Leaning bearish", "neg"], 1: ["Bearish tilt", "neg"] };
 const sskPts = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v) * 100, 1));
 const SSK_SIG = {
+  combo: { name: "Consensus", caption: "Stocks where at least two signals agree and none disagrees.",
+    works: "Stocks where the signals agree have moved the way they point. The matches can tilt a swing book: favour longs among the bullish ones and avoid them among the bearish ones." },
   skew: { name: "Put skew", level: "Skew", levelTip: "25-delta put IV minus ATM IV, about 30 days (volatility points)",
     caption: "Levels and changes in volatility points.", fmt: sskPts, fmtChg: sskPts,
     works: "Stocks with expensive puts have been lagging the rest, as the research says. The ranking can tilt a swing book: avoid longs at the top, favour them at the bottom.",
@@ -64,7 +66,7 @@ const sskSigned = (v, dec) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.a
 function renderSigSkew() {
   const d = ssk.data;
   if (!d) return;
-  if (!SSK_SIG[ssk.sig]) ssk.sig = "skew";
+  if (!SSK_SIG[ssk.sig] || !d.signals[ssk.sig]) ssk.sig = d.signals.combo ? "combo" : "skew";
   const key = ssk.sig, cfg = SSK_SIG[key], sg = d.signals[key];
   document.querySelectorAll("#sskSeg button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === key)));
 
@@ -92,11 +94,16 @@ function renderSigSkew() {
     return `<div class="fact"><span class="fl">${l}</span><strong>${v}</strong><span class="fs${e.n && !e.enough ? " warn" : ""}">${s}</span></div>`;
   };
   $("sskFacts").innerHTML = fact("Next 5 sessions", e5) + fact("Next 20 sessions", e20) +
-    `<div class="fact"><span class="fl">The research expects</span><strong>IC ${want}</strong><span class="fs">${sg.sign < 0 ? "a high score, then a weaker stock" : "a high score, then a stronger stock"}</span></div>`;
+    (key === "combo"
+      ? `<div class="fact"><span class="fl">If the signals add up</span><strong>IC positive</strong><span class="fs">the more bullish the combined score, the stronger the stock afterwards</span></div>`
+      : `<div class="fact"><span class="fl">The research expects</span><strong>IC ${want}</strong><span class="fs">${sg.sign < 0 ? "a high score, then a weaker stock" : "a high score, then a stronger stock"}</span></div>`);
 
   $("sskCap").textContent = `${cfg.caption} Click a stock to open its volatility dashboard.`;
-  $("sskLevelTh").textContent = cfg.level;
-  $("sskLevelTh").title = cfg.levelTip;
+  if (key === "combo") { renderSskConsensus(d); return; }
+  sskHead([["sym", "Ticker", "l"], ["v", cfg.level, "", cfg.levelTip], ["chg", "5d change", "", "Change over 5 sessions"],
+    ["atm", "ATM IV", "", "At-the-money implied volatility, about 30 days"],
+    ["score", "Score", "", "Average of the cross-sectional rank by level and by its change (100 = highest)"],
+    ["q", "Reading", "l", "Quintile of the score, read in the direction the research expects"]]);
   const val = (r, k) => (k === "sym" ? r.sym : k === "atm" ? r.atm : (r[key] || {})[k]);
   const rows = d.rows.filter((r) => r[key]);
   const k = ssk.sort, dir = ssk.dir;
@@ -125,6 +132,41 @@ function renderSigSkew() {
     sin.length ? `No reading today (options too thin, or no usable strikes on the monthly): ${[...new Set(sin)].sort().join(", ")}.` : "",
     d.excluded.length ? `Left out (indices, ETFs and the VIX): ${d.excluded.join(", ")}.` : "",
   ].filter(Boolean).join(" ");
+}
+
+function sskHead(cols, sortable = true) {
+  $("sskTable").querySelector("thead").innerHTML = `<tr>${cols.map(([k, t, cls, tip]) =>
+    `<th${sortable ? ` data-k="${k}"` : ""}${cls ? ` class="${cls}"` : ""}${tip ? ` title="${esc(tip)}"` : ""}>${t}</th>`).join("")}</tr>`;
+}
+
+// Consenso: solo las acciones con al menos dos señales en el mismo sentido y ninguna en contra (skew.consenso);
+// primero las alcistas, de mas a menos, y despues las bajistas
+function renderSskConsensus(d) {
+  sskHead([["sym", "Ticker", "l"], ["skew", "Put skew", "", "Vote of the put skew signal"], ["cp", "Call−put IV", "", "Vote of the call−put signal"],
+    ["os", "Options volume", "", "Vote of the O/S signal"], ["v", "Combined", "", "Average direction of the signals with a reading: +100 all as bullish as possible, −100 all as bearish"],
+    ["m", "Reading", "l"]], false);
+  const vote = (r, k) => {
+    const v = ((r.combo || {}).votes || {})[k];
+    return v == null ? `<span class="ssk-tilt">no reading</span>` : v > 0 ? `<span class="ssk-tilt pos">▲ Bullish</span>`
+      : v < 0 ? `<span class="ssk-tilt neg">▼ Bearish</span>` : `<span class="ssk-tilt">Neutral</span>`;
+  };
+  const m = d.rows.filter((r) => r.combo && r.combo.match);
+  const bull = m.filter((r) => r.combo.match === "bull").sort((a, b) => b.combo.v - a.combo.v);
+  const bear = m.filter((r) => r.combo.match === "bear").sort((a, b) => a.combo.v - b.combo.v);
+  const row = (r) => {
+    const c = r.combo, n = Object.values(c.votes).filter((v) => (c.match === "bull" ? v > 0 : v < 0)).length;
+    return `<tr data-s="${esc(r.sym)}" title="${esc(r.name || r.sym)}: open its volatility dashboard">
+      <td class="l"><b>${esc(r.sym)}</b></td><td>${vote(r, "skew")}</td><td>${vote(r, "cp")}</td><td>${vote(r, "os")}</td>
+      <td>${sskSigned(c.v * 100, 0)}</td>
+      <td class="l"><span class="ssk-tilt ${c.match === "bull" ? "pos" : "neg"}"><b>${c.match === "bull" ? "Bullish" : "Bearish"}</b>, ${n} of ${c.n} agree</span></td></tr>`;
+  };
+  const group = (t, list) => `<tr class="ssk-group"><td class="l" colspan="6">${t} (${list.length})</td></tr>` +
+    (list.length ? list.map(row).join("") : `<tr><td class="l" colspan="6"><span class="ssk-tilt">None today.</span></td></tr>`);
+  $("sskBody").innerHTML = group("Bullish matches", bull) + group("Bearish matches", bear);
+  const both = d.rows.filter((r) => r.combo).length;
+  $("sskSub").textContent = `${m.length} matches among ${both} stocks with at least two signals, close of ${longDate(d.date)}. ${d.signals.combo.sessions} sessions scored`;
+  $("sskFoot").textContent = "A match needs at least two signals in the outer two fifths of their own ranking pointing the same way, and none against. Put skew and options volume vote bearish when high; call−put votes bullish when high." +
+    (d.excluded.length ? ` Left out (indices, ETFs and the VIX): ${d.excluded.join(", ")}.` : "");
 }
 
 $("sskSeg").addEventListener("click", (e) => {

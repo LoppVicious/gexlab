@@ -201,6 +201,9 @@ Los dos:
   índices, VIX y ETF, por el nombre del directorio de símbolos). Prueba en adelante con los cierres del índice: IC de
   rangos a 5 y 20 sesiones (t de Newey-West) y diferencial entre quintiles; veredicto desde 20 sesiones evaluadas.
   `missing`: acciones de la lista sin lectura ese día. La publica `historial500.py` tras cada cierre.
+  Consenso (`consenso`, `combinar`, señal `combo`, pestaña por defecto): cada señal vota alcista o bajista si está en
+  los dos quintiles extremos de su lado; hay coincidencia (`match`) con al menos dos votos en el mismo sentido y
+  ninguno en contra. Su prueba en adelante usa la media de las direcciones de las señales con dato (±1) de cada sesión.
 - **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de
   SqueezeMetrics (CSV público desde 2011), percentil frente a las 252 sesiones previas y quintil. Para cada quintil,
   con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del

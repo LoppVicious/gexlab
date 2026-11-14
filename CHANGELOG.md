@@ -23,6 +23,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Skew signal, tercera señal: Options volume (O/S):** contratos de opciones negociados × 100 frente a acciones
   negociadas en el día. Quien tiene malas noticias suele operar con opciones, porque ponerse corto en la acción
   cuesta más, y la investigación (Johnson y So, 2012) encuentra que las acciones con O/S alto van peor que el resto.
+  Si el volumen de la acción de la última sesión aún no está publicado, enseña la sesión anterior y lo indica.
 - **Equity Hub, rango de 1σ de SPX, SPY y XSP:** una línea más con el rango corregido por el régimen de gamma del
   SPX (GEX diario de SqueezeMetrics frente al último año, de muy bajo a muy alto). Desde 2012, con gamma muy alta el SPX
   cerró fuera del rango implícito el 9 % de las sesiones y con gamma muy baja el 30 %; el rango ajustado es el que de

@@ -76,7 +76,9 @@ function renderSigSkew() {
   const st = $("sskState");
   st.textContent = !ok ? "Collecting data" : works ? "Working" : right ? "Weak so far" : "Not working";
   st.className = "mstate " + (!ok ? "mixed" : works ? "contango" : "backwardation");
-  $("sskSub").textContent = `${d.stocks} stocks, close of ${longDate(d.date)}. ${sg.sessions} session${sg.sessions === 1 ? "" : "s"} scored${sg.first ? " since " + ddmm(sg.first) : ""}`;
+  // cada señal llega hasta su ultima sesion con datos (el volumen de la accion de un dia pasado tarda una sesion)
+  const sd = sg.date || d.date, rowsN = d.rows.filter((r) => r[key]).length;
+  $("sskSub").textContent = `${rowsN} stocks, close of ${longDate(sd)}${sd !== d.date ? " (the share volume of " + ddmm(d.date) + " is not out yet)" : ""}. ${sg.sessions} session${sg.sessions === 1 ? "" : "s"} scored${sg.first ? " since " + ddmm(sg.first) : ""}`;
   $("sskRead").textContent = !ok
     ? `The forward test needs ${need} evaluated sessions per horizon before it says anything: today ${e5.n} at 5 sessions and ${e20.n} at 20. Until then the ranking is a watch list, not a signal.`
     : works ? cfg.works

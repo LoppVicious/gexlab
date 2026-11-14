@@ -124,6 +124,7 @@ def actualizar(st, sesion: str, puntos: dict[str, list]) -> int:
 def reconstruir(st, syms: list[str]) -> int:
     """Índice desde todas las cadenas guardadas en hist500/{SYM}/ (lento: una lectura por ticker y día)."""
     rx = re.compile(r"/(\d{4}-\d{2}-\d{2})\.json\.gz$")
+    previo = almacen.get_json(st, INDICE) or {}   # conserva volúmenes que el histórico de CBOE aún no tenga
     idx: dict[str, dict] = {}
     for sym in syms:
         claves = [k for k in st.list(f"hist500/{sym}/") if rx.search(k)]
@@ -145,8 +146,10 @@ def reconstruir(st, syms: list[str]) -> int:
             except Exception:  # noqa: BLE001  (un día roto no para el resto)
                 continue
             ov = float(ch["vol"].sum())
-            if p or (ov and vol.get(dia)):
-                idx.setdefault(dia, {})[sym] = fila(p, d["spot"], ov, vol.get(dia))
+            antes = (previo.get(dia) or {}).get(sym) or []
+            sv = vol.get(dia) or (antes[5] if len(antes) > 5 else None)
+            if p or (ov and sv):
+                idx.setdefault(dia, {})[sym] = fila(p, d["spot"], ov, sv)
     almacen.put_json(st, INDICE, dict(sorted(idx.items())))
     return len(idx)
 
@@ -237,9 +240,12 @@ def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | N
     senales = {}
     for nombre, (nivel, signo) in SENALES.items():
         punt = puntuaciones(idx, acciones, nivel)
+        # cada señal enseña su última sesión con datos: el volumen de la acción de días pasados sale del histórico de
+        # CBOE, que publica el de un día una sesión más tarde
+        ultima = max(punt) if punt else None
         senales[nombre] = {"sign": signo, "sessions": len(punt), "first": min(punt) if punt else None,
-                           "eval": evaluar(idx, punt)}
-        for s, r in (punt.get(hoy) or {}).items():
+                           "date": ultima, "eval": evaluar(idx, punt)}
+        for s, r in (punt.get(ultima) or {}).items():
             filas.setdefault(s, {"sym": s, "name": nombres.get(s, "")})[nombre] = r
     if not filas:
         raise LookupError(f"Not enough history yet: the signals need at least {MIN_TICKERS} stocks on the same session.")

@@ -255,6 +255,12 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
+        if url.path == "/api/skew":  # lo calcula el historial diario (historial500.py); aqui se lee del almacen
+            import almacen
+            d = almacen.get_json(almacen.abrir(), "pub/skew.json")
+            if not d:
+                return self._json(503, {"error": "Skew signal: no data yet. The daily history computes it after each close."})
+            return self._json(200, d)
         if url.path == "/api/takes" or url.path.startswith("/api/takes/"):
             return self._json(404, {"error": "Founder Takes are available in the cloud version."})
         if url.path != "/api/gex":

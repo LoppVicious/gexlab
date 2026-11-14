@@ -7,7 +7,7 @@ config/historial500.json; si aun no existe, se usa TICKERS (la lista inicial).
   python historial500.py                 sesion de hoy (solo si ya ha cerrado y no esta hecha)
   python historial500.py --forzar        rehace la ultima sesion cerrada (con el mercado cerrado)
   python historial500.py --forzar AAPL   solo esos tickers (pruebas)
-  python historial500.py --indice        reconstruye hist500/_niveles/ con los dias ya guardados
+  python historial500.py --indice        reconstruye hist500/_niveles/ y hist500/_skew.json.gz con los dias ya guardados
 
 Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
   hist500/{SYM}/{AAAA-MM-DD}.json.gz
@@ -21,6 +21,7 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
             ticker; lo usa la Validacion del motor para tener toda la historia de un ticker recien anadido.
   hist500/_flujo/{SYM}.json.gz: volumen del dia y lado de la ultima operacion por contrato de las ultimas
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
+  hist500/_skew.json.gz y pub/skew.json: skew a 30 dias de cada accion y señal de skew (skew.py).
 Al terminar escribe hist500/_dias/{fecha}.json (resumen) y borra lo que tenga mas de RETENCION_ANOS.
 Nunca toca el estado del motor (estado/estado.tar.gz). Los registros de Actions son publicos: solo se
 escriben tickers, tiempos y tamanos.
@@ -42,6 +43,7 @@ import numpy as np  # noqa: E402
 
 import almacen  # noqa: E402
 import gex_engine as g  # noqa: E402
+import skew  # noqa: E402
 
 TICKERS = """
 NVDA AAPL MSFT AMZN GOOGL GOOG META AVGO TSLA MU AMD WMT ASML PLTR INTC COST CSCO PANW AMAT NFLX CRWD TXN AMGN
@@ -157,12 +159,19 @@ def cadena_compacta(ch: dict) -> dict:
     return g.chain_to_min(sub)
 
 
-def guardar_ticker(st, sym: str, sesion: str) -> int:
+def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None) -> int:
     g._cache.pop(sym, None)
     ch = g.parse_chain(g.fetch_chain(sym, force=True))
     ses_cadena = g.session_date(ch["timestamp"])
     if ses_cadena != sesion:
         raise ValueError(f"la cadena de CBOE es de la sesion {ses_cadena}, no de {sesion}")
+    if puntos is not None:  # skew a 30 dias para la señal de skew (skew.py); el cierre sirve para la prueba en adelante
+        try:
+            p = skew.punto(ch, float(ch["spot"]), g.now_ny())
+            if p:
+                puntos[sym] = p + [float(ch["spot"])]
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR skew {sym}: {type(e).__name__}: {str(e)[:120]}")
     # flujo: el historico de las ultimas sesiones (R2) + la de hoy, antes de calcular con posicion "flow"
     fkey = f"{PREFIX}_flujo/{sym}.json.gz"
     fpath = os.path.join(g.HIST_DIR, f"flow_{sym.replace('.', '_')}.json.gz")
@@ -250,6 +259,17 @@ def leer_indice(st, sym: str) -> dict:
         return {}
 
 
+def publicar_skew(st) -> None:
+    try:
+        r = skew.publicar(st)
+        if r:
+            e = r["eval"]
+            log(f"skew: {r['stocks']} acciones el {r['date']}, {r['sessions']} sesiones puntuadas; "
+                + ", ".join(f"{h} sesiones: {v['n']} evaluadas" for h, v in e.items()))
+    except LookupError as e:
+        log(f"skew: {e}")
+
+
 def podar(st, sesion: str) -> int:
     """Borra los archivos con fecha anterior a RETENCION_ANOS antes de la sesion."""
     corte = f"{int(sesion[:4]) - RETENCION_ANOS}{sesion[4:]}"
@@ -277,6 +297,18 @@ def main(args: list[str]) -> int:
                 log(f"{sym}: indice con {actualizar_indice(st, sym, hoy)} sesiones")
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR indice {sym}: {type(e).__name__}: {str(e)[:120]}")
+        if not pedidos:
+            syms = []
+            for a in lista_tickers(st)[0]:
+                try:
+                    syms.append(g.normalize(a))
+                except ValueError:
+                    pass
+            try:
+                log(f"skew: indice con {skew.reconstruir(st, syms)} sesiones")
+                publicar_skew(st)
+            except Exception as e:  # noqa: BLE001
+                log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
         return 0
     sesion = sesion_objetivo(forzar)
     now = g.now_ny()
@@ -301,6 +333,7 @@ def main(args: list[str]) -> int:
             syms.append(s)
     log(f"sesion {sesion}: {len(syms)} tickers (lista: {origen})")
     ok, fallos, total = [], [], 0
+    puntos: dict = {}
     pendientes = list(syms)
     for ronda in range(2):  # segunda ronda: los que fallaron, tras una pausa
         if ronda:
@@ -312,7 +345,7 @@ def main(args: list[str]) -> int:
         for sym in pendientes:
             t = time.time()
             try:
-                n = guardar_ticker(st, sym, sesion)
+                n = guardar_ticker(st, sym, sesion, puntos)
                 total += n
                 ok.append(sym)
                 log(f"{sym}: {n / 1024:.0f} KB en {time.time() - t:.1f} s")
@@ -332,6 +365,12 @@ def main(args: list[str]) -> int:
     if pedidos:  # prueba con unos tickers: ni poda ni marca de sesion hecha
         log(f"prueba terminada: {len(ok)}/{len(syms)} tickers, {total / 1e6:.2f} MB")
         return 0 if ok else 1
+    if puntos:
+        try:
+            log(f"skew: {len(puntos)} tickers, indice con {skew.actualizar(st, sesion, puntos)} sesiones")
+            publicar_skew(st)
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
     borrados = podar(st, sesion)
     almacen.put_json(st, marca, {
         "session": sesion, "saved": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "ok": ok, "errores": fallos,

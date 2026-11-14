@@ -33,6 +33,7 @@
     <div class="sec">Signals</div>
       <button class="item" id="navTrace" data-title="TRACE" title="TRACE"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M3 8h14M3 12.5h14" opacity=".55"/><path d="M6 14l2.5-3 2 1.5L14 7"/></svg><span class="lbl">TRACE</span></button>
       <button class="item" id="navHub" data-title="Equity Hub" title="Equity Hub"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V9M8 16V5M12 16v-6M16 16V7"/></svg><span class="lbl">Equity Hub</span></button>
+      <button class="item" id="navSkew" data-title="Skew signal" title="Put skew ranking of the stocks in the daily history"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5c3 0 4 9 7 9s4-5 7-5"/><path d="M3 16.5h14" opacity=".55"/></svg><span class="lbl">Skew signal</span></button>
     <div class="sec">Volatility</div>
       <button class="item" id="navVol" data-title="Volatility dashboard" title="Volatility dashboard"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Volatility dashboard</span></button>
       <button class="item" id="navVix" data-title="VIX curve" title="VIX curve"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">VIX curve</span></button>
@@ -547,6 +548,37 @@
   </section>
 </main>
 
+<main class="macro mview" id="skewSigView" hidden>
+  <aside class="mside" aria-label="Skew signal summary">
+    <div class="mhead">
+      <div class="sym">Skew signal, forward test</div>
+      <div class="mstate" id="sskState">—</div>
+      <div class="msub" id="sskSub"></div>
+    </div>
+    <p class="regime" id="sskRead"></p>
+    <div class="facts" id="sskFacts"></div>
+    <p class="mnote"><b>Skew</b>: implied volatility of the 25-delta put minus the at-the-money one, on the standard monthly expiration closest to 30 days, at the close. When puts get expensive, someone is paying for protection, and research (Xing, Zhang and Zhao, 2010) finds those stocks tend to lag the rest over the following weeks. <b>Score</b>: the average of each stock's rank by skew and by its change over 5 sessions (100 = most expensive). <b>IC</b>: rank correlation between the score and the return that followed; negative means the signal works. A cross-sectional ranking, not a market forecast.</p>
+  </aside>
+  <section class="mcharts">
+    <div class="mchart-head">
+      <span class="mtitle">Stocks by put skew</span>
+      <p class="chart-caption">Skew and change in volatility points. Click a stock to open its volatility dashboard.</p>
+    </div>
+    <div class="tablewrap"><table class="scan ssk-table" id="sskTable">
+      <thead><tr>
+        <th data-k="sym" class="l">Ticker</th>
+        <th data-k="skew" title="25-delta put IV minus ATM IV, about 30 days (volatility points)">Skew</th>
+        <th data-k="chg" title="Change in skew over 5 sessions (volatility points)">5d change</th>
+        <th data-k="atm" title="At-the-money implied volatility, about 30 days">ATM IV</th>
+        <th data-k="score" title="Average of the cross-sectional rank by skew and by its change (100 = most expensive)">Score</th>
+        <th data-k="q" class="l" title="Quintile of the score">Reading</th>
+      </tr></thead>
+      <tbody id="sskBody"></tbody>
+    </table></div>
+    <p class="chart-caption" id="sskExcl"></p>
+  </section>
+</main>
+
 <main class="macro tk-view" id="takesView" hidden>
   <div class="scan-bar tk-bar">
     <input class="tk-q" id="tkQ" type="search" placeholder="Search takes" aria-label="Search takes" autocomplete="off">
@@ -614,6 +646,7 @@
 <script src="historico.js"></script>
 <script src="vol.js"></script>
 <script src="corr.js"></script>
+<script src="skewsig.js"></script>
 <script src="takes-md.js"></script>
 <script src="takes.js"></script>
 <script src="flujo.js"></script>

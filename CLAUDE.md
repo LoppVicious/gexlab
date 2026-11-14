@@ -24,8 +24,9 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - `fuente_tradier.py` · `almacen.py` (R2 o disco) · `historial500.py` (historial diario a R2 `hist500/`)
 - `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro: ForexFactory y fuentes oficiales de EE. UU.), `reales.py` (dato real de EE. UU. con BLS y FRED)
 - `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes; `nube/report.js` — rutas del report semanal (token propio)
+- `skew.py` — señal de skew a 30 días para swings en acciones (índice `hist500/_skew.json.gz`, `pub/skew.json`)
 - `report_semanal.py` (paquete y PNG en R2 `report/`), `report_calc.py` (cálculos y umbrales), `report_graficos.py` (matplotlib); skill `.claude/skills/report-semanal/`
-- `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary), `calendario.js` (tarjeta de eventos y página Calendar), `takes.js`/`takes-md.js`/`takes.css` (Founder Takes)
+- `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary), `skewsig.js` (Skew signal), `calendario.js` (tarjeta de eventos y página Calendar), `takes.js`/`takes-md.js`/`takes.css` (Founder Takes)
 - `server.py` — modo PC: misma web y API en local · `pruebas/` — scripts para `comparar.yml`
 - `docs/ARQUITECTURA.md` — flujo completo, claves de R2, los dos motores, pruebas. Leer antes de tocar motor o Worker.
 

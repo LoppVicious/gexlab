@@ -3,9 +3,16 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX
+## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal para swings en acciones
 
 **Añadido**
+- **Skew signal** (en el menú, sección Signals): las acciones del historial diario ordenadas por lo caras que están sus
+  puts. Skew = IV de la put de 25 delta menos la ATM, en el vencimiento mensual más cercano a 30 días, al cierre; se
+  combina con su cambio en 5 sesiones. La investigación (Xing, Zhang y Zhao, 2010) encuentra que las acciones con el
+  skew más caro tienden a ir peor que el resto en las semanas siguientes. Fuera índices, ETF y VIX.
+- A la izquierda, la prueba en adelante con nuestros propios datos: correlación entre la puntuación y el rendimiento
+  de las 5 y 20 sesiones siguientes. Hasta tener 20 sesiones evaluadas dice "Collecting data": mientras tanto el
+  ranking es una lista para vigilar, no una señal. Al pulsar una acción se abre su Volatility dashboard.
 - **Equity Hub, rango de 1σ de SPX, SPY y XSP:** una línea más con el rango corregido por el régimen de gamma del
   SPX (GEX diario de SqueezeMetrics frente al último año, de muy bajo a muy alto). Desde 2012, con gamma muy alta el SPX
   cerró fuera del rango implícito el 9 % de las sesiones y con gamma muy baja el 30 %; el rango ajustado es el que de

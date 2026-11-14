@@ -43,10 +43,10 @@ body { font-family: var(--sans); background: var(--ink); }
 .levels .val, .fact strong, .hrow b, .split-head strong { font-weight: 700; }
 
 /* ---------------------------------------------------------------- paneles: bloques sin bordes */
-:is(.stage, .hubdrawer, .tstrip, .tablewrap, .vtests, .cotdetail, .fpanel, .vstat, .vpanel, .cpanel, .cside, .scard, #vixView, #corrView, .lab-panel, .lab-read) {
+:is(.stage, .hubdrawer, .tstrip, .tablewrap, .vtests, .cotdetail, .fpanel, .vstat, .vpanel, .cpanel, .cside, .scard, #vixView, #corrView, #skewSigView, .lab-panel, .lab-read) {
   border: 0; border-radius: var(--panel-r); background: var(--panel); }
 .lab-read { gap: 0; }
-:root[data-theme="light"] :is(.stage, .hubdrawer, .tstrip, .tablewrap, .vtests, .cotdetail, .fpanel, .vstat, .vpanel, .cpanel, .cside, .scard, #vixView, #corrView, .lab-panel, .lab-read) {
+:root[data-theme="light"] :is(.stage, .hubdrawer, .tstrip, .tablewrap, .vtests, .cotdetail, .fpanel, .vstat, .vpanel, .cpanel, .cside, .scard, #vixView, #corrView, #skewSigView, .lab-panel, .lab-read) {
   box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
 .tstrip > *, .ladder, .hubside, .hubcard, .hubwatch { border-color: var(--line-soft); }
 .scard.link:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }

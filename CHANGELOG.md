@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-15 — Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
+## 2026-11-15 — Índices en tiempo real cada minuto; Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
 
 **Añadido**
 - **Validation, toda la lista del historial diario:** nuevo selector "Tickers" con "My list" (la watchlist, como
@@ -21,6 +21,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   Los resultados que vienen sí encarecen la IV: antes de leer "rich" como venta, mirar el calendario.
 
 **Cambiado**
+- **Índices en tiempo real cada minuto:** SPX, NDX, RUT, SPY, QQQ e IWM se recalculan cada minuto con la
+  sesión abierta (antes, cada 5 min): niveles, mapa TRACE, paquete y el último punto del Options flow. Siguen hasta
+  las 16:15 ET (antes, 16:05), que es cuando dejan de cotizar sus opciones. Antes de la apertura (07:05-09:30), cada
+  5 min como hasta ahora. Para no pasar del límite de Tradier, cada minuto se piden los vencimientos de hasta 14 días
+  y los más lejanos se renuevan cada 5 min; el panel de volatilidad, también cada 5 min. Con Auto, la web los recoge
+  al minuto.
 - La Validation recorta los precios de cada ticker a los días que usa (las 500 sesiones de referencia y la ventana
   de volatilidad antes de su primera sesión con niveles): mismo resultado, la mitad de tiempo.
 

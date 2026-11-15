@@ -54,7 +54,7 @@
     const nRap = delDia.filter(esRap).length;
     const wd = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(dia + "T12:00:00Z").getUTCDay()];
     $("dayT").textContent = dia === hoy ? "Engine cycles today" : `Engine cycles on ${wd}, ${ddmm(dia)}`;
-    // arriba el ciclo completo (cada 15 min), abajo el ligero de los indices en tiempo real (cada 5 min)
+    // arriba el ciclo completo (cada 15 min), abajo el ligero de los indices en tiempo real (cada 5 min, con una pasada por minuto)
     const okN = delDia.filter((r) => r.resultado === "success").length, badN = delDia.filter((r) => r.resultado && r.resultado !== "success" && r.resultado !== "cancelled").length;
     $("dayS").textContent = e.ejecuciones.motor == null ? "GitHub did not return the runs" :
       `${delDia.length - nRap} full and ${nRap} index runs, ${okN} finished${badN ? `, ${badN} failed` : ""} (New York time)`;
@@ -89,7 +89,7 @@
       <dt>Tickers calculated</dt><dd>${tick}${e.config ? ` of ${e.config.universo + e.config.fijos + 1}` : ""}</dd>
       <dt>Errors</dt><dd>${nerr}</dd>
       <dt>Saved views</dt><dd>${e.config ? e.config.vistas : "—"}</dd>
-      <dt title="Light cycle for SPX, NDX, RUT, SPY, QQQ and IWM every 5 min while the market is open">Real-time indices</dt><dd>${
+      <dt title="Light cycle for SPX, NDX, RUT, SPY, QQQ and IWM: one pass per minute from 09:30 to 16:15 ET, every 5 min before the open">Real-time indices</dt><dd>${
         e.rapido ? `${esc(e.rapido.ultimo_ciclo.slice(11, 16))}, ${(e.rapido.tickers || []).length}/6${(e.rapido.errores || []).length ? `, ${e.rapido.errores.length} err.` : ""}` : "—"}</dd></dl></div>`;
     const hOk = hi ? (hi.ok || []).length : 0, hBad = hi ? (hi.errores || []).length : 0;
     const hState = !hi ? "err" : hBad ? "warn" : "ok";

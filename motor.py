@@ -3,9 +3,11 @@ GEX Lab - motor en la nube (GitHub Actions).
 
   python motor.py ciclo            recoge y calcula todo para los tickers de todas las listas
   python motor.py ticker SPX AMD   calculo puntual de uno o varios tickers (p. ej. uno nuevo en una lista)
-  python motor.py rapido           ciclo ligero de los indices en tiempo real (TIEMPO_REAL), cada 5 min con el
-                                   mercado abierto: cadena y velas de 5 min de Tradier, paquetes y vistas; no guarda
-                                   el estado (el historial de niveles y el flujo los lleva el ciclo de 15 min)
+  python motor.py rapido           ciclo ligero de los indices en tiempo real (TIEMPO_REAL): el Worker lo lanza cada
+                                   5 min y, con la sesion abierta (09:30 hasta 15 min tras el cierre), hace una pasada
+                                   por minuto hasta el siguiente; antes de abrir, una sola. Cadena y velas de 1 min de
+                                   Tradier, paquetes y vistas; no guarda el estado (el historial de niveles y el flujo
+                                   los lleva el ciclo de 15 min)
   python motor.py calendario       solo el dato real del calendario macro (BLS y FRED): lo lanza la alarma del
                                    Worker a la hora de cada evento + 1 min; no toca tickers ni guarda el tar
 
@@ -50,7 +52,9 @@ COPIAS_N = 14
 FX = os.path.join(ROOT, "salida", "fx")           # paquetes del ciclo, en formato de fixtures del motor
 DTES = list(g.DTE_FILTERS)  # 0, 1, 7, 14, 30, 45 y todos
 VAL_MODES = ["standard", "flow"]
-TIEMPO_REAL = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]  # ciclo ligero cada 5 min (motor.py rapido)
+TIEMPO_REAL = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]  # ciclo ligero cada minuto (motor.py rapido)
+TRAS_CIERRE_MIN = 15  # las opciones de los indices cotizan hasta las 16:15: el modo rapido sigue hasta entonces
+PASADA_SEG = 3        # segundos tras cada minuto en que empieza una pasada (la vela de 1 min ya esta cerrada)
 VELAS_TRADIER = {"SPX", "SPY", "QQQ", "IWM"}  # Tradier no da velas de NDX ni RUT: van con las de CBOE
 SIEMPRE = ["VIX"]   # se calculan cada ciclo aunque no esten en ninguna lista (paquete, historico, volatilidad)
 DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
@@ -336,14 +340,14 @@ def escribir_fixtures(paq: dict) -> None:
 
 
 # ---------------------------------------------------------------- fases
-def fase_tickers(st, syms: list[str], proxies: list[str], ligero: bool = False) -> list[str]:
+def fase_tickers(st, syms: list[str], proxies: list[str], ligero: bool = False, vol: bool = True) -> list[str]:
     """Descarga, mantiene el historial y el flujo (como al usar la app en el PC) y publica los paquetes."""
     ok = []
     for sym in syms + [p for p in proxies if p not in syms]:
         t = time.time()
         for intento in range(2):  # si CBOE limita las peticiones (429), espera y lo reintenta una vez
             try:
-                _ticker(st, sym, syms, ligero)
+                _ticker(st, sym, syms, ligero, vol)
                 ok.append(sym)
                 log(f"{sym}: listo en {time.time() - t:.1f} s")
                 break
@@ -361,8 +365,9 @@ def fase_tickers(st, syms: list[str], proxies: list[str], ligero: bool = False) 
     return ok
 
 
-def _ticker(st, sym: str, syms: list[str], ligero: bool = False) -> None:
-    """Un ticker: historial de niveles, paquete para el navegador y panel de volatilidad."""
+def _ticker(st, sym: str, syms: list[str], ligero: bool = False, vol: bool = True) -> None:
+    """Un ticker: historial de niveles, paquete para el navegador y panel de volatilidad (con vol=False no se
+    publica: el modo rapido lo hace solo en la primera pasada de cada 5 min, para no gastar escrituras de R2)."""
     if sym in syms and not ligero:
         # historial de niveles de los dos motores, los cuatro filtros y los dos modos (Historico y Validacion),
         # flujo y copia de la cadena
@@ -376,11 +381,12 @@ def _ticker(st, sym: str, syms: list[str], ligero: bool = False) -> None:
     paq = paquete(sym)
     escribir_fixtures(paq)
     n = subir(st, f"pub/t/{sym}/paquete.json", paq)
-    try:  # panel de volatilidad (y su historia diaria)
-        import volatilidad
-        subir(st, f"pub/t/{sym}/vol.json", volatilidad.vol_data(sym, save=sym in syms))
-    except Exception as e:  # noqa: BLE001
-        err(f"{sym} volatilidad", e)
+    if vol:
+        try:  # panel de volatilidad (y su historia diaria)
+            import volatilidad
+            subir(st, f"pub/t/{sym}/vol.json", volatilidad.vol_data(sym, save=sym in syms))
+        except Exception as e:  # noqa: BLE001
+            err(f"{sym} volatilidad", e)
     try:  # flujo estimado: solo el ciclo guarda el tramo; el modo rapido publica un ultimo punto provisional
         import flujo
         subir(st, f"pub/t/{sym}/flujo.json", flujo.tick(sym, save=sym in syms and not ligero))
@@ -628,7 +634,7 @@ def ciclo() -> int:
     return 0 if ok else 1
 
 
-def tickers(args: list[str], ligero: bool = False) -> int:
+def tickers(args: list[str], ligero: bool = False, vol: bool = True) -> int:
     """Calculo puntual: no toca el estado (solo lo lee) para no pisar al ciclo."""
     st = almacen.abrir()
     restaurar_estado(st)
@@ -643,7 +649,7 @@ def tickers(args: list[str], ligero: bool = False) -> int:
             syms.append(s)
     shutil.rmtree(os.path.join(ROOT, "salida"), ignore_errors=True)
     proxies = sorted({g.INDEX_PROXY[s] for s in syms if s in g.INDEX_PROXY})
-    ok = fase_tickers(st, syms, proxies, ligero)
+    ok = fase_tickers(st, syms, proxies, ligero, vol)
     fase_vistas_ticker = [s for s in syms if s in ok]
     os.environ["GEX_FIXTURE_DIR"] = FX
     g._cache.clear(); g._aux_cache.clear(); g._heat_cache.clear(); g._rate["t"] = 0.0
@@ -666,16 +672,47 @@ def tickers(args: list[str], ligero: bool = False) -> int:
     return 0 if ok else 1
 
 
-def rapido() -> int:
-    now = g.now_ny()
-    # dias sin mercado o fuera de sesion (el reloj del Worker no conoce los festivos ni los cierres a las 13:00):
-    # hasta 6 min tras el cierre, para recoger la ultima vela
+def _en_sesion_rapida(now) -> bool:
+    """De 09:30 a TRAS_CIERRE_MIN tras el cierre (13:15 en los cierres anticipados): una pasada por minuto."""
     from datetime import timedelta
+    return (g.is_trading_day(now) and now.replace(hour=9, minute=30, second=0, microsecond=0) <= now
+            < g.close_time(now) + timedelta(minutes=TRAS_CIERRE_MIN + 1))
+
+
+def rapido() -> int:
+    """El Worker lo lanza cada 5 min. Con la sesion abierta hace una pasada al empezar y otra cada minuto (a los
+    PASADA_SEG s) hasta la del final de su tramo de 5 min; el siguiente trabajo espera en la cola de GitHub
+    (concurrency) y arranca al terminar este, asi no se solapan. Antes de la apertura, una sola pasada. Cada pasada
+    lee el estado de nuevo (el ciclo de 15 min lo cambia: flujo e historial) y descarga las cadenas otra vez; los
+    vencimientos lejanos se reutilizan (fuente_tradier.LEJOS_S) y el panel de volatilidad solo en la primera."""
+    global _t0
+    from datetime import timedelta
+    now = g.now_ny()
+    # dias sin mercado o fuera de sesion (el reloj del Worker no conoce los festivos ni los cierres a las 13:00)
     pre = g.is_trading_day(now) and g.PRE_OPEN <= (now.hour, now.minute) < (9, 30)  # tramo previo del TRACE
-    if not (pre or g.market_open(now) or g.market_open(now - timedelta(minutes=6))):
+    if not (pre or _en_sesion_rapida(now)):
         log(f"rapido: mercado cerrado ({now:%Y-%m-%d %H:%M} ET), nada que hacer")
         return 0
-    return tickers(TIEMPO_REAL, ligero=True)
+    fin = now.replace(minute=now.minute - now.minute % 5, second=PASADA_SEG, microsecond=0) + timedelta(minutes=5)
+    rc, n = 1, 0
+    while True:
+        n += 1
+        ini = g.now_ny()
+        _t0 = time.time()
+        _errores.clear()
+        os.environ.pop("GEX_FIXTURE_DIR", None)  # la pasada anterior lo deja apuntando a sus paquetes
+        g._cache.clear(); g._aux_cache.clear(); g._heat_cache.clear()
+        if tickers(TIEMPO_REAL, ligero=True, vol=n == 1) == 0:
+            rc = 0
+        if pre:
+            break
+        # la del minuto siguiente al inicio de esta; si ya ha pasado (pasada lenta), enseguida
+        sig = (ini + timedelta(minutes=1)).replace(second=PASADA_SEG, microsecond=0)
+        if sig > fin or not _en_sesion_rapida(max(sig, g.now_ny())):
+            break
+        time.sleep(max(0.0, (sig - g.now_ny()).total_seconds()))
+    log(f"rapido: {n} pasadas")
+    return rc
 
 def calendario() -> int:
     """Lo lanza la alarma del Worker a la hora de cada evento + 1 min (y reintentos): solo el dato real del

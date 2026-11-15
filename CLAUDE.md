@@ -20,7 +20,7 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 
 ## Mapa
 - `gex_engine.py` — todo el cálculo (cadena, gamma, niveles, perfil, mapa TRACE, escáner, Compass, histórico); lo usa también el navegador
-- `motor.py` — ciclo de Actions (cada 15 min) y modo `rapido` (cada 5 min, 6 índices); publica en R2
+- `motor.py` — ciclo de Actions (cada 15 min) y modo `rapido` (6 índices, una pasada por minuto de 09:30 a 16:15 ET); publica en R2
 - `fuente_tradier.py` · `almacen.py` (R2 o disco) · `historial500.py` (historial diario a R2 `hist500/`)
 - `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro: ForexFactory y fuentes oficiales de EE. UU.), `reales.py` (dato real de EE. UU. con BLS y FRED)
 - `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes; `nube/report.js` — rutas del report semanal (token propio)

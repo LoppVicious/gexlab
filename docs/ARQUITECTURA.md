@@ -9,13 +9,24 @@ GitHub Actions (motor.yml, repo público = minutos ilimitados)
 Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
   - auth (PBKDF2 en el cliente, sesión única por cuenta), prefs y listas en D1
   - cron */5: toca() lanza motor.yml modo ciclo cada 15 min (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00);
-    tocaRapido() lanza modo rapido cada 5 min de 07:05 a 16:05 ET (de 07:05 a 09:30, el tramo previo a la apertura).
+    tocaRapido() lanza modo rapido cada 5 min de 07:05 a 16:15 ET (de 07:05 a 09:30, el tramo previo a la apertura).
   - **Tiempo real** (`motor.py rapido`, `TIEMPO_REAL` = SPX NDX RUT SPY QQQ IWM): cadena y velas de 1 min de Tradier
     (`fuente_tradier.velas`, solo cerradas y hasta el cierre, formato de CBOE intraday; solo `VELAS_TRADIER`:
     Tradier no da velas de NDX ni RUT), paquete y vistas; lee el estado pero no lo guarda
     (historial de niveles y flujo, en el ciclo de 15 min, que vuelve a descargar esos 6: el cupo de Tradier alcanza).
-    Escribe `pub/rapido.json`. Sale sin hacer nada fuera de 07:00-cierre (festivos, cierre a las 13:00). Resto de
-    tickers: velas de CBOE. La web (Auto) recarga cada minuto esos 6 y cada 5 el resto.
+    Escribe `pub/rapido.json`. Sale sin hacer nada fuera de 07:00-cierre + 15 min (festivos, cierre a las 13:00).
+    Resto de tickers: velas de CBOE. La web (Auto) recarga cada minuto esos 6 y cada 5 el resto.
+    - **Una pasada por minuto** de 09:30 a 16:15 ET (`TRAS_CIERRE_MIN`): cada trabajo de 5 min hace una al empezar
+      y otra a los `PASADA_SEG` s de cada minuto hasta la del final de su tramo; el siguiente espera en la cola
+      (`concurrency` de `motor.yml`) y arranca al terminar este. Cada pasada vuelve a leer el estado. Antes de la
+      apertura, una sola pasada por trabajo. `vol.json` solo en la primera pasada de cada trabajo.
+    - **Cupo de Tradier** (medido con `pruebas/tradier_cupo.py`): la cadena completa de los 6 son 233 peticiones
+      (57 SPX, 44 NDX, 32 RUT, 35 SPY, 32 QQQ, 33 IWM, con cotización, vencimientos y velas). `fuente_tradier`
+      reutiliza los vencimientos de más de `CERCA_DIAS` (14) durante `LEJOS_S` (290 s): las demás pasadas son
+      70 peticiones. ~583 por trabajo de 5 min (~117/min). El límite publicado es 120/min; en la prueba del
+      2026-11-15 Tradier no lo aplicaba (699 en 24 s sin 429). Al día, ~82.000 peticiones con el ciclo.
+    - **Escrituras en R2** (tope gratis: 1 M/mes de clase A): ~61 por pasada con 4 vistas; con el ciclo, ~0,87 M
+      al mes. Por eso el tramo previo a la apertura sigue cada 5 min.
   - **Tramo previo a la apertura del TRACE** (`gex_engine.PRE_PROXY`, desde `PRE_OPEN` = 07:00): el mapa de SPX, NDX,
     RUT y sus ETF empieza a las 07:00. `fuente_tradier.velas_pre` añade a `fx/intraday_SYM.json` las velas de 1 min del
     ETF (Tradier, `session_filter=all`) escaladas al índice (`pre_src` = ETF). Ratio: índice / ETF al cierre de la vela

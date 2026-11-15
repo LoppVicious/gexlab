@@ -9,8 +9,11 @@ IV: Tradier publica sus griegas (ORATS) aproximadamente cada hora; los precios v
 sea del mismo instante que el precio, gex_engine.parse_chain la recalcula con el punto medio bid/ask sobre el forward
 implicito de cada vencimiento (igual que con CBOE); la de ORATS queda de respaldo.
 
-Limite de la API: 120 peticiones por minuto. La cadena se pide por vencimiento (SPX tiene ~55), en paralelo,
-respetando las cabeceras X-Ratelimit. El token nunca se escribe en los registros.
+Limite de la API: 120 peticiones por minuto. La cadena se pide por vencimiento (SPX tiene ~57), en paralelo,
+respetando las cabeceras X-Ratelimit. Una pasada de los 6 indices en tiempo real son ~233 peticiones; para que el modo
+rapido quepa cada minuto, los vencimientos lejanos (mas de CERCA_DIAS) se reutilizan durante LEJOS_S y en cada pasada
+solo se piden los cercanos (~60 peticiones). Medido el 2026-11-15: Tradier no aplicaba el limite (699 peticiones en
+24 s sin un 429, y X-Ratelimit-Used no pasaba de ~70). El token nunca se escribe en los registros.
 """
 from __future__ import annotations
 
@@ -115,6 +118,23 @@ def _opciones(sym: str, exp: str) -> list[dict]:
     return _lista(((d or {}).get("options") or {}).get("option"))
 
 
+CERCA_DIAS = 14   # vencimientos hasta esta distancia (dias naturales): se piden en cada pasada
+LEJOS_S = 290     # los mas lejanos se reutilizan este tiempo (el modo rapido los renueva en cada trabajo de 5 min)
+_lejos: dict[tuple[str, str], tuple[float, list[dict]]] = {}
+
+
+def _opciones_cache(sym: str, exp: str, hoy) -> list[dict]:
+    """Opciones de un vencimiento; las de los lejanos, de la memoria si son recientes."""
+    lejano = (datetime.strptime(exp, "%Y-%m-%d").date() - hoy).days > CERCA_DIAS
+    hit = _lejos.get((sym, exp))
+    if lejano and hit and time.time() - hit[0] < LEJOS_S:
+        return hit[1]
+    opts = _opciones(sym, exp)
+    if lejano:
+        _lejos[(sym, exp)] = (time.time(), opts)
+    return opts
+
+
 def cadena(symbol: str) -> dict:
     """Cadena completa de Tradier en el formato de CBOE (lo que espera gex_engine.parse_chain)."""
     sym = symbol.upper()
@@ -126,8 +146,9 @@ def cadena(symbol: str) -> dict:
     exps = _vencimientos(sym)
     if not exps:
         raise TradierError(f"Tradier no tiene opciones de {sym}")
+    hoy = datetime.now(timezone.utc).date()
     with ThreadPoolExecutor(max_workers=HILOS) as pool:
-        partes = list(pool.map(lambda e: _opciones(sym, e), exps))
+        partes = list(pool.map(lambda e: _opciones_cache(sym, e, hoy), exps))
     opts = [o for p in partes for o in p if o.get("symbol")]
     if not opts:
         raise TradierError(f"Tradier no devuelve contratos de {sym}")

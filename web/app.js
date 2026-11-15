@@ -1299,7 +1299,7 @@ function dataStatus(d) {
 }
 function dataTitle(d) {
   const src = d.source !== "tradier" ? "CBOE (15 min delay)"
-    : TIEMPO_REAL.has(d.symbol) ? "real-time Tradier; this index is recalculated every 5 min while the market is open"
+    : TIEMPO_REAL.has(d.symbol) ? "real-time Tradier; this index is recalculated every minute while the market is open (every 5 min before the open)"
     : "real-time Tradier at calculation time; recalculated every 15 min";
   const base = `Calculated ${nyWhen(d.computed_at)} (local time) with data from ${src}.`;
   if (!dataClosed(d)) return base;
@@ -1674,7 +1674,7 @@ function checkCrossings(prev, d) {
   }
 }
 
-// indices en tiempo real: en la nube el motor los recalcula cada 5 min (motor.py rapido); el resto, cada 15
+// indices en tiempo real: en la nube el motor los recalcula cada minuto con la sesion abierta (motor.py rapido); el resto, cada 15
 const TIEMPO_REAL = new Set(["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]);
 
 function setAuto(on, quiet = false) {
@@ -1695,7 +1695,7 @@ function setAuto(on, quiet = false) {
     }, 60 * 1000);
     if (quiet) return;
     try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch { /* */ }
-    toast("Auto refresh on", "Reloads the data as soon as the engine publishes it (every 5 min for SPX, NDX, RUT, SPY, QQQ and IWM; every 15 for the rest) and alerts you when the price crosses a level.");
+    toast("Auto refresh on", "Reloads the data as soon as the engine publishes it (every minute for SPX, NDX, RUT, SPY, QQQ and IWM while the market is open; every 15 min for the rest) and alerts you when the price crosses a level.");
   }
 }
 

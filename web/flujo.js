@@ -12,7 +12,7 @@ function flowStatus() { return flw.data ? `Flow at ${nyHHMM(flw.data.generado)}`
 function showFlow() {
   const sym = state.symbol || "SPX";
   $("symbol").value = sym;
-  if (!flw.data || flw.sym !== sym || Date.now() - flw.at > 300000) loadFlow(); else { renderFlow(); setStatus("", flowStatus()); }
+  if (!flw.data || flw.sym !== sym || Date.now() - flw.at > (TIEMPO_REAL.has(sym) ? 60000 : 300000)) loadFlow(); else { renderFlow(); setStatus("", flowStatus()); }
 }
 
 async function loadFlow(refresh = false) {
@@ -58,7 +58,7 @@ function renderFlow() {
     tile("Net delta", fMoney(last.d), last.d > 0 ? "customers added long exposure" : last.d < 0 ? "customers added short exposure" : "flat", C.purple, "Delta of the classified trades in dollars, from the customer side: buying calls or selling puts adds, buying puts or selling calls subtracts. Dealers would hold the opposite."),
     tile("Net vega", fMoney(last.vg) + " /pt", last.vg > 0 ? "customers bought volatility" : last.vg < 0 ? "customers sold volatility" : "flat", "", "Vega of the classified trades in dollars per IV point, from the customer side."),
     tile("Volume", fmtBig(v.total || 0), `${fmtNum(cov * 100, 0)}% classified; calls ${fmtBig(v.calls || 0)}, puts ${fmtBig(v.puts || 0)}`, "", "Today's volume within ±35% of the price. Classified: the part that went through at least one engine snapshot."),
-    tile("Slices", String(s.length), s.length ? `last ${last.t} ET${d.provisional ? " (provisional)" : ""}, ${last.m === "bvc" ? "by IV change" : "by last trade"}` : "none yet today", "", "Each slice is the volume between two engine snapshots (every 15 minutes). By IV change (BVC) when enough contracts traded in the slice; otherwise by where the last trade printed."),
+    tile("Slices", String(s.length), s.length ? `last ${last.t} ET${d.provisional ? " (provisional)" : ""}, ${last.m === "bvc" ? "by IV change" : "by last trade"}` : "none yet today", "", "Each slice is the volume between two engine snapshots (every 15 minutes; for SPX, NDX, RUT, SPY, QQQ and IWM a provisional last point is updated every minute while the market is open). By IV change (BVC) when enough contracts traded in the slice; otherwise by where the last trade printed."),
   ].join("");
   // lectura en una frase: que domina y hacia donde empuja la delta
   const dom = Math.abs(last.cp) >= Math.abs(last.pp) ? ["calls", last.cp] : ["puts", last.pp];

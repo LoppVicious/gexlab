@@ -74,7 +74,7 @@ Por orden de prioridad.
    ciclo, clasificado por BVC sobre el cambio de IV (no de precio: el precio de una opción se mueve con el
    subyacente), con la regla de cotización si hay menos de 20 contratos en el tramo; prima neta de calls y puts, delta
    y vega netas acumuladas; actividad inusual (volumen > OI) con prima, delta $, vega $ y parte comprada.
-   - Tramos de 15 min, no de 5: solo el ciclo guarda estado; el modo rápido publica un punto provisional.
+   - Tramos de 15 min: solo el ciclo guarda estado; el modo rápido publica un punto provisional cada minuto.
    - El primer tramo de cada sesión (o si el motor se para) se clasifica por la última operación, más tosco.
    - Comprobado con un tramo simulado (calls con IV al alza salen compradas, puts a la baja vendidas). Pendiente de
      ver una sesión real completa.

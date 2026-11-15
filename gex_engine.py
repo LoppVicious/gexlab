@@ -2896,6 +2896,13 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
                     f = ratios[rk[j]]
                     scaled[d] = (o_ * f, h_ * f, l_ * f, c_ * f)
                 ohlc = scaled
+        if ohlc:
+            # solo los dias que se usan: la referencia y la volatilidad realizada previas a la primera sesion con
+            # niveles (las series de CBOE llegan a 20 anos y la Validacion recorre cientos de tickers)
+            ks = sorted(ohlc)
+            j = int(np.searchsorted(ks, min([*reg, *ante]))) - (VAL_BASE_DAYS + VAL_RV_DAYS + 2)
+            if j > 0:
+                ohlc = {d: ohlc[d] for d in ks[j:]}
         sr = _val_series(ohlc) if ohlc else None
         dates = sr["dates"] if sr else []
         n_ante, ss = 0, []

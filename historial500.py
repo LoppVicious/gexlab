@@ -8,6 +8,7 @@ config/historial500.json; si aun no existe, se usa TICKERS (la lista inicial).
   python historial500.py --forzar        rehace la ultima sesion cerrada (con el mercado cerrado)
   python historial500.py --forzar AAPL   solo esos tickers (pruebas)
   python historial500.py --indice        reconstruye hist500/_niveles/ y hist500/_skew.json.gz con los dias ya guardados
+  python historial500.py --validacion    solo recalcula la Validacion de toda la lista (pub/validacion500/)
 
 Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
   hist500/{SYM}/{AAAA-MM-DD}.json.gz
@@ -22,6 +23,7 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
   hist500/_flujo/{SYM}.json.gz: volumen del dia y lado de la ultima operacion por contrato de las ultimas
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
   hist500/_skew.json.gz y pub/skew.json: skew de puts y diferencia call-put a 30 dias de cada accion (skew.py).
+  pub/validacion500/{filtro}_{posicion}.json: Validacion de toda la lista con el indice de niveles (publicar_validacion).
 Al terminar escribe hist500/_dias/{fecha}.json (resumen) y borra lo que tenga mas de RETENCION_ANOS.
 Nunca toca el estado del motor (estado/estado.tar.gz). Los registros de Actions son publicos: solo se
 escriben tickers, tiempos y tamanos.
@@ -64,6 +66,8 @@ POSICIONES = ("standard", "flow")
 RANGO = 5.0                     # el mismo rango que usa el historico de la app
 PAUSA = 0.5                     # segundos entre tickers (ademas del limite de gex_engine)
 CAMPOS_INDICE = ("spot", "call_wall", "put_wall", "net_per_pct", "m1_pct", "m1_session", "saved")
+VALIDACION_PREFIX = "pub/validacion500/"  # Validacion de toda la lista (publicar_validacion)
+EVENTOS_KEY = "estado/eventos.json"       # calendario del motor (motor.EVENTOS_KEY)
 
 _t0 = time.time()
 _record_flow = g.record_flow
@@ -272,6 +276,31 @@ def publicar_skew(st, guardados: list[str] | None = None) -> None:
         log(f"skew: {e}")
 
 
+def publicar_validacion(st, syms: list[str]) -> None:
+    """Validacion de toda la lista (motor Perfil, el que usa la web) con los niveles tras el cierre del indice
+    hist500/_niveles/: pub/validacion500/{filtro}_{posicion}.json, uno por filtro de vencimientos y posicion. La web la
+    lee por /api/pub/ (Validation > Daily history). Con el historico del motor aislado (_aislar), solo cuenta el indice."""
+    import eventos
+    from concurrent.futures import ThreadPoolExecutor
+    d = almacen.get_json(st, EVENTOS_KEY)  # dias de FOMC, IPC y empleo: el calendario que guarda el motor
+    if d and d.get("eventos"):
+        os.makedirs(os.path.dirname(eventos.STATE), exist_ok=True)
+        g.write_json(eventos.STATE, d)
+    t = time.time()
+    with ThreadPoolExecutor(max_workers=16) as ex:  # cada lectura de R2 tarda ~1 s desde GitHub
+        idx = dict(zip(syms, ex.map(lambda s: leer_indice(st, s), syms)))
+    syms = [s for s in syms if idx[s]]
+    saved = g.now_ny().strftime("%Y-%m-%d %H:%M ET")
+    for dte in g.DTE_FILTERS:
+        for pos in POSICIONES:
+            try:
+                v = g.validation(syms, dte, pos, "spotgamma", idx)
+                almacen.put_json(st, f"{VALIDACION_PREFIX}{dte}_{pos}.json", {**v, "saved": saved, "tickers": len(syms)})
+            except Exception as e:  # noqa: BLE001
+                log(f"ERROR validacion {dte} {pos}: {type(e).__name__}: {str(e)[:120]}")
+    log(f"validacion: {len(syms)} tickers en {time.time() - t:.0f} s")
+
+
 def podar(st, sesion: str) -> int:
     """Borra los archivos con fecha anterior a RETENCION_ANOS antes de la sesion."""
     corte = f"{int(sesion[:4]) - RETENCION_ANOS}{sesion[4:]}"
@@ -287,6 +316,18 @@ def podar(st, sesion: str) -> int:
     return n
 
 
+def _normalizados(lista: list[str]) -> list[str]:
+    out = []
+    for a in lista:
+        try:
+            s = g.normalize(a)
+        except ValueError:
+            continue
+        if s not in out:
+            out.append(s)
+    return out
+
+
 def main(args: list[str]) -> int:
     _aislar()
     forzar = "--forzar" in args
@@ -300,17 +341,17 @@ def main(args: list[str]) -> int:
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR indice {sym}: {type(e).__name__}: {str(e)[:120]}")
         if not pedidos:
-            syms = []
-            for a in lista_tickers(st)[0]:
-                try:
-                    syms.append(g.normalize(a))
-                except ValueError:
-                    pass
+            syms = _normalizados(lista_tickers(st)[0])
             try:
                 log(f"skew: indice con {skew.reconstruir(st, syms)} sesiones")
                 publicar_skew(st)
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
+            publicar_validacion(st, syms)
+        return 0
+    if "--validacion" in args:  # solo recalcula la Validacion de toda la lista con los indices guardados
+        st = almacen.abrir()
+        publicar_validacion(st, _normalizados(pedidos or lista_tickers(st)[0]))
         return 0
     sesion = sesion_objetivo(forzar)
     now = g.now_ny()
@@ -373,6 +414,7 @@ def main(args: list[str]) -> int:
             publicar_skew(st, ok)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
+    publicar_validacion(st, syms)
     borrados = podar(st, sesion)
     almacen.put_json(st, marca, {
         "session": sesion, "saved": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "ok": ok, "errores": fallos,

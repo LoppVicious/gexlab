@@ -211,7 +211,12 @@
       case "/api/gex": return analisis("gex", q, s);
       case "/api/heatmap": return analisis("heat", q, s);
       case "/api/scan": return escaner(q, s);
-      case "/api/validation": return lista(`validacion_${q.get("dte") || "45"}_${q.get("mode") === "flow" ? "flow" : "standard"}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validation");
+      case "/api/validation": {
+        const dte = q.get("dte") || "45", mode = q.get("mode") === "flow" ? "flow" : "standard";
+        // toda la lista del historial diario: la publica historial500.py tras el cierre (solo motor Perfil)
+        if (q.get("scope") === "all") return pub(`validacion500/${dte}_${mode}.json`, s, "Validation of the daily history");
+        return lista(`validacion_${dte}_${mode}_${q.get("model") === "gexbot" ? "gexbot" : "spotgamma"}.json`, s, "Validation");
+      }
       case "/api/compass": return lista("compass.json", s, "Compass");
       case "/api/vix": return pub("vix.json", s, "VIX curve");
       case "/api/corr": return pub("correlacion.json", s, "Correlation");

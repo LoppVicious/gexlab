@@ -160,6 +160,8 @@ class Handler(SimpleHTTPRequestHandler):
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
         if url.path == "/api/validation":
+            if q.get("scope") == "all":  # la de toda la lista sale del historial diario de R2 (historial500.py)
+                return self._json(400, {"error": "Validation of the daily history is only available in the cloud."})
             clean = []
             for x in q.get("symbols", "").split(",")[:40]:
                 try:

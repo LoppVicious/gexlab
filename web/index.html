@@ -386,6 +386,11 @@
   </div>
   <div class="validwrap" id="validWrap" hidden>
     <div class="validbar">
+      <span class="cap" id="capValidScope">Tickers</span>
+      <div class="seg boxed" role="radiogroup" aria-labelledby="capValidScope" id="validScopeSeg">
+        <button role="radio" data-v="list" title="The tickers of your watchlist, updated every engine cycle">My list</button>
+        <button role="radio" data-v="all" title="Every ticker of the daily history, with levels saved after each close; updated once a day">Daily history</button>
+      </div>
       <span class="cap" id="capValid">Dealer positioning</span>
       <div class="seg boxed" role="radiogroup" aria-labelledby="capValid" id="validModeSeg">
         <button role="radio" data-v="standard">Standard</button>
@@ -412,7 +417,7 @@
       </div>
       <section class="lab-panel v-days" id="validDays"></section>
     </div>
-    <p class="scan-note">Each session is evaluated only with levels known before it started: those calculated before the open (the collector saves them in the 75 minutes before the Wall Street open) or, if there are none, those from the previous session's close. They are compared with the actual high, low and close. Distances and ranges are measured in units of the ticker's 20-session realized volatility, so calm and volatile periods are comparable. Tests group the sessions of each day, because tickers move together, and need at least 20 different days. The ticker list is today's, so tickers that left it are missing from the past.</p>
+    <p class="scan-note">Each session is evaluated only with levels known before it started: those calculated before the open (the collector saves them in the 75 minutes before the Wall Street open) or, if there are none, those from the previous session's close. They are compared with the actual high, low and close. Distances and ranges are measured in units of the ticker's 20-session realized volatility, so calm and volatile periods are comparable. Tests group the sessions of each day, because tickers move together, and need at least 20 different days. The ticker list is today's, so tickers that left it are missing from the past. Daily history covers every ticker saved after each close, with the levels of that close only, and is updated once a day.</p>
   </div>
   <div class="tablewrap" id="tableWrap">
     <table class="scan" id="scanTable">

@@ -3,9 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-15 — Skew signal: Vol premium; estudio del Skew signal
+## 2026-11-15 — Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
 
 **Añadido**
+- **Validation, toda la lista del historial diario:** nuevo selector "Tickers" con "My list" (la watchlist, como
+  hasta ahora) y "Daily history" (los ~560 tickers del historial diario). Se calcula una vez al día, al terminar de
+  guardar la sesión, con los niveles de cada cierre (sin las fotos de antes de la apertura) y el motor Perfil, para
+  todos los filtros de vencimientos y los dos modos. Solo en la nube. Así las pruebas cuentan con muchas más
+  sesiones por día y se pueden ajustar los umbrales con más datos.
 - **Skew signal, quinta pestaña: Vol premium:** la IV a 30 días de cada acción menos lo que se ha movido de verdad en
   las últimas 20 sesiones. No dice hacia dónde irá la acción, sino si sus opciones están caras o baratas frente a su
   movimiento real: la investigación (Goyal y Saretto, 2009) encuentra que las opciones caras frente a la volatilidad
@@ -14,6 +19,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   "Options rich" a "Options cheap"; no vota en el Consensus. La volatilidad realizada deja fuera el mayor movimiento
   de las 20 sesiones: un salto de resultados no se repite y hacía parecer baratísimas las opciones de INTC, AMD o MU.
   Los resultados que vienen sí encarecen la IV: antes de leer "rich" como venta, mirar el calendario.
+
+**Cambiado**
+- La Validation recorta los precios de cada ticker a los días que usa (las 500 sesiones de referencia y la ventana
+  de volatilidad antes de su primera sesión con niveles): mismo resultado, la mitad de tiempo.
 
 **Corregido**
 - **Estudio del Skew signal** (`pruebas/estudio_skew.py`): fallaba al llegar al Consensus, que no tiene puntuación

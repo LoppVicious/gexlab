@@ -13,6 +13,10 @@ on:
         description: "Solo reconstruir los indices de niveles (hist500/_niveles/) con los dias ya guardados"
         type: boolean
         default: false
+      validacion:
+        description: "Solo recalcular la Validacion de toda la lista (pub/validacion500/)"
+        type: boolean
+        default: false
   schedule:
     - cron: "45 23 * * 1-5"
 concurrency:
@@ -41,4 +45,5 @@ jobs:
           GEX_ALMACEN: r2
           FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
           INDICE: ${{ inputs.indice && '--indice' || '' }}
-        run: python historial500.py $FORZAR $INDICE
+          VALIDACION: ${{ inputs.validacion && '--validacion' || '' }}
+        run: python historial500.py $FORZAR $INDICE $VALIDACION

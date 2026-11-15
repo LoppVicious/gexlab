@@ -95,6 +95,7 @@ const state = {
   pos: store.get("pos", "standard"),
   model: store.get("model", "auto"),
   validMode: "standard",
+  validScope: store.get("validScope", "list"),  // Validation: la watchlist o toda la lista del historial diario
   cmpTrail: store.get("cmpTrail", "5"),  // sesiones de historial que dibuja la estela del Compass (0 = sin estela)
   watch: null,
   combo: store.get("combo", "0") === "1",
@@ -2410,7 +2411,8 @@ async function loadValidation() {
   const body = $("validBody");
   body.innerHTML = `<tr class="loading"><td colspan="8" class="l">Calculating…</td></tr>`;
   try {
-    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&symbols=${encodeURIComponent(watchlist().join(","))}`);
+    const all = state.validScope === "all";
+    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&scope=${all ? "all" : "list"}${all ? "" : `&symbols=${encodeURIComponent(watchlist().join(","))}`}`);
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Validation error");
     const na = `<span class="na">—</span>`;
@@ -2436,7 +2438,7 @@ async function loadValidation() {
     $("validProg").innerHTML = d.total.n
       ? `<span class="v-pb"><i style="width:${Math.min(100, nd / min * 100).toFixed(0)}%"></i></span><b>${nd} of ${min} days</b> needed for a verdict; ${d.total.n} sessions (${d.total.n_ante} with levels from before the open)`
       : "No saved sessions to evaluate yet";
-    $("scanStatus").textContent = d.total.n ? `${d.total.n} sessions on ${nd} days evaluated` : "No saved sessions to evaluate yet";
+    $("scanStatus").textContent = d.total.n ? `${fmtNum(d.total.n)} sessions on ${nd} days and ${fmtNum(d.rows.length)} tickers evaluated${d.saved ? ` (updated ${d.saved})` : ""}` : "No saved sessions to evaluate yet";
     // la tabla ocupa lo que queda de ventana; si hay muchos tickers se desplaza dentro de su caja
     const tw = document.querySelector(".v-tw");
     tw.style.maxHeight = `${Math.max(260, Math.round(window.innerHeight - tw.getBoundingClientRect().top - 24))}px`;
@@ -2724,6 +2726,7 @@ function bindScanner() {
   $("svCompass").addEventListener("click", () => setScanView("compass"));
   $("svValid").addEventListener("click", () => setScanView("valid"));
   bindSeg("validModeSeg", "validMode", loadValidation);
+  bindSeg("validScopeSeg", "validScope", loadValidation);
   $("compass").addEventListener("mousemove", compassTip);
   $("compass").addEventListener("mouseleave", () => { $("ctip").hidden = true; });
   $("compass").addEventListener("click", (e) => {

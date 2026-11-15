@@ -27,6 +27,8 @@ if idx:
         for parte in ("level", "change", "neutral"):
             for h, e in (dg.get(parte) or {}).items():
                 print(f"    {parte} {h}: IC {e['ic']} t {e['t']} n {e['n']}/{e['need']}")
+        if k == "combo":  # la fila del consenso no tiene puntuación propia: votos y media de direcciones
+            continue
         filas = sorted((x for x in r["rows"] if k in x), key=lambda x: -x[k]["score"])
         fmt = lambda x: f"{x['sym']} {x[k]['v'] * 100:+.1f}"  # noqa: E731
         print("  arriba:", ", ".join(fmt(x) for x in filas[:8]))

@@ -3,6 +3,12 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-15 — Estudio del Skew signal
+
+**Corregido**
+- **Estudio del Skew signal** (`pruebas/estudio_skew.py`): fallaba al llegar al Consensus, que no tiene puntuación
+  propia que ordenar; ahora imprime su prueba y su diagnóstico y salta el ranking.
+
 ## 2026-11-14 — Rango de 1σ ajustado por el régimen de gamma del SPX; Skew signal (put skew, call−put IV y volumen de opciones) para swings en acciones; régimen de la curva del VIX
 
 **Añadido**

@@ -26,6 +26,28 @@ def _range(v: str):
     return min(75.0, max(0.3, float(v.replace(",", "."))))
 
 
+_PRECIO: dict = {}
+
+
+def _precio(sym: str) -> dict:
+    """Cotizacion de Tradier para la Trading Window, guardada 5 s (como el Worker). Sin token: LookupError (404)."""
+    import time
+    import fuente_tradier as ft
+    if not ft.disponible():
+        raise LookupError("Live price is not configured")
+    hit = _PRECIO.get(sym)
+    if hit and time.time() - hit[0] < 5:
+        return hit[1]
+    x = ft._lista(((ft._get(f"/markets/quotes?symbols={sym}", intentos=1) or {}).get("quotes") or {}).get("quote"))
+    x = x[0] if x else {}
+    if not (x.get("last") or 0) > 0:
+        raise LookupError(f"No live price for {sym}")
+    d = {"symbol": sym, "last": x["last"], "prevclose": x.get("prevclose"), "change": x.get("change"),
+         "change_pct": x.get("change_percentage"), "high": x.get("high"), "low": x.get("low"), "time": x.get("trade_date")}
+    _PRECIO[sym] = (time.time(), d)
+    return d
+
+
 PUBLIC_PATHS = {"/login.html", "/api/login", "/favicon.ico"}
 MAX_BODY = 100_000
 
@@ -214,6 +236,14 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as e:  # noqa: BLE001
                 traceback.print_exc()
                 return self._json(500, {"error": f"Internal error: {e}"})
+        if url.path == "/api/precio":
+            # precio en vivo de la Trading Window (el mismo que /api/precio del Worker); solo con TRADIER_TOKEN
+            try:
+                return self._json(200, _precio(gex_engine.normalize(q.get("symbol", ""))))
+            except LookupError as e:
+                return self._json(404, {"error": str(e)})
+            except Exception as e:  # noqa: BLE001
+                return self._json(502, {"error": str(e)})
         if url.path == "/api/chain":
             try:
                 return self._json(200, gex_engine.chain_payload(q.get("symbol", "SPX"), force=q.get("refresh") == "1"))

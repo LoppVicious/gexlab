@@ -1,6 +1,7 @@
 // GEX Lab en Cloudflare Workers: web privada + API + reloj del motor.
 // Enlaces (wrangler.toml): DB (D1), R2 (bucket gexlab), ASSETS (archivos de la web).
-// Secretos: GEX_SETUP_CODE (alta del administrador), GH_DISPATCH_TOKEN (lanzar el motor en GitHub).
+// Secretos: GEX_SETUP_CODE (alta del administrador), GH_DISPATCH_TOKEN (lanzar el motor en GitHub),
+// TRADIER_TOKEN (precio en vivo de la Trading Window; opcional).
 //
 // Contrasenas: el navegador aplica PBKDF2-SHA256 (310.000 iteraciones, sal por usuario) y envia el resultado;
 // aqui solo se guarda y se compara su SHA-256. La contrasena nunca sale del navegador y el servidor no gasta CPU.
@@ -305,6 +306,30 @@ async function estado(env) {
 
 const SAFE_PATH = /^[A-Za-z0-9_][A-Za-z0-9_.\-/]{0,200}$/;
 
+// ------------------------------------------------------------------ precio en vivo (Trading Window)
+// Cotizacion de Tradier compartida PRECIO_MS entre usuarios. Va en la memoria del isolate: la Cache API no funciona en
+// workers.dev. Gasta del mismo cupo de 120 peticiones por minuto que el motor (que respeta X-Ratelimit-Available):
+// como mucho 12 por minuto y ticker con la ventana abierta. Sin el secreto TRADIER_TOKEN responde 404.
+const PRECIO_MS = 5000;
+const _precio = new Map();
+async function precio(env, sym) {
+  if (!env.TRADIER_TOKEN) return json(404, { error: "Live price is not configured" });
+  const hit = _precio.get(sym);
+  if (hit && Date.now() - hit.t < PRECIO_MS) return json(200, hit.d);
+  const r = await fetch(`https://api.tradier.com/v1/markets/quotes?symbols=${encodeURIComponent(sym)}`, {
+    headers: { Authorization: `Bearer ${env.TRADIER_TOKEN}`, Accept: "application/json" },
+  });
+  if (!r.ok) return json(502, { error: `The price source answered ${r.status}` });
+  const q = ((await r.json().catch(() => ({}))).quotes || {}).quote;
+  const x = Array.isArray(q) ? q[0] : q;
+  if (!x || !(x.last > 0)) return json(404, { error: `No live price for ${sym}` });
+  const d = { symbol: sym, last: x.last, prevclose: x.prevclose ?? null, change: x.change ?? null,
+    change_pct: x.change_percentage ?? null, high: x.high ?? null, low: x.low ?? null, time: x.trade_date || null };
+  if (_precio.size > 50) _precio.clear();
+  _precio.set(sym, { t: Date.now(), d });
+  return json(200, d);
+}
+
 // ------------------------------------------------------------------ buscador
 let _syms = null, _symsT = 0;
 async function symbols(env) {
@@ -427,6 +452,10 @@ async function api(req, env, url, me) {
     return json(200, { symbols: d.symbols || DEFAULT_WATCH, updated: d.updated, default: false });
   }
   if (p === "/api/search") return json(200, { results: await search(env, url.searchParams.get("q")) });
+  if (p === "/api/precio") {
+    const sym = normalize(url.searchParams.get("symbol"));
+    return sym ? precio(env, sym) : json(400, { error: "Invalid ticker" });
+  }
   if (p === "/api/pedir" && req.method === "POST") {
     const b = await body(req);
     const syms = [...new Set((b.symbols || []).map(normalize).filter(Boolean))];

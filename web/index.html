@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="sg.css">
 <link rel="stylesheet" href="herramientas.css">
 <link rel="stylesheet" href="takes.css">
+<link rel="stylesheet" href="trading.css">
 <link rel="stylesheet" href="tema.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f8"</script>
 </head>
@@ -247,6 +248,7 @@
           <button class="ghost dd" id="candleBtn" aria-haspopup="menu" aria-expanded="false" title="Candle interval"></button>
           <div class="cmenu dd-menu" id="candleMenu" role="menu" aria-label="Candle interval" hidden></div>
         </div>
+        <button class="ghost map-only tw-open" id="twOpen" title="The map full screen, on a trading chart with the live price"><svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg><span>Trading window</span></button>
         <button class="kl-tg" id="levelsTg" role="switch" aria-checked="true" title="Labels and lines for Call Wall, Put Wall, Gamma Flip and the other levels"><i aria-hidden="true"></i><span>Key levels</span></button>
         <div class="popw">
           <button class="ghost csbtn" id="setBtn" aria-haspopup="dialog" aria-expanded="false" title="Chart options"><svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h8M15 5h2M3 10h2M9 10h8M3 15h10"/><circle cx="13" cy="5" r="2"/><circle cx="7" cy="10" r="2"/><circle cx="15" cy="15" r="2"/></svg><span id="setLab">Chart</span></button>
@@ -646,6 +648,7 @@
 <script src="me.js"></script>
 <script src="nube.js"></script>
 <script src="app.js"></script>
+<script src="trading.js"></script>
 <script src="hub.js"></script>
 <script src="resumen.js"></script>
 <script src="calendario.js"></script>

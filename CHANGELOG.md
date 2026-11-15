@@ -3,9 +3,29 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-15 — Índices en tiempo real cada minuto; Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
+## 2026-11-15 — Trading window; índices en tiempo real cada minuto; Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
 
 **Añadido**
+- **Trading window (TRACE):** botón "Trading window" en la barra del mapa. Abre el mapa a pantalla completa sobre un
+  gráfico de TradingView (Lightweight Charts), pensado para operar en el día:
+  - Gráfico: zoom y desplazamiento con el ratón, escala de precios arrastrable, leyenda con la vela y el valor del
+    mapa bajo el cursor, y barras de gamma por strike junto a la escala de precios.
+  - Arriba: los 6 índices en tiempo real, vencimientos 0DTE o el filtro de siempre, velas de 1, 5 y 15 min, lentes
+    Gamma, Delta y Charm, y botones para barras, referencias y sonido.
+  - Niveles como escalones: se ve cómo se movieron el Call Wall, el Put Wall, el Gamma Flip y el Vol Trigger
+    durante la sesión. Una flecha marca cada vela que cierra al otro lado de un nivel; con el precio en vivo, aviso
+    en la ventana (y pitido si se activa) al cruzar uno.
+  - Referencias: cierre, máximo y mínimo de la sesión anterior, apertura y rango de los primeros 30 min (en NDX y
+    RUT no hay máximo ni mínimo de ayer: CBOE no da su histórico).
+  - Eventos macro de EE. UU. de hoy como líneas verticales en su hora, con cuenta atrás en el panel.
+  - Panel inferior con el flujo de opciones de la sesión (prima de calls y puts y delta neta).
+  - Panel lateral con el plan de sesión: régimen y qué suele pasar en él, niveles con su distancia en sigmas, rango
+    esperado, lo que comprarían o venderían los dealers si el precio se mueve ±½ y ±1 sigma (total y del próximo
+    vencimiento), el strike 0DTE más grande cerca del precio (posible pin en la última hora), eventos, flujo y
+    referencias.
+  - El mapa y los niveles siguen llegando del motor (cada minuto en los índices en tiempo real); entre cálculo y
+    cálculo, la última vela se mueve con el precio de Tradier cada 5 s (indicador "Live"). Tecla F para pantalla
+    completa y Esc para cerrar.
 - **Validation, toda la lista del historial diario:** nuevo selector "Tickers" con "My list" (la watchlist, como
   hasta ahora) y "Daily history" (los ~560 tickers del historial diario). Se calcula una vez al día, al terminar de
   guardar la sesión, con los niveles de cada cierre (sin las fotos de antes de la apertura) y el motor Perfil, para

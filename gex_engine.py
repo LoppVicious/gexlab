@@ -1420,6 +1420,19 @@ def history_update(res: dict, max_dte, save: bool = True, variant: str = "") -> 
                 hist[f"{today}|{key_dte}"] = snap
             if pre or early:
                 hist[f"{today_ny}|{key_dte}|a"] = snap
+            if market_open(now) and today == today_ny:
+                # niveles durante la sesion (Trading Window): una fila por foto, [hora, spot, cw, pw, flip, vt]
+                k_i = f"{today}|{key_dte}|i"
+                serie = list(hist.get(k_i) or [])
+                fila = [now.strftime("%H:%M"), snap["spot"], snap["call_wall"], snap["put_wall"], snap["flip"], snap["vt"]]
+                if serie and serie[-1][0] == fila[0]:
+                    serie[-1] = fila
+                else:
+                    serie.append(fila)
+                hist[k_i] = serie
+                dias_i = sorted({k.split("|")[0] for k in hist if k.endswith("|i")})
+                for k in [k for k in hist if k.endswith("|i") and k.split("|")[0] < dias_i[-INTRADIA_SESIONES:][0]]:
+                    hist.pop(k)
             cutoff = f"{int(today[:4]) - HISTORY_YEARS}{today[4:]}"
             for k in [k for k in hist if k.split("|")[0] < cutoff]:
                 hist.pop(k)
@@ -1427,7 +1440,25 @@ def history_update(res: dict, max_dte, save: bool = True, variant: str = "") -> 
                 write_json(path, hist)
             except OSError:
                 pass
+        res["levels_intraday"] = hist.get(f"{today}|{key_dte}|i") or []
     return prev
+
+
+def prev_day_ohlc(symbol: str, session: str) -> dict | None:
+    """Apertura, maximo, minimo y cierre de la sesion anterior a `session` (referencias intradia de la Trading
+    Window). None en NDX y RUT: CBOE solo da el historico de su ETF, en otra escala."""
+    try:
+        ohlc, src = history_ohlc(symbol)
+    except Exception:  # noqa: BLE001
+        return None
+    dias = sorted(d for d in ohlc if d < session)
+    if src or not dias:
+        return None
+    o, h, l, c = ohlc[dias[-1]]
+    return {"date": dias[-1], "open": o, "high": h, "low": l, "close": c}
+
+
+INTRADIA_SESIONES = 5   # sesiones con la serie de niveles intradia ("fecha|filtro|i") en el historial
 
 
 # ---------------------------------------------------------------- posicionamiento estimado por flujo
@@ -2035,6 +2066,7 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     variant = ("c" if combo else "") + ("f" if res["positioning"] == "flow" else "") + ("s" if model == "spotgamma" else "")
     res["prev"] = history_update(res, max_dte, save=not spot_override, variant=variant)
     res["history"] = history_series(res["symbol"], max_dte, variant)
+    res["prev_day"] = prev_day_ohlc(res["symbol"], res["session"])
     return res
 
 
@@ -2874,7 +2906,10 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
         for k, v in hist.items():
             parts = k.split("|")
             if len(parts) >= 2 and parts[1] == key_dte:
-                (ante if len(parts) == 3 and parts[2] == "a" else reg)[parts[0]] = v
+                if len(parts) == 3 and parts[2] == "a":
+                    ante[parts[0]] = v
+                elif len(parts) == 2:  # sin las series intradia ("|i")
+                    reg[parts[0]] = v
         for d, lv in ((extra or {}).get(sym) or {}).items():
             sn = (((lv or {}).get(pos) or {}).get(model) or {}).get(filtro)
             if sn and d not in reg:

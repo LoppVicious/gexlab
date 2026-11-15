@@ -1120,6 +1120,7 @@ async function loadHeat() {
     $("chart").classList.remove("loading");
     mapCaption();
     if (state.view === "map") draw();
+    if (typeof twSync === "function") twSync();
   } catch (e) {
     if (e.name === "AbortError") return;
     $("chart").classList.remove("loading");
@@ -1405,6 +1406,7 @@ async function load(refresh = false, silent = false) {
     paintSide(d);
     syncRange(d);
     draw();
+    if (typeof twSync === "function") twSync();
     $("refreshBtn").classList.remove("spin");
     anaStatus("", dataStatus(d));
     $("status").title = dataTitle(d);
@@ -3490,6 +3492,7 @@ function applyTheme(t) {
   const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute("content", C.ink);
   state.heatImg = null;
   redrawAll();
+  if (typeof twSync === "function") twSync();
 }
 function redrawAll() {
   if (state.mode === "analysis") draw();

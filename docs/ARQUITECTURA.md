@@ -50,6 +50,18 @@ Navegador
 ```
 Modo PC (sin nube): `server.py` sirve la misma web y la misma API en local.
 
+**Trading Window** (`web/trading.js`, `web/trading.css`): el mapa TRACE (`state.heat`) y los niveles (`state.data`)
+sobre Lightweight Charts 5.2.1 (jsDelivr, se carga al abrirla). El mapa es una capa propia de la libreria debajo de las
+velas; las horas de Nueva York van como UTC. La app llama a `twSync` al recibir el mapa o los datos y al cambiar de
+tema. Precio en vivo: `/api/precio?symbol=` (Worker; en el PC, `server.py` si hay `TRADIER_TOKEN`) pide la
+cotizacion a Tradier y la comparte 5 s en memoria; la ventana la consulta cada 5 s solo con la sesion abierta y
+mueve la vela en curso. Secreto del Worker `TRADIER_TOKEN` (lo sube `desplegar.sh` desde GitHub Secrets); sin el,
+404 y la ventana se queda con las velas del motor. Datos del calculo que usa: `levels_intraday` (filas
+`[hora, spot, cw, pw, flip, vt]` de la sesion, clave `fecha|filtro|i` del historico, una por foto con el mercado
+abierto; se guardan `INTRADIA_SESIONES`), `prev_day` (OHLC de la sesion anterior, `prev_day_ohlc`; None en NDX y RUT),
+`profile.d`/`d_next` (cobertura de los dealers si el precio se mueve, igual que `scenarios.flow`), `/api/flow` y
+`/api/eventos`. Todas las series se colocan en la rejilla de velas (`twSnap`): el mapa se situa por indice logico.
+
 Herramientas de opciones (Open Interest, `web/oi.js`, y Options Lab, `web/lab.js`) calculan en JavaScript, sin Pyodide:
 `/api/chain?symbol=` devuelve la cadena compacta (`chain_to_min`, con `fwds`), el OI de la sesión anterior por
 contrato (`oi_previo`) y el tipo de interés. En el PC la arma `gex_engine.chain_payload`; en la nube, `nube.js` con
@@ -265,7 +277,8 @@ Los dos:
   varianza forward del tramo por encima de la mediana y de un vecino, `EVENT_RATIO`). `summary`: IV30 sin modelo (en
   el SPX da el VIX), realizada, prima de varianza frente a la de cierre a cierre de 20 sesiones, forma y evento.
   `realized`: Yang-Zhang y cierre a cierre por ventana, y cono del último año; no se calcula en el VIX y su familia.
-- **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante.
+- **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante;
+  `|i` = niveles durante la sesión (Trading Window), lista de filas; quien lea el histórico debe saltarla.
 
 ## Pruebas (con datos reales)
 - Desde el PC del usuario se llega a CBOE; el token de Tradier solo está en GitHub, así que Tradier se prueba en Actions:

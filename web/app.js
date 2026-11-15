@@ -2407,13 +2407,17 @@ function setScanView(v) {
   else renderScan();
 }
 
+let validReq = null;  // peticion de la Validation en curso: al cambiar de lista, filtro o modo se cancela
 async function loadValidation() {
   const body = $("validBody");
   body.innerHTML = `<tr class="loading"><td colspan="8" class="l">Calculating…</td></tr>`;
+  if (validReq) validReq.abort();
+  const ctrl = validReq = new AbortController();
   try {
     const all = state.validScope === "all";
-    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&scope=${all ? "all" : "list"}${all ? "" : `&symbols=${encodeURIComponent(watchlist().join(","))}`}`);
+    const r = await fetch(`/api/validation?dte=${state.dte}&mode=${state.validMode}&model=spotgamma&scope=${all ? "all" : "list"}${all ? "" : `&symbols=${encodeURIComponent(watchlist().join(","))}`}`, { signal: ctrl.signal });
     const d = await r.json();
+    if (ctrl.signal.aborted) return;
     if (!r.ok) throw new Error(d.error || "Validation error");
     const na = `<span class="na">—</span>`;
     // rango en % y, debajo, frente al rango normal del ticker (media de sus 20 rangos previos)
@@ -2443,6 +2447,7 @@ async function loadValidation() {
     const tw = document.querySelector(".v-tw");
     tw.style.maxHeight = `${Math.max(260, Math.round(window.innerHeight - tw.getBoundingClientRect().top - 24))}px`;
   } catch (e) {
+    if (e.name === "AbortError" || ctrl.signal.aborted) return;
     body.innerHTML = `<tr class="err"><td colspan="8" class="l">${esc(e.message)}</td></tr>`;
     $("validTests").innerHTML = ""; $("validDays").innerHTML = ""; $("validProg").textContent = "";
   }

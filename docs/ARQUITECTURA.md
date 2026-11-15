@@ -84,6 +84,8 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
     (`skew.fila`: IV del mensual más cercano a 30 días con `skew.punto`, volúmenes del día; None donde no se puede
     medir); lo escribe `historial500.py` con cada sesión (volumen de la acción, de `data.volume` de la cadena) y
     `--indice` lo reconstruye (volumen de días pasados, del histórico diario de CBOE). De él sale `pub/skew.json`.
+    La reconstrucción añade además `PREHIST` (45) sesiones previas al primer día guardado solo con el cierre de CBOE,
+    para la volatilidad realizada de Vol premium; las demás señales las ignoran.
   - VIX siempre (`SIEMPRE`), aunque no esté en la lista de la web, y sin límite de años (`NUNCA_BORRAR`).
   - `hist500/_indices_vol/{fecha}.json`: OHLC de VIX, VIX9D, VIX3M, VIX6M y VIX1Y y curva de futuros del VIX;
     `_indices_vol/historico.json.gz`: su serie diaria completa de CBOE (VIX desde 1990). No se borran nunca.
@@ -209,6 +211,10 @@ Los dos:
   Consenso (`consenso`, `combinar`, señal `combo`, pestaña por defecto): cada señal vota alcista o bajista si está en
   los dos quintiles extremos de su lado; hay coincidencia (`match`) con al menos dos votos en el mismo sentido y
   ninguno en contra. Su prueba en adelante usa la media de las direcciones de las señales con dato (±1) de cada sesión.
+  Vol premium (`SENALES_VOL`, señal `vrp`, Goyal y Saretto, 2009): IV ATM a 30 días − volatilidad realizada de
+  `RV_DIAS` (20) sesiones con los cierres del índice (`_con_rv`, en v[6]). No es direccional: no vota en el consenso y
+  su prueba en adelante (`evaluar(..., objetivo="rv")`, `target: "rv"`) mide la prima cobrada, IV de la sesión −
+  volatilidad realizada de las h sesiones siguientes; se espera IC positivo.
 - **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de
   SqueezeMetrics (CSV público desde 2011), percentil frente a las 252 sesiones previas y quintil. Para cada quintil,
   con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del

@@ -3,7 +3,15 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-15 — Estudio del Skew signal
+## 2026-11-15 — Skew signal: Vol premium; estudio del Skew signal
+
+**Añadido**
+- **Skew signal, quinta pestaña: Vol premium:** la IV a 30 días de cada acción menos lo que se ha movido de verdad en
+  las últimas 20 sesiones. No dice hacia dónde irá la acción, sino si sus opciones están caras o baratas frente a su
+  movimiento real: la investigación (Goyal y Saretto, 2009) encuentra que las opciones caras frente a la volatilidad
+  realizada tienden a sobrevalorar el movimiento que viene. Por eso su prueba en adelante no mira el rendimiento,
+  sino la prima que se habría cobrado (IV de hoy menos la volatilidad de las sesiones siguientes). Lectura de
+  "Options rich" a "Options cheap"; no vota en el Consensus.
 
 **Corregido**
 - **Estudio del Skew signal** (`pruebas/estudio_skew.py`): fallaba al llegar al Consensus, que no tiene puntuación

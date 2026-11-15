@@ -622,6 +622,7 @@ body.macro-mode .foot { display: none; }
 .ssk-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
 .ssk-tilt { font-size: 12.5px; color: var(--muted); }
 .ssk-tilt.neg { color: var(--neg); } .ssk-tilt.pos { color: var(--pos); }
+.ssk-tilt.vrich { color: var(--amber); } .ssk-tilt.vcheap { color: var(--accent); }
 /* la tabla va dentro del panel de la vista: sin sombra ni fondo propios (los temas dan a .tablewrap aspecto de panel) */
 #skewSigView .mcharts > .tablewrap.tablewrap { flex: 1; min-height: 0; overflow: auto; box-shadow: none; border-radius: 0; background: transparent; }
 /* el pie no crece: los pies de grafico de .mcharts tienen flex 1 y se quedaban la mitad del alto */

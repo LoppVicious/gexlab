@@ -17,6 +17,10 @@ Son señales transversales: ordenan las acciones del historial diario entre sí 
   volumen de opciones frente a acciones, O/S (Johnson y So, 2012): log(contratos negociados × 100 / acciones
     negociadas) del día. Quien tiene información negativa la opera en opciones (vender acciones en corto cuesta más),
     así que un O/S alto anticipa que la acción irá peor. Hipótesis: IC negativo. Todas las series y vencimientos.
+  prima de volatilidad, Vol premium (Goyal y Saretto, 2009): IV ATM a 30 días − volatilidad realizada de RV_DIAS
+    sesiones (cierre a cierre, anualizada, con los cierres del índice). No es direccional: su prueba en adelante no
+    mira el rendimiento sino la prima cobrada, IV de hoy − volatilidad realizada de las sesiones siguientes. Hipótesis:
+    IC positivo (con la prima alta, la volatilidad realizada queda más por debajo de la IV). No vota en el consenso.
 
 Skew y call-put, con la cadena del cierre que guarda historial500.py, en el mensual estándar más cercano a 30 días
 entre 14 y 60 (los semanales de acciones poco líquidas dan alas sin sentido: JD tenía una put de 25 delta al 116 % con
@@ -25,7 +29,8 @@ Solo acciones: fuera índices, VIX y ETF.
 
 Índice: hist500/_skew.json.gz = {fecha: {SYM: [atm, put25, cierre, call−put, contratos, acciones]}} (None donde no
 se puede medir); se reconstruye con los días guardados (el volumen de la acción de días pasados, del histórico
-diario de CBOE). Prueba en adelante con los cierres del índice: IC = correlación de rangos entre
+diario de CBOE) y PREHIST sesiones anteriores solo con el cierre (de CBOE), para que la volatilidad realizada salga
+desde el primer día; después el ciclo diario la mantiene con sus propios cierres. Prueba en adelante con los cierres del índice: IC = correlación de rangos entre
 puntuación y rendimiento a 10 y 40 sesiones (unas dos semanas y unos dos meses: plazos de swing), con t de Newey-West
 (las ventanas se solapan), y diferencial = quintil alto − quintil bajo. Diagnóstico por señal (`diag`): la misma prueba
 solo con el nivel, solo con el cambio y con la puntuación neutralizada por el rendimiento de las CAMBIO sesiones
@@ -56,11 +61,18 @@ MIN_TICKERS = 20                # acciones mínimas para puntuar una sesión
 MIN_FECHAS = 20                 # sesiones evaluadas mínimas para dar un veredicto (y nunca menos que el horizonte:
                                 # las ventanas se solapan y a 40 sesiones, 20 serían media ventana independiente)
 SALTO = 0.5                     # |rendimiento| mayor: split o dato roto, fuera
+RV_DIAS = 20                    # sesiones de la volatilidad realizada de la prima de volatilidad
+PREHIST = 45                    # sesiones previas solo con el cierre que añade la reconstrucción (para la RV)
 # señal: nivel por acción a partir de la fila del índice, y signo del IC que espera la hipótesis
 SENALES = {
     "skew": (lambda v: v[1] - v[0] if v[0] is not None and v[1] is not None else None, -1),
     "cp": (lambda v: v[3] if len(v) > 3 else None, 1),
     "os": (lambda v: float(np.log(v[4] * 100 / v[5])) if len(v) > 5 and v[4] and v[5] else None, -1),
+}
+# señales de volatilidad (no direccionales, no votan en el consenso): nivel con la RV que añade _con_rv en v[6], signo
+# esperado del IC y objetivo de la prueba en adelante ("rv": IV de hoy − volatilidad realizada siguiente)
+SENALES_VOL = {
+    "vrp": (lambda v: v[0] - v[6] if len(v) > 6 and v[0] is not None and v[6] is not None else None, 1),
 }
 _FONDO = re.compile(r"\b(ETF|ETN|SPDR|Ishares|Proshares|Direxion|Vaneck|Kraneshares|Invesco|Fd|Fund|Trust|Tr)\b", re.I)
 _EMPRESA = re.compile(r"\b(Inc|Corp|Ltd|Hldgs?|Plc|Co|Group|Holdings|Ads)\b", re.I)
@@ -149,11 +161,12 @@ def reconstruir(st, syms: list[str]) -> int:
         claves = [k for k in st.list(f"hist500/{sym}/") if rx.search(k)]
         if not claves:
             continue
-        try:  # volumen de la acción de cada día (los archivos del historial no lo guardan)
-            vol = {r["date"]: float(r.get("volume") or 0)
-                   for r in (g.fetch_aux("historical", sym, ttl=6 * 3600) or {}).get("data", [])}
+        try:  # volumen y cierre de la acción de cada día (los archivos del historial no guardan el volumen)
+            hist = (g.fetch_aux("historical", sym, ttl=6 * 3600) or {}).get("data", [])
+            vol = {r["date"]: float(r.get("volume") or 0) for r in hist}
+            cierres = {r["date"]: float(r.get("close") or 0) for r in hist}
         except Exception:  # noqa: BLE001
-            vol = {}
+            vol, cierres = {}, {}
         for k in claves:
             dia = rx.search(k).group(1)
             d = almacen.get_json(st, k) or {}
@@ -169,8 +182,13 @@ def reconstruir(st, syms: list[str]) -> int:
             sv = vol.get(dia) or (antes[5] if len(antes) > 5 else None)
             if p or (ov and sv):
                 idx.setdefault(dia, {})[sym] = fila(p, d["spot"], ov, sv)
+        # PREHIST sesiones anteriores al primer día guardado, solo con el cierre: la volatilidad realizada de la prima
+        # de volatilidad sale así desde el primer día (las demás señales las ignoran: no tienen IV ni volumen)
+        primero = min((rx.search(k).group(1) for k in claves), default=None)
+        for dia in [f for f in sorted(cierres) if primero and f < primero and cierres[f] > 0][-PREHIST:]:
+            idx.setdefault(dia, {}).setdefault(sym, fila(None, cierres[dia], None, None))
     almacen.put_json(st, INDICE, dict(sorted(idx.items())))
-    return len(idx)
+    return sum(1 for d in idx.values() if any(v[0] is not None or v[4] for v in d.values()))
 
 
 # ---------------------------------------------------------------- señales y prueba en adelante
@@ -190,6 +208,33 @@ def _t_nw(x: np.ndarray, lags: int) -> float | None:
     for k in range(1, min(lags, n - 1) + 1):
         s += 2 * (1 - k / (lags + 1)) * float(e[k:] @ e[:-k]) / n
     return float(x.mean() / np.sqrt(s / n)) if s > 0 else None
+
+
+def _rv(c: np.ndarray) -> float | None:
+    """Volatilidad realizada cierre a cierre, anualizada, de una serie de cierres consecutivos (None si falta alguno o
+    hay un salto de split)."""
+    if len(c) < 3 or not np.all(np.isfinite(c)) or np.any(c <= 0):
+        return None
+    r = np.diff(np.log(c))
+    return None if np.any(np.abs(r) > np.log(1 + SALTO)) else float(r.std(ddof=1) * np.sqrt(252))
+
+
+def _cierres(idx: dict[str, dict], fechas: list[str], sym: str, i: int, j: int) -> np.ndarray:
+    """Cierres de `sym` en las sesiones fechas[i..j] (NaN donde no hay)."""
+    return np.array([((idx[fechas[k]].get(sym) or [None] * 3)[2] or np.nan) for k in range(i, j + 1)], dtype=float)
+
+
+def _con_rv(idx: dict[str, dict]) -> dict[str, dict]:
+    """El índice con la volatilidad realizada de las RV_DIAS sesiones previas añadida en v[6] de cada fila con IV."""
+    fechas = sorted(idx)
+    out = {}
+    for i, f in enumerate(fechas):
+        d = {}
+        for sym, v in idx[f].items():
+            rv = _rv(_cierres(idx, fechas, sym, i - RV_DIAS, i)) if i >= RV_DIAS and v[0] is not None else None
+            d[sym] = list(v) + [None] * (6 - len(v)) + [None if rv is None else round(rv, 5)]
+        out[f] = d
+    return out
 
 
 def puntuaciones(idx: dict[str, dict], acciones: set[str], nivel) -> dict[str, dict[str, dict]]:
@@ -222,7 +267,9 @@ def puntuaciones(idx: dict[str, dict], acciones: set[str], nivel) -> dict[str, d
     return out
 
 
-def evaluar(idx: dict[str, dict], punt: dict[str, dict[str, dict]]) -> dict:
+def evaluar(idx: dict[str, dict], punt: dict[str, dict[str, dict]], objetivo: str = "ret") -> dict:
+    """Prueba en adelante de una puntuación. Objetivo "ret": rendimiento de la acción a h sesiones; "rv": prima de
+    volatilidad cobrada, IV de la sesión − volatilidad realizada de las h sesiones siguientes."""
     fechas = sorted(idx)
     pos = {f: i for i, f in enumerate(fechas)}
     res = {}
@@ -235,6 +282,11 @@ def evaluar(idx: dict[str, dict], punt: dict[str, dict[str, dict]]) -> dict:
             fut = idx[fechas[j]]
             par = []
             for sym, r in filas.items():
+                if objetivo == "rv":
+                    iv, rv = idx[f][sym][0], _rv(_cierres(idx, fechas, sym, pos[f], j))
+                    if iv is not None and rv is not None:
+                        par.append((r["score"], iv - rv))
+                    continue
                 a, b = idx[f][sym][2], (fut.get(sym) or [None] * 3)[2]
                 if b and a > 0 and abs(b / a - 1) < SALTO:
                     par.append((r["score"], b / a - 1))
@@ -293,9 +345,13 @@ def _neutral(idx: dict[str, dict], punt: dict[str, dict[str, dict]]) -> tuple[di
     return out, (round(float(np.mean(cors)), 4) if cors else None)
 
 
-def diagnostico(idx: dict[str, dict], punt: dict[str, dict[str, dict]], partes: bool = True) -> dict:
+def diagnostico(idx: dict[str, dict], punt: dict[str, dict[str, dict]], partes: bool = True,
+                objetivo: str = "ret") -> dict:
     """La prueba en adelante de cada parte de la puntuación y de la puntuación neutralizada (ver _neutral).
-    `past`: correlación media entre la puntuación y el rendimiento previo (cerca de ±1, la señal es casi solo eso)."""
+    `past`: correlación media entre la puntuación y el rendimiento previo (cerca de ±1, la señal es casi solo eso).
+    En las señales de volatilidad solo las partes: la reversión del rendimiento no es lo que explican."""
+    if objetivo != "ret":
+        return {"level": evaluar(idx, _parte(punt, "lv"), objetivo), "change": evaluar(idx, _parte(punt, "ch"), objetivo)}
     neu, past = _neutral(idx, punt)
     d = {"past": past, "neutral": evaluar(idx, neu)}
     if partes:
@@ -349,33 +405,38 @@ def combinar(punts: dict[str, dict]) -> dict[str, dict[str, dict]]:
 
 
 def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | None = None) -> dict:
+    idx = _con_rv(idx)
     syms = {s for d in idx.values() for s in d} | set(lista or [])
     acciones = {s for s in syms if es_accion(s, nombres)}
-    hoy = max(idx) if idx else None
+    # la última sesión con IV (las filas previas que añade la reconstrucción solo tienen el cierre)
+    hoy = max((f for f, d in idx.items() if any(v[0] is not None or v[4] for v in d.values())), default=None)
     filas: dict[str, dict] = {}
     senales = {}
     punts = {}
-    for nombre, (nivel, signo) in SENALES.items():
+    todas = {**{k: (*v, "ret") for k, v in SENALES.items()}, **{k: (*v, "rv") for k, v in SENALES_VOL.items()}}
+    for nombre, (nivel, signo, objetivo) in todas.items():
         punt = punts[nombre] = puntuaciones(idx, acciones, nivel)
         # cada señal enseña su última sesión con datos: el volumen de la acción de días pasados sale del histórico de
         # CBOE, que publica el de un día una sesión más tarde
         ultima = max(punt) if punt else None
-        senales[nombre] = {"sign": signo, "sessions": len(punt), "first": min(punt) if punt else None,
-                           "date": ultima, "eval": evaluar(idx, punt), "diag": diagnostico(idx, punt)}
+        senales[nombre] = {"sign": signo, "target": objetivo, "sessions": len(punt), "first": min(punt) if punt else None,
+                           "date": ultima, "eval": evaluar(idx, punt, objetivo), "diag": diagnostico(idx, punt, objetivo=objetivo)}
         for s, r in (punt.get(ultima) or {}).items():
             filas.setdefault(s, {"sym": s, "name": nombres.get(s, "")})[nombre] = {k: r[k] for k in ("v", "chg", "score")}
     if not filas:
         raise LookupError(f"Not enough history yet: the signals need at least {MIN_TICKERS} stocks on the same session.")
-    for nombre in SENALES:  # quintil de cada señal (5 = puntuación más alta)
+    for nombre in todas:  # quintil de cada señal (5 = puntuación más alta)
         orden = sorted((r for r in filas.values() if nombre in r), key=lambda r: -r[nombre]["score"])
         for k, r in enumerate(orden):
             r[nombre]["q"] = 5 - min(4, int(k * 5 / len(orden)))
     for r in filas.values():
         if r["sym"] in idx[hoy] and idx[hoy][r["sym"]][0] is not None:
             r["atm"] = idx[hoy][r["sym"]][0]
+            if idx[hoy][r["sym"]][6] is not None:
+                r["rv"] = idx[hoy][r["sym"]][6]
         r["combo"] = consenso(r)
     # consenso: su propia prueba en adelante con la puntuación combinada de cada sesión (positiva = alcista)
-    comb = combinar(punts)
+    comb = combinar({k: punts[k] for k in SENALES})
     senales["combo"] = {"sign": 1, "sessions": len(comb), "first": min(comb) if comb else None,
                         "date": max(comb) if comb else None, "eval": evaluar(idx, comb),
                         "diag": diagnostico(idx, comb, partes=False)}

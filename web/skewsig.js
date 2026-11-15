@@ -31,6 +31,11 @@ const SSK_SIG = {
     fmtChg: (v) => (v == null ? "—" : sskSigned((Math.exp(v) - 1) * 100, 0) + "%"),
     works: "Stocks with heavy option trading against their share volume have been lagging the rest, as the research says. The ranking can tilt a swing book: avoid longs at the top, favour them at the bottom.",
     tilt: SSK_BEAR },
+  // prima de volatilidad (skew.SENALES_VOL): no es direccional; su prueba mira la prima cobrada, no el rendimiento
+  vrp: { name: "Vol premium", level: "IV − RV", levelTip: "ATM implied volatility, about 30 days, minus realized volatility of the last 20 sessions (volatility points)",
+    caption: "IV − RV: implied minus realized volatility, in volatility points.", fmt: sskPts, fmtChg: sskPts,
+    works: "Stocks with options rich against their realized volatility have gone on to move less than their options priced, as the research says. Selling premium has paid more at the top of the ranking than at the bottom.",
+    tilt: { 5: ["Options rich", "vrich"], 4: ["Leaning rich", "vrich"], 3: ["Neutral", ""], 2: ["Leaning cheap", "vcheap"], 1: ["Options cheap", "vcheap"] } },
 };
 
 function sigSkewStatus() { return ssk.data ? `Skew signals, close of ${ddmm(ssk.data.date)}` : ""; }
@@ -91,14 +96,16 @@ function renderSigSkew() {
   const fact = (l, e) => {
     const v = e.n ? `IC ${sskSigned(e.ic, 3)}` : "—";
     // la t con pocas sesiones solapadas no significa nada: solo se muestra con el minimo de la prueba
-    const s = e.n ? `${e.n} session${e.n === 1 ? "" : "s"}${e.enough && e.t != null ? `, t ${fmtNum(e.t, 1)}` : ", too few to judge"}. Top − bottom quintile: ${sskSigned(e.spread * 100, 2)}%`
+    // objetivo "rv": el diferencial es prima cobrada en puntos de volatilidad, no rendimiento
+    const spread = sg.target === "rv" ? `${sskSigned(e.spread * 100, 1)} vol points of premium earned` : `${sskSigned(e.spread * 100, 2)}%`;
+    const s = e.n ? `${e.n} session${e.n === 1 ? "" : "s"}${e.enough && e.t != null ? `, t ${fmtNum(e.t, 1)}` : ", too few to judge"}. Top − bottom quintile: ${spread}`
       : `no sessions evaluated yet (needs ${need(e)})`;
     return `<div class="fact"><span class="fl">${l}</span><strong>${v}</strong><span class="fs${e.n && !e.enough ? " warn" : ""}">${s}</span></div>`;
   };
   $("sskFacts").innerHTML = fact(`Next ${hs[0]} sessions`, eS) + fact(`Next ${hs[hs.length - 1]} sessions`, eL) +
     (key === "combo"
       ? `<div class="fact"><span class="fl">If the signals add up</span><strong>IC positive</strong><span class="fs">the more bullish the combined score, the stronger the stock afterwards</span></div>`
-      : `<div class="fact"><span class="fl">The research expects</span><strong>IC ${want}</strong><span class="fs">${sg.sign < 0 ? "a high score, then a weaker stock" : "a high score, then a stronger stock"}</span></div>`);
+      : `<div class="fact"><span class="fl">The research expects</span><strong>IC ${want}</strong><span class="fs">${sg.target === "rv" ? "a high score, then realized volatility well under the implied (premium earned)" : sg.sign < 0 ? "a high score, then a weaker stock" : "a high score, then a stronger stock"}</span></div>`);
 
   $("sskCap").textContent = `${cfg.caption} Click a stock to open its volatility dashboard.`;
   if (key === "combo") { renderSskConsensus(d); return; }

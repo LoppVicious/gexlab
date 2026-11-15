@@ -33,7 +33,7 @@ const SSK_SIG = {
     tilt: SSK_BEAR },
   // prima de volatilidad (skew.SENALES_VOL): no es direccional; su prueba mira la prima cobrada, no el rendimiento
   vrp: { name: "Vol premium", level: "IV − RV", levelTip: "ATM implied volatility, about 30 days, minus realized volatility of the last 20 sessions (volatility points)",
-    caption: "IV − RV: implied minus realized volatility, in volatility points.", fmt: sskPts, fmtChg: sskPts,
+    caption: "IV − RV: implied minus realized volatility (20 sessions, without the single largest move), in volatility points. Earnings before the monthly expiration lift the IV: check the calendar before reading “rich” as a sale.", fmt: sskPts, fmtChg: sskPts,
     works: "Stocks with options rich against their realized volatility have gone on to move less than their options priced, as the research says. Selling premium has paid more at the top of the ranking than at the bottom.",
     tilt: { 5: ["Options rich", "vrich"], 4: ["Leaning rich", "vrich"], 3: ["Neutral", ""], 2: ["Leaning cheap", "vcheap"], 1: ["Options cheap", "vcheap"] } },
 };

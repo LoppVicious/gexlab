@@ -210,13 +210,20 @@ def _t_nw(x: np.ndarray, lags: int) -> float | None:
     return float(x.mean() / np.sqrt(s / n)) if s > 0 else None
 
 
-def _rv(c: np.ndarray) -> float | None:
+def _rv(c: np.ndarray, sin_mayor: bool = False) -> float | None:
     """Volatilidad realizada cierre a cierre, anualizada, de una serie de cierres consecutivos (None si falta alguno o
-    hay un salto de split)."""
+    hay un salto de split). `sin_mayor`: sin el mayor movimiento de la ventana, para la referencia de Vol premium: un
+    salto de resultados entra entero en 20 sesiones y no se repite (INTC +33,7 % en un día dejó su RV20 en el 143 %
+    con la IV al 66 %, y salía "cheap" sin serlo). La prueba en adelante usa la volatilidad completa: es la que sufre
+    quien vendió la prima."""
     if len(c) < 3 or not np.all(np.isfinite(c)) or np.any(c <= 0):
         return None
     r = np.diff(np.log(c))
-    return None if np.any(np.abs(r) > np.log(1 + SALTO)) else float(r.std(ddof=1) * np.sqrt(252))
+    if np.any(np.abs(r) > np.log(1 + SALTO)):
+        return None
+    if sin_mayor:
+        r = np.delete(r, int(np.argmax(np.abs(r))))
+    return float(r.std(ddof=1) * np.sqrt(252))
 
 
 def _cierres(idx: dict[str, dict], fechas: list[str], sym: str, i: int, j: int) -> np.ndarray:
@@ -225,13 +232,14 @@ def _cierres(idx: dict[str, dict], fechas: list[str], sym: str, i: int, j: int) 
 
 
 def _con_rv(idx: dict[str, dict]) -> dict[str, dict]:
-    """El índice con la volatilidad realizada de las RV_DIAS sesiones previas añadida en v[6] de cada fila con IV."""
+    """El índice con la volatilidad realizada de las RV_DIAS sesiones previas, sin su mayor movimiento, añadida en v[6]
+    de cada fila con IV."""
     fechas = sorted(idx)
     out = {}
     for i, f in enumerate(fechas):
         d = {}
         for sym, v in idx[f].items():
-            rv = _rv(_cierres(idx, fechas, sym, i - RV_DIAS, i)) if i >= RV_DIAS and v[0] is not None else None
+            rv = _rv(_cierres(idx, fechas, sym, i - RV_DIAS, i), True) if i >= RV_DIAS and v[0] is not None else None
             d[sym] = list(v) + [None] * (6 - len(v)) + [None if rv is None else round(rv, 5)]
         out[f] = d
     return out

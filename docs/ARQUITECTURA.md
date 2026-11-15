@@ -212,7 +212,9 @@ Los dos:
   los dos quintiles extremos de su lado; hay coincidencia (`match`) con al menos dos votos en el mismo sentido y
   ninguno en contra. Su prueba en adelante usa la media de las direcciones de las señales con dato (±1) de cada sesión.
   Vol premium (`SENALES_VOL`, señal `vrp`, Goyal y Saretto, 2009): IV ATM a 30 días − volatilidad realizada de
-  `RV_DIAS` (20) sesiones con los cierres del índice (`_con_rv`, en v[6]). No es direccional: no vota en el consenso y
+  `RV_DIAS` (20) sesiones con los cierres del índice, sin el mayor movimiento de la ventana (`_con_rv`, en v[6]: un
+  salto de resultados no se repite; INTC +33,7 % en un día dejaba su RV20 en el 143 %). La IV sí incluye la prima de
+  unos resultados antes del vencimiento, y esas acciones salen caras. No es direccional: no vota en el consenso y
   su prueba en adelante (`evaluar(..., objetivo="rv")`, `target: "rv"`) mide la prima cobrada, IV de la sesión −
   volatilidad realizada de las h sesiones siguientes; se espera IC positivo.
 - **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de

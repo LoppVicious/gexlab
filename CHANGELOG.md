@@ -11,7 +11,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   movimiento real: la investigación (Goyal y Saretto, 2009) encuentra que las opciones caras frente a la volatilidad
   realizada tienden a sobrevalorar el movimiento que viene. Por eso su prueba en adelante no mira el rendimiento,
   sino la prima que se habría cobrado (IV de hoy menos la volatilidad de las sesiones siguientes). Lectura de
-  "Options rich" a "Options cheap"; no vota en el Consensus.
+  "Options rich" a "Options cheap"; no vota en el Consensus. La volatilidad realizada deja fuera el mayor movimiento
+  de las 20 sesiones: un salto de resultados no se repite y hacía parecer baratísimas las opciones de INTC, AMD o MU.
+  Los resultados que vienen sí encarecen la IV: antes de leer "rich" como venta, mirar el calendario.
 
 **Corregido**
 - **Estudio del Skew signal** (`pruebas/estudio_skew.py`): fallaba al llegar al Consensus, que no tiene puntuación

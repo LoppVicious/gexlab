@@ -1,7 +1,8 @@
 name: Historial diario
 # Cadena y niveles al cierre de una lista fija de tickers (historial500.py) en R2: hist500/{SYM}/{fecha}.json.gz
 # Lo lanza el Worker a las 16:30 ET los dias laborables; el cron de GitHub es solo un respaldo
-# (si la sesion ya esta guardada no hace nada).
+# (22:30 ET en invierno, 23:30 en verano). Si la sesion ya esta guardada, rehace la Validacion si se calculo
+# antes de que CBOE publicara la vela diaria (historial500.validacion_pendiente).
 on:
   workflow_dispatch:
     inputs:
@@ -18,7 +19,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: "45 23 * * 1-5"
+    - cron: "30 3 * * 2-6"
 concurrency:
   group: historial500
   cancel-in-progress: false

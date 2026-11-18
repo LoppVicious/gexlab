@@ -291,14 +291,41 @@ def publicar_validacion(st, syms: list[str]) -> None:
         idx = dict(zip(syms, ex.map(lambda s: leer_indice(st, s), syms)))
     syms = [s for s in syms if idx[s]]
     saved = g.now_ny().strftime("%Y-%m-%d %H:%M ET")
+    sesion = ultima_sesion(st)
+    vela = _vela_publicada(sesion)  # sin ella, la ultima sesion no se evalua: se repite despues (validacion_pendiente)
     for dte in g.DTE_FILTERS:
         for pos in POSICIONES:
             try:
                 v = g.validation(syms, dte, pos, "spotgamma", idx)
-                almacen.put_json(st, f"{VALIDACION_PREFIX}{dte}_{pos}.json", {**v, "saved": saved, "tickers": len(syms)})
+                almacen.put_json(st, f"{VALIDACION_PREFIX}{dte}_{pos}.json",
+                                 {**v, "saved": saved, "tickers": len(syms), "sesion": sesion, "vela": vela})
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR validacion {dte} {pos}: {type(e).__name__}: {str(e)[:120]}")
-    log(f"validacion: {len(syms)} tickers en {time.time() - t:.0f} s")
+    log(f"validacion: {len(syms)} tickers en {time.time() - t:.0f} s (sesion {sesion}, vela de CBOE: {'si' if vela else 'no'})")
+
+
+def ultima_sesion(st) -> str | None:
+    """Ultima sesion guardada (hist500/_dias/)."""
+    dias = [k.rsplit("/", 1)[-1][:10] for k in st.list(f"{PREFIX}_dias/")]
+    return max(dias) if dias else None
+
+
+def _vela_publicada(sesion: str | None) -> bool:
+    """CBOE publica la vela diaria (maximo, minimo, cierre) horas despues del cierre; la Validacion la necesita para
+    evaluar esa sesion. Se mira en el SPY."""
+    return bool(sesion) and sesion in g.history_ohlc("SPY")[0]
+
+
+def validacion_pendiente(st) -> bool:
+    """La Validacion publicada se calculo sin la vela de la ultima sesion guardada y CBOE ya la tiene. Con el mercado
+    abierto no: CBOE daria la vela a medias de la sesion en curso."""
+    if g.market_open(g.now_ny()):
+        return False
+    sesion = ultima_sesion(st)
+    pub = almacen.get_json(st, f"{VALIDACION_PREFIX}45_standard.json") or {}
+    if not sesion or (pub.get("sesion") == sesion and pub.get("vela")):
+        return False
+    return _vela_publicada(sesion)
 
 
 def podar(st, sesion: str) -> int:
@@ -355,13 +382,15 @@ def main(args: list[str]) -> int:
         return 0
     sesion = sesion_objetivo(forzar)
     now = g.now_ny()
-    if sesion is None:
-        log(f"nada que hacer: {now:%Y-%m-%d %H:%M} ET (dia sin mercado o sesion sin cerrar)")
-        return 0
     st = almacen.abrir()
     marca = f"{PREFIX}_dias/{sesion}.json"
-    if not forzar and st.get(marca) is not None:
-        log(f"sesion {sesion} ya guardada")
+    if sesion is None or (not forzar and st.get(marca) is not None):
+        log(f"sesion {sesion} ya guardada" if sesion else
+            f"nada que guardar: {now:%Y-%m-%d %H:%M} ET (dia sin mercado o sesion sin cerrar)")
+        # la ejecucion de la noche (cron) rehace la Validacion si se calculo antes de que CBOE publicara la vela
+        if not forzar and validacion_pendiente(st):
+            log("validacion: CBOE ya tiene la vela de la ultima sesion; se recalcula")
+            publicar_validacion(st, _normalizados(lista_tickers(st)[0]))
         return 0
 
     lista, origen = (pedidos, "prueba") if pedidos else lista_tickers(st)

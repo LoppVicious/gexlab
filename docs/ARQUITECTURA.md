@@ -104,7 +104,8 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
     usa para las sesiones que falten en `history/{SYM}.json` (foto tras el cierre, como la clave `fecha|filtro`).
   - `pub/validacion500/{filtro}_{posición}.json`: Validación de toda la lista (motor Perfil) con el índice de niveles
     (`historial500.publicar_validacion`), tras guardar cada sesión, con `--indice` o solo con `--validacion` (input
-    `validacion` del workflow). La web la pide con `/api/validation?scope=all` y `nube.js` la lee por `/api/pub/`.
+    `validacion` del workflow). Guarda `sesion` y `vela` (si CBOE ya tenía la vela diaria de esa sesión); sin ella,
+    el cron de la noche la rehace (`validacion_pendiente`). La web la pide con `/api/validation?scope=all` y `nube.js` la lee por `/api/pub/`.
     Sin fotos ex ante: el histórico del motor no se carga en este workflow.
   - `hist500/_flujo/{SYM}.json.gz`: volumen y lado por contrato de las últimas 8 sesiones (modo flujo).
   - `hist500/_skew.json.gz`: `{fecha: {SYM: [IV ATM, IV put 25Δ, cierre, IV call − IV put, contratos, acciones]}}`

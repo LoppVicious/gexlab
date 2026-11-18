@@ -3,13 +3,18 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-18 — Validation: los muros se juzgan por el cierre
+## 2026-11-18 — Validation: los muros se juzgan por el cierre; el historial diario ya no pierde la última sesión
 
 **Cambiado**
 - **Validation, Call Wall y Put Wall:** un muro cuenta como aguantado si el cierre queda dentro (por debajo del Call
   Wall, por encima del Put Wall). Una mecha que lo pasa y vuelve es un rechazo, no una rotura; antes contaba como
   roto. La referencia ("Baseline", un nivel cualquiera a la misma distancia) se mide también con el cierre, para
   comparar lo mismo. Las cifras se rehacen solas en el siguiente cálculo de cada Validation.
+
+**Corregido**
+- **Validation > Daily history:** se calculaba al guardar la sesión (hacia las 17:10 ET), antes de que CBOE publique
+  la vela diaria, así que la última sesión nunca se evaluaba; los tickers recién añadidos (el S&P 500) salían con 0
+  sesiones. Ahora la ejecución de respaldo de la noche (22:30 ET en invierno) la recalcula en cuanto CBOE tiene la vela.
 
 ## 2026-11-15 — Trading window; índices en tiempo real cada minuto; Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
 

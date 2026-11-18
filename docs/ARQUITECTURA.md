@@ -202,9 +202,9 @@ Los dos:
   gamma, perfil, mapa y panel de volatilidad usan ese futuro (q = r).
 - **Vol Trigger:** strike más alto por debajo del flip con GEX neta ≤ −25 % del máximo.
 - **Rango Auto:** 1σ implícita. En 0DTE, de lo que queda de sesión; con el resto de filtros, de una sesión completa. Mínimo 0,4 %, máximo 10 %.
-- **Validación** (`validation`): muros frente a una referencia (`_base_prob`: fracción de las 500 sesiones previas
-  del ticker cuyo máximo o mínimo, en unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del
-  muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
+- **Validación** (`validation`): un muro aguanta si el cierre queda dentro (la mecha no cuenta), frente a una
+  referencia (`_base_prob`: fracción de las 500 sesiones previas del ticker cuyo movimiento de cierre a cierre, en
+  unidades de su volatilidad realizada de 20 sesiones, no pasó de la distancia del muro), rango frente a la media de sus 20 rangos previos, y pruebas agrupadas por día (`_clustered_test`, mínimo
   `VAL_MIN_DAYS`). Días con evento: vencimiento mensual y FOMC, IPC y empleo de EE. UU. del calendario (`cache/eventos.json`, 3 años).
 - **Flujo** (`flujo.tick`, `pub/t/{SYM}/flujo.json`, `/api/flow`, `web/flujo.js`): estado por ticker en
   `history/flujo_{SYM}.json.gz` (volumen e IV de la última foto, serie de la sesión y volumen firmado por contrato).

@@ -2767,17 +2767,16 @@ def _sessions_needed(effect: float, var: float) -> int | None:
 
 
 def _val_series(ohlc: dict) -> dict:
-    """Por sesion i (con datos solo hasta i-1 para la normalizacion): cierre anterior, movimiento al alza y a la baja en
-    unidades de volatilidad realizada diaria (VAL_RV_DAYS sesiones previas) y rango frente a la media de sus
-    VAL_RV_DAYS rangos previos."""
+    """Por sesion i (con datos solo hasta i-1 para la normalizacion): cierre anterior, movimiento de cierre a cierre
+    al alza y a la baja (nu, nd) en unidades de volatilidad realizada diaria (VAL_RV_DAYS sesiones previas) y rango
+    frente a la media de sus VAL_RV_DAYS rangos previos."""
     dates = sorted(ohlc)
     n = len(dates)
     o, h, l, c = (np.array([ohlc[d][k] for d in dates], dtype=float) for k in range(4))
     prev = np.r_[np.nan, c[:-1]]
     with np.errstate(divide="ignore", invalid="ignore"):
         ret = np.log(c / prev)
-        up = np.log(h / prev)
-        dn = np.log(prev / l)
+        up, dn = ret, -ret
         rng = (h - l) / prev
     rv = np.full(n, np.nan)
     rmean = np.full(n, np.nan)
@@ -2798,7 +2797,7 @@ def _val_series(ohlc: dict) -> dict:
 
 def _base_prob(series: np.ndarray, i: int, x: float) -> float | None:
     """Probabilidad de referencia: fraccion de las VAL_BASE_DAYS sesiones previas a i cuyo movimiento normalizado no
-    paso de x (cuantas veces habria aguantado un nivel cualquiera a esa distancia)."""
+    paso de x (cuantas veces habria cerrado dentro un nivel cualquiera a esa distancia)."""
     w = series[max(0, i - VAL_BASE_DAYS):i]
     w = w[np.isfinite(w)]
     if w.size < 60 or not np.isfinite(x):
@@ -2880,8 +2879,8 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
       - rango intradia (max-min)/cierre anterior segun el regimen (GEX neta + / -), en % y frente al rango normal del
         ticker (media de los VAL_RV_DAYS rangos previos): el regimen negativo coincide con epocas de mas volatilidad,
         y solo la segunda medida separa una cosa de la otra
-      - % de sesiones en que el maximo no supero el Call Wall / el minimo no perforo el Put Wall, frente a la
-        referencia: lo que habria aguantado un nivel cualquiera a la misma distancia (_base_prob)
+      - % de sesiones en que el cierre quedo por debajo del Call Wall / por encima del Put Wall (la mecha no cuenta),
+        frente a la referencia: lo que habria aguantado un nivel cualquiera a la misma distancia (_base_prob)
       - % de sesiones en que el cierre quedo dentro del movimiento esperado de 1 sigma (si era del mismo dia), frente al
         68,3 % teorico.
       - excepciones del rango de 2 sigma (2 x m1_pct: sigma es lineal) frente al 4,55 % teorico, con la zona de Basilea
@@ -2960,10 +2959,11 @@ def validation(symbols: list[str], max_dte="45", mode: str = "standard", model: 
             s = {"date": d, "reg": sn.get("net_per_pct") or 0, "rng": (hi - lo) / prev_c * 100,
                  "rr": float(rr) if np.isfinite(rr) else None,
                  "event": d in events or es_mensual(datetime.strptime(d, "%Y-%m-%d").date(), sym)}
-            # muros: aguanto o no, y con que probabilidad habria aguantado un nivel cualquiera a la misma distancia
-            # (en unidades de la volatilidad realizada del momento, frente a las sesiones previas del ticker)
-            for w, val, ser, held in (("cw", sn.get("call_wall"), sr["nu"], lambda v: hi <= v),
-                                      ("pw", sn.get("put_wall"), sr["nd"], lambda v: lo >= v)):
+            # muros: aguanta si el cierre queda dentro (una mecha que lo pasa y vuelve es un rechazo, no una rotura),
+            # y con que probabilidad habria cerrado dentro un nivel cualquiera a la misma distancia (en unidades de
+            # la volatilidad realizada del momento, frente a las sesiones previas del ticker)
+            for w, val, ser, held in (("cw", sn.get("call_wall"), sr["nu"], lambda v: c <= v),
+                                      ("pw", sn.get("put_wall"), sr["nd"], lambda v: c >= v)):
                 if not val:
                     continue
                 s[w] = bool(held(val))

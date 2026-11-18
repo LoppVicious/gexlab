@@ -2487,9 +2487,9 @@ function validTestsHtml(d) {
       <p class="v-q">${q}</p><div class="v-big">${big}<small>${sub}</small></div>${body}${need(t, unit)}</div>`;
   };
   const cwO = tot.cw_obs_b ?? tot.cw_held, pwO = tot.pw_obs_b ?? tot.pw_held, rg = T.regime || {};
-  let h = card("Call Wall", "Does the high stop at the Call Wall more than at any level that far?", cwO == null ? "—" : `${fmtNum(cwO, 0)}%`,
+  let h = card("Call Wall", "Does the close stay below the Call Wall more than below any level that far?", cwO == null ? "—" : `${fmtNum(cwO, 0)}%`,
     tot.cw_exp == null ? "held, no baseline yet" : `held, ${diff(cwO, tot.cw_exp)} vs. baseline`, pair(cwO, tot.cw_exp, "Any level"), T.cw, (T.cw?.effect ?? 0) > 0);
-  h += card("Put Wall", "Does the low stop at the Put Wall more than at any level that far?", pwO == null ? "—" : `${fmtNum(pwO, 0)}%`,
+  h += card("Put Wall", "Does the close stay above the Put Wall more than above any level that far?", pwO == null ? "—" : `${fmtNum(pwO, 0)}%`,
     tot.pw_exp == null ? "held, no baseline yet" : `held, ${diff(pwO, tot.pw_exp)} vs. baseline`, pair(pwO, tot.pw_exp, "Any level"), T.pw, (T.pw?.effect ?? 0) > 0);
   h += card("Gamma regime", "With negative gamma, is the day's range wider than with positive gamma?", rg.ratio == null ? "—" : `${fmtNum(rg.ratio, 2)}×`,
     rg.ratio == null ? "needs days with both regimes" : "range with gamma − against gamma +, same day",

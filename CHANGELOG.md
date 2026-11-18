@@ -3,6 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-18 — Validation: los muros se juzgan por el cierre
+
+**Cambiado**
+- **Validation, Call Wall y Put Wall:** un muro cuenta como aguantado si el cierre queda dentro (por debajo del Call
+  Wall, por encima del Put Wall). Una mecha que lo pasa y vuelve es un rechazo, no una rotura; antes contaba como
+  roto. La referencia ("Baseline", un nivel cualquiera a la misma distancia) se mide también con el cierre, para
+  comparar lo mismo. Las cifras se rehacen solas en el siguiente cálculo de cada Validation.
+
 ## 2026-11-15 — Trading window; índices en tiempo real cada minuto; Skew signal: Vol premium; Validation de toda la lista del historial diario; estudio del Skew signal
 
 **Añadido**

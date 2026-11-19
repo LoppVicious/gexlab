@@ -12,6 +12,7 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - Comprobar: `node --check web\app.js` (cada JS tocado); Python: `python -c "import gex_engine"`.
   Takes: `node --test pruebas/test_takes.mjs pruebas/test_takes_api.mjs`.
   Report semanal: `python pruebas/test_report.py` y `node --test pruebas/test_report_api.mjs`; se genera con `/report-semanal` en Claude Code.
+  Social (posts para X): `python pruebas/test_social.py` y `node --test pruebas/test_social_api.mjs`; textos con `/x-diario`.
 - Historial local: `$env:GEX_ALMACEN="local:./data/x"; python historial500.py --forzar AAPL`
 - Deploy: push a `main` (`web/**`, `nube/**` o `gex_engine.py` lanza `desplegar.yml`). El usuario recarga con Ctrl+F5.
 - Pruebas reales en Actions: `gh api -X POST repos/LoppVicious/gexlab/actions/workflows/comparar.yml/dispatches -f ref=main -f 'inputs[script]=motores.py'`
@@ -25,6 +26,7 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro: ForexFactory y fuentes oficiales de EE. UU.), `reales.py` (dato real de EE. UU. con BLS y FRED)
 - `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes; `nube/report.js` — rutas del report semanal (token propio)
 - `skew.py` — señales de put skew, diferencia call-put y volumen de opciones (O/S) para swings en acciones (índice `hist500/_skew.json.gz`, `pub/skew.json`)
+- `social_diario.py` + `social_graficos.py` (paquete y PNG del día para X en R2 `social/`, tras el historial diario), `nube/social.js`, `web/social.js` (Admin > Social); skill `.claude/skills/x-diario/`
 - `report_semanal.py` (paquete y PNG en R2 `report/`), `report_calc.py` (cálculos y umbrales), `report_graficos.py` (matplotlib); skill `.claude/skills/report-semanal/`
 - `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary), `skewsig.js` (Skew signal), `calendario.js` (tarjeta de eventos y página Calendar), `takes.js`/`takes-md.js`/`takes.css` (Founder Takes), `trading.js`/`trading.css` (Trading Window del TRACE)
 - `server.py` — modo PC: misma web y API en local · `pruebas/` — scripts para `comparar.yml`

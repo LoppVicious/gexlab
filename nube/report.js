@@ -7,7 +7,7 @@ export const AUTOR_REPORT = "claude";   // la cuenta Claude, con permiso de borr
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
 const NOMBRE = /^[a-z0-9_]{1,40}$/;
 
-async function tokenOk(req, env) {
+export async function tokenOk(req, env) {
   const t = env.REPORT_TOKEN;
   const m = /^Bearer (.+)$/.exec(req.headers.get("Authorization") || "");
   if (!t || !m) return false;

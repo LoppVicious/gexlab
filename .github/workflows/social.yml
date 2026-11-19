@@ -1,0 +1,42 @@
+name: Social diario
+# Paquete de datos y graficos del dia para X en R2 social/{fecha}/ (social_diario.py). Se lanza solo al acabar el
+# historial diario (necesita su indice de skew y la familia VIX) y a mano desde /x-diario en Claude Code; si la
+# sesion ya esta hecha no hace nada (salvo con forzar). Los textos los escribe Claude Code con /x-diario.
+on:
+  workflow_run:
+    workflows: ["Historial diario"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Rehacer la ultima sesion cerrada aunque ya este hecha"
+        type: boolean
+        default: false
+concurrency:
+  group: social
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  social:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-nube.txt
+      - run: pip install -q -r requirements-nube.txt matplotlib
+      - run: python pruebas/test_social.py
+      - name: Calcular y publicar
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          GEX_ALMACEN: r2
+          FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
+        run: python social_diario.py $FORZAR

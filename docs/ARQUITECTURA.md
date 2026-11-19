@@ -155,6 +155,24 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 - Pruebas: `python pruebas/test_report.py` (sin red; los gráficos solo si hay matplotlib) y
   `node --test pruebas/test_report_api.mjs`. Spec y plan en `docs/superpowers/`.
 
+**Social diario (posts para X, solo admin):** `social.yml` se lanza al acabar el historial diario (`workflow_run`
+de "Historial diario", solo si acabó bien) o a mano (input `forzar`). Ejecuta `social_diario.py`: calcula SPX, NDX y
+RUT con la cadena de CBOE al cierre (motor Perfil, todos los vencimientos, posición estándar; no están en `hist500`),
+lee `hist500/_skew.json.gz` (cierre, IV ATM y volumen de opciones de toda la lista: movimiento en sigmas con la IV de
+ayer, salto de IV y volumen frente a su media de 20 sesiones), `hist500/_niveles/` (niveles de las acciones citadas y
+movimiento implícito de SPY, QQQ e IWM para el primer día), `hist500/_indices_vol/` (familia VIX y percentil de 1 año)
+y `pub/eventos.json` (eventos de la sesión siguiente). Cada bloque trae `motivos` y `destacado`. Gráficos en
+`social_graficos.py` (1600 x 900, paleta Bento oscura). Sin hacer nada si la sesión ya está (salvo `--forzar`) o el
+mercado está abierto. Los textos los escribe `/x-diario` en Claude Code (`.claude/skills/x-diario/`).
+- R2: `social/{F}/paquete.json`, `social/{F}/g/{nombre}.png`, `social/ultimo.json` y `social/{F}/textos.json`
+  (`{piezas: [{id, titulo, texto, graficos, alt, publicado}]}`). No se borran.
+- Worker (`nube/social.js`): `GET /api/social/dias`, `GET /api/social/{F}` (`{paquete, textos}`),
+  `GET /api/social/{F}/g/{nombre}.png`, `PUT /api/social/{F}/textos` (máx. 12 posts, 280 caracteres y 4 imágenes
+  cada uno; conserva la marca de publicado por `id`) y `POST /api/social/{F}/publicado`. Con sesión de admin (la
+  sección Social de `/admin`: `web/social.js|css`) o con `Authorization: Bearer <REPORT_TOKEN>` (el skill); si no, 403/404.
+- Pruebas: `python pruebas/test_social.py` (sin red; los gráficos solo si hay matplotlib) y
+  `node --test pruebas/test_social_api.mjs`.
+
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El motor solo precalcula la lente Gamma del mapa. Las lentes `delta` y `charm` (`heatmap(lens=...)`, clave con
 `_delta`/`_charm` en `nube.js`) no están en R2: el navegador las calcula con el paquete y las guarda en memoria hasta

@@ -7,7 +7,8 @@
 // aqui solo se guarda y se compara su SHA-256. La contrasena nunca sale del navegador y el servidor no gasta CPU.
 
 import { takes } from "./takes.js";   // Founder Takes (wrangler lo empaqueta)
-import { report } from "./report.js";   // report semanal: rutas con token propio, sin sesion
+import { report, tokenOk } from "./report.js";   // report semanal: rutas con token propio, sin sesion
+import { social } from "./social.js";   // social diario: admin o el token del report
 
 const ITER = 310000;
 const SESSION_DAYS = 30;
@@ -510,6 +511,10 @@ async function api(req, env, url, me) {
     if (!me.admin) return json(403, { error: "Administrator only" });
     return admin(req, env, me);
   }
+  if (p.startsWith("/api/social/")) {
+    if (!me.admin) return json(403, { error: "Administrator only" });
+    return social(req, env, url, { json, body, SEC_HEADERS });
+  }
   if (p === "/api/takes" || p.startsWith("/api/takes/")) {
     const r = await takes(req, env, url, me, { json, body, SEC_HEADERS });
     if (r) return r;
@@ -651,6 +656,10 @@ export default {
         if (o && o !== url.origin) return json(403, { error: "Origin not allowed" });
       }
       if (p.startsWith("/api/report/")) return await report(req, env, url, { json, body, SEC_HEADERS });
+      if (p.startsWith("/api/social/") && req.headers.get("Authorization")) {   // el skill /x-diario
+        if (!(await tokenOk(req, env))) return json(404, { error: "not found" });
+        return await social(req, env, url, { json, body, SEC_HEADERS });
+      }
       if (PUBLIC.has(p)) {
         if (p.startsWith("/api/")) return await publicApi(req, env, url);
         // las paginas se sirven sin ".html" (/login, /setup)

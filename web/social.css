@@ -1,0 +1,36 @@
+/* GEX Lab - seccion Social de /admin (web/social.js). Colores de las variables del tema. */
+.soc-dia { display: flex; align-items: center; gap: 8px; }
+.soc-dia select { background: var(--btn); color: var(--text); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; font: inherit; font-size: 13px; }
+.soc .when { margin-bottom: 10px; }
+.soc-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.soc-chip { font-size: 12.5px; color: var(--muted); background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 999px; padding: 4px 10px; }
+.soc-chip b { color: var(--text); font-weight: 600; margin-right: 4px; }
+.soc-chip.off { color: var(--faint); border-style: dashed; }
+.soc-vacio { color: var(--muted); background: var(--surface); border: 1px dashed var(--line-strong); border-radius: 10px; padding: 14px 16px; }
+.soc-h { margin: 22px 0 10px; }
+
+.soc-post { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 16px; margin-bottom: 16px; }
+.soc-post.done { opacity: .62; }
+.soc-post header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.soc-post h3 { margin: 0; font-size: 14px; }
+.soc-pub { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+.soc-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.soc-imgs { display: grid; gap: 10px; }
+.soc-imgs.suelta { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.soc-img { margin: 0; }
+.soc-img img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line-soft); background: #000; }
+.soc-img figcaption { display: flex; gap: 8px; margin-top: 6px; }
+.soc-img .ab { padding: 5px 10px; font-size: 12px; text-decoration: none; }
+.soc-txt textarea { width: 100%; box-sizing: border-box; resize: vertical; background: var(--ink); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.45; }
+.soc-txt textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.soc-acc { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.soc-n { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.soc-n.over { color: var(--call); font-weight: 600; }
+.soc-alt { color: var(--faint); font-size: 12px; line-height: 1.4; margin: 10px 0 0; }
+.soc-alt b { color: var(--muted); font-weight: 500; }
+
+@media (max-width: 760px) {
+  .soc-grid { grid-template-columns: 1fr; }
+  .soc-dia { font-size: 12px; }
+}

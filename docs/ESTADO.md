@@ -6,6 +6,9 @@
 - **Report semanal** (primera versión el 2026-11-13, `/report-semanal`): siguientes posibles: report diario sin LLM,
   tarea programada, percentiles de rebalanceo con el histórico de AUM de ProShares (lo publica por día), ajustar los
   umbrales de destacado tras los primeros reports.
+- **Social diario para X** (primera versión el 2026-11-19, `/x-diario`, Admin > Social): ajustar los umbrales de
+  destacado (`social_diario.py`) tras las primeras semanas; posibles: tarea programada en el PC que lance `/x-diario`,
+  gráfico del TRACE del día (cómo respetó el precio los niveles), marcador de aciertos de los niveles.
 - **Founder Takes, siguientes pasos posibles** (primera versión el 2026-11-13): tarjeta del último Take en Summary,
   Takes junto a cada ticker, avisos al publicar. Cuando haya 30-40 entradas, ver qué etiquetas merecen filtro o
   pestaña propia.

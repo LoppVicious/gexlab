@@ -3,7 +3,21 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-18 — Validation: los muros se juzgan por el cierre; el historial diario ya no pierde la última sesión
+## 2026-11-19 — Social: posts diarios para X en el panel de administración
+
+**Añadido**
+- **Admin > Social (solo el administrador):** después de cada cierre, una lista de posts para X con su imagen
+  (1600 x 900, tema oscuro) y su texto en inglés de 280 caracteres como máximo. Cada post tiene botones para copiar el
+  texto, copiar o descargar la imagen y marcarlo como publicado; el texto se puede retocar antes de copiarlo y un
+  contador avisa si pasa de 280. Un selector permite ver días anteriores.
+  - Siempre hay un post de los índices (SPX, NDX, RUT): cierre, movimiento frente al que esperaban las opciones,
+    régimen de gamma, Call Wall, Put Wall, flip y rango de 1σ de la sesión siguiente. Además, lo que más destaque:
+    acciones con un movimiento fuera de lo normal (en sigmas), salto de IV o volumen de opciones, el VIX y su curva,
+    o la próxima sesión (vencimiento mensual, eventos de importancia alta).
+  - Los datos y gráficos se generan solos al acabar el historial diario (hacia las 17:15 ET). Los textos los escribe
+    Claude Code con `/x-diario`.
+
+Validation: los muros se juzgan por el cierre; el historial diario ya no pierde la última sesión
 
 **Cambiado**
 - **Validation, Call Wall y Put Wall:** un muro cuenta como aguantado si el cierre queda dentro (por debajo del Call

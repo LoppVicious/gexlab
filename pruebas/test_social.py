@@ -62,6 +62,21 @@ def test_vix():
     assert sd.bloque_vix({"VIX": {"close": 15.0}}, [])["curva_previa"] is None
 
 
+def test_segunda_pasada():
+    import tempfile
+    import almacen
+    st = almacen.Local(tempfile.mkdtemp())
+    dias = [f"2026-10-{d:02d}" for d in range(1, 23)] + ["2026-11-18"]
+    idx = {d: {"AAA": [0.32, 0.36, 100.0, 0.0, 1000.0, 1e6]} for d in dias}
+    idx["2026-11-19"] = {"AAA": [0.40, 0.45, 106.0, 0.0, 5000.0, 1e6]}
+    almacen.put_json(st, "hist500/_skew.json.gz", idx)
+    paq = {"fecha": "2026-11-19", "indices": {"SPX": {"estado": "ok"}}, "acciones": {"estado": "ausente", "motivo": "x"}}
+    graficos = sd.anadir_acciones(st, paq)
+    assert paq["acciones"]["estado"] == "ok" and paq["acciones"]["mayor_sigma"][0]["sym"] == "AAA"
+    assert paq["indices"] == {"SPX": {"estado": "ok"}} and "acciones_generado" in paq
+    assert set(graficos) <= {"acciones_sigma"}
+
+
 def test_manana():
     evs = [{"date": "2026-11-20", "time": "10:00", "titulo": "UoM", "imp": 2},
            {"date": "2026-11-20", "time": "08:30", "titulo": "CPI", "imp": 3},

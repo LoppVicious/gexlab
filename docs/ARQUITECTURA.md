@@ -158,7 +158,9 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 **Social diario (posts para X, solo admin):** `social.yml` hace dos pasadas: a las 16:20 ET (cron del Worker,
 `tocaSocial`) con índices, VIX y próxima sesión, y al acabar el historial diario (`workflow_run` de "Historial
 diario", solo si acabó bien) para añadir las acciones (solo si la primera no las tenía y `hist500/_dias/{F}.json`
-ya existe). También a mano (input `forzar`). El VIX sale de las cotizaciones de CBOE (familia VIX con su cierre
+ya existe). La segunda pasada no recalcula los índices: CBOE deja de publicar las cadenas hacia las 17:15 ET, así
+que solo añade el bloque de acciones y su gráfico al paquete de la primera. También a mano (input `forzar`, que lo
+rehace todo y por eso solo funciona entre las 16:20 y las 17:15 ET). El VIX sale de las cotizaciones de CBOE (familia VIX con su cierre
 anterior) y la serie histórica del VIX, no de `hist500`. Ejecuta `social_diario.py`: calcula SPX, NDX y
 RUT con la cadena de CBOE al cierre (motor Perfil, todos los vencimientos, posición estándar; no están en `hist500`),
 lee `hist500/_skew.json.gz` (cierre, IV ATM y volumen de opciones de toda la lista: movimiento en sigmas con la IV de

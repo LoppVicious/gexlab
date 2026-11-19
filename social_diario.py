@@ -213,6 +213,37 @@ def _bloque(nombre, fn) -> dict:
         return {"estado": "ausente", "motivo": f"{type(e).__name__}: {str(e)[:200]}"}
 
 
+def leer_acciones(st, F: str) -> dict:
+    """Bloque de acciones con el indice de skew del historial diario y los niveles de las que se citan."""
+    skew_idx = almacen.get_json(st, f"{H}_skew.json.gz") or {}
+    acciones = _bloque("acciones", lambda: bloque_acciones(skew_idx, F, excluir={"VIX"}))
+    if acciones["estado"] == "ok":
+        citadas = {x["sym"] for k in ("mayor_sigma", "mayor_salto_iv", "mayor_volumen_opciones") for x in acciones[k][:5]}
+        for k in ("mayor_sigma", "mayor_salto_iv", "mayor_volumen_opciones"):
+            for x in acciones[k]:
+                if x["sym"] in citadas:
+                    x["niveles"] = niveles_accion(st, x["sym"], F)
+                    x["nombre"] = g.name_of(x["sym"])
+    return acciones
+
+
+def anadir_acciones(st, paquete: dict) -> dict:
+    """Segunda pasada: solo el bloque de acciones (y su grafico) sobre el paquete de la primera. Las cadenas de
+    CBOE ya no estan tras las ~17:15 ET, asi que los indices no se recalculan."""
+    acciones = leer_acciones(st, paquete["fecha"])
+    paquete["acciones"] = acciones
+    graficos = {}
+    if acciones["estado"] == "ok":
+        try:
+            import social_graficos as sg
+            graficos["acciones_sigma"] = sg.acciones(paquete["fecha"], acciones["mayor_sigma"])
+            acciones["graficos"].append("acciones_sigma")
+        except Exception as e:  # noqa: BLE001
+            log(f"grafico acciones_sigma: {type(e).__name__}: {str(e)[:200]}")
+    paquete["acciones_generado"] = g.now_ny().strftime("%Y-%m-%d %H:%M ET")
+    return graficos
+
+
 def armar(st, previo: dict | None, dibujar=True) -> tuple:
     """(paquete, {nombre: PNG}) de la ultima sesion cerrada."""
     resultados, F = {}, None
@@ -234,15 +265,7 @@ def armar(st, previo: dict | None, dibujar=True) -> tuple:
             esp = p["siguiente"]["pct"] if p and p["siguiente"].get("sesion") == F else esperado_proxy(st, sym, F)
             return bloque_indice(resultados[sym], esp, p)
         indices[sym] = _bloque(sym, uno)
-    skew_idx = almacen.get_json(st, f"{H}_skew.json.gz") or {}
-    acciones = _bloque("acciones", lambda: bloque_acciones(skew_idx, F, excluir={"VIX"}))
-    if acciones["estado"] == "ok":   # niveles de las acciones que se citan
-        citadas = {x["sym"] for k in ("mayor_sigma", "mayor_salto_iv", "mayor_volumen_opciones") for x in acciones[k][:5]}
-        for k in ("mayor_sigma", "mayor_salto_iv", "mayor_volumen_opciones"):
-            for x in acciones[k]:
-                if x["sym"] in citadas:
-                    x["niveles"] = niveles_accion(st, x["sym"], F)
-                    x["nombre"] = g.name_of(x["sym"])
+    acciones = leer_acciones(st, F)
 
     def vix():   # directo de CBOE: no espera al historial diario
         cot = {x: ((g.fetch_quote(x, ttl=0) or {}).get("data") or {}) for x in VIX_FAMILIA}
@@ -319,6 +342,11 @@ def main(args) -> int:
                                                  else " y el historial diario aun no tiene la sesion") + "; con --forzar se rehace")
             return 0
         log("Segunda pasada: el historial diario ya tiene la sesion, se anaden las acciones")
+        graficos = anadir_acciones(st, previo)
+        publicar(st, previo, graficos)
+        b = previo["acciones"]
+        log(f"acciones: {b['estado']}" + (f" motivos={b['motivos']}" if b["estado"] == "ok" else f" ({b['motivo']})"))
+        return 0
     if previo and previo.get("fecha") == F:   # al rehacer, el previo es el de la sesion anterior
         previo = _leer(st, f"{SALIDA}{previo['previa']}/paquete.json") if previo.get("previa") else None
     paquete, graficos = armar(st, previo)

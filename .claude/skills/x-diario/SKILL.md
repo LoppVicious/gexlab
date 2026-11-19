@@ -26,7 +26,8 @@ Si `F` esta en `dias`, sigue al paso 3. Si no:
   y proxima sesion, y al acabar el historial diario (hacia las 17:10 ET) con las acciones.
   Mira si `social.yml` esta en marcha: `gh api "repos/LoppVicious/gexlab/actions/workflows/social.yml/runs?per_page=1" --jq '.workflow_runs[0] | "\(.status) \(.conclusion) \(.created_at)"'`.
 - Si no esta en marcha, lanzalo tu: `gh api -X POST repos/LoppVicious/gexlab/actions/workflows/social.yml/dispatches -f ref=main`
-  (con un `F` anterior que ya existe y hay que rehacer: `-f 'inputs[forzar]=true'`).
+  (con un `F` anterior que ya existe y hay que rehacer: `-f 'inputs[forzar]=true'`; solo entre las 16:20 y las
+  17:15 ET, porque despues CBOE ya no publica las cadenas de los indices).
 - Espera en segundo plano (`run_in_background`) hasta que `F` aparezca en `dias`:
 
 ```bash

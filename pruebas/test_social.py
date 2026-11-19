@@ -52,13 +52,14 @@ def test_acciones():
 
 
 def test_vix():
-    dia = {"indices": {"VIX": {"close": 22.0, "prev_day_close": 19.0}, "VIX9D": {"close": 24.0}, "VIX3M": {"close": 21.0},
-                       "VIX6M": {"close": 21.5}, "VIX1Y": {"close": 22.0}}, "futuros": {"m1": 21.0, "m2": 21.2, "term": "contango"}}
+    cot = {"VIX": {"close": 22.0, "prev_day_close": 19.0}, "VIX9D": {"close": 24.0, "prev_day_close": 19.0},
+           "VIX3M": {"current_price": 21.0, "prev_day_close": 20.0}, "VIX6M": {"close": 21.5}, "VIX1Y": {}}
     serie = [(f"d{i}", 12.0 + (i % 10)) for i in range(300)]
-    v = sd.bloque_vix(dia, {"indices": {"VIX": {"close": 19.0}}}, serie)
+    v = sd.bloque_vix(cot, serie)
     assert round(v["cambio_pct"], 1) == 15.8 and v["invertida"] and v["percentil_1a"] == 100
     assert set(v["motivos"]) == {"big_vix_move", "term_structure_inverted", "vix_high_percentile"}
-    assert v["curva_previa"]["VIX"] == 19.0
+    assert v["curva_previa"]["VIX"] == 19.0 and v["curva"]["VIX1Y"] is None and v["curva"]["VIX3M"] == 21.0
+    assert sd.bloque_vix({"VIX": {"close": 15.0}}, [])["curva_previa"] is None
 
 
 def test_manana():

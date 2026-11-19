@@ -22,8 +22,9 @@ curl -sf -H "$A" $B/dias
 ```
 
 Si `F` esta en `dias`, sigue al paso 3. Si no:
-- El paquete se hace solo cuando acaba el historial diario (workflow "Historial diario", hacia las 17:05-17:15 ET).
-  Mira si esta en marcha: `gh api "repos/LoppVicious/gexlab/actions/workflows/historial500.yml/runs?per_page=1" --jq '.workflow_runs[0] | "\(.status) \(.conclusion) \(.created_at)"'`.
+- El paquete se hace en dos pasadas: a las 16:20 ET (lo lanza el Worker; listo hacia las 16:25) con indices, VIX
+  y proxima sesion, y al acabar el historial diario (hacia las 17:10 ET) con las acciones.
+  Mira si `social.yml` esta en marcha: `gh api "repos/LoppVicious/gexlab/actions/workflows/social.yml/runs?per_page=1" --jq '.workflow_runs[0] | "\(.status) \(.conclusion) \(.created_at)"'`.
 - Si no esta en marcha, lanzalo tu: `gh api -X POST repos/LoppVicious/gexlab/actions/workflows/social.yml/dispatches -f ref=main`
   (con un `F` anterior que ya existe y hay que rehacer: `-f 'inputs[forzar]=true'`).
 - Espera en segundo plano (`run_in_background`) hasta que `F` aparezca en `dias`:
@@ -57,6 +58,9 @@ Sigue `guia-estilo.md` (en esta carpeta). Siempre:
 2. Uno a tres posts mas, de lo que mas destaque del dia, por este orden de preferencia: un `perfil_*` si un indice
    cambio de regimen o cerro junto a un muro; una accion (`acciones`) con un movimiento fuera de lo normal; el VIX;
    la proxima sesion (`manana`: vencimiento mensual o evento de importancia 3). Un dia tranquilo, uno solo extra.
+Si `acciones` esta `ausente` (primera pasada), escribe ya el resto y dile al usuario que, cuando acabe el historial
+diario, `/x-diario` otra vez anade el post de acciones (al reescribir, conserva los mismos `id` de los posts que ya
+tenia para no perder su marca de publicado).
 Cifras solo del paquete. Comprueba la longitud de cada texto antes de guardar:
 `.venv/Scripts/python.exe -c "import json,sys; [print(p['id'], len(p['texto'])) for p in json.load(open(sys.argv[1]))['piezas']]" <scratchpad>/textos.json`
 (maximo 280; el Worker rechaza lo que pase).

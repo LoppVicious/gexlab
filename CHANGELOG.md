@@ -14,8 +14,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
     régimen de gamma, Call Wall, Put Wall, flip y rango de 1σ de la sesión siguiente. Además, lo que más destaque:
     acciones con un movimiento fuera de lo normal (en sigmas), salto de IV o volumen de opciones, el VIX y su curva,
     o la próxima sesión (vencimiento mensual, eventos de importancia alta).
-  - Los datos y gráficos se generan solos al acabar el historial diario (hacia las 17:15 ET). Los textos los escribe
-    Claude Code con `/x-diario`.
+  - Los datos y gráficos se generan solos en dos pasadas: a las 16:20 ET (listos hacia las 16:25) índices, VIX y
+    próxima sesión, y al acabar el historial diario (hacia las 17:10 ET) se añaden las acciones. Los textos los
+    escribe Claude Code con `/x-diario`.
 
 Validation: los muros se juzgan por el cierre; el historial diario ya no pierde la última sesión
 

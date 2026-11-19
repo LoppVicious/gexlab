@@ -1,4 +1,4 @@
-"""Social diario: paquete de datos y graficos del dia para publicar en X (R2 social/{F}/paquete.json,
+"""Social diario (dos pasadas: 16:20 ET sin acciones, y al acabar el historial diario con ellas): paquete de datos y graficos del dia para publicar en X (R2 social/{F}/paquete.json,
 social/{F}/g/*.png y social/ultimo.json). Lo ejecuta social.yml tras el historial diario; los textos los escribe
 Claude Code con /x-diario y se guardan en social/{F}/textos.json (Worker, nube/social.js). Solo los ve el admin.
 Fuentes: cadenas de CBOE al cierre de SPX, NDX y RUT (se calculan aqui con el motor Perfil), hist500/ (indice de
@@ -28,6 +28,7 @@ MURO_CERCA = 0.5                 # % del cierre a un muro
 Z_ACCION, SALTO_IV, VOL_OPC = 2.5, 5.0, 3.0   # sigmas, puntos de IV, veces el volumen medio de opciones
 VIX_CAMBIO, VIX_PCTL = 8.0, 80.0
 TOP = 8
+VIX_FAMILIA = ("VIX9D", "VIX", "VIX3M", "VIX6M", "VIX1Y")
 
 
 def log(msg: str) -> None:
@@ -128,21 +129,21 @@ def bloque_acciones(idx: dict, F: str, excluir=()) -> dict:
             "motivos": motivos, "destacado": bool(motivos)}
 
 
-def bloque_vix(dia: dict, previo: dict | None, serie: list) -> dict:
-    """Familia VIX del dia (hist500/_indices_vol/{F}.json) y el percentil del cierre en el ultimo ano."""
-    ind = dia.get("indices") or {}
-    cierre = lambda s, d=ind: (d.get(s) or {}).get("close") or (d.get(s) or {}).get("current_price")
-    vix = cierre("VIX")
+def bloque_vix(cot: dict, serie: list) -> dict:
+    """Familia VIX con las cotizaciones de CBOE tras el cierre ({SYM: {close, current_price, prev_day_close}}) y el
+    percentil del cierre en el ultimo ano (serie diaria de cierres anteriores)."""
+    hoy = lambda s: (cot.get(s) or {}).get("close") or (cot.get(s) or {}).get("current_price")
+    ayer = lambda s: (cot.get(s) or {}).get("prev_day_close")
+    vix = hoy("VIX")
     if not vix:
         raise ValueError("Sin cierre del VIX")
-    prev = (ind.get("VIX") or {}).get("prev_day_close") or (cierre("VIX", (previo or {}).get("indices") or {}))
+    prev = ayer("VIX")
     chg = (vix / prev - 1) * 100 if prev else None
-    curva = {s: _r(cierre(s)) for s in ("VIX9D", "VIX", "VIX3M", "VIX6M", "VIX1Y")}
-    curva_prev = {s: _r(cierre(s, (previo or {}).get("indices") or {})) for s in curva} if previo else None
+    curva = {s: _r(hoy(s)) for s in VIX_FAMILIA}
+    curva_prev = {s: _r(ayer(s)) for s in VIX_FAMILIA}
     ano = [c for _, c in serie[-DIAS_ANO:]]
     pct = 100 * sum(1 for c in ano if c < vix) / len(ano) if len(ano) >= 100 else None
     invertida = bool(curva.get("VIX3M")) and vix > curva["VIX3M"]
-    fut = dia.get("futuros") or {}
     motivos = []
     if chg is not None and abs(chg) >= VIX_CAMBIO:
         motivos.append("big_vix_move")
@@ -150,8 +151,8 @@ def bloque_vix(dia: dict, previo: dict | None, serie: list) -> dict:
         motivos.append("term_structure_inverted")
     if pct is not None and pct >= VIX_PCTL:
         motivos.append("vix_high_percentile")
-    return {"cierre": _r(vix), "cambio_pct": _r(chg), "percentil_1a": _r(pct, 0), "curva": curva, "curva_previa": curva_prev,
-            "invertida": invertida, "futuros_m1": fut.get("m1"), "futuros_m2": fut.get("m2"), "futuros_term": fut.get("term"),
+    return {"cierre": _r(vix), "cambio_pct": _r(chg), "percentil_1a": _r(pct, 0), "curva": curva,
+            "curva_previa": curva_prev if any(curva_prev.values()) else None, "invertida": invertida,
             "motivos": motivos, "destacado": bool(motivos)}
 
 
@@ -243,15 +244,11 @@ def armar(st, previo: dict | None, dibujar=True) -> tuple:
                     x["niveles"] = niveles_accion(st, x["sym"], F)
                     x["nombre"] = g.name_of(x["sym"])
 
-    def vix():
-        hv = almacen.get_json(st, f"{H}_indices_vol/historico.json.gz") or {}
-        serie = [(r[0], float(r[4])) for r in (hv.get("series") or {}).get("VIX", []) if r and r[4] is not None and r[0] < F]
-        dias = sorted(k.rsplit("/", 1)[1][:-5] for k in st.list(f"{H}_indices_vol/") if k.endswith(".json") and "historico" not in k)
-        ant = [d for d in dias if d < F]
-        dia = almacen.get_json(st, f"{H}_indices_vol/{F}.json")
-        if not dia:
-            raise ValueError(f"Sin familia VIX de {F}")
-        return bloque_vix(dia, almacen.get_json(st, f"{H}_indices_vol/{ant[-1]}.json") if ant else None, serie)
+    def vix():   # directo de CBOE: no espera al historial diario
+        cot = {x: ((g.fetch_quote(x, ttl=0) or {}).get("data") or {}) for x in VIX_FAMILIA}
+        hist = (g.fetch_aux("historical", "VIX", ttl=0) or {}).get("data") or []
+        serie = sorted((h["date"], float(h["close"])) for h in hist if h.get("date") and h.get("close") and h["date"] < F)
+        return bloque_vix(cot, serie)
     vixb = _bloque("vix", vix)
     sig = g.next_trading_day(datetime.strptime(F, "%Y-%m-%d")).strftime("%Y-%m-%d")
     manana = _bloque("manana", lambda: bloque_manana(almacen.get_json(st, "pub/eventos.json") or [], sig))
@@ -314,10 +311,14 @@ def main(args) -> int:
     st = almacen.abrir()
     F = ultima_sesion_cerrada(now)
     ult = (_leer(st, f"{SALIDA}ultimo.json") or {}).get("fecha")
-    if ult == F and not a.forzar:
-        log(f"social/{F}/ ya estaba hecho; con --forzar se rehace")
-        return 0
     previo = _leer(st, f"{SALIDA}{ult}/paquete.json") if ult else None
+    if ult == F and not a.forzar:
+        # primera pasada a las 16:20 ET sin acciones; la segunda, al acabar el historial diario, las anade
+        if (previo.get("acciones") or {}).get("estado") == "ok" or not st.get(f"{H}_dias/{F}.json"):
+            log(f"social/{F}/ ya estaba hecho" + ("" if (previo.get("acciones") or {}).get("estado") == "ok"
+                                                 else " y el historial diario aun no tiene la sesion") + "; con --forzar se rehace")
+            return 0
+        log("Segunda pasada: el historial diario ya tiene la sesion, se anaden las acciones")
     if previo and previo.get("fecha") == F:   # al rehacer, el previo es el de la sesion anterior
         previo = _leer(st, f"{SALIDA}{previo['previa']}/paquete.json") if previo.get("previa") else None
     paquete, graficos = armar(st, previo)

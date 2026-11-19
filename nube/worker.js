@@ -595,6 +595,13 @@ function tocaRapido(d) {
   return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min % 5 === 0 && min >= 7 * 60 + 5 && min <= 16 * 60 + 15;
 }
 
+// social diario (social.yml), primera pasada sin acciones: dias laborables a las 16:20 ET; la segunda la lanza el
+// final del historial diario (workflow_run). El script descarta festivos y sesiones ya hechas.
+function tocaSocial(d) {
+  const { wd, min } = nyParts(d);
+  return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min === 16 * 60 + 20;
+}
+
 // historial diario (historial500.yml): dias laborables a las 16:30 ET; el script descarta festivos
 function tocaHistorial(d) {
   const { wd, min } = nyParts(d);
@@ -644,6 +651,7 @@ export default {
     if (toca(d)) ctx.waitUntil(dispatch(env, { modo: "ciclo" }));
     if (tocaRapido(d)) ctx.waitUntil(dispatch(env, { modo: "rapido" }));
     if (tocaHistorial(d)) ctx.waitUntil(dispatch(env, {}, "historial500.yml"));
+    if (tocaSocial(d)) ctx.waitUntil(dispatch(env, {}, "social.yml"));
     ctx.waitUntil(programarCalendario(env).catch((e) => console.log("calendario:", e.message)));
   },
 

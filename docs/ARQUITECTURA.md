@@ -155,13 +155,15 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 - Pruebas: `python pruebas/test_report.py` (sin red; los gráficos solo si hay matplotlib) y
   `node --test pruebas/test_report_api.mjs`. Spec y plan en `docs/superpowers/`.
 
-**Social diario (posts para X, solo admin):** `social.yml` se lanza al acabar el historial diario (`workflow_run`
-de "Historial diario", solo si acabó bien) o a mano (input `forzar`). Ejecuta `social_diario.py`: calcula SPX, NDX y
+**Social diario (posts para X, solo admin):** `social.yml` hace dos pasadas: a las 16:20 ET (cron del Worker,
+`tocaSocial`) con índices, VIX y próxima sesión, y al acabar el historial diario (`workflow_run` de "Historial
+diario", solo si acabó bien) para añadir las acciones (solo si la primera no las tenía y `hist500/_dias/{F}.json`
+ya existe). También a mano (input `forzar`). El VIX sale de las cotizaciones de CBOE (familia VIX con su cierre
+anterior) y la serie histórica del VIX, no de `hist500`. Ejecuta `social_diario.py`: calcula SPX, NDX y
 RUT con la cadena de CBOE al cierre (motor Perfil, todos los vencimientos, posición estándar; no están en `hist500`),
 lee `hist500/_skew.json.gz` (cierre, IV ATM y volumen de opciones de toda la lista: movimiento en sigmas con la IV de
 ayer, salto de IV y volumen frente a su media de 20 sesiones), `hist500/_niveles/` (niveles de las acciones citadas y
-movimiento implícito de SPY, QQQ e IWM para el primer día), `hist500/_indices_vol/` (familia VIX y percentil de 1 año)
-y `pub/eventos.json` (eventos de la sesión siguiente). Cada bloque trae `motivos` y `destacado`. Gráficos en
+movimiento implícito de SPY, QQQ e IWM para el primer día) y `pub/eventos.json` (eventos de la sesión siguiente). Cada bloque trae `motivos` y `destacado`. Gráficos en
 `social_graficos.py` (1600 x 900, paleta Bento oscura). Sin hacer nada si la sesión ya está (salvo `--forzar`) o el
 mercado está abierto. Los textos los escribe `/x-diario` en Claude Code (`.claude/skills/x-diario/`).
 - R2: `social/{F}/paquete.json`, `social/{F}/g/{nombre}.png`, `social/ultimo.json` y `social/{F}/textos.json`

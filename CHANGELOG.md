@@ -20,6 +20,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   y mercados cruzados, y el playbook para la sesión siguiente), más posts sueltos cuando algo lo merezca. Con una
   lectura del día (alcista, bajista o de transición) que se nota en el tono.
 
+**Corregido**
+- **Social, perfil del NDX:** las barras salían como hilos (el ancho se tomaba del paso mínimo entre strikes y el NDX
+  mezcla strikes de 10 y de 100); ahora se usa el paso mediano.
+
 ## 2026-11-19 — Social: posts diarios para X en el panel de administración
 
 **Añadido**

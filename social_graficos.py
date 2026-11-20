@@ -112,7 +112,9 @@ def perfil(sym: str, res: dict, b: dict, sig: str) -> bytes:
     if len(pares) < 5:
         raise ValueError("Pocos strikes en la ventana")
     ks, vs = zip(*pares)
-    paso = min(abs(ks[i + 1] - ks[i]) for i in range(len(ks) - 1) if ks[i + 1] != ks[i])
+    # ancho de barra con el paso mediano: el NDX mezcla strikes de 10 y de 100 y con el minimo salian hilos
+    pasos = sorted(abs(ks[i + 1] - ks[i]) for i in range(len(ks) - 1) if ks[i + 1] != ks[i])
+    paso = pasos[len(pasos) // 2]
     fig = _fig()
     pos = b["regimen"] == "positive"
     _cabecera(fig, f"{sym} gamma by strike into {_fecha(sig)}",

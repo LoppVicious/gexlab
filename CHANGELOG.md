@@ -23,6 +23,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 **Corregido**
 - **Social, perfil del NDX:** las barras salían como hilos (el ancho se tomaba del paso mínimo entre strikes y el NDX
   mezcla strikes de 10 y de 100); ahora se usa el paso mediano.
+- **Social en blanco con bloqueadores de anuncios:** sus listas de "social" ocultaban la página (id `socialView`,
+  clases `soc-`). Ahora usa nombres neutros (`postsView`, `pst-`).
 
 ## 2026-11-19 — Social: posts diarios para X en el panel de administración
 

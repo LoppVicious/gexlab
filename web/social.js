@@ -40,7 +40,7 @@ async function loadSocial() {
   soc.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
   setStatus("busy", "Loading posts…");
-  if (!soc.dias) $("socBody").innerHTML = `<div class="empty">Loading posts…</div>`;
+  if (!soc.dias) $("postsBody").innerHTML = `<div class="empty">Loading posts…</div>`;
   try {
     soc.dias = (await socPide("/api/social/dias")).dias;
     if (!soc.dia || !soc.dias.includes(soc.dia)) soc.dia = soc.dias[0] || null;
@@ -51,7 +51,7 @@ async function loadSocial() {
     if (e.name === "AbortError") return;
     if (state.mode === "social") {
       setStatus("err", "No data");
-      $("socBody").innerHTML = `<div class="empty">${esc(e.message === "Failed to fetch" ? "The server is not responding." : e.message)}</div>`;
+      $("postsBody").innerHTML = `<div class="empty">${esc(e.message === "Failed to fetch" ? "The server is not responding." : e.message)}</div>`;
     }
   } finally {
     $("refreshBtn").classList.remove("spin");
@@ -61,67 +61,67 @@ async function loadSocial() {
 function socResumen(paq) {
   const chips = [];
   for (const [sym, b] of Object.entries(paq.indices || {})) {
-    if (b.estado !== "ok") { chips.push(`<span class="soc-chip off">${esc(sym)}: no data</span>`); continue; }
-    chips.push(`<span class="soc-chip"><b>${esc(sym)}</b> ${socPct(b.cambio_pct)}${socMotivos(b)}</span>`);
+    if (b.estado !== "ok") { chips.push(`<span class="pst-chip off">${esc(sym)}: no data</span>`); continue; }
+    chips.push(`<span class="pst-chip"><b>${esc(sym)}</b> ${socPct(b.cambio_pct)}${socMotivos(b)}</span>`);
   }
   const v = paq.vix || {};
-  chips.push(v.estado === "ok" ? `<span class="soc-chip"><b>VIX</b> ${esc(v.cierre)} (${socPct(v.cambio_pct)})${socMotivos(v)}</span>` : `<span class="soc-chip off">VIX: no data</span>`);
+  chips.push(v.estado === "ok" ? `<span class="pst-chip"><b>VIX</b> ${esc(v.cierre)} (${socPct(v.cambio_pct)})${socMotivos(v)}</span>` : `<span class="pst-chip off">VIX: no data</span>`);
   const m = paq.mercados || {};
   if (m.estado === "ok") {
     for (const [grupo, filas] of Object.entries(m.grupos || {})) {
       const fila = (x) => (x.rendimiento_pct != null ? `10Y ${x.rendimiento_pct}%${x.cambio_pb != null ? ` (${x.cambio_pb >= 0 ? "+" : ""}${x.cambio_pb} bp)` : ""}` : `${esc(x.sym)} ${socPct(x.cambio_pct)}`);
-      if (filas.length) chips.push(`<span class="soc-chip"><b>${esc(grupo)}</b> ${filas.map(fila).join(", ")}</span>`);
+      if (filas.length) chips.push(`<span class="pst-chip"><b>${esc(grupo)}</b> ${filas.map(fila).join(", ")}</span>`);
     }
     const a = m.amplitud || {};
-    if (a.sectores_total) chips.push(`<span class="soc-chip"><b>Sectors</b> ${a.sectores_suben}/${a.sectores_total} up${a.rsp_vs_spy != null ? `, RSP vs SPY ${socPct(a.rsp_vs_spy)}` : ""}${socMotivos(m)}</span>`);
-  } else chips.push(`<span class="soc-chip off">Cross-asset: no data</span>`);
+    if (a.sectores_total) chips.push(`<span class="pst-chip"><b>Sectors</b> ${a.sectores_suben}/${a.sectores_total} up${a.rsp_vs_spy != null ? `, RSP vs SPY ${socPct(a.rsp_vs_spy)}` : ""}${socMotivos(m)}</span>`);
+  } else chips.push(`<span class="pst-chip off">Cross-asset: no data</span>`);
   const acc = paq.acciones || {};
-  chips.push(acc.estado === "ok" ? `<span class="soc-chip"><b>Stocks</b> ${acc.suben} up, ${acc.bajan} down${socMotivos(acc)}</span>`
-    : `<span class="soc-chip off">Stocks: after the daily history</span>`);
+  chips.push(acc.estado === "ok" ? `<span class="pst-chip"><b>Stocks</b> ${acc.suben} up, ${acc.bajan} down${socMotivos(acc)}</span>`
+    : `<span class="pst-chip off">Stocks: after the daily history</span>`);
   const n = paq.manana || {};
-  if (n.estado === "ok") chips.push(`<span class="soc-chip"><b>${esc(socFecha(n.sesion))}</b> ${(n.eventos || []).length ? n.eventos.map((e) => `${esc(e.hora || "")} ${esc(e.evento)}`).join(", ") : "no major events"}${n.opex_mensual ? ", monthly opex" : ""}</span>`);
-  return `<div class="soc-chips">${chips.join("")}</div>`;
+  if (n.estado === "ok") chips.push(`<span class="pst-chip"><b>${esc(socFecha(n.sesion))}</b> ${(n.eventos || []).length ? n.eventos.map((e) => `${esc(e.hora || "")} ${esc(e.evento)}`).join(", ") : "no major events"}${n.opex_mensual ? ", monthly opex" : ""}</span>`);
+  return `<div class="pst-chips">${chips.join("")}</div>`;
 }
 
 function socImagen(n, alt) {
-  return `<figure class="soc-img"><img src="${socPng(n)}" alt="${esc(alt || n)}" loading="lazy" width="1600" height="900">
-    <figcaption><button class="ghost" data-soc-img="${esc(n)}">Copy image</button>
+  return `<figure class="pst-img"><img src="${socPng(n)}" alt="${esc(alt || n)}" loading="lazy" width="1600" height="900">
+    <figcaption><button class="ghost" data-pst-img="${esc(n)}">Copy image</button>
       <a class="ghost" href="${socPng(n)}" download="gexlab_${esc(soc.dia)}_${esc(n)}.png">Download</a></figcaption></figure>`;
 }
 
 function socTexto(t, etiqueta) {
   const n = socLargo(t);
-  return `<div class="soc-txt"><div class="soc-lbl">${etiqueta}</div>
+  return `<div class="pst-txt"><div class="pst-lbl">${etiqueta}</div>
     <textarea rows="${Math.min(9, Math.max(4, String(t).split("\n").length + 1))}" spellcheck="true" aria-label="${etiqueta}">${esc(t)}</textarea>
-    <div class="soc-acc"><span class="soc-n${n > SOC_MAX ? " over" : ""}">${n}/${SOC_MAX}</span><button class="ghost soc-copy" data-soc-txt>Copy text</button></div></div>`;
+    <div class="pst-acc"><span class="pst-n${n > SOC_MAX ? " over" : ""}">${n}/${SOC_MAX}</span><button class="ghost pst-copy" data-pst-txt>Copy text</button></div></div>`;
 }
 
 function socPieza(p) {
   const hilo = p.hilo || [];
-  return `<article class="soc-post${p.publicado ? " done" : ""}" data-id="${esc(p.id)}">
-    <header><h3>${esc(p.titulo || p.id)}${hilo.length ? `<span class="soc-hilo">Thread, ${hilo.length + 1} posts</span>` : ""}</h3>
-      <label class="soc-pub"><input type="checkbox" data-soc-pub ${p.publicado ? "checked" : ""}> Posted</label></header>
-    <div class="soc-grid">
-      <div class="soc-imgs">${(p.graficos || []).map((g) => socImagen(g, p.alt)).join("") || '<p class="soc-mute">Text only</p>'}</div>
-      <div class="soc-textos">${socTexto(p.texto, hilo.length ? "Post 1" : "Post")}${hilo.map((t, i) => socTexto(t, `Reply ${i + 1}`)).join("")}
-        ${p.alt ? `<p class="soc-alt"><b>Alt text:</b> ${esc(p.alt)}</p>` : ""}</div>
+  return `<article class="pst-post${p.publicado ? " done" : ""}" data-id="${esc(p.id)}">
+    <header><h3>${esc(p.titulo || p.id)}${hilo.length ? `<span class="pst-hilo">Thread, ${hilo.length + 1} posts</span>` : ""}</h3>
+      <label class="pst-pub"><input type="checkbox" data-pst-pub ${p.publicado ? "checked" : ""}> Posted</label></header>
+    <div class="pst-grid">
+      <div class="pst-imgs">${(p.graficos || []).map((g) => socImagen(g, p.alt)).join("") || '<p class="pst-mute">Text only</p>'}</div>
+      <div class="pst-textos">${socTexto(p.texto, hilo.length ? "Post 1" : "Post")}${hilo.map((t, i) => socTexto(t, `Reply ${i + 1}`)).join("")}
+        ${p.alt ? `<p class="pst-alt"><b>Alt text:</b> ${esc(p.alt)}</p>` : ""}</div>
     </div></article>`;
 }
 
 function renderSocial() {
-  const body = $("socBody");
-  $("socDia").innerHTML = (soc.dias || []).map((d) => `<option value="${d}"${d === soc.dia ? " selected" : ""}>${esc(socFecha(d))}</option>`).join("");
+  const body = $("postsBody");
+  $("postsDia").innerHTML = (soc.dias || []).map((d) => `<option value="${d}"${d === soc.dia ? " selected" : ""}>${esc(socFecha(d))}</option>`).join("");
   if (!soc.dias || !soc.dias.length) { body.innerHTML = `<div class="empty">Nothing yet. The first package is made after the next close, around 16:25 ET.</div>`; return; }
   const paq = (soc.datos || {}).paquete, textos = (soc.datos || {}).textos;
   if (!paq) { body.innerHTML = `<div class="empty">No data for this day.</div>`; return; }
   const usados = new Set((textos && textos.piezas || []).flatMap((p) => p.graficos || []));
   const bloques = [...Object.values(paq.indices || {}), paq.acciones, paq.vix, paq.mercados];
   const sueltos = [...new Set(bloques.flatMap((b) => (b && b.graficos) || []))].filter((n) => !usados.has(n));
-  body.innerHTML = `<p class="soc-when">Close of ${esc(socFecha(paq.fecha))}, data generated ${esc(paq.generado)}${paq.acciones_generado ? `, stocks ${esc(paq.acciones_generado.slice(11))}` : ""}. Playbook for ${esc(socFecha(paq.siguiente_sesion))}.</p>`
+  body.innerHTML = `<p class="pst-when">Close of ${esc(socFecha(paq.fecha))}, data generated ${esc(paq.generado)}${paq.acciones_generado ? `, stocks ${esc(paq.acciones_generado.slice(11))}` : ""}. Playbook for ${esc(socFecha(paq.siguiente_sesion))}.</p>`
     + socResumen(paq)
     + (textos ? textos.piezas.map(socPieza).join("")
-      : `<div class="soc-vacio">No texts yet. Run <code>/x-diario</code> in Claude Code to write the recap and the playbook.</div>`)
-    + (sueltos.length ? `<h3 class="soc-h">${textos ? "Other charts" : "Charts"}</h3><div class="soc-imgs soc-suelta">${sueltos.map((n) => socImagen(n)).join("")}</div>` : "");
+      : `<div class="pst-vacio">No texts yet. Run <code>/x-diario</code> in Claude Code to write the recap and the playbook.</div>`)
+    + (sueltos.length ? `<h3 class="pst-h">${textos ? "Other charts" : "Charts"}</h3><div class="pst-imgs pst-suelta">${sueltos.map((n) => socImagen(n)).join("")}</div>` : "");
 }
 
 function socAviso(btn, txt) {
@@ -131,17 +131,17 @@ function socAviso(btn, txt) {
 }
 
 function socInit() {
-  if (!$("socialView")) return;
-  $("socDia").addEventListener("change", async () => {
-    soc.dia = $("socDia").value;
-    $("socBody").innerHTML = `<div class="empty">Loading…</div>`;
+  if (!$("postsView")) return;
+  $("postsDia").addEventListener("change", async () => {
+    soc.dia = $("postsDia").value;
+    $("postsBody").innerHTML = `<div class="empty">Loading…</div>`;
     try { soc.datos = await socPide(`/api/social/${soc.dia}`); renderSocial(); setStatus("", socStatus()); }
-    catch (e) { $("socBody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    catch (e) { $("postsBody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   });
-  const body = $("socBody");
+  const body = $("postsBody");
   body.addEventListener("input", (e) => {
     if (e.target.tagName !== "TEXTAREA") return;
-    const n = socLargo(e.target.value), el = e.target.closest(".soc-txt").querySelector(".soc-n");
+    const n = socLargo(e.target.value), el = e.target.closest(".pst-txt").querySelector(".pst-n");
     el.textContent = `${n}/${SOC_MAX}`;
     el.classList.toggle("over", n > SOC_MAX);
   });
@@ -149,11 +149,11 @@ function socInit() {
     const b = e.target.closest("button");
     if (!b) return;
     try {
-      if (b.hasAttribute("data-soc-txt")) {
-        await navigator.clipboard.writeText(b.closest(".soc-txt").querySelector("textarea").value);
+      if (b.hasAttribute("data-pst-txt")) {
+        await navigator.clipboard.writeText(b.closest(".pst-txt").querySelector("textarea").value);
         socAviso(b, "Copied");
-      } else if (b.dataset.socImg) {
-        const blob = fetch(socPng(b.dataset.socImg)).then((r) => { if (!r.ok) throw new Error("Image not found"); return r.blob(); });
+      } else if (b.dataset.pstImg) {
+        const blob = fetch(socPng(b.dataset.pstImg)).then((r) => { if (!r.ok) throw new Error("Image not found"); return r.blob(); });
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
         socAviso(b, "Copied");
       }
@@ -163,8 +163,8 @@ function socInit() {
     }
   });
   body.addEventListener("change", async (e) => {
-    if (!e.target.hasAttribute("data-soc-pub")) return;
-    const art = e.target.closest(".soc-post");
+    if (!e.target.hasAttribute("data-pst-pub")) return;
+    const art = e.target.closest(".pst-post");
     try {
       await socPide(`/api/social/${soc.dia}/publicado`, { id: art.dataset.id, publicado: e.target.checked });
       art.classList.toggle("done", e.target.checked);

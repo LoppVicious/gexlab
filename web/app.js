@@ -2219,7 +2219,7 @@ const TOOLS = {
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
   skewsig: { view: "skewSigView", ticker: false, show: () => showSigSkew(), render: () => renderSigSkew(), load: () => loadSigSkew() },
   takes: { view: "takesView", ticker: false, show: () => showTakes(), render: () => renderTakes(), load: (r) => loadTakes(r) },
-  social: { view: "socialView", ticker: false, show: () => showSocial(), render: () => renderSocial(), load: (r) => loadSocial(r) },
+  social: { view: "postsView", ticker: false, show: () => showSocial(), render: () => renderSocial(), load: (r) => loadSocial(r) },
 };
 function setMode(m) {
   if (m === "risk" || m === "calc") m = "lab";   // secciones anteriores, unidas en Options Lab

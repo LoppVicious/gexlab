@@ -109,7 +109,8 @@ def _lista(x) -> list:
 
 def cotizaciones(simbolos: list[str]) -> dict:
     """Ultimo precio, cierre anterior y cambio de varios simbolos en una sola peticion:
-    {SYM: {"ultimo", "previo", "cambio_pct", "nombre"}} (los que Tradier no conoce no aparecen)."""
+    {SYM: {"ultimo", "previo", "cambio_pct", "nombre", "ts"}} (los que Tradier no conoce no aparecen; ts: hora de la
+    última operación en ms UTC)."""
     d = _get(f"/markets/quotes?symbols={','.join(simbolos)}&greeks=false") or {}
     out = {}
     for x in _lista((d.get("quotes") or {}).get("quote")):
@@ -120,7 +121,8 @@ def cotizaciones(simbolos: list[str]) -> dict:
         if cambio is None and prev:
             cambio = (float(ult) / float(prev) - 1) * 100
         out[x["symbol"]] = {"ultimo": float(ult), "previo": float(prev) if prev else None,
-                            "cambio_pct": float(cambio) if cambio is not None else None, "nombre": x.get("description")}
+                            "cambio_pct": float(cambio) if cambio is not None else None, "nombre": x.get("description"),
+                            "ts": x.get("trade_date")}
     return out
 
 

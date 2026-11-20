@@ -14,7 +14,7 @@ import os
 import threading
 import time
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import numpy as np
@@ -364,13 +364,12 @@ def _vix_curve() -> dict:
     # de todos. CBOE calcula el VIX tambien en horario extendido (antes de la apertura), pero VIX9D, VIX3M, VIX6M y
     # VIX1Y no: mezclarlos daria una curva y un VIX/VIX3M de dos momentos distintos.
     live = g.market_open(g.now_ny())
-    term = []
-    for sym, days in VOL_TERM:
-        qd = (g.fetch_quote(sym) or {}).get("data") or {}
-        v = float((qd.get("current_price") if live else (qd.get("close") or qd.get("current_price"))) or 0)
-        if v > 0:
-            term.append({"symbol": sym, "days": days, "value": v,
-                         "prev": float(qd.get("prev_day_close") or qd.get("close") or 0) or None})
+    syms = [s for s, _ in VOL_TERM] + ["VVIX", "SKEW"]
+    try:
+        vals, term_time = indices_vol(syms, live)
+    except Exception:  # noqa: BLE001
+        vals, term_time = {}, None
+    term = [{"symbol": sym, "days": days, **vals[sym]} for sym, days in VOL_TERM if sym in vals]
     tmap = {t["symbol"]: t["value"] for t in term}
     vix_live = tmap.get("VIX")
     ratio = vix_live / tmap["VIX3M"] if vix_live and tmap.get("VIX3M") else None
@@ -399,8 +398,8 @@ def _vix_curve() -> dict:
         "history": hist,
         "term": term, "vix_vix3m": ratio,
         "regime": _regimen_curva(ratio, tmap["VIX9D"] / vix_live if vix_live and tmap.get("VIX9D") else None),
-        "volreg": _volreg_seguro(),
-        "term_time": (g.fetch_quote("VIX") or {}).get("timestamp") if live else None,  # sin hora: son cierres
+        "volreg": _volreg_seguro({s: v["value"] for s, v in vals.items()} if live else None),
+        "term_time": term_time if live else None,  # sin hora: son cierres
         "term_live": live,
         "computed_at": now.strftime("%Y-%m-%d %H:%M"),
         "flat_tol": FLAT_TOL,
@@ -871,10 +870,14 @@ VOLREG = (
      (("Capitulation, buy zone", "buy"), ("Stress", "alert"), ("Normal", "calm"), ("Complacency", "complacent"))),
 )
 _volreg_cache: dict[str, tuple[float, dict]] = {}
+_csv_cache: dict[str, tuple[float, dict]] = {}
 
 
-def _csv_cierres(sym: str) -> dict[str, float]:
+def _csv_cierres(sym: str, ttl: float = 3600) -> dict[str, float]:
     """Cierres diarios {aaaa-mm-dd: valor} del CSV de CBOE (última columna: CLOSE o el propio índice)."""
+    hit = _csv_cache.get(sym)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
     out = {}
     for r in csv.reader(io.StringIO(fetch_text(VOLREG_CSV.format(s=sym)))):
         try:
@@ -884,21 +887,79 @@ def _csv_cierres(sym: str) -> dict[str, float]:
             continue
     if not out:
         raise ConnectionError(f"No {sym} history from CBOE")
+    _csv_cache[sym] = (time.time(), out)
     return out
 
 
-def _volreg_seguro() -> dict | None:
+def indices_vol(syms: list[str], live: bool) -> tuple[dict[str, dict], str | None]:
+    """Valor y cierre anterior de índices de volatilidad: {SYM: {"value", "prev"}} y la hora (UTC) de la cotización.
+    Con la sesión abierta, en directo: CBOE (15 min) y, si no responde (desde Actions da 403), Tradier. Con la sesión
+    cerrada, el último cierre oficial de todos (CSV de CBOE) en la misma fecha: el VIX cotiza también en horario
+    extendido y VIX3M, VVIX o SKEW no, y mezclarlos daría ratios de dos momentos distintos (TradingView lo hace)."""
+    out: dict[str, dict] = {}
+    if live:
+        ts = None
+        for s in syms:
+            q = (g.fetch_quote(s) or {})
+            qd = q.get("data") or {}
+            if qd.get("current_price"):
+                out[s] = {"value": float(qd["current_price"]), "prev": float(qd.get("prev_day_close") or 0) or None}
+                ts = ts or q.get("timestamp")
+        falta = [s for s in syms if s not in out]
+        if falta:
+            import fuente_tradier as ft
+            if ft.disponible():
+                hoy = g.now_ny().strftime("%Y-%m-%d")
+                for s, x in ft.cotizaciones(falta).items():
+                    # solo si cotizó hoy: un índice sin cálculo en directo devolvería el cierre de ayer
+                    t = datetime.fromtimestamp(x["ts"] / 1000, tz=timezone.utc) if x.get("ts") else None
+                    if s in falta and t and (t + g._ny_offset(t)).strftime("%Y-%m-%d") == hoy:
+                        out[s] = {"value": x["ultimo"], "prev": x["previo"]}
+                        ts = ts or t.strftime("%Y-%m-%d %H:%M:%S")
+        return out, ts
+    series = {}
+    for s in syms:
+        try:
+            series[s] = _csv_cierres(s)
+        except Exception:  # noqa: BLE001
+            continue
+    if "VIX" not in series:
+        return out, None
+    dia = max(series["VIX"])
+    for s, c in series.items():
+        if dia in c:
+            ant = [f for f in c if f < dia]
+            out[s] = {"value": c[dia], "prev": c[max(ant)] if ant else None}
+    return out, None
+
+
+def _volreg_seguro(vivo: dict[str, float] | None = None) -> dict | None:
+    """regimen_vol con los valores en directo (sesión abierta) encima de los del último cierre."""
     try:
-        return regimen_vol()
+        res = regimen_vol()
     except Exception:  # noqa: BLE001  (sin los CSV de CBOE la página sigue sin la tarjeta)
         return None
+    if not vivo or not vivo.get("VIX"):
+        return res
+    vx = vivo["VIX"]
+    ahora = {"vix": vx, "vvix": vivo.get("VVIX"),
+             "term": vivo["VIX3M"] / vx if vivo.get("VIX3M") else None,
+             "skew": vivo["SKEW"] / vx if vivo.get("SKEW") else None}
+    cortes = {k: c for k, _, c, _ in VOLREG}
+    items = []
+    for it in res["items"]:
+        v = ahora.get(it["key"])
+        items.append(it if v is None else {**it, "value": round(v, 4), "live": True,
+                                           "zone": int(np.searchsorted(cortes[it["key"]], v, side="right"))})
+    return {**res, "items": items,
+            "buy": sum(1 for it in items if it["zones"][it["zone"]]["tone"] == "buy")}
 
 
 def regimen_vol() -> dict:
     """Zona de hoy de cada indicador (último cierre de CBOE) y qué hizo el SPX desde 2010 tras los días de cada zona:
     rendimiento medio a 60 y 120 sesiones, % al alza a 60 y mediana de la caída adicional máxima en 60 sesiones."""
     hit = _volreg_cache.get("r")
-    if hit and time.time() - hit[0] < 3 * 3600:
+    if hit and time.time() - hit[0] < 3600:
         return hit[1]
     vix, v3, vv, sk = (_csv_cierres(s) for s in ("VIX", "VIX3M", "VVIX", "SKEW"))
     spx = {k: v[3] for k, v in g.history_ohlc("SPX")[0].items() if v[3] > 0}

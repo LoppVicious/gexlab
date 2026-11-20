@@ -2917,34 +2917,42 @@ function renderVixRegime(rg) {
     <table class="vxreg-t"><thead><tr><th class="l">VIX/VIX3M</th><th>20 sessions</th><th>Higher</th><th title="Realized volatility of the next 20 sessions minus the VIX (points)">RV − VIX</th></tr></thead><tbody>${rows}</tbody></table>${short}`;
 }
 
-// Regimen de volatilidad (macro.regimen_vol): zona de hoy de VIX, VVIX, VIX3M/VIX y SKEW/VIX al ultimo cierre, con una
-// barra de zonas y lo que hizo el SPX desde 2010 tras los dias de esa zona
-function renderVolRegime(vr) {
-  const el = $("vxVol");
-  el.hidden = !vr || !vr.items;
-  if (el.hidden) return;
+// Regimen de volatilidad (macro.regimen_vol): zona de VIX, VIX3M/VIX, VVIX y SKEW/VIX (en directo con la sesion
+// abierta, si no al ultimo cierre), con una barra de zonas y lo que hizo el SPX desde 2010 tras los dias de esa zona.
+// Lo usan la pagina de la curva del VIX y el Summary (resumen.js).
+const VR_TIP = "Zones set with a backtest of first crosses since 1990: VIX 35 and VVIX 140 marked the fear that preceded good entries; VIX 30 and VVIX 120 arrive earlier, with a further 4-5% drop on average. Typical further drop: median of the lowest SPX close in the next 60 sessions. Live values during the session; otherwise official CBOE closes, all from the same day (charts that divide the pre-market VIX by yesterday's VIX3M or SKEW close show a different ratio). Overlapping windows: a lean, not a certainty.";
+function volRegParts(vr) {
   const dec = (v) => (Math.abs(v) >= 10 ? 1 : 2);
   const rango = (z) => (z.lo == null ? `under ${fmtNum(z.hi, dec(z.hi))}` : z.hi == null ? `${fmtNum(z.lo, dec(z.lo))} and above` : `${fmtNum(z.lo, dec(z.lo))} to ${fmtNum(z.hi, dec(z.hi))}`);
   const pct = (v) => (v == null ? "—" : fmtNum(v * 100, 0) + "%");
-  const b = vr.base;
-  const filas = vr.items.map((it) => {
+  const live = vr.items.some((it) => it.live), d0 = vr.items[0].date;
+  const rows = vr.items.map((it) => {
     const z = it.zones[it.zone], nz = it.zones.length;
-    // posicion dentro de su zona (zonas de igual ancho; en las abiertas, hasta el doble o la mitad del corte)
+    // posicion dentro de su zona (zonas de igual ancho; en las abiertas, hasta la mitad o 1,5 veces el corte)
     const lo = z.lo ?? z.hi / 2, hi = z.hi ?? z.lo * 1.5;
     const frac = Math.min(0.96, Math.max(0.04, (it.value - lo) / (hi - lo)));
     const segs = it.zones.map((q, k) => `<span class="vr-seg ${q.tone}${k === it.zone ? " on" : ""}" title="${q.label}: ${rango(q)}"></span>`).join("");
-    const stale = it.date !== vr.items[0].date ? ` (close ${ddmm(it.date)})` : "";
+    const stale = (live && !it.live) || (!live && it.date !== d0) ? `close ${ddmm(it.date)}` : "";
     const tip = it.zones.map((q) => `${q.label} (${rango(q)}): SPX ${sgnPct(q.r60, 1)} in 60 sessions, higher ${pct(q.up60)}, ${sgnPct(q.r120, 1)} in 120`).join("\n");
     return `<div class="vr-row" title="${tip}">
       <div class="vr-top"><span class="vr-name">${it.name}</span><strong>${fmtNum(it.value, dec(it.value))}</strong><span class="vr-zone ${z.tone}">${z.label}</span></div>
       <div class="vr-bar">${segs}<i style="left:${((it.zone + frac) / nz) * 100}%"></i></div>
-      <div class="vr-stat">${stale ? `<span class="vr-old">${stale.trim()}</span> ` : ""}Days in this zone since ${vr.since.slice(0, 4)}: SPX ${sgnPct(z.r60, 1)} in 60 sessions (higher ${pct(z.up60)}), ${sgnPct(z.r120, 1)} in 120; typical further drop ${sgnPct(z.dd60, 1)}.</div>
+      <div class="vr-stat">${stale ? `<span class="vr-old">${stale}.</span> ` : ""}Days in this zone since ${vr.since.slice(0, 4)}: SPX ${sgnPct(z.r60, 1)} in 60 sessions (higher ${pct(z.up60)}), ${sgnPct(z.r120, 1)} in 120; typical further drop ${sgnPct(z.dd60, 1)}.</div>
     </div>`;
-  }).join("");
-  const n = vr.items.length;
-  el.innerHTML = `<div class="fl" title="Daily CBOE closes. Zones set with a backtest of first crosses since 1990: VIX 35 and VVIX 140 marked the fear that preceded good entries; VIX 30 and VVIX 120 arrive earlier, with a further 4-5% drop on average. Typical further drop: median of the lowest SPX close in the next 60 sessions. Overlapping windows: a lean, not a certainty.">Volatility regime <span class="vxreg-since">${vr.buy} of ${n} in a buy zone, close ${ddmm(vr.items[0].date)}</span></div>
-    ${filas}
-    <p class="vxreg-note">Any day since ${vr.since.slice(0, 4)}: SPX ${sgnPct(b.r60, 1)} in 60 sessions (higher ${pct(b.up60)}), ${sgnPct(b.r120, 1)} in 120.</p>`;
+  });
+  const b = vr.base;
+  return {
+    rows, when: live ? "live" : `close ${ddmm(d0)}`, count: `${vr.buy} of ${vr.items.length} in a buy zone`,
+    note: `Any day since ${vr.since.slice(0, 4)}: SPX ${sgnPct(b.r60, 1)} in 60 sessions (higher ${pct(b.up60)}), ${sgnPct(b.r120, 1)} in 120.`,
+  };
+}
+function renderVolRegime(vr) {
+  const el = $("vxVol");
+  el.hidden = !vr || !vr.items;
+  if (el.hidden) return;
+  const p = volRegParts(vr);
+  el.innerHTML = `<div class="fl" title="${VR_TIP}">Volatility regime <span class="vxreg-since">${p.count}, ${p.when}</span></div>
+    ${p.rows.join("")}<p class="vxreg-note">${p.note}</p>`;
 }
 
 function interpAt(arr, days) {

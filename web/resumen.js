@@ -207,6 +207,14 @@ function suVol(d) {
     <div class="su-term">${(V.term || []).map((t) => `<div><span>${esc(t.symbol)}</span><b>${fmtNum(t.value, 2)}</b></div>`).join("")}</div>
     ${sv ? `<p class="su-read"><b>SPX</b> 30-day IV <b>${fmtNum(sv.iv30 * 100, 1)}%</b> vs realized <b>${fmtNum(sv.rv20 * 100, 1)}%</b>: options pay a premium of <b>${fmtNum((sv.iv30 - sv.rv20) * 100, 1)} pts</b>. Skew 25Δ <b>${fmtNum(sv.rr25 * 100, 1)} pts</b>.</p>` : ""}</section>`;
 }
+// regimen de volatilidad de la curva del VIX (volRegParts en app.js), con los cuatro indicadores en fila
+function suVolReg() {
+  const vr = su.vix && su.vix.volreg;
+  if (!vr || !vr.items) return "";
+  const p = volRegParts(vr);
+  return `<section class="su-card su-vreg" data-go="vix" title="${VR_TIP}"><header><h3>Volatility regime</h3><span class="sub">${p.count}, ${p.when}</span></header>
+    <div class="su-vreg-g">${p.rows.join("")}</div><p class="su-read">${p.note}</p></section>`;
+}
 function suCorr() {
   const K = su.corr, head = `<header><h3>Correlation and dispersion</h3><span class="sub">Implied correlation of the S&P 500 and the dispersion index, last year</span></header>`;
   if (!K || K.error || !K.history) return `<section class="su-card su-corr" data-go="corr">${head}${suWait(K && K.error ? esc(K.error) : "Loading…")}</section>`;
@@ -254,7 +262,7 @@ function renderSummary() {
   $("sumSub").textContent = q0 ? `Options data from ${nyHHMM(q0.quote_time)} on ${longDate(q0.quote_time.slice(0, 10))}, risk-free rate ${fmtNum(d.rate.r * 100, 2)}%` : "";
   $("sumSess").innerHTML = s.open ? `Market open, closes at <b>${localTime(s.close_utc)}</b>` : `Market closed, opens <b>${localTime(s.next_open_utc, true)}</b>`;
   $("sumBody").innerHTML = suHero(d) + `<div class="su-idx">${d.indices.map(suIndex).join("")}</div>`
-    + `<div class="su-g2">${suVol(d)}${suCorr()}</div><div class="su-g3">${suRadar()}${suFlow()}${suCot(d.cot)}</div>`;
+    + `<div class="su-g2">${suVol(d)}${suCorr()}</div>${suVolReg()}<div class="su-g3">${suRadar()}${suFlow()}${suCot(d.cot)}</div>`;
   suLoad();
   if (!su.timer) su.timer = setInterval(() => { if (state.mode === "summary" && sm.data && $("suClock")) $("suClock").innerHTML = suClock(sm.data.session); }, 30000);
 }

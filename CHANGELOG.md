@@ -3,12 +3,13 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-20 — Social pasa a Research, y régimen de volatilidad en la curva del VIX
+## 2026-11-20 — Social pasa a Research, y régimen de volatilidad en la curva del VIX y el Summary
 
 **Añadido**
-- **Curva del VIX, régimen de volatilidad:** VIX, VVIX, VIX3M/VIX y SKEW/VIX al último cierre, cada uno con su zona
+- **Régimen de volatilidad** (curva del VIX y Summary): VIX, VVIX, VIX3M/VIX y SKEW/VIX, cada uno con su zona
   (calma, estrés, zona de compra o complacencia) en una barra, y qué hizo el SPX desde 2010 tras los días de esa zona
-  a 60 y 120 sesiones y su caída adicional típica. Niveles ajustados con un backtest desde 1990.
+  a 60 y 120 sesiones y su caída adicional típica. Niveles ajustados con un backtest desde 1990. En directo con la
+  sesión abierta; fuera de ella, los cierres oficiales de CBOE, todos del mismo día.
 - **Social, playbook de la próxima sesión:** gráfico con, por índice, el cierre, el rango de 1σ de mañana y los
   niveles de gamma con su distancia (los que coinciden, juntos; los que caen fuera del rango, en el borde), y la agenda
   (eventos con hora ET y vencimiento mensual).
@@ -24,6 +25,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   lectura del día (alcista, bajista o de transición) que se nota en el tono.
 
 **Corregido**
+- **Curva del VIX en la web publicada:** VIX9D a VIX1Y y VIX/VIX3M salían vacíos porque CBOE rechaza ahora sus
+  cotizaciones (403). En sesión se toman de Tradier y, con el mercado cerrado, de los cierres oficiales de CBOE.
 - **Social, perfil del NDX:** las barras salían como hilos (el ancho se tomaba del paso mínimo entre strikes y el NDX
   mezcla strikes de 10 y de 100); ahora se usa el paso mediano.
 - **Social en blanco con bloqueadores de anuncios:** sus listas de "social" ocultaban la página (id `socialView`,

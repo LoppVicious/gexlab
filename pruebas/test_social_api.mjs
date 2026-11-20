@@ -86,10 +86,14 @@ test("textos rechazados", async () => {
 
 test("hilos", async () => {
   const env = entorno();
-  const d = { piezas: [{ id: "playbook", texto: "Playbook for Friday.", hilo: ["Reply one.", "Reply two."], graficos: ["indices_niveles"] }] };
+  const d = { piezas: [{ id: "playbook", texto: "Playbook for Friday.", graficos: ["indices_niveles"],
+    hilo: [{ texto: "Reply one.", graficos: ["indices_niveles"], alt: "Levels" }, "Reply two."] }] };
   assert.equal((await pedir(env, "PUT", `/api/social/${F}/textos`, d)).status, 200);
   const r = await (await pedir(env, "GET", `/api/social/${F}`)).json();
-  assert.deepEqual(r.textos.piezas[0].hilo, ["Reply one.", "Reply two."]);
+  assert.deepEqual(r.textos.piezas[0].hilo, [{ texto: "Reply one.", graficos: ["indices_niveles"], alt: "Levels" },
+    { texto: "Reply two.", graficos: [], alt: "" }]);
+  const malo = { piezas: [{ id: "a", texto: "ok", hilo: [{ texto: "r", graficos: ["no_existe"] }] }] };
+  assert.match((await (await pedir(env, "PUT", `/api/social/${F}/textos`, malo)).json()).error, /reply 1: chart not found/);
   const largo = { piezas: [{ id: "a", texto: "ok", hilo: ["x".repeat(281)] }] };
   const e = await pedir(env, "PUT", `/api/social/${F}/textos`, largo);
   assert.equal(e.status, 400);

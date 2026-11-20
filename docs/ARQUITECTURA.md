@@ -173,8 +173,8 @@ de la sesión siguiente. `social.yml` ejecuta `social_diario.py` en dos pasadas:
 Cada bloque trae `motivos` y `destacado`. Gráficos en `social_graficos.py` (1600 x 900, paleta Bento oscura):
 `indices_niveles`, `perfil_{sym}`, `playbook`, `mercados`, `vix_curva` y `acciones_sigma`. Los textos los escribe
 `/x-diario` en Claude Code (`.claude/skills/x-diario/`, con su guía de estilo).
-- R2: además, `social/{F}/g/{nombre}.png` y `social/{F}/textos.json` (`{piezas: [{id, titulo, texto, hilo, graficos,
-  alt, publicado}]}`). No se borran.
+- R2: además, `social/{F}/g/{nombre}.png` y `social/{F}/textos.json` (`{piezas: [{id, titulo, texto, hilo: [{texto, graficos, alt}],
+  graficos, alt, publicado}]}`). No se borran.
 - Worker (`nube/social.js`): `GET /api/social/dias`, `GET /api/social/{F}` (`{paquete, textos}`),
   `GET /api/social/{F}/g/{nombre}.png`, `PUT /api/social/{F}/textos` (máx. 12 piezas, hilos de hasta 4 respuestas,
   280 caracteres por post, 4 imágenes; conserva la marca de publicado por `id`) y `POST /api/social/{F}/publicado`.

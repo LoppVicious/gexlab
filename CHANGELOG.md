@@ -12,7 +12,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Social, mercados cruzados y amplitud:** el 10 años (en % y pb), bonos largos e intermedios, high yield, dólar,
   oro, plata, petróleo, ETFs de bitcoin y ether y bitcoin y ether al contado (24 h); los 11 sectores y semis, y la
   amplitud (igual ponderado y small caps frente a SPY, sectores en verde). Con su gráfico.
-- **Hilos:** cada post puede llevar hasta 4 respuestas, cada una con su botón de copiar y su contador de 280.
+- **Hilos:** cada post puede llevar hasta 4 respuestas, cada una con su imagen, su botón de copiar y su contador de 280.
 
 **Cambiado**
 - **Social** sale de Admin y pasa a la barra lateral, en Research. Solo la ve el administrador.

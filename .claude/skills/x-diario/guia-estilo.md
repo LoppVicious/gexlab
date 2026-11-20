@@ -41,7 +41,8 @@ Cuando las senales chocan, eso es la historia ("SPX green, but VIX won't come in
   the whole +0.6% open by 10:00."
   Mal: "Interesting day in the markets." / "Here's what you need to know."
 - Lineas cortas separadas por saltos de linea.
-- Hilos: el primer post funciona solo (tesis, cifra, imagen). Los siguientes amplian.
+- Hilos: el primer post funciona solo (tesis, cifra, imagen). Los siguientes amplian. Cada post lleva su imagen,
+  la que ilustra lo que dice; un hilo con texto solo en las respuestas queda cojo.
   - Conclusion del dia: 1) tesis e indices; 2) que cambio en el posicionamiento (regimen, niveles); 3) VIX y amplitud;
     4) mercados cruzados y la conclusion.
   - Playbook: 1) lectura base para manana y el nivel que la invalida; 2) mapa de niveles con lo que se espera en cada
@@ -103,3 +104,4 @@ Una o dos frases con lo que muestra la imagen y sus cifras clave (para lectores 
 - 2026-11-20: el usuario quiere profundidad y sentimiento, no textos planos. Cada dia, al cierre: conclusion de SPX,
   NDX y VIX (con amplitud, bonos, oro, crypto) y un playbook para la sesion siguiente. Sin post de apertura. El OHLC
   del dia (maximo, minimo, donde cerro en el rango) no aporta: no usarlo.
+- 2026-11-20: en los hilos, una imagen en cada post (tambien en las respuestas).

@@ -5,7 +5,7 @@
 //   GET  /api/social/dias                 -> {dias: [F...]} (la mas reciente primero)
 //   GET  /api/social/{F}                  -> {paquete, textos}
 //   GET  /api/social/{F}/g/{nombre}.png
-//   PUT  /api/social/{F}/textos           <- {piezas: [{id, titulo, texto, hilo, graficos, alt}]}
+//   PUT  /api/social/{F}/textos           <- {piezas: [{id, titulo, texto, hilo: [{texto, graficos, alt}], graficos, alt}]}
 //                                            (conserva la marca de publicado de cada id)
 //   POST /api/social/{F}/publicado        <- {id, publicado}
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -24,6 +24,14 @@ function textoValido(t, donde) {
   return x;
 }
 
+function graficosValidos(g, nombres, donde) {
+  const graficos = Array.isArray(g) ? g.map(String) : [];
+  if (graficos.length > MAX_IMAGENES) throw new Error(`${donde}: at most ${MAX_IMAGENES} images`);
+  for (const n of graficos) if (!nombres.has(n)) throw new Error(`${donde}: chart not found: ${n.slice(0, 40)}`);
+  return graficos;
+}
+
+// cada respuesta del hilo: {texto, graficos, alt} (o solo el texto, sin imagen)
 export function validarPiezas(d, nombres) {
   const piezas = Array.isArray(d && d.piezas) ? d.piezas : null;
   if (!piezas || !piezas.length) throw new Error("piezas must be a non-empty list");
@@ -36,11 +44,13 @@ export function validarPiezas(d, nombres) {
     const texto = textoValido(p.texto, `Post ${id}`);
     const hilo = Array.isArray(p.hilo) ? p.hilo : [];
     if (hilo.length > MAX_HILO) throw new Error(`Post ${id}: at most ${MAX_HILO} replies`);
-    const respuestas = hilo.map((t, j) => textoValido(t, `Post ${id}, reply ${j + 1}`));
-    const graficos = Array.isArray(p.graficos) ? p.graficos.map(String) : [];
-    if (graficos.length > MAX_IMAGENES) throw new Error(`Post ${id}: at most ${MAX_IMAGENES} images`);
-    for (const n of graficos) if (!nombres.has(n)) throw new Error(`Post ${id}: chart not found: ${n.slice(0, 40)}`);
-    return { id, titulo: String(p.titulo || "").slice(0, 80), texto, hilo: respuestas, graficos, alt: String(p.alt || "").slice(0, 1000) };
+    const respuestas = hilo.map((r, j) => {
+      const donde = `Post ${id}, reply ${j + 1}`;
+      const o = r && typeof r === "object" ? r : { texto: r };
+      return { texto: textoValido(o.texto, donde), graficos: graficosValidos(o.graficos, nombres, donde), alt: String(o.alt || "").slice(0, 1000) };
+    });
+    return { id, titulo: String(p.titulo || "").slice(0, 80), texto, hilo: respuestas,
+      graficos: graficosValidos(p.graficos, nombres, `Post ${id}`), alt: String(p.alt || "").slice(0, 1000) };
   });
 }
 

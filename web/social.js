@@ -96,16 +96,25 @@ function socTexto(t, etiqueta) {
     <div class="pst-acc"><span class="pst-n${n > SOC_MAX ? " over" : ""}">${n}/${SOC_MAX}</span><button class="ghost pst-copy" data-pst-txt>Copy text</button></div></div>`;
 }
 
+// respuestas del hilo: {texto, graficos, alt}; las antiguas eran solo el texto
+const socRespuestas = (p) => (p.hilo || []).map((r) => (typeof r === "string" ? { texto: r, graficos: [], alt: "" } : r));
+
+// un post del hilo: imagenes a la izquierda y texto a la derecha, como se vera en X
+function socFila(texto, graficos, alt, etiqueta) {
+  return `<div class="pst-grid">
+      <div class="pst-imgs">${(graficos || []).map((g) => socImagen(g, alt)).join("") || '<p class="pst-mute">Text only</p>'}</div>
+      <div class="pst-textos">${socTexto(texto, etiqueta)}${alt ? `<p class="pst-alt"><b>Alt text:</b> ${esc(alt)}</p>` : ""}</div>
+    </div>`;
+}
+
 function socPieza(p) {
-  const hilo = p.hilo || [];
+  const hilo = socRespuestas(p);
   return `<article class="pst-post${p.publicado ? " done" : ""}" data-id="${esc(p.id)}">
     <header><h3>${esc(p.titulo || p.id)}${hilo.length ? `<span class="pst-hilo">Thread, ${hilo.length + 1} posts</span>` : ""}</h3>
       <label class="pst-pub"><input type="checkbox" data-pst-pub ${p.publicado ? "checked" : ""}> Posted</label></header>
-    <div class="pst-grid">
-      <div class="pst-imgs">${(p.graficos || []).map((g) => socImagen(g, p.alt)).join("") || '<p class="pst-mute">Text only</p>'}</div>
-      <div class="pst-textos">${socTexto(p.texto, hilo.length ? "Post 1" : "Post")}${hilo.map((t, i) => socTexto(t, `Reply ${i + 1}`)).join("")}
-        ${p.alt ? `<p class="pst-alt"><b>Alt text:</b> ${esc(p.alt)}</p>` : ""}</div>
-    </div></article>`;
+    ${socFila(p.texto, p.graficos, p.alt, hilo.length ? "Post 1" : "Post")}
+    ${hilo.map((r, i) => socFila(r.texto, r.graficos, r.alt, `Reply ${i + 1}`)).join("")}
+    </article>`;
 }
 
 function renderSocial() {
@@ -114,7 +123,7 @@ function renderSocial() {
   if (!soc.dias || !soc.dias.length) { body.innerHTML = `<div class="empty">Nothing yet. The first package is made after the next close, around 16:25 ET.</div>`; return; }
   const paq = (soc.datos || {}).paquete, textos = (soc.datos || {}).textos;
   if (!paq) { body.innerHTML = `<div class="empty">No data for this day.</div>`; return; }
-  const usados = new Set((textos && textos.piezas || []).flatMap((p) => p.graficos || []));
+  const usados = new Set((textos && textos.piezas || []).flatMap((p) => [...(p.graficos || []), ...socRespuestas(p).flatMap((r) => r.graficos || [])]));
   const bloques = [...Object.values(paq.indices || {}), paq.acciones, paq.vix, paq.mercados];
   const sueltos = [...new Set(bloques.flatMap((b) => (b && b.graficos) || []))].filter((n) => !usados.has(n));
   body.innerHTML = `<p class="pst-when">Close of ${esc(socFecha(paq.fecha))}, data generated ${esc(paq.generado)}${paq.acciones_generado ? `, stocks ${esc(paq.acciones_generado.slice(11))}` : ""}. Playbook for ${esc(socFecha(paq.siguiente_sesion))}.</p>`

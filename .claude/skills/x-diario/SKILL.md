@@ -71,14 +71,22 @@ senales de la guia y escribela en una frase para ti: todo sostiene esa lectura.
    o un `perfil_*`. Si `acciones` aun esta `ausente`, escribe el resto y dile al usuario que vuelva a lanzar
    `/x-diario` tras el historial; al reescribir conserva los `id` ya usados (la marca de publicado va por `id`).
 
+**Una imagen en cada post del hilo**, la que ilustre lo que dice ese post; sin repetir dentro del mismo hilo.
+Reparto orientativo (adaptalo a lo que haya y a lo que cuente cada post):
+- Conclusion: 1) `indices_niveles`; 2) posicionamiento: `perfil_spx` (o el del indice protagonista); 3) VIX:
+  `vix_curva`; 4) amplitud y mercados cruzados: `mercados` (o `acciones_sigma` si la amplitud es la historia).
+- Playbook: 1) `playbook`; 2) mapa del SPX: `perfil_spx`; 3) NDX y RUT: `perfil_ndx` o `perfil_rut`; 4) agenda y
+  escenarios: el grafico que quede mas util (`indices_niveles`, `vix_curva`).
+Si no hay grafico para un post, puede ir sin imagen, pero es la excepcion.
+
 Cifras solo de los datos. Comprueba longitudes antes de guardar (maximo 280 cada post y cada respuesta):
-`.venv/Scripts/python.exe -c "import json,sys; [print(p['id'], [len(t) for t in [p['texto']]+p.get('hilo',[])]) for p in json.load(open(sys.argv[1], encoding='utf-8'))['piezas']]" <scratchpad>/textos.json`
+`.venv/Scripts/python.exe -c "import json,sys; [print(p['id'], [(len(r['texto']), r.get('graficos')) for r in [p]+p.get('hilo',[])]) for p in json.load(open(sys.argv[1], encoding='utf-8'))['piezas']]" <scratchpad>/textos.json`
 
 ## 6. Guardar
 
-`<scratchpad>/textos.json`: `{"piezas": [{"id": "cierre", "titulo": "...", "texto": "post 1", "hilo": ["post 2", "post 3"],
-"graficos": ["indices_niveles"], "alt": "..."}]}` (`id` en minusculas con `_`; `hilo` hasta 4 respuestas; hasta 4
-graficos, que van en el primer post; `alt`: descripcion de la imagen).
+`<scratchpad>/textos.json`: `{"piezas": [{"id": "cierre", "titulo": "...", "texto": "post 1", "graficos": ["indices_niveles"],
+"alt": "...", "hilo": [{"texto": "post 2", "graficos": ["perfil_spx"], "alt": "..."}, ...]}]}` (`id` en minusculas
+con `_`; `hilo` hasta 4 respuestas; cada post, hasta 4 graficos; `alt`: descripcion de su imagen).
 
 ```bash
 curl -s -X PUT -H "$A" -H "Content-Type: application/json" --data-binary @"<scratchpad>/textos.json" "$B/$F/textos"

@@ -3,9 +3,12 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-20 — Social pasa a Research: conclusión del día y playbook, con mercados cruzados
+## 2026-11-20 — Social pasa a Research, y régimen de volatilidad en la curva del VIX
 
 **Añadido**
+- **Curva del VIX, régimen de volatilidad:** VIX, VVIX, VIX3M/VIX y SKEW/VIX al último cierre, cada uno con su zona
+  (calma, estrés, zona de compra o complacencia) en una barra, y qué hizo el SPX desde 2010 tras los días de esa zona
+  a 60 y 120 sesiones y su caída adicional típica. Niveles ajustados con un backtest desde 1990.
 - **Social, playbook de la próxima sesión:** gráfico con, por índice, el cierre, el rango de 1σ de mañana y los
   niveles de gamma con su distancia (los que coinciden, juntos; los que caen fuera del rango, en el borde), y la agenda
   (eventos con hora ET y vencimiento mensual).

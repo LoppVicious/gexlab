@@ -399,6 +399,7 @@ def _vix_curve() -> dict:
         "history": hist,
         "term": term, "vix_vix3m": ratio,
         "regime": _regimen_curva(ratio, tmap["VIX9D"] / vix_live if vix_live and tmap.get("VIX9D") else None),
+        "volreg": _volreg_seguro(),
         "term_time": (g.fetch_quote("VIX") or {}).get("timestamp") if live else None,  # sin hora: son cierres
         "term_live": live,
         "computed_at": now.strftime("%Y-%m-%d %H:%M"),
@@ -846,6 +847,96 @@ def _regimen_curva(r3: float | None, r9: float | None) -> dict | None:
     def tramo(r, filas):
         return next((k for k, f in enumerate(filas) if r is not None and f["lo"] <= r < f["hi"]), None)
     return {**t, "r3": r3, "r9": r9, "q3": tramo(r3, t["3m"]), "q9": tramo(r9, t["9d"])}
+
+
+# ---------------------------------------------------------------- régimen de volatilidad (salud del mercado)
+# Indicadores de los gráficos semanales del usuario, con cierres diarios de CBOE. Cortes elegidos con el backtest de
+# episodios desde 1990 (primer cierre que cruza el nivel tras 20 sesiones sin hacerlo; SPX a 20/60/120 sesiones y
+# caída adicional en 60): VIX >= 35 y VVIX >= 140 marcan el miedo que históricamente dio buenas entradas (VIX >= 30 y
+# VVIX >= 120 llegan antes, con un 4-5 % de caída extra típica); SKEW/VIX <= 5 llega a mitad de corrección (4,5 es
+# mejor); VIX3M/VIX <= 1 no da ventaja a 60 sesiones, <= 0,90 sí a 120; VIX3M/VIX >= 1,25 y SKEW/VIX >= 12 rinden por
+# debajo de la media (complacencia). VVIX y SKEW no están en el histórico JSON de CBOE (403): CSV de daily_prices.
+VOLREG_CSV = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{s}_History.csv"
+VOLREG_DESDE = "2010-01-01"      # el SKEW sube de nivel con los años: antes de 2010 el SKEW/VIX no es comparable
+VOLREG_H = (60, 120)             # sesiones del rendimiento del SPX
+VOLREG = (
+    # clave, nombre, cortes (ascendentes), zonas (nombre, tono) de abajo arriba
+    ("vix", "VIX", (20, 30, 35),
+     (("Calm", "calm"), ("Stress", "watch"), ("High stress", "alert"), ("Fear, buy zone", "buy"))),
+    ("vvix", "VVIX", (80, 120, 140),
+     (("Calm", "calm"), ("Normal", "calm"), ("Stress", "alert"), ("Panic, buy zone", "buy"))),
+    ("term", "VIX3M / VIX", (0.90, 1.00, 1.25),
+     (("Deep inversion, buy zone", "buy"), ("Inverted", "alert"), ("Normal", "calm"), ("Complacency", "complacent"))),
+    ("skew", "SKEW / VIX", (4.5, 5.5, 12),
+     (("Capitulation, buy zone", "buy"), ("Stress", "alert"), ("Normal", "calm"), ("Complacency", "complacent"))),
+)
+_volreg_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _csv_cierres(sym: str) -> dict[str, float]:
+    """Cierres diarios {aaaa-mm-dd: valor} del CSV de CBOE (última columna: CLOSE o el propio índice)."""
+    out = {}
+    for r in csv.reader(io.StringIO(fetch_text(VOLREG_CSV.format(s=sym)))):
+        try:
+            v = float(r[-1])
+            out[datetime.strptime(r[0], "%m/%d/%Y").strftime("%Y-%m-%d")] = v
+        except (ValueError, IndexError):
+            continue
+    if not out:
+        raise ConnectionError(f"No {sym} history from CBOE")
+    return out
+
+
+def _volreg_seguro() -> dict | None:
+    try:
+        return regimen_vol()
+    except Exception:  # noqa: BLE001  (sin los CSV de CBOE la página sigue sin la tarjeta)
+        return None
+
+
+def regimen_vol() -> dict:
+    """Zona de hoy de cada indicador (último cierre de CBOE) y qué hizo el SPX desde 2010 tras los días de cada zona:
+    rendimiento medio a 60 y 120 sesiones, % al alza a 60 y mediana de la caída adicional máxima en 60 sesiones."""
+    hit = _volreg_cache.get("r")
+    if hit and time.time() - hit[0] < 3 * 3600:
+        return hit[1]
+    vix, v3, vv, sk = (_csv_cierres(s) for s in ("VIX", "VIX3M", "VVIX", "SKEW"))
+    spx = {k: v[3] for k, v in g.history_ohlc("SPX")[0].items() if v[3] > 0}
+    series = {"vix": vix, "vvix": vv,
+              "term": {f: v3[f] / vix[f] for f in v3 if vix.get(f)},
+              "skew": {f: sk[f] / vix[f] for f in sk if vix.get(f)}}
+    F = [f for f in sorted(spx) if f >= VOLREG_DESDE]
+    C = np.array([spx[f] for f in F])
+    n = len(C)
+    fwd = {h: np.array([C[i + h] / C[i] - 1 if i + h < n else np.nan for i in range(n)]) for h in VOLREG_H}
+    dd = np.array([C[i + 1:i + 61].min() / C[i] - 1 if i + 60 < n else np.nan for i in range(n)])
+
+    def stats(m):
+        m = m & np.isfinite(fwd[60])
+        if not m.any():
+            return {"n": 0}
+        m2 = m & np.isfinite(fwd[120])
+        return {"n": int(m.sum()), "r60": _r(fwd[60][m].mean()), "up60": _r(float(np.mean(fwd[60][m] > 0))),
+                "r120": _r(fwd[120][m2].mean()) if m2.any() else None, "dd60": _r(float(np.median(dd[m])))}
+
+    items = []
+    for key, nombre, cortes, zonas in VOLREG:
+        s = series[key]
+        X = np.array([s.get(f, np.nan) for f in F])
+        bordes = (-np.inf, *cortes, np.inf)
+        filas = []
+        for k, (zn, tono) in enumerate(zonas):
+            lo, hi = bordes[k], bordes[k + 1]
+            filas.append({"lo": None if k == 0 else lo, "hi": None if k == len(zonas) - 1 else hi,
+                          "label": zn, "tone": tono, **stats(np.isfinite(X) & (X >= lo) & (X < hi))})
+        ult = max(s)
+        v = s[ult]
+        items.append({"key": key, "name": nombre, "value": round(v, 4), "date": ult,
+                      "zone": int(np.searchsorted(cortes, v, side="right")), "zones": filas})
+    res = {"since": F[0], "last": F[-1], "items": items, "base": stats(np.ones(n, bool)),
+           "buy": sum(1 for it in items if it["zones"][it["zone"]]["tone"] == "buy")}
+    _volreg_cache["r"] = (time.time(), res)
+    return res
 
 
 # ---------------------------------------------------------------- probabilidad de cerrar fuera del 1σ (modelo 1)

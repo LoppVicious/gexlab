@@ -296,6 +296,12 @@ Los dos:
   con los índices en directo. Estudio con las dos mitades y la t de cada tramo: `pruebas/regimen_vix.py` (cuanto más
   plana o invertida la curva, mejor el SPX a 20 sesiones, t de 1,4 a 1,9; con VIX9D/VIX > 1,05 la prima de
   volatilidad cobrada cae a la mitad, y desde 2018 casi a cero).
+- **Régimen de volatilidad** (`macro.regimen_vol`, campo `volreg` de `vix_curve`, `renderVolRegime`): zona de hoy de
+  VIX, VVIX, VIX3M/VIX y SKEW/VIX (cortes en `VOLREG`) al último cierre, y qué hizo el SPX desde 2010 tras los días de
+  cada zona (60 y 120 sesiones, % al alza, mediana de la caída adicional en 60). VVIX y SKEW dan 403 en el histórico
+  JSON de CBOE: se leen los CSV de `daily_prices` (`_csv_cierres`), caché de 3 h. Cortes elegidos con el estudio de
+  episodios `pruebas/niveles_vol.py` (VIX ≥ 35 y VVIX ≥ 140 como zona de compra; VIX3M/VIX ≥ 1,25 y SKEW/VIX ≥ 12,
+  complacencia).
 - **Posicionamiento en `compute`:** `scenarios` (GEX por 1 % y flujo de cobertura en la rejilla `SCEN_SPOT` ×
   `SCEN_IV`; la IV se desplaza reescalando la varianza total de cada contrato), `buckets` (`EXP_BUCKETS`),
   `totals.net_per_pct_after` (sin el próximo vencimiento) y `liquidity` (ADV$ de 20 sesiones de CBOE, flujos en % del

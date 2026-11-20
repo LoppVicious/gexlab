@@ -639,5 +639,18 @@ body.macro-mode .foot { display: none; }
 .vxreg-t tr.on td { color: var(--text); font-weight: 600; background: var(--accent-soft); }
 .vxreg-note { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--muted); }
 .vxreg-note.warn { color: var(--amber); }
+.vr-row { margin-top: 10px; cursor: help; }
+.vr-top { display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 8px; }
+.vr-name { font-size: 13px; color: var(--muted); }
+.vr-top strong { font-size: 15px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.vr-zone { grid-column: 1 / -1; justify-self: end; font-size: 11.5px; color: var(--muted); }
+.vr-zone.buy { color: var(--put); font-weight: 600; } .vr-zone.alert { color: var(--call); } .vr-zone.complacent, .vr-zone.watch { color: var(--amber); }
+.vr-bar { position: relative; display: flex; gap: 2px; height: 6px; margin: 5px 0 4px; }
+.vr-seg { flex: 1; border-radius: 2px; background: var(--muted); opacity: 0.22; }
+.vr-seg.buy { background: var(--put); } .vr-seg.alert { background: var(--call); } .vr-seg.complacent, .vr-seg.watch { background: var(--amber); }
+.vr-seg.on { opacity: 0.75; }
+.vr-bar i { position: absolute; top: -3px; width: 2px; height: 12px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.vr-stat { font-size: 11.5px; line-height: 1.4; color: var(--faint); }
+.vr-old { color: var(--amber); }
 .ssk-table tr.ssk-group td { cursor: default; background: none; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding-top: 16px; }
 .ssk-table tr.ssk-group:hover td { background: none; }

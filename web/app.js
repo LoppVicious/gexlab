@@ -2892,6 +2892,7 @@ function renderVix() {
     fact("Streak", `${v.streak} ${v.streak === 1 ? "session" : "sessions"}`, `${lv ? "counting today, " : ""}in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1), ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
   renderVixRegime(d.regime);
+  renderVolRegime(d.volreg);
   const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
   const lvNote = d.live ? " Today: each future implied by VIX options (put-call parity) until the settlement is published; small points, weekly expirations." : "";
   $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lvNote}`;
@@ -2914,6 +2915,36 @@ function renderVixRegime(rg) {
     : f9 ? `<p class="vxreg-note">VIX9D / VIX at ${fmtNum(rg.r9, 2)}: after days like this, realized volatility came ${fmtNum(Math.abs(f9.vrp), 1)} points under the VIX.</p>` : "";
   el.innerHTML = `<div class="fl" title="SPX after each VIX / VIX3M range, from the close: average 20-session return, share of times higher, and realized volatility of those 20 sessions minus the VIX of the day (negative: the VIX overpriced the move). Daily CBOE closes since ${rg.since.slice(0, 4)}. A lean, not a certainty: in backwardation the higher average return comes with much larger swings.">SPX after similar curves <span class="vxreg-since">since ${rg.since.slice(0, 4)}</span></div>
     <table class="vxreg-t"><thead><tr><th class="l">VIX/VIX3M</th><th>20 sessions</th><th>Higher</th><th title="Realized volatility of the next 20 sessions minus the VIX (points)">RV − VIX</th></tr></thead><tbody>${rows}</tbody></table>${short}`;
+}
+
+// Regimen de volatilidad (macro.regimen_vol): zona de hoy de VIX, VVIX, VIX3M/VIX y SKEW/VIX al ultimo cierre, con una
+// barra de zonas y lo que hizo el SPX desde 2010 tras los dias de esa zona
+function renderVolRegime(vr) {
+  const el = $("vxVol");
+  el.hidden = !vr || !vr.items;
+  if (el.hidden) return;
+  const dec = (v) => (Math.abs(v) >= 10 ? 1 : 2);
+  const rango = (z) => (z.lo == null ? `under ${fmtNum(z.hi, dec(z.hi))}` : z.hi == null ? `${fmtNum(z.lo, dec(z.lo))} and above` : `${fmtNum(z.lo, dec(z.lo))} to ${fmtNum(z.hi, dec(z.hi))}`);
+  const pct = (v) => (v == null ? "—" : fmtNum(v * 100, 0) + "%");
+  const b = vr.base;
+  const filas = vr.items.map((it) => {
+    const z = it.zones[it.zone], nz = it.zones.length;
+    // posicion dentro de su zona (zonas de igual ancho; en las abiertas, hasta el doble o la mitad del corte)
+    const lo = z.lo ?? z.hi / 2, hi = z.hi ?? z.lo * 1.5;
+    const frac = Math.min(0.96, Math.max(0.04, (it.value - lo) / (hi - lo)));
+    const segs = it.zones.map((q, k) => `<span class="vr-seg ${q.tone}${k === it.zone ? " on" : ""}" title="${q.label}: ${rango(q)}"></span>`).join("");
+    const stale = it.date !== vr.items[0].date ? ` (close ${ddmm(it.date)})` : "";
+    const tip = it.zones.map((q) => `${q.label} (${rango(q)}): SPX ${sgnPct(q.r60, 1)} in 60 sessions, higher ${pct(q.up60)}, ${sgnPct(q.r120, 1)} in 120`).join("\n");
+    return `<div class="vr-row" title="${tip}">
+      <div class="vr-top"><span class="vr-name">${it.name}</span><strong>${fmtNum(it.value, dec(it.value))}</strong><span class="vr-zone ${z.tone}">${z.label}</span></div>
+      <div class="vr-bar">${segs}<i style="left:${((it.zone + frac) / nz) * 100}%"></i></div>
+      <div class="vr-stat">${stale ? `<span class="vr-old">${stale.trim()}</span> ` : ""}Days in this zone since ${vr.since.slice(0, 4)}: SPX ${sgnPct(z.r60, 1)} in 60 sessions (higher ${pct(z.up60)}), ${sgnPct(z.r120, 1)} in 120; typical further drop ${sgnPct(z.dd60, 1)}.</div>
+    </div>`;
+  }).join("");
+  const n = vr.items.length;
+  el.innerHTML = `<div class="fl" title="Daily CBOE closes. Zones set with a backtest of first crosses since 1990: VIX 35 and VVIX 140 marked the fear that preceded good entries; VIX 30 and VVIX 120 arrive earlier, with a further 4-5% drop on average. Typical further drop: median of the lowest SPX close in the next 60 sessions. Overlapping windows: a lean, not a certainty.">Volatility regime <span class="vxreg-since">${vr.buy} of ${n} in a buy zone, close ${ddmm(vr.items[0].date)}</span></div>
+    ${filas}
+    <p class="vxreg-note">Any day since ${vr.since.slice(0, 4)}: SPX ${sgnPct(b.r60, 1)} in 60 sessions (higher ${pct(b.up60)}), ${sgnPct(b.r120, 1)} in 120.</p>`;
 }
 
 function interpAt(arr, days) {

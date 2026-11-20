@@ -25,6 +25,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   mezcla strikes de 10 y de 100); ahora se usa el paso mediano.
 - **Social en blanco con bloqueadores de anuncios:** sus listas de "social" ocultaban la página (id `socialView`,
   clases `soc-`). Ahora usa nombres neutros (`postsView`, `pst-`).
+- **Curva VIX y Summary sin cierre del VIX:** si CBOE no da el VIX al contado del último cierre, la curva salía
+  cortada desde abajo (el punto vacío se dibujaba en 0) y el Summary daba una variación falsa. Ahora la curva empieza
+  en el primer futuro y no se muestra la variación.
 
 ## 2026-11-19 — Social: posts diarios para X en el panel de administración
 

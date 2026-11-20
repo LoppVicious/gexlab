@@ -2929,7 +2929,8 @@ function renderVixCurve() {
   const pad = { l: 52, r: 22, t: W < 640 ? 54 : 34, b: 34 };
   const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
   const series = (c) => (c ? [...(c.vix ? [{ days: 0, v: c.vix }] : []), ...c.points.map((x) => ({ days: x.days, v: x.settle }))] : []);
-  const today = [{ days: 0, v: d.vix_close, spot: true }, ...d.points.map((x) => ({ days: x.days, v: x.settle, x }))];
+  // sin cierre del VIX (CBOE no lo ha dado) la curva empieza en M1: un punto nulo se dibujaria en y = 0
+  const today = [...(d.vix_close != null ? [{ days: 0, v: d.vix_close, spot: true }] : []), ...d.points.map((x) => ({ days: x.days, v: x.settle, x }))];
   const prev = series(d.prev), week = series(d.week);
   const term = (d.term || []).map((t) => ({ days: t.days, v: t.value, sym: t.symbol }));
   const xlim = Math.max(...[...today, ...term].map((x) => x.days));
@@ -2953,7 +2954,7 @@ function renderVixCurve() {
   // eje x: contado y meses de cada vencimiento
   s += txt(xOf(0), B + 20, "VIX", { a: "middle", fs: 11.5 });
   let lastX = xOf(0);
-  for (const pt of today.slice(1)) {
+  for (const pt of today.filter((p) => !p.spot)) {
     const x = xOf(pt.days);
     if (x - lastX < 38) continue;
     s += `<line x1="${x}" x2="${x}" y1="${B}" y2="${B + 4}" stroke="${C.axis}"/>` + txt(x, B + 20, monLabel(pt.x.expiry), { a: "middle", fs: 11.5 });

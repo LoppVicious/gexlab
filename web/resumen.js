@@ -193,8 +193,8 @@ function suVol(d) {
   const V = su.vix, sv = su.vol && su.vol.summary;
   const head = `<header><h3>Volatility</h3>${d.vix && d.vix.shape ? `<span class="pill ${SHAPE_CLASS[d.vix.shape.code] || ""}"><i></i>${esc(SHAPE_LABEL[d.vix.shape.code] || d.vix.shape.label)}</span>` : ""}</header>`;
   if (!V || V.error) return `<section class="su-card su-vol" data-go="vix">${head}${suWait(V && V.error ? esc(V.error) : "Loading the VIX curve…")}</section>`;
-  const vp = V.points || [], cv = (pts, spot) => [[0, spot]].concat((pts || []).map((p) => [p.days, p.settle]));
-  const dv = V.prev ? V.vix_close - V.prev.vix : null, last = vp.length ? vp[vp.length - 1].days : 0;
+  const vp = V.points || [], cv = (pts, spot) => (spot != null ? [[0, spot]] : []).concat((pts || []).map((p) => [p.days, p.settle]));
+  const dv = V.prev && V.vix_close != null && V.prev.vix != null ? V.vix_close - V.prev.vix : null, last = vp.length ? vp[vp.length - 1].days : 0;
   const series = [];
   if (V.week) series.push({ pts: cv(V.week.points, V.week.vix), c: C.faint, dash: "2 4", w: 1.2, end: ddmm(V.week.date) });
   if (V.prev) series.push({ pts: cv(V.prev.points, V.prev.vix), c: C.muted, dash: "5 4", w: 1.2, end: ddmm(V.prev.date) });

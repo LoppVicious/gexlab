@@ -13,7 +13,6 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="sg.css">
 <link rel="stylesheet" href="admin.css">
-<link rel="stylesheet" href="social.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
 </head>
 <body class="admpage">
@@ -29,7 +28,6 @@
 <div class="aw">
   <nav class="an" aria-label="Sections">
     <a href="#estado" class="on">Status</a>
-    <a href="#social">Social</a>
     <a href="#usuarios">Users</a>
     <a href="#config">Settings</a>
     <a href="#acciones">Actions</a>
@@ -62,12 +60,6 @@
           <table class="runs"><tbody id="runs"><tr><td class="mute">Loading…</td></tr></tbody></table>
         </div>
       </div>
-    </section>
-
-    <section id="social" aria-labelledby="socT">
-      <div class="shd"><h2 id="socT">Social</h2><label class="soc-dia">Day <select id="socDia" aria-label="Day"></select></label></div>
-      <p class="lead">Posts for X after each close: charts from the daily run (indices and VIX around 16:25 ET, stocks after the daily history, around 17:15 ET) and texts written with <code>/x-diario</code> in Claude Code. Only the administrator sees this section.</p>
-      <div id="socBody" class="soc" aria-live="polite"><p class="mute">Loading…</p></div>
     </section>
 
     <section id="usuarios" aria-labelledby="usuT">
@@ -152,6 +144,5 @@
 
 <script src="me.js"></script>
 <script src="admin.js"></script>
-<script src="social.js"></script>
 </body>
 </html>

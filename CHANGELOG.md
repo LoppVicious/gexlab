@@ -3,6 +3,23 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-20 — Social pasa a Research: conclusión del día y playbook, con mercados cruzados
+
+**Añadido**
+- **Social, playbook de la próxima sesión:** gráfico con, por índice, el cierre, el rango de 1σ de mañana y los
+  niveles de gamma con su distancia (los que coinciden, juntos; los que caen fuera del rango, en el borde), y la agenda
+  (eventos con hora ET y vencimiento mensual).
+- **Social, mercados cruzados y amplitud:** el 10 años (en % y pb), bonos largos e intermedios, high yield, dólar,
+  oro, plata, petróleo, ETFs de bitcoin y ether y bitcoin y ether al contado (24 h); los 11 sectores y semis, y la
+  amplitud (igual ponderado y small caps frente a SPY, sectores en verde). Con su gráfico.
+- **Hilos:** cada post puede llevar hasta 4 respuestas, cada una con su botón de copiar y su contador de 280.
+
+**Cambiado**
+- **Social** sale de Admin y pasa a la barra lateral, en Research. Solo la ve el administrador.
+- **Textos de `/x-diario`:** cada cierre, dos hilos obligatorios (la conclusión del día de SPX, NDX y VIX con amplitud
+  y mercados cruzados, y el playbook para la sesión siguiente), más posts sueltos cuando algo lo merezca. Con una
+  lectura del día (alcista, bajista o de transición) que se nota en el tono.
+
 ## 2026-11-19 — Social: posts diarios para X en el panel de administración
 
 **Añadido**

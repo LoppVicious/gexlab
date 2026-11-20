@@ -77,6 +77,32 @@ def test_segunda_pasada():
     assert set(graficos) <= {"acciones_sigma"}
 
 
+def cot_falsas():
+    c = lambda u, p: {"ultimo": u, "previo": p, "cambio_pct": (u / p - 1) * 100}
+    out = {"TNX": c(42.5, 41.2), "TLT": c(80.0, 81.0), "IEF": c(91.0, 91.2), "HYG": c(78.0, 78.5), "UUP": c(28.0, 27.9),
+           "GLD": c(380.0, 370.0), "SLV": c(40.0, 40.2), "USO": c(70.0, 71.0), "IBIT": c(35.0, 37.0),
+           "SPY": c(717.0, 732.0), "RSP": c(180.0, 184.5), "QQQ": c(645.0, 660.0), "IWM": c(272.0, 278.0)}
+    for i, s in enumerate(sd.SECTORES):
+        out[s] = c(100.0 - i * 0.3 - (0 if s != "XLU" else -2), 100.0)
+    return out
+
+
+def test_mercados():
+    m = sd.bloque_mercados(cot_falsas(), {"BTC": {"ultimo": 62018, "cambio_24h_pct": -2.7}})
+    tnx = m["grupos"]["Rates"][0]
+    assert tnx["rendimiento_pct"] == 4.25 and tnx["cambio_pb"] == 13.0
+    assert set(m["grandes"]) == {"TNX", "GLD", "IBIT"} and "big_cross_asset_move" in m["motivos"]
+    assert m["amplitud"]["sectores_total"] == 11 and m["amplitud"]["sectores_suben"] == 1
+    assert "broad_selloff" in m["motivos"] and m["amplitud"]["rsp_vs_spy"] == -0.39
+    assert m["grupos"]["Crypto spot"][0]["sym"] == "BTC" and m["sectores"][0]["sym"] == "XLU"
+    assert "ETHA" not in [x["sym"] for x in m["grupos"]["Crypto"]]
+    try:
+        sd.bloque_mercados({})
+        raise AssertionError("debia fallar sin datos")
+    except ValueError:
+        pass
+
+
 def test_manana():
     evs = [{"date": "2026-11-20", "time": "10:00", "titulo": "UoM", "imp": 2},
            {"date": "2026-11-20", "time": "08:30", "titulo": "CPI", "imp": 3},
@@ -108,7 +134,10 @@ def test_graficos():
     v = {"cierre": 22.0, "cambio_pct": 15.8, "percentil_1a": 91, "curva": {"VIX9D": 24, "VIX": 22, "VIX3M": 21, "VIX6M": 21.5, "VIX1Y": 22},
          "curva_previa": {"VIX9D": 19, "VIX": 19, "VIX3M": 20, "VIX6M": 21, "VIX1Y": 21.8}}
     pngs = {"indices_niveles": sg.tabla_indices("2026-11-19", "2026-11-20", idx), "perfil_spx": sg.perfil("SPX", r, b, "2026-11-20"),
-            "acciones_sigma": sg.acciones("2026-11-19", acc), "vix_curva": sg.vix("2026-11-19", v)}
+            "acciones_sigma": sg.acciones("2026-11-19", acc), "vix_curva": sg.vix("2026-11-19", v),
+            "playbook": sg.playbook("2026-11-19", "2026-11-20", idx, {"estado": "ok", "opex_mensual": True,
+                                                                     "eventos": [{"hora": "10:00", "evento": "UoM sentiment"}]}),
+            "mercados": sg.mercados("2026-11-19", sd.bloque_mercados(cot_falsas()))}
     for n, png in pngs.items():
         assert png[:8] == b"\x89PNG\r\n\x1a\n", n
     if os.environ.get("SOCIAL_PNG"):

@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="sg.css">
 <link rel="stylesheet" href="herramientas.css">
 <link rel="stylesheet" href="takes.css">
+<link rel="stylesheet" href="social.css">
 <link rel="stylesheet" href="trading.css">
 <link rel="stylesheet" href="tema.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f8"</script>
@@ -41,6 +42,7 @@
       <button class="item" id="navCorr" data-title="Correlation" title="Implied correlation and dispersion"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/></svg><span class="lbl">Correlation</span></button>
     <div class="sec">Research</div>
       <button class="item" id="navTakes" data-title="Founder Takes" title="Founder Takes"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h7l3 3V16a.5.5 0 0 1-.5.5h-9.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M12 3.5V7h3M7.5 10h5M7.5 13h3.5"/></svg><span class="lbl">Takes</span></button>
+      <button class="item" id="navSocial" data-title="Social" title="Posts for X after the close: the day and the next-day playbook (only you)" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15.5V8.5l6-4 6 4v7"/><path d="M4 15.5h12"/><path d="M7.5 12.5l2-2 1.5 1.5 2.5-3"/></svg><span class="lbl">Social</span></button>
     <div class="sec">Console</div>
       <button class="item" id="navScan" data-title="Scanner" title="Scanner"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 8h14M8 8v8"/></svg><span class="lbl">Scanner</span></button>
       <button class="item" id="navCompass" data-title="Compass" title="Compass"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m12.8 7.2-1.6 4-4 1.6 1.6-4z"/></svg><span class="lbl">Compass</span></button>
@@ -596,6 +598,13 @@
   <div class="tk-body" id="tkBody"></div>
 </main>
 
+<main class="macro soc-view" id="socialView" hidden>
+  <div class="scan-bar soc-bar">
+    <label class="soc-dia">Day <select id="socDia" aria-label="Day"></select></label>
+  </div>
+  <div class="soc" id="socBody" aria-live="polite"></div>
+</main>
+
 <main class="macro" id="flowView" hidden>
   <header class="lab-head">
     <div class="lab-title"><span class="lab-sym"><b id="fSym">—</b> <span id="fName"></span> <span id="fSpot"></span></span><span class="fbadge" title="Classified from the volume between engine snapshots, not from individual trades">Estimate</span></div>
@@ -658,6 +667,7 @@
 <script src="skewsig.js"></script>
 <script src="takes-md.js"></script>
 <script src="takes.js"></script>
+<script src="social.js"></script>
 <script src="flujo.js"></script>
 <script src="opciones.js"></script>
 <script src="oi.js"></script>

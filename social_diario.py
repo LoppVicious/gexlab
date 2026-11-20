@@ -4,7 +4,7 @@ Claude Code con /x-diario y se guardan en social/{F}/textos.json (Worker, nube/s
 Fuentes: cadenas de CBOE al cierre de SPX, NDX y RUT (se calculan aqui con el motor Perfil), hist500/ (indice de
 skew con cierre, IV y volumen de opciones de toda la lista, indice de niveles, familia VIX) y pub/eventos.json.
 Graficos en social_graficos.py.
-Uso: python social_diario.py [--forzar]   (sin --forzar no rehace una sesion ya publicada)"""
+Uso: python social_diario.py [--forzar]   (sin --forzar no rehace lo ya publicado)"""
 from __future__ import annotations
 
 import argparse
@@ -29,6 +29,19 @@ Z_ACCION, SALTO_IV, VOL_OPC = 2.5, 5.0, 3.0   # sigmas, puntos de IV, veces el v
 VIX_CAMBIO, VIX_PCTL = 8.0, 80.0
 TOP = 8
 VIX_FAMILIA = ("VIX9D", "VIX", "VIX3M", "VIX6M", "VIX1Y")
+# mercados cruzados: grupo -> [(simbolo, nombre, umbral de movimiento grande en %)]; TNX = rendimiento a 10 anos
+MERCADOS = {
+    "Rates": [("TNX", "10Y yield", None), ("TLT", "20Y+ Treasuries", 1.5), ("IEF", "7-10Y Treasuries", 0.8)],
+    "Credit": [("HYG", "High yield", 0.8)],
+    "Dollar": [("UUP", "US dollar", 0.8)],
+    "Commodities": [("GLD", "Gold", 2.0), ("SLV", "Silver", 3.0), ("USO", "Oil", 3.0)],
+    "Crypto": [("IBIT", "Bitcoin ETF", 5.0), ("ETHA", "Ether ETF", 6.0)],
+}
+TNX_PB = 10.0                        # puntos basicos que hacen noticia en el 10 anos
+SECTORES = {"XLK": "Tech", "XLF": "Financials", "XLE": "Energy", "XLV": "Health care", "XLU": "Utilities",
+            "XLY": "Discretionary", "XLP": "Staples", "XLI": "Industrials", "XLC": "Communication",
+            "XLB": "Materials", "XLRE": "Real estate", "SMH": "Semis"}
+AMPLITUD = ["SPY", "RSP", "QQQ", "IWM"]
 
 
 def log(msg: str) -> None:
@@ -156,6 +169,55 @@ def bloque_vix(cot: dict, serie: list) -> dict:
             "motivos": motivos, "destacado": bool(motivos)}
 
 
+def bloque_mercados(cot: dict, cripto: dict | None = None) -> dict:
+    """Mercados cruzados al cierre (cotizaciones {SYM: {ultimo, previo, cambio_pct}}): tipos, credito, dolar, materias
+    primas y crypto; sectores y amplitud (igual ponderado frente al indice, small caps, sectores en verde).
+    cripto: {"BTC": {ultimo, cambio_24h_pct}, ...} del mercado al contado (24 h), opcional."""
+    fila = lambda s, n: {"sym": s, "nombre": n, "ultimo": _r(cot[s]["ultimo"]), "cambio_pct": _r(cot[s].get("cambio_pct"))}
+    grupos, motivos, grandes = {}, [], []
+    for grupo, lista in MERCADOS.items():
+        filas = []
+        for s, n, umbral in lista:
+            if s not in cot or cot[s].get("cambio_pct") is None:
+                continue
+            f = fila(s, n)
+            if s == "TNX":   # el indice del 10 anos cotiza x10 (42.5 = 4.25 %): rendimiento y cambio en pb
+                k = 10 if cot[s]["ultimo"] > 20 else 1
+                f["rendimiento_pct"] = _r(cot[s]["ultimo"] / k, 3)
+                f["cambio_pb"] = _r((cot[s]["ultimo"] - cot[s]["previo"]) / k * 100, 1) if cot[s].get("previo") else None
+                if f["cambio_pb"] is not None and abs(f["cambio_pb"]) >= TNX_PB:
+                    grandes.append(s)
+            elif umbral and abs(f["cambio_pct"]) >= umbral:
+                grandes.append(s)
+            filas.append(f)
+        grupos[grupo] = filas
+    if cripto:
+        grupos["Crypto spot"] = [{"sym": k, "nombre": k, "ultimo": _r(v["ultimo"]), "cambio_pct": _r(v["cambio_24h_pct"]), "ventana": "24h"}
+                                 for k, v in cripto.items() if v.get("ultimo")]
+    sectores = sorted((fila(s, n) for s, n in SECTORES.items() if s in cot and cot[s].get("cambio_pct") is not None),
+                      key=lambda x: -x["cambio_pct"])
+    sec11 = [x for x in sectores if x["sym"] != "SMH"]
+    c = lambda s: (cot.get(s) or {}).get("cambio_pct")
+    rel = lambda a, b: _r(c(a) - c(b)) if c(a) is not None and c(b) is not None else None
+    amplitud = {"rsp_vs_spy": rel("RSP", "SPY"), "iwm_vs_spy": rel("IWM", "SPY"), "qqq_vs_spy": rel("QQQ", "SPY"),
+                "sectores_suben": sum(1 for x in sec11 if x["cambio_pct"] > 0), "sectores_total": len(sec11),
+                "etfs": {s: _r(c(s)) for s in AMPLITUD if c(s) is not None}}
+    if not any(grupos.values()) and not sectores:
+        raise ValueError("Sin cotizaciones de mercados")
+    spy = c("SPY")
+    if sec11 and spy is not None:
+        if spy > 0 and (amplitud["sectores_suben"] <= len(sec11) // 3 or (amplitud["rsp_vs_spy"] or 0) <= -0.5):
+            motivos.append("narrow_breadth")
+        if spy < 0 and amplitud["sectores_suben"] <= 1:
+            motivos.append("broad_selloff")
+        if spy > 0 and amplitud["sectores_suben"] >= len(sec11) - 1:
+            motivos.append("broad_rally")
+    if grandes:
+        motivos.append("big_cross_asset_move")
+    return {"grupos": grupos, "sectores": sectores, "amplitud": amplitud, "grandes": grandes,
+            "motivos": motivos, "destacado": bool(motivos)}
+
+
 def tercer_viernes(d: datetime) -> bool:
     return d.weekday() == 4 and 15 <= d.day <= 21
 
@@ -211,6 +273,41 @@ def _bloque(nombre, fn) -> dict:
     except Exception as e:  # noqa: BLE001
         log(f"bloque {nombre}: {type(e).__name__}: {str(e)[:200]}")
         return {"estado": "ausente", "motivo": f"{type(e).__name__}: {str(e)[:200]}"}
+
+
+def cotizaciones_cierre() -> dict:
+    """Mercados cruzados con Tradier (una peticion; necesita TRADIER_TOKEN) y, si no, CBOE simbolo a simbolo."""
+    simbolos = [s for lista in MERCADOS.values() for s, _, _ in lista] + list(SECTORES) + AMPLITUD
+    try:
+        import fuente_tradier as ft
+        if ft.token():   # aunque GEX_FUENTE=cboe (las cadenas, de CBOE, para no gastar cupo de Tradier)
+            out = ft.cotizaciones(simbolos)
+            if out:
+                return out
+    except Exception as e:  # noqa: BLE001
+        log(f"cotizaciones de Tradier: {type(e).__name__}: {str(e)[:120]}")
+    out = {}
+    for s in simbolos:
+        q = (g.fetch_quote(s, ttl=0) or {}).get("data") or {}
+        ult, prev = q.get("close") or q.get("current_price"), q.get("prev_day_close")
+        if ult and prev:
+            out[s] = {"ultimo": float(ult), "previo": float(prev), "cambio_pct": (float(ult) / float(prev) - 1) * 100}
+    return out
+
+
+def cripto_contado() -> dict:
+    """Bitcoin y ether al contado y su cambio en 24 h (CoinGecko, sin clave). Vacio si falla."""
+    try:
+        import urllib.request
+        req = urllib.request.Request("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum"
+                                     "&vs_currencies=usd&include_24hr_change=true", headers={"User-Agent": "gexlab"})
+        with urllib.request.urlopen(req, timeout=15, context=g._SSL_CTXS[0]) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        return {k: {"ultimo": d[i]["usd"], "cambio_24h_pct": d[i].get("usd_24h_change")}
+                for k, i in (("BTC", "bitcoin"), ("ETH", "ethereum")) if d.get(i, {}).get("usd")}
+    except Exception as e:  # noqa: BLE001
+        log(f"cripto: {type(e).__name__}: {str(e)[:120]}")
+        return {}
 
 
 def leer_acciones(st, F: str) -> dict:
@@ -273,11 +370,12 @@ def armar(st, previo: dict | None, dibujar=True) -> tuple:
         serie = sorted((h["date"], float(h["close"])) for h in hist if h.get("date") and h.get("close") and h["date"] < F)
         return bloque_vix(cot, serie)
     vixb = _bloque("vix", vix)
+    mercados = _bloque("mercados", lambda: bloque_mercados(cotizaciones_cierre(), cripto_contado()))
     sig = g.next_trading_day(datetime.strptime(F, "%Y-%m-%d")).strftime("%Y-%m-%d")
     manana = _bloque("manana", lambda: bloque_manana(almacen.get_json(st, "pub/eventos.json") or [], sig))
     paquete = {"version": 1, "fecha": F, "siguiente_sesion": sig, "previa": (previo or {}).get("fecha"),
                "generado": g.now_ny().strftime("%Y-%m-%d %H:%M ET"),
-               "indices": indices, "acciones": acciones, "vix": vixb, "manana": manana}
+               "indices": indices, "acciones": acciones, "vix": vixb, "mercados": mercados, "manana": manana}
     graficos = _dibujar(paquete, resultados) if dibujar else {}
     return paquete, graficos
 
@@ -289,6 +387,10 @@ def _dibujar(paq: dict, resultados: dict) -> dict:
     ok = {s: b for s, b in paq["indices"].items() if b["estado"] == "ok"}
     if ok:
         trabajos.append((list(ok.values()), "indices_niveles", lambda: sg.tabla_indices(paq["fecha"], paq["siguiente_sesion"], ok)))
+        trabajos.append(([paq["manana"]] if paq["manana"]["estado"] == "ok" else [], "playbook",
+                         lambda: sg.playbook(paq["fecha"], paq["siguiente_sesion"], ok, paq["manana"])))
+    if paq["mercados"]["estado"] == "ok":
+        trabajos.append(([paq["mercados"]], "mercados", lambda: sg.mercados(paq["fecha"], paq["mercados"])))
     for s, b in ok.items():
         trabajos.append(([b], f"perfil_{s.lower()}", lambda s=s, b=b: sg.perfil(s, resultados[s], b, paq["siguiente_sesion"])))
     if paq["acciones"]["estado"] == "ok":
@@ -356,7 +458,7 @@ def main(args) -> int:
     for k in INDICES:
         b = paquete["indices"][k]
         log(f"{k}: {b['estado']}" + (f" {b['cambio_pct']}% vs {b['esperado_hoy_pct']}% implicito, {b['regimen']}, motivos={b['motivos']}" if b["estado"] == "ok" else f" ({b['motivo']})"))
-    for k in ("acciones", "vix", "manana"):
+    for k in ("acciones", "vix", "mercados", "manana"):
         b = paquete[k]
         log(f"{k}: {b['estado']}" + (f" motivos={b['motivos']}" if b["estado"] == "ok" else f" ({b['motivo']})"))
     log(f"{len(graficos)} graficos; social/{paquete['fecha']}/ listo")

@@ -107,6 +107,23 @@ def _lista(x) -> list:
     return x if isinstance(x, list) else [x]
 
 
+def cotizaciones(simbolos: list[str]) -> dict:
+    """Ultimo precio, cierre anterior y cambio de varios simbolos en una sola peticion:
+    {SYM: {"ultimo", "previo", "cambio_pct", "nombre"}} (los que Tradier no conoce no aparecen)."""
+    d = _get(f"/markets/quotes?symbols={','.join(simbolos)}&greeks=false") or {}
+    out = {}
+    for x in _lista((d.get("quotes") or {}).get("quote")):
+        ult, prev = x.get("last") or x.get("close"), x.get("prevclose")
+        if not x.get("symbol") or not ult:
+            continue
+        cambio = x.get("change_percentage")
+        if cambio is None and prev:
+            cambio = (float(ult) / float(prev) - 1) * 100
+        out[x["symbol"]] = {"ultimo": float(ult), "previo": float(prev) if prev else None,
+                            "cambio_pct": float(cambio) if cambio is not None else None, "nombre": x.get("description")}
+    return out
+
+
 # ---------------------------------------------------------------- cadena
 def _vencimientos(sym: str) -> list[str]:
     d = _get(f"/markets/options/expirations?symbol={sym}&includeAllRoots=true&strikes=false")

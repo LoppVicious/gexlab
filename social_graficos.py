@@ -186,3 +186,111 @@ def vix(F: str, v: dict) -> bytes:
     ax.set_xticklabels(nombres, fontsize=16, color=C["text"])
     ax.legend(frameon=False, labelcolor=C["muted"], fontsize=15, loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2)
     return _png(fig)
+
+
+
+def _separar(ys: list, lo: float, hi: float, hueco: float) -> list:
+    """Posiciones de etiquetas lo mas cerca posible de ys (ordenadas) sin que dos queden a menos de hueco."""
+    out = []
+    for y in ys:
+        out.append(max(y, out[-1] + hueco) if out else max(y, lo))
+    exceso = out[-1] - hi if out else 0
+    if exceso > 0:   # se pasan por arriba: se empujan hacia abajo
+        out = [y - exceso for y in out]
+        for k in range(len(out) - 2, -1, -1):
+            out[k] = min(out[k], out[k + 1] - hueco)
+    return out
+
+
+def playbook(F: str, sig: str, ok: dict, manana: dict | None) -> bytes:
+    """Mapa de la proxima sesion: por indice, el cierre, el rango de 1 sigma de manana y los niveles de gamma con su
+    distancia (los iguales, juntos; los que caen fuera del rango, en el borde con una flecha); abajo, la agenda."""
+    syms = list(ok)[:3]
+    fig = _fig()
+    _cabecera(fig, f"Playbook for {_fecha(sig)}", f"Gamma levels and the 1σ range options price, from the {_fecha(F)} close.")
+    ancho = 0.88 / len(syms)
+    for i, sym in enumerate(syms):
+        b = ok[sym]
+        ax = _ejes(fig, (0.07 + i * ancho, 0.17, ancho - 0.05, 0.6))
+        c, d, N = b["cierre"], b["siguiente"], b["niveles"]
+        rango = max(abs(d["hi"] - c) if d.get("hi") else c * 0.01, c * 0.006) * 2.2
+        lo, hi = c - rango, c + rango
+        ax.set_ylim(lo, hi)
+        ax.set_xlim(0, 1)
+        ax.set_xticks([])
+        ax.grid(axis="x", visible=False)
+        if d.get("lo") and d.get("hi"):
+            ax.axhspan(d["lo"], d["hi"], color=C["text"], alpha=0.07)
+        ax.axhline(c, color=C["spot"], linewidth=2.4)
+        # niveles iguales en una sola linea: "Call Wall / Vol Trigger 27,000"
+        grupos = {}
+        for k, nombre, col, est in (("call_wall", "Call Wall", C["call"], "-"), ("put_wall", "Put Wall", C["put"], "-"),
+                                    ("flip", "Flip", C["amber"], "--"), ("vt", "Vol Trigger", C["vt"], ":")):
+            v = N.get(k)
+            if v is not None:
+                grupos.setdefault(v, []).append((nombre, col, est))
+        etiquetas = [(c, f"Close {_n(c)}", C["text"], c)]
+        if d.get("lo") and d.get("hi"):
+            etiquetas.append((d["hi"], f"1σ ±{d['pct']:.2f}%", C["muted"], d["hi"]))
+        hueco = (hi - lo) * 0.065
+        for v, xs in grupos.items():
+            nombre, col = " / ".join(x[0] for x in xs), xs[0][1]
+            txt = f"{nombre} {_n(v)} ({(v / c - 1) * 100:+.1f}%)"
+            if lo <= v <= hi:
+                ax.axhline(v, color=col, linewidth=2.2, linestyle=xs[0][2])
+                etiquetas.append((v, txt, col, v))
+            else:
+                etiquetas.append((hi - hueco * 0.3 if v > hi else lo + hueco * 0.3, ("↑ " if v > hi else "↓ ") + txt, col, v))
+        etiquetas.sort(key=lambda e: (e[0], e[3]))   # los de fuera del rango, por su valor real
+        pos = _separar([e[0] for e in etiquetas], lo + hueco * 0.3, hi - hueco * 0.3, hueco)
+        for (_, txt, col, _), y in zip(etiquetas, pos):
+            ax.text(0.03, y, txt, color=col, fontsize=12.5, fontweight="bold", va="center",
+                    bbox=dict(facecolor=C["surface"], edgecolor="none", pad=1.5, alpha=0.85))
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:,.0f}"))
+        reg = b["regimen"] == "positive"
+        ax.set_title(f"{sym}  ", loc="left", color=C["text"], fontsize=20, fontweight="bold")
+        ax.set_title("Positive gamma" if reg else "Negative gamma", loc="right", color=C["pos"] if reg else C["neg"], fontsize=13, fontweight="bold")
+    agenda = []
+    if manana and manana.get("estado") == "ok":
+        agenda = [f"{e['hora']} ET {e['evento']}" for e in manana.get("eventos", [])[:4]]
+        if manana.get("opex_mensual"):
+            agenda.append("Monthly opex")
+    fig.text(0.06, 0.075, "Agenda: " + ("; ".join(agenda) if agenda else "no major US events"), color=C["muted"], fontsize=14, va="bottom")
+    return _png(fig)
+
+
+def mercados(F: str, m: dict) -> bytes:
+    """Activos cruzados (tipos, credito, dolar, materias primas, crypto) y sectores: cambio del dia en %."""
+    filas = [(f"{x['sym']}  {x['nombre']}", x["cambio_pct"]) for g, xs in m["grupos"].items() if g != "Crypto spot"
+             for x in xs if x["sym"] != "TNX"]
+    sect = [(f"{x['sym']}  {x['nombre']}", x["cambio_pct"]) for x in m["sectores"]]
+    if len(filas) + len(sect) < 4:
+        raise ValueError("Pocos datos")
+    fig = _fig()
+    tnx = next((x for x in m["grupos"].get("Rates", []) if x["sym"] == "TNX"), None)
+    a = m["amplitud"]
+    sub = f"{_fecha(F)}."
+    if tnx and tnx.get("rendimiento_pct") is not None:
+        sub += f" 10Y yield {tnx['rendimiento_pct']:.2f}%" + (f" ({tnx['cambio_pb']:+.0f} bp)." if tnx.get("cambio_pb") is not None else ".")
+    if a.get("sectores_total"):
+        sub += f" {a['sectores_suben']} of {a['sectores_total']} sectors up."
+    _cabecera(fig, "Cross-asset and sectors", sub)
+    for k, (datos, titulo) in enumerate(((filas, "Cross-asset"), (sect, "Sectors"))):
+        if not datos:
+            continue
+        ax = _ejes(fig, (0.2 + k * 0.47, 0.1, 0.3, 0.7))
+        datos = datos[::-1]
+        vs = [v for _, v in datos]
+        ax.barh(range(len(datos)), vs, color=[C["put"] if v >= 0 else C["neg"] for v in vs], height=0.62)
+        ax.set_yticks(range(len(datos)))
+        ax.set_yticklabels([t for t, _ in datos], fontsize=13, color=C["text"])
+        ax.axvline(0, color=C["axis"], linewidth=1.2)
+        lim = max(abs(v) for v in vs) * 1.35 or 1
+        ax.set_xlim(-lim, lim)
+        for i, v in enumerate(vs):
+            ax.text(v + (lim * 0.03 if v >= 0 else -lim * 0.03), i, f"{v:+.1f}%", va="center", ha="left" if v >= 0 else "right",
+                    color=C["text"], fontsize=12)
+        ax.grid(axis="y", visible=False)
+        ax.set_xticks([])
+        ax.set_title(titulo, loc="left", color=C["muted"], fontsize=15)
+    return _png(fig)

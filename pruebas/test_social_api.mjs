@@ -83,3 +83,16 @@ test("textos rechazados", async () => {
   assert.equal(r.status, 400);
   assert.equal((await pedir(env, "PUT", "/api/social/2026-11-10/textos", { piezas: [pieza()] })).status, 404);
 });
+
+test("hilos", async () => {
+  const env = entorno();
+  const d = { piezas: [{ id: "playbook", texto: "Playbook for Friday.", hilo: ["Reply one.", "Reply two."], graficos: ["indices_niveles"] }] };
+  assert.equal((await pedir(env, "PUT", `/api/social/${F}/textos`, d)).status, 200);
+  const r = await (await pedir(env, "GET", `/api/social/${F}`)).json();
+  assert.deepEqual(r.textos.piezas[0].hilo, ["Reply one.", "Reply two."]);
+  const largo = { piezas: [{ id: "a", texto: "ok", hilo: ["x".repeat(281)] }] };
+  const e = await pedir(env, "PUT", `/api/social/${F}/textos`, largo);
+  assert.equal(e.status, 400);
+  assert.match((await e.json()).error, /reply 1: 281 characters/);
+  assert.throws(() => validarPiezas({ piezas: [pieza({ hilo: ["a", "b", "c", "d", "e"] })] }, new Set(["indices_niveles"])), /at most 4 replies/);
+});

@@ -155,27 +155,32 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 - Pruebas: `python pruebas/test_report.py` (sin red; los gráficos solo si hay matplotlib) y
   `node --test pruebas/test_report_api.mjs`. Spec y plan en `docs/superpowers/`.
 
-**Social diario (posts para X, solo admin):** `social.yml` hace dos pasadas: a las 16:20 ET (cron del Worker,
-`tocaSocial`) con índices, VIX y próxima sesión, y al acabar el historial diario (`workflow_run` de "Historial
-diario", solo si acabó bien) para añadir las acciones (solo si la primera no las tenía y `hist500/_dias/{F}.json`
-ya existe). La segunda pasada no recalcula los índices: CBOE deja de publicar las cadenas hacia las 17:15 ET, así
-que solo añade el bloque de acciones y su gráfico al paquete de la primera. También a mano (input `forzar`, que lo
-rehace todo y por eso solo funciona entre las 16:20 y las 17:15 ET). El VIX sale de las cotizaciones de CBOE (familia VIX con su cierre
-anterior) y la serie histórica del VIX, no de `hist500`. Ejecuta `social_diario.py`: calcula SPX, NDX y
-RUT con la cadena de CBOE al cierre (motor Perfil, todos los vencimientos, posición estándar; no están en `hist500`),
-lee `hist500/_skew.json.gz` (cierre, IV ATM y volumen de opciones de toda la lista: movimiento en sigmas con la IV de
-ayer, salto de IV y volumen frente a su media de 20 sesiones), `hist500/_niveles/` (niveles de las acciones citadas y
-movimiento implícito de SPY, QQQ e IWM para el primer día) y `pub/eventos.json` (eventos de la sesión siguiente). Cada bloque trae `motivos` y `destacado`. Gráficos en
-`social_graficos.py` (1600 x 900, paleta Bento oscura). Sin hacer nada si la sesión ya está (salvo `--forzar`) o el
-mercado está abierto. Los textos los escribe `/x-diario` en Claude Code (`.claude/skills/x-diario/`).
-- R2: `social/{F}/paquete.json`, `social/{F}/g/{nombre}.png`, `social/ultimo.json` y `social/{F}/textos.json`
-  (`{piezas: [{id, titulo, texto, graficos, alt, publicado}]}`). No se borran.
+**Social diario (posts para X, solo admin):** página Research > Social (`web/social.js|css`, modo `social` de
+`TOOLS`; el botón y el modo solo existen con `ME.admin` en la nube). Cada cierre, la conclusión del día y el playbook
+de la sesión siguiente. `social.yml` ejecuta `social_diario.py` en dos pasadas:
+- **Cierre** (16:20 ET, cron del Worker `tocaSocial`): SPX, NDX y RUT con la cadena de CBOE al cierre (motor Perfil,
+  todos los vencimientos, posición estándar; no están en `hist500`), familia VIX de las cotizaciones de CBOE y su serie
+  histórica, mercados cruzados (`MERCADOS`, `SECTORES`, `AMPLITUD`: una petición a Tradier con
+  `fuente_tradier.cotizaciones`; el workflow pone `GEX_FUENTE=cboe` para que las cadenas no gasten cupo de Tradier; sin
+  token, CBOE símbolo a símbolo), bitcoin y ether al contado (CoinGecko, sin clave) y eventos de la sesión siguiente
+  (`pub/eventos.json`). Movimiento implícito de hoy: el del paquete anterior o, el primer día, `m1_pct` de SPY, QQQ e
+  IWM en `hist500/_niveles/`. R2 `social/{F}/paquete.json` y `social/ultimo.json`.
+- **Acciones** (al acabar el historial diario, `workflow_run` de "Historial diario" si acabó bien y
+  `hist500/_dias/{F}.json` existe): añade al paquete el bloque de acciones con `hist500/_skew.json.gz` (movimiento en
+  sigmas con la IV de ayer, salto de IV, volumen de opciones frente a su media de 20 sesiones, valores al alza y a la
+  baja) y los niveles de las citadas. No recalcula los índices: CBOE deja de publicar las cadenas hacia las 17:15 ET.
+  `forzar` lo rehace todo, así que solo funciona entre las 16:20 y las 17:15 ET.
+Cada bloque trae `motivos` y `destacado`. Gráficos en `social_graficos.py` (1600 x 900, paleta Bento oscura):
+`indices_niveles`, `perfil_{sym}`, `playbook`, `mercados`, `vix_curva` y `acciones_sigma`. Los textos los escribe
+`/x-diario` en Claude Code (`.claude/skills/x-diario/`, con su guía de estilo).
+- R2: además, `social/{F}/g/{nombre}.png` y `social/{F}/textos.json` (`{piezas: [{id, titulo, texto, hilo, graficos,
+  alt, publicado}]}`). No se borran.
 - Worker (`nube/social.js`): `GET /api/social/dias`, `GET /api/social/{F}` (`{paquete, textos}`),
-  `GET /api/social/{F}/g/{nombre}.png`, `PUT /api/social/{F}/textos` (máx. 12 posts, 280 caracteres y 4 imágenes
-  cada uno; conserva la marca de publicado por `id`) y `POST /api/social/{F}/publicado`. Con sesión de admin (la
-  sección Social de `/admin`: `web/social.js|css`) o con `Authorization: Bearer <REPORT_TOKEN>` (el skill); si no, 403/404.
-- Pruebas: `python pruebas/test_social.py` (sin red; los gráficos solo si hay matplotlib) y
-  `node --test pruebas/test_social_api.mjs`.
+  `GET /api/social/{F}/g/{nombre}.png`, `PUT /api/social/{F}/textos` (máx. 12 piezas, hilos de hasta 4 respuestas,
+  280 caracteres por post, 4 imágenes; conserva la marca de publicado por `id`) y `POST /api/social/{F}/publicado`.
+  Con sesión de admin o con `Authorization: Bearer <REPORT_TOKEN>` (el skill); si no, 403/404.
+- Pruebas: `python pruebas/test_social.py` (sin red; los gráficos solo si hay matplotlib),
+  `node --test pruebas/test_social_api.mjs` y, con red, `pruebas/tradier_mercados.py` en `prueba_tradier.yml`.
 
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El motor solo precalcula la lente Gamma del mapa. Las lentes `delta` y `charm` (`heatmap(lens=...)`, clave con

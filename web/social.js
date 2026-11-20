@@ -1,137 +1,179 @@
-// GEX Lab - seccion Social de /admin: publicaciones para X de cada cierre (graficos de social_diario.py y textos
-// de /x-diario). Copiar texto o imagen, descargar el PNG y marcar lo publicado. Solo el admin (rutas /api/social/).
 "use strict";
-(function () {
-  const $ = (id) => document.getElementById(id);
-  const cuerpo = $("socBody"), selDia = $("socDia");
-  if (!cuerpo || !selDia) return;
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  const MAX = 280;
-  const largo = (s) => [...String(s)].length;   // como nube/social.js
-  const MES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const DIA = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const fecha = (iso) => { const d = new Date(iso + "T12:00:00Z"); return `${DIA[d.getUTCDay()]} ${MES[d.getUTCMonth()]} ${d.getUTCDate()}`; };
-  const MOTIVO = {
-    move_vs_implied_big: "moved more than implied", move_vs_implied_small: "moved less than implied", regime_flip: "gamma regime flipped",
-    near_call_wall: "close near the Call Wall", near_put_wall: "close near the Put Wall", big_sigma_move: "big move in sigmas",
-    iv_jump: "IV jump", options_volume_spike: "options volume spike", big_vix_move: "big VIX move",
-    term_structure_inverted: "VIX curve inverted", vix_high_percentile: "VIX high vs last year", monthly_opex: "monthly opex",
-    high_impact_event: "high-impact event",
-  };
+/* ============================================================ Social (Research, solo el administrador)
+   Posts para X de cada cierre: la conclusion del dia y el playbook de la sesion siguiente, en hilos, mas posts
+   sueltos (acciones, VIX). Datos y graficos de social_diario.py (hacia las 16:25 ET; las acciones, al acabar el
+   historial diario); textos de /x-diario en Claude Code. Rutas /api/social/* (nube/social.js). Copiar texto o imagen,
+   descargar el PNG y marcar lo publicado. Globales con prefijo soc. */
 
-  async function pedir(ruta, datos) {
-    const r = await fetch(ruta, datos === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(datos) });
-    const d = await r.json().catch(() => ({}));
-    if (r.status === 401) { location.href = "/login"; throw new Error("Session expired"); }
-    if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
-    return d;
-  }
-  const png = (f, n) => `/api/social/${f}/g/${encodeURIComponent(n)}.png`;
+const soc = { dias: null, dia: null, datos: null, at: 0, ctrl: null };
+const SOC_MAX = 280;
+const socLargo = (s) => [...String(s)].length;   // como nube/social.js
+const SOC_MOTIVO = {
+  move_vs_implied_big: "moved more than implied", move_vs_implied_small: "moved less than implied",
+  regime_flip: "gamma regime flipped", near_call_wall: "close near the Call Wall", near_put_wall: "close near the Put Wall",
+  big_sigma_move: "big move in sigmas", iv_jump: "IV jump", options_volume_spike: "options volume spike",
+  big_vix_move: "big VIX move", term_structure_inverted: "VIX curve inverted", vix_high_percentile: "VIX high vs last year",
+  monthly_opex: "monthly opex", high_impact_event: "high-impact event", narrow_breadth: "narrow breadth",
+  broad_selloff: "broad selloff", broad_rally: "broad rally", big_cross_asset_move: "big cross-asset move",
+};
+const socFecha = (iso) => { const d = new Date(iso + "T12:00:00Z"); return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" }); };
+const socPng = (n) => `/api/social/${soc.dia}/g/${encodeURIComponent(n)}.png`;
+const socPct = (v) => (v == null ? "-" : `${v >= 0 ? "+" : ""}${v}%`);
+const socMotivos = (b) => (b.motivos && b.motivos.length ? ", " + b.motivos.map((m) => esc(SOC_MOTIVO[m] || m)).join(", ") : "");
 
-  function resumen(paq) {
-    const chips = [];
-    for (const [sym, b] of Object.entries(paq.indices || {})) {
-      if (b.estado !== "ok") { chips.push(`<span class="soc-chip off">${esc(sym)}: no data</span>`); continue; }
-      chips.push(`<span class="soc-chip"><b>${esc(sym)}</b> ${b.cambio_pct >= 0 ? "+" : ""}${esc(b.cambio_pct)}%${b.motivos.length ? ", " + b.motivos.map((m) => esc(MOTIVO[m] || m)).join(", ") : ""}</span>`);
+function showSocial() {
+  if (soc.dias) { renderSocial(); setStatus("", socStatus()); }
+  if (!soc.dias || Date.now() - soc.at > 300000) loadSocial();
+}
+function socStatus() { return soc.datos ? `Close of ${socFecha(soc.dia)}` : ""; }
+
+async function socPide(ruta, datos) {
+  const r = await fetch(ruta, datos === undefined ? { signal: soc.ctrl && soc.ctrl.signal } : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(datos) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || `Error ${r.status}`);
+  return d;
+}
+
+async function loadSocial() {
+  if (soc.ctrl) soc.ctrl.abort();
+  soc.ctrl = new AbortController();
+  $("refreshBtn").classList.add("spin");
+  setStatus("busy", "Loading posts…");
+  if (!soc.dias) $("socBody").innerHTML = `<div class="empty">Loading posts…</div>`;
+  try {
+    soc.dias = (await socPide("/api/social/dias")).dias;
+    if (!soc.dia || !soc.dias.includes(soc.dia)) soc.dia = soc.dias[0] || null;
+    soc.datos = soc.dia ? await socPide(`/api/social/${soc.dia}`) : null;
+    soc.at = Date.now();
+    if (state.mode === "social") { renderSocial(); setStatus("", socStatus()); }
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    if (state.mode === "social") {
+      setStatus("err", "No data");
+      $("socBody").innerHTML = `<div class="empty">${esc(e.message === "Failed to fetch" ? "The server is not responding." : e.message)}</div>`;
     }
-    for (const [k, nombre] of [["acciones", "Stocks"], ["vix", "VIX"], ["manana", "Next session"]]) {
-      const b = paq[k] || {};
-      if (b.estado !== "ok") chips.push(`<span class="soc-chip off">${nombre}: no data</span>`);
-      else if (b.motivos.length) chips.push(`<span class="soc-chip"><b>${nombre}</b> ${b.motivos.map((m) => esc(MOTIVO[m] || m)).join(", ")}</span>`);
+  } finally {
+    $("refreshBtn").classList.remove("spin");
+  }
+}
+
+function socResumen(paq) {
+  const chips = [];
+  for (const [sym, b] of Object.entries(paq.indices || {})) {
+    if (b.estado !== "ok") { chips.push(`<span class="soc-chip off">${esc(sym)}: no data</span>`); continue; }
+    chips.push(`<span class="soc-chip"><b>${esc(sym)}</b> ${socPct(b.cambio_pct)}${socMotivos(b)}</span>`);
+  }
+  const v = paq.vix || {};
+  chips.push(v.estado === "ok" ? `<span class="soc-chip"><b>VIX</b> ${esc(v.cierre)} (${socPct(v.cambio_pct)})${socMotivos(v)}</span>` : `<span class="soc-chip off">VIX: no data</span>`);
+  const m = paq.mercados || {};
+  if (m.estado === "ok") {
+    for (const [grupo, filas] of Object.entries(m.grupos || {})) {
+      const fila = (x) => (x.rendimiento_pct != null ? `10Y ${x.rendimiento_pct}%${x.cambio_pb != null ? ` (${x.cambio_pb >= 0 ? "+" : ""}${x.cambio_pb} bp)` : ""}` : `${esc(x.sym)} ${socPct(x.cambio_pct)}`);
+      if (filas.length) chips.push(`<span class="soc-chip"><b>${esc(grupo)}</b> ${filas.map(fila).join(", ")}</span>`);
     }
-    return `<div class="soc-chips">${chips.join("")}</div>`;
-  }
+    const a = m.amplitud || {};
+    if (a.sectores_total) chips.push(`<span class="soc-chip"><b>Sectors</b> ${a.sectores_suben}/${a.sectores_total} up${a.rsp_vs_spy != null ? `, RSP vs SPY ${socPct(a.rsp_vs_spy)}` : ""}${socMotivos(m)}</span>`);
+  } else chips.push(`<span class="soc-chip off">Cross-asset: no data</span>`);
+  const acc = paq.acciones || {};
+  chips.push(acc.estado === "ok" ? `<span class="soc-chip"><b>Stocks</b> ${acc.suben} up, ${acc.bajan} down${socMotivos(acc)}</span>`
+    : `<span class="soc-chip off">Stocks: after the daily history</span>`);
+  const n = paq.manana || {};
+  if (n.estado === "ok") chips.push(`<span class="soc-chip"><b>${esc(socFecha(n.sesion))}</b> ${(n.eventos || []).length ? n.eventos.map((e) => `${esc(e.hora || "")} ${esc(e.evento)}`).join(", ") : "no major events"}${n.opex_mensual ? ", monthly opex" : ""}</span>`);
+  return `<div class="soc-chips">${chips.join("")}</div>`;
+}
 
-  function imagen(f, n, alt) {
-    return `<figure class="soc-img"><img src="${png(f, n)}" alt="${esc(alt || n)}" loading="lazy" width="1600" height="900">
-      <figcaption><button class="ab ghost" data-copiar-img="${esc(n)}">Copy image</button>
-        <a class="ab ghost" href="${png(f, n)}" download="gexlab_${esc(f)}_${esc(n)}.png">Download</a></figcaption></figure>`;
-  }
+function socImagen(n, alt) {
+  return `<figure class="soc-img"><img src="${socPng(n)}" alt="${esc(alt || n)}" loading="lazy" width="1600" height="900">
+    <figcaption><button class="ghost" data-soc-img="${esc(n)}">Copy image</button>
+      <a class="ghost" href="${socPng(n)}" download="gexlab_${esc(soc.dia)}_${esc(n)}.png">Download</a></figcaption></figure>`;
+}
 
-  function pieza(f, p) {
-    const n = largo(p.texto);
-    return `<article class="soc-post${p.publicado ? " done" : ""}" data-id="${esc(p.id)}">
-      <header><h3>${esc(p.titulo || p.id)}</h3>
-        <label class="soc-pub"><input type="checkbox" data-publicado ${p.publicado ? "checked" : ""}> Posted</label></header>
-      <div class="soc-grid">
-        <div class="soc-imgs">${(p.graficos || []).map((g) => imagen(f, g, p.alt)).join("") || '<p class="mute">Text only</p>'}</div>
-        <div class="soc-txt">
-          <textarea rows="7" spellcheck="true" aria-label="Post text">${esc(p.texto)}</textarea>
-          <div class="soc-acc"><span class="soc-n${n > MAX ? " over" : ""}">${n}/${MAX}</span>
-            <button class="ab" data-copiar-txt>Copy text</button></div>
-          ${p.alt ? `<p class="soc-alt"><b>Alt text:</b> ${esc(p.alt)}</p>` : ""}
-        </div>
-      </div></article>`;
-  }
+function socTexto(t, etiqueta) {
+  const n = socLargo(t);
+  return `<div class="soc-txt"><div class="soc-lbl">${etiqueta}</div>
+    <textarea rows="${Math.min(9, Math.max(4, String(t).split("\n").length + 1))}" spellcheck="true" aria-label="${etiqueta}">${esc(t)}</textarea>
+    <div class="soc-acc"><span class="soc-n${n > SOC_MAX ? " over" : ""}">${n}/${SOC_MAX}</span><button class="ghost soc-copy" data-soc-txt>Copy text</button></div></div>`;
+}
 
-  async function cargar(f) {
-    cuerpo.innerHTML = '<p class="mute">Loading…</p>';
-    try {
-      const { paquete, textos } = await pedir(`/api/social/${f}`);
-      const usados = new Set((textos && textos.piezas || []).flatMap((p) => p.graficos || []));
-      const todos = ["indices", "acciones", "vix"].flatMap((k) => k === "indices"
-        ? Object.values(paquete.indices || {}).flatMap((b) => b.graficos || []) : (paquete[k] || {}).graficos || []);
-      const sueltos = [...new Set(todos)].filter((n) => !usados.has(n));
-      cuerpo.innerHTML = `<p class="when">Data for ${esc(fecha(paquete.fecha))} close, generated ${esc(paquete.generado)}. Next session ${esc(fecha(paquete.siguiente_sesion))}.</p>`
-        + resumen(paquete)
-        + (textos ? textos.piezas.map((p) => pieza(f, p)).join("")
-          : '<p class="soc-vacio">No texts yet for this day. Run <code>/x-diario</code> in Claude Code to write them.</p>')
-        + (sueltos.length ? `<h3 class="soc-h">${textos ? "Other charts" : "Charts"}</h3><div class="soc-imgs suelta">${sueltos.map((n) => imagen(f, n)).join("")}</div>` : "");
-    } catch (e) {
-      cuerpo.innerHTML = `<p class="msg err">${esc(e.message)}</p>`;
-    }
-  }
+function socPieza(p) {
+  const hilo = p.hilo || [];
+  return `<article class="soc-post${p.publicado ? " done" : ""}" data-id="${esc(p.id)}">
+    <header><h3>${esc(p.titulo || p.id)}${hilo.length ? `<span class="soc-hilo">Thread, ${hilo.length + 1} posts</span>` : ""}</h3>
+      <label class="soc-pub"><input type="checkbox" data-soc-pub ${p.publicado ? "checked" : ""}> Posted</label></header>
+    <div class="soc-grid">
+      <div class="soc-imgs">${(p.graficos || []).map((g) => socImagen(g, p.alt)).join("") || '<p class="soc-mute">Text only</p>'}</div>
+      <div class="soc-textos">${socTexto(p.texto, hilo.length ? "Post 1" : "Post")}${hilo.map((t, i) => socTexto(t, `Reply ${i + 1}`)).join("")}
+        ${p.alt ? `<p class="soc-alt"><b>Alt text:</b> ${esc(p.alt)}</p>` : ""}</div>
+    </div></article>`;
+}
 
-  async function avisar(btn, txt) {
-    const antes = btn.textContent;
-    btn.textContent = txt;
-    setTimeout(() => { btn.textContent = antes; }, 1400);
-  }
+function renderSocial() {
+  const body = $("socBody");
+  $("socDia").innerHTML = (soc.dias || []).map((d) => `<option value="${d}"${d === soc.dia ? " selected" : ""}>${esc(socFecha(d))}</option>`).join("");
+  if (!soc.dias || !soc.dias.length) { body.innerHTML = `<div class="empty">Nothing yet. The first package is made after the next close, around 16:25 ET.</div>`; return; }
+  const paq = (soc.datos || {}).paquete, textos = (soc.datos || {}).textos;
+  if (!paq) { body.innerHTML = `<div class="empty">No data for this day.</div>`; return; }
+  const usados = new Set((textos && textos.piezas || []).flatMap((p) => p.graficos || []));
+  const bloques = [...Object.values(paq.indices || {}), paq.acciones, paq.vix, paq.mercados];
+  const sueltos = [...new Set(bloques.flatMap((b) => (b && b.graficos) || []))].filter((n) => !usados.has(n));
+  body.innerHTML = `<p class="soc-when">Close of ${esc(socFecha(paq.fecha))}, data generated ${esc(paq.generado)}${paq.acciones_generado ? `, stocks ${esc(paq.acciones_generado.slice(11))}` : ""}. Playbook for ${esc(socFecha(paq.siguiente_sesion))}.</p>`
+    + socResumen(paq)
+    + (textos ? textos.piezas.map(socPieza).join("")
+      : `<div class="soc-vacio">No texts yet. Run <code>/x-diario</code> in Claude Code to write the recap and the playbook.</div>`)
+    + (sueltos.length ? `<h3 class="soc-h">${textos ? "Other charts" : "Charts"}</h3><div class="soc-imgs soc-suelta">${sueltos.map((n) => socImagen(n)).join("")}</div>` : "");
+}
 
-  cuerpo.addEventListener("input", (e) => {
-    if (e.target.tagName !== "TEXTAREA") return;
-    const n = largo(e.target.value), el = e.target.closest(".soc-txt").querySelector(".soc-n");
-    el.textContent = `${n}/${MAX}`;
-    el.classList.toggle("over", n > MAX);
+function socAviso(btn, txt) {
+  const antes = btn.textContent;
+  btn.textContent = txt;
+  setTimeout(() => { btn.textContent = antes; }, 1400);
+}
+
+function socInit() {
+  if (!$("socialView")) return;
+  $("socDia").addEventListener("change", async () => {
+    soc.dia = $("socDia").value;
+    $("socBody").innerHTML = `<div class="empty">Loading…</div>`;
+    try { soc.datos = await socPide(`/api/social/${soc.dia}`); renderSocial(); setStatus("", socStatus()); }
+    catch (e) { $("socBody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   });
-  cuerpo.addEventListener("click", async (e) => {
+  const body = $("socBody");
+  body.addEventListener("input", (e) => {
+    if (e.target.tagName !== "TEXTAREA") return;
+    const n = socLargo(e.target.value), el = e.target.closest(".soc-txt").querySelector(".soc-n");
+    el.textContent = `${n}/${SOC_MAX}`;
+    el.classList.toggle("over", n > SOC_MAX);
+  });
+  body.addEventListener("click", async (e) => {
     const b = e.target.closest("button");
     if (!b) return;
     try {
-      if (b.hasAttribute("data-copiar-txt")) {
+      if (b.hasAttribute("data-soc-txt")) {
         await navigator.clipboard.writeText(b.closest(".soc-txt").querySelector("textarea").value);
-        avisar(b, "Copied");
-      } else if (b.dataset.copiarImg) {
-        const blob = fetch(png(selDia.value, b.dataset.copiarImg)).then((r) => { if (!r.ok) throw new Error("Image not found"); return r.blob(); });
+        socAviso(b, "Copied");
+      } else if (b.dataset.socImg) {
+        const blob = fetch(socPng(b.dataset.socImg)).then((r) => { if (!r.ok) throw new Error("Image not found"); return r.blob(); });
         await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
-        avisar(b, "Copied");
+        socAviso(b, "Copied");
       }
     } catch (err) {
-      avisar(b, "Failed");
+      socAviso(b, "Failed");
       console.warn("social:", err);
     }
   });
-  cuerpo.addEventListener("change", async (e) => {
-    if (!e.target.hasAttribute("data-publicado")) return;
+  body.addEventListener("change", async (e) => {
+    if (!e.target.hasAttribute("data-soc-pub")) return;
     const art = e.target.closest(".soc-post");
     try {
-      await pedir(`/api/social/${selDia.value}/publicado`, { id: art.dataset.id, publicado: e.target.checked });
+      await socPide(`/api/social/${soc.dia}/publicado`, { id: art.dataset.id, publicado: e.target.checked });
       art.classList.toggle("done", e.target.checked);
+      const p = soc.datos.textos && soc.datos.textos.piezas.find((x) => x.id === art.dataset.id);
+      if (p) p.publicado = e.target.checked ? new Date().toISOString() : null;
     } catch (err) {
       e.target.checked = !e.target.checked;
-      alert(err.message);
+      setStatus("err", err.message);
     }
   });
-  selDia.addEventListener("change", () => cargar(selDia.value));
-
-  (async () => {
-    try {
-      const { dias } = await pedir("/api/social/dias");
-      if (!dias.length) { cuerpo.innerHTML = '<p class="mute">Nothing yet. The first package is made after the next close.</p>'; return; }
-      selDia.innerHTML = dias.map((d) => `<option value="${d}">${esc(fecha(d))}</option>`).join("");
-      cargar(dias[0]);
-    } catch (e) {
-      cuerpo.innerHTML = `<p class="msg err">${esc(e.message)}</p>`;
-    }
-  })();
-})();
+}
+socInit();

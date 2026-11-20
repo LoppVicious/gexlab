@@ -2219,9 +2219,11 @@ const TOOLS = {
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
   skewsig: { view: "skewSigView", ticker: false, show: () => showSigSkew(), render: () => renderSigSkew(), load: () => loadSigSkew() },
   takes: { view: "takesView", ticker: false, show: () => showTakes(), render: () => renderTakes(), load: (r) => loadTakes(r) },
+  social: { view: "socialView", ticker: false, show: () => showSocial(), render: () => renderSocial(), load: (r) => loadSocial(r) },
 };
 function setMode(m) {
   if (m === "risk" || m === "calc") m = "lab";   // secciones anteriores, unidas en Options Lab
+  if (m === "social" && !(ME && ME.admin && ME.nube)) m = "summary";   // Social: solo el administrador, en la nube
   state.mode = m; store.set("mode", m);
   syncNav();
   const tool = TOOLS[m];
@@ -3452,6 +3454,7 @@ const NAV = {
   navVix: { t: "VIX curve", go: () => setMode("vix") },
   navCorr: { t: "Correlation", go: () => setMode("corr") },
   navTakes: { t: "Founder Takes", go: () => setMode("takes") },
+  navSocial: { t: "Social", go: () => setMode("social") },
   navScan: { t: "Scanner", go: () => { setMode("scanner"); setScanView("table"); } },
   navCompass: { t: "Compass", go: () => { setMode("scanner"); setScanView("compass"); } },
   navValid: { t: "Validation", go: () => { setMode("scanner"); setScanView("valid"); } },
@@ -3470,6 +3473,7 @@ function currentNav() {
   if (m === "corr") return "navCorr";
   if (m === "skewsig") return "navSkew";
   if (m === "takes") return "navTakes";
+  if (m === "social") return "navSocial";
   if (m === "cot") return "navCot";
   if (m === "oi") return "navOI";
   if (m === "flow") return "navFlow";
@@ -3519,6 +3523,7 @@ function shellInit() {
     $("whoBox").hidden = false; $("whoName").textContent = ME.user; $("whoAv").textContent = (ME.user || "?").slice(0, 1);
     $("logoutNav").hidden = false;
     $("logoutNav").addEventListener("click", () => $("logoutBtn").click());
+    if (ME.admin && ME.nube) $("navSocial").hidden = false;
     if (ME.admin && ME.nube) { $("usersNav").hidden = false; $("usersNav").addEventListener("click", () => { location.href = "/admin"; }); }
   }
   syncNav();

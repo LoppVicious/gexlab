@@ -1,7 +1,8 @@
 name: Social diario
-# Paquete de datos y graficos del dia para X en R2 social/{fecha}/ (social_diario.py). Se lanza solo al acabar el
-# historial diario (necesita su indice de skew y la familia VIX) y a mano desde /x-diario en Claude Code; si la
-# sesion ya esta hecha no hace nada (salvo con forzar). Los textos los escribe Claude Code con /x-diario.
+# Datos y graficos del cierre para X en R2 social/{fecha}/ (social_diario.py): la conclusion del dia y el playbook de
+# la sesion siguiente. Dos pasadas: 16:20 ET (cron del Worker) con indices, VIX, mercados cruzados y proxima sesion, y
+# al acabar el historial diario (workflow_run) con las acciones. Si ya esta hecho no hace nada (salvo con forzar).
+# Los textos los escribe Claude Code con /x-diario.
 on:
   workflow_run:
     workflows: ["Historial diario"]
@@ -9,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       forzar:
-        description: "Rehacer la ultima sesion cerrada aunque ya este hecha"
+        description: "Rehacer la ultima sesion cerrada aunque ya este hecha (solo hasta las 17:15 ET)"
         type: boolean
         default: false
 concurrency:
@@ -38,5 +39,8 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
           GEX_ALMACEN: r2
+          # Tradier solo para las cotizaciones de los mercados cruzados (una peticion); las cadenas, de CBOE
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          GEX_FUENTE: cboe
           FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
         run: python social_diario.py $FORZAR

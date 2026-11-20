@@ -162,7 +162,7 @@ de la sesión siguiente. `social.yml` ejecuta `social_diario.py` en dos pasadas:
   todos los vencimientos, posición estándar; no están en `hist500`), familia VIX de las cotizaciones de CBOE y su serie
   histórica, mercados cruzados (`MERCADOS`, `SECTORES`, `AMPLITUD`: una petición a Tradier con
   `fuente_tradier.cotizaciones`; el workflow pone `GEX_FUENTE=cboe` para que las cadenas no gasten cupo de Tradier; sin
-  token, CBOE símbolo a símbolo), bitcoin y ether al contado (CoinGecko, sin clave) y eventos de la sesión siguiente
+  token, CBOE símbolo a símbolo; el 10 años, TNX, siempre de CBOE porque Tradier no lo tiene), bitcoin y ether al contado (CoinGecko, sin clave) y eventos de la sesión siguiente
   (`pub/eventos.json`). Movimiento implícito de hoy: el del paquete anterior o, el primer día, `m1_pct` de SPY, QQQ e
   IWM en `hist500/_niveles/`. R2 `social/{F}/paquete.json` y `social/ultimo.json`.
 - **Acciones** (al acabar el historial diario, `workflow_run` de "Historial diario" si acabó bien y

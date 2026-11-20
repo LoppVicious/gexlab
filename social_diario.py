@@ -276,18 +276,17 @@ def _bloque(nombre, fn) -> dict:
 
 
 def cotizaciones_cierre() -> dict:
-    """Mercados cruzados con Tradier (una peticion; necesita TRADIER_TOKEN) y, si no, CBOE simbolo a simbolo."""
+    """Mercados cruzados con Tradier (una peticion; necesita TRADIER_TOKEN) y lo que falte (el 10 anos, TNX, que
+    Tradier no tiene; o todo, sin token) de CBOE simbolo a simbolo."""
     simbolos = [s for lista in MERCADOS.values() for s, _, _ in lista] + list(SECTORES) + AMPLITUD
+    out = {}
     try:
         import fuente_tradier as ft
         if ft.token():   # aunque GEX_FUENTE=cboe (las cadenas, de CBOE, para no gastar cupo de Tradier)
             out = ft.cotizaciones(simbolos)
-            if out:
-                return out
     except Exception as e:  # noqa: BLE001
         log(f"cotizaciones de Tradier: {type(e).__name__}: {str(e)[:120]}")
-    out = {}
-    for s in simbolos:
+    for s in [x for x in simbolos if x not in out]:
         q = (g.fetch_quote(s, ttl=0) or {}).get("data") or {}
         ult, prev = q.get("close") or q.get("current_price"), q.get("prev_day_close")
         if ult and prev:

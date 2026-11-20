@@ -3,9 +3,17 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-20 — Social pasa a Research, y régimen de volatilidad en la curva del VIX y el Summary
+## 2026-11-20 — Sección Crypto, Social pasa a Research y régimen de volatilidad en la curva del VIX y el Summary
 
 **Añadido**
+- **Crypto** (nueva sección en la barra lateral): bitcoin y ether cada 15 minutos, todos los días. Exposición gamma de
+  las opciones de Deribit por strike con flip, Call Wall y Put Wall (7 días, 30 días o todos los vencimientos); mapa de
+  niveles con los de opciones y el coste on-chain (realized price y coste de los holders de corto y largo plazo);
+  precio frente a ese coste en los dos últimos años; DVOL de un año, estructura temporal de la volatilidad con risk
+  reversal y butterfly; vencimientos con nocional, put/call y max pain; basis de los futuros; funding, open interest y
+  ratio long/short de OKX; MVRV, flujos de exchanges, Fear & Greed, stablecoins y el top 15 por capitalización. Una
+  lectura por reglas separa la tendencia del posicionamiento (contrarian) y marca la capitulación o el
+  sobrecalentamiento. Fuentes gratuitas y sin clave.
 - **Régimen de volatilidad** (curva del VIX y Summary): VIX, VVIX, VIX3M/VIX y SKEW/VIX, cada uno con su zona
   (calma, estrés, zona de compra o complacencia) en una barra, y qué hizo el SPX desde 2010 tras los días de esa zona
   a 60 y 120 sesiones y su caída adicional típica. Niveles ajustados con un backtest desde 1990. En directo con la

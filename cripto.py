@@ -1,0 +1,265 @@
+"""GEX Lab - seccion Crypto: descarga, calcula (cripto_calc.py) y publica pub/cripto.json.
+
+Lo lanza cripto.yml cada 15 min (cron del Worker, 24/7). Fuentes gratis y sin clave: Deribit, OKX, CoinGecko,
+CoinMetrics Community, bitcoin-data.com, DefiLlama y alternative.me. Los datos diarios se guardan en
+cripto/diario.json y solo se renuevan cuando caducan. Diseno en docs/CRIPTO.md.
+
+Uso: GEX_ALMACEN=r2 python cripto.py   (en local: GEX_ALMACEN=local:./data/x)
+"""
+from __future__ import annotations
+
+import json
+import sys
+import time
+import urllib.parse
+from datetime import datetime, timedelta, timezone
+
+import almacen
+import cripto_calc as cc
+import gex_engine as g
+
+ACTIVOS = ("BTC", "ETH")
+CG_ID = {"BTC": "bitcoin", "ETH": "ethereum"}
+PUB = "pub/cripto.json"
+DIARIO = "cripto/diario.json"
+CADUCA_H = 6        # datos diarios: se renuevan si tienen mas de 6 h
+CADUCA_BD_H = 20    # bitcoin-data: 15 peticiones al dia; dos por dia como mucho
+REINTENTO_H = 2     # tras un fallo de una fuente diaria
+CM_METRICAS = "PriceUSD,CapMrktCurUSD,CapMVRVCur,SplyCur,FlowInExUSD,FlowOutExUSD,SplyExNtv"
+DERIBIT = "https://www.deribit.com/api/v2/public/"
+OKX = "https://www.okx.com/api/v5/"
+
+
+def http_json(url: str):
+    try:
+        b = g._fetch_python(url)
+    except g.NotFound:
+        raise
+    except Exception:  # noqa: BLE001  (certificados o red: el curl del sistema)
+        b = g._fetch_system(url)
+    return json.loads(b.decode("utf-8"))
+
+
+def deribit(metodo: str, **q):
+    d = http_json(DERIBIT + metodo + "?" + urllib.parse.urlencode(q))
+    if "result" not in d:
+        raise ValueError(f"Deribit {metodo}: {d.get('error')}")
+    return d["result"]
+
+
+def okx(ruta: str, **q):
+    d = http_json(OKX + ruta + "?" + urllib.parse.urlencode(q))
+    if str(d.get("code")) != "0":
+        raise ValueError(f"OKX {ruta}: {d.get('msg')}")
+    time.sleep(0.3)   # rubik: 5 peticiones cada 2 s
+    return d["data"]
+
+
+def _ms(dt: datetime) -> int:
+    return int(dt.timestamp() * 1000)
+
+
+def _dia(ms) -> str:
+    return datetime.fromtimestamp(int(ms) / 1000, timezone.utc).strftime("%Y-%m-%d")
+
+
+# ---------------------------------------------------------------- datos diarios
+def _caducado(bloque: dict | None, horas: float, ahora: datetime) -> bool:
+    if not bloque or not bloque.get("at"):
+        return True
+    return ahora - datetime.fromisoformat(bloque["at"]) > timedelta(hours=horas)
+
+
+def diario(st, ahora: datetime, errores: dict) -> dict:
+    d = almacen.get_json(st, DIARIO, {}) or {}
+    cambio = False
+    hace_1a = ahora - timedelta(days=400)
+
+    def renovar(clave, horas, fn):
+        nonlocal cambio
+        b = d.get(clave) or {}
+        if not _caducado(b, horas, ahora):
+            return
+        # tras un fallo, espera antes de reintentar (bitcoin-data: 15 peticiones al dia)
+        if b.get("fallo") and ahora - datetime.fromisoformat(b["fallo"]) < timedelta(hours=REINTENTO_H):
+            if not b.get("v"):
+                errores[clave] = "waiting to retry"
+            return
+        try:
+            d[clave] = {"at": ahora.isoformat(), "v": fn()}
+        except Exception as e:  # noqa: BLE001  (se queda el anterior)
+            errores[clave] = str(e)[:200]
+            d[clave] = {**b, "fallo": ahora.isoformat()}
+        cambio = True
+
+    for a in ACTIVOS:
+        def cm(a=a):
+            url = ("https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?" + urllib.parse.urlencode(
+                {"assets": a.lower(), "metrics": CM_METRICAS, "start_time": "2015-01-01", "page_size": 10000}))
+            filas = http_json(url)["data"]
+            if len(filas) < 1000:
+                raise ValueError(f"CoinMetrics {a}: {len(filas)} filas")
+            return filas
+        renovar(f"cm_{a}", CADUCA_H, cm)
+        renovar(f"dvol_{a}", CADUCA_H, lambda a=a: [[_dia(x[0]), x[4]] for x in deribit(
+            "get_volatility_index_data", currency=a, resolution="1D", start_timestamp=_ms(hace_1a),
+            end_timestamp=_ms(ahora))["data"]])
+        renovar(f"velas_{a}", CADUCA_H, lambda a=a: (lambda r: [[_dia(t), c] for t, c in zip(r["ticks"], r["close"])])(
+            deribit("get_tradingview_chart_data", instrument_name=f"{a}-PERPETUAL", resolution="1D",
+                    start_timestamp=_ms(hace_1a), end_timestamp=_ms(ahora))))
+    for serie in ("sth-realized-price", "lth-realized-price"):
+        campo = "sthRealizedPrice" if serie.startswith("sth") else "lthRealizedPrice"
+        renovar(f"bd_{serie[:3]}", CADUCA_BD_H, lambda serie=serie, campo=campo: [
+            [x["d"], float(x[campo])] for x in http_json(f"https://bitcoin-data.com/v1/{serie}") if x.get(campo)])
+    renovar("fng", CADUCA_H, lambda: http_json("https://api.alternative.me/fng/?limit=30")["data"])
+    renovar("stables", CADUCA_H, lambda: [[_dia(int(x["date"]) * 1000), x["totalCirculatingUSD"].get("peggedUSD")]
+                                          for x in http_json("https://stablecoins.llama.fi/stablecoincharts/all")[-60:]])
+    if cambio:
+        almacen.put_json(st, DIARIO, d)
+    return {k: v.get("v") for k, v in d.items()}
+
+
+# ---------------------------------------------------------------- en directo
+def mercado(dia: dict, errores: dict) -> dict:
+    out = {}
+    try:
+        top = http_json("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=15&page=1"
+                        "&price_change_percentage=24h,7d,30d")
+        out["top"] = [{"sym": c["symbol"].upper(), "nombre": c["name"], "id": c["id"], "precio": c["current_price"],
+                       "cap": c["market_cap"], "vol": c["total_volume"],
+                       "c24": c.get("price_change_percentage_24h_in_currency"),
+                       "c7": c.get("price_change_percentage_7d_in_currency"),
+                       "c30": c.get("price_change_percentage_30d_in_currency"),
+                       "ath_dist": c.get("ath_change_percentage")} for c in top]
+    except Exception as e:  # noqa: BLE001
+        errores["coingecko"] = str(e)[:200]
+    try:
+        gl = http_json("https://api.coingecko.com/api/v3/global")["data"]
+        out["cap_total"] = gl["total_market_cap"]["usd"]
+        out["cap_chg24"] = gl.get("market_cap_change_percentage_24h_usd")
+        out["dom"] = {k.upper(): v for k, v in gl["market_cap_percentage"].items() if k in ("btc", "eth")}
+    except Exception as e:  # noqa: BLE001
+        errores["coingecko_global"] = str(e)[:200]
+    if dia.get("fng"):
+        f = dia["fng"]
+        out["fng"] = {"valor": int(f[0]["value"]), "clase": f[0]["value_classification"],
+                      "semana": int(f[7]["value"]) if len(f) > 7 else None,
+                      "serie": [[_dia(int(x["timestamp"]) * 1000), int(x["value"])] for x in reversed(f)]}
+    s = [x for x in dia.get("stables") or [] if x[1]]
+    if len(s) > 30:
+        out["stables"] = {"total": s[-1][1], "chg30": round((s[-1][1] / s[-31][1] - 1) * 100, 2)}
+    return out
+
+
+def futuros(a: str, indice: float, ahora: datetime, errores: dict) -> dict:
+    out = {}
+    try:
+        filas = deribit("get_book_summary_by_currency", currency=a, kind="future")
+        out["basis"] = cc.basis(filas, indice, ahora)
+        perp = next((f for f in filas if f["instrument_name"] == f"{a}-PERPETUAL"), None)
+        if perp:
+            out["perp_oi_usd"] = perp.get("open_interest")
+            if perp.get("funding_8h") is not None:
+                out["funding_deribit"] = round(perp["funding_8h"] * 3 * 365 * 100, 2)
+    except Exception as e:  # noqa: BLE001
+        errores[f"deribit_futuros_{a}"] = str(e)[:200]
+    inst = f"{a}-USDT-SWAP"
+    try:
+        out["funding"] = round(float(okx("public/funding-rate", instId=inst)[0]["fundingRate"]) * 3 * 365 * 100, 2)
+        h = [float(x["fundingRate"]) for x in okx("public/funding-rate-history", instId=inst, limit=21)]
+        out["funding_7d"] = round(sum(h) / len(h) * 3 * 365 * 100, 2) if h else None
+    except Exception as e:  # noqa: BLE001
+        errores[f"okx_funding_{a}"] = str(e)[:200]
+    try:
+        oi = okx("rubik/stat/contracts/open-interest-volume", ccy=a, period="1D")   # mas reciente primero
+        out["oi_usd"] = float(oi[0][1])
+        if len(oi) > 7 and float(oi[7][1]):
+            out["oi_chg7"] = round((float(oi[0][1]) / float(oi[7][1]) - 1) * 100, 2)
+    except Exception as e:  # noqa: BLE001
+        errores[f"okx_oi_{a}"] = str(e)[:200]
+    try:
+        out["lsr"] = round(float(okx("rubik/stat/contracts/long-short-account-ratio", ccy=a, period="1D")[0][1]), 2)
+    except Exception as e:  # noqa: BLE001
+        errores[f"okx_lsr_{a}"] = str(e)[:200]
+    return out
+
+
+def activo(a: str, ahora: datetime, dia: dict, merc: dict, errores: dict) -> dict:
+    filas = deribit("get_book_summary_by_currency", currency=a, kind="option")
+    spot = next((f["estimated_delivery_price"] for f in filas if f.get("estimated_delivery_price")), None)
+    if not spot:
+        raise ValueError(f"Deribit {a}: sin precio del indice")
+    ch = cc.cadena(filas, ahora)
+    out = {"sym": a, "spot": round(spot, 2)}
+    cg = next((c for c in merc.get("top") or [] if c["id"] == CG_ID[a]), None)
+    velas = [c for _, c in dia.get(f"velas_{a}") or []]
+    if cg:
+        out.update(chg24=cg["c24"], chg7=cg["c7"], chg30=cg["c30"])
+    elif len(velas) > 31:
+        out.update(chg24=round((spot / velas[-2] - 1) * 100, 2), chg7=round((spot / velas[-8] - 1) * 100, 2),
+                   chg30=round((spot / velas[-31] - 1) * 100, 2))
+
+    out["gex"] = {k: cc.gex(cc.filtro(ch, ahora, d), spot) for k, d in cc.FILTROS.items()}
+    out["venc"] = cc.vencimientos(ch, ahora, spot)
+    oi_c, oi_p = float(ch["oi"][ch["call"]].sum()), float(ch["oi"][~ch["call"]].sum())
+    out["oi"] = {"calls": round(oi_c, 1), "puts": round(oi_p, 1), "pcr": round(oi_p / oi_c, 2) if oi_c else None,
+                 "nocional": round((oi_c + oi_p) * spot)}
+
+    term = cc.estructura(ch, ahora)
+    vol = {"term": term, "atm30": cc.a_plazo(term, "atm"), "rr25_30": cc.a_plazo(term, "rr25"),
+           "bf25_30": cc.a_plazo(term, "bf25")}
+    try:
+        vol["dvol"] = round(deribit("get_index_price", index_name=f"{a.lower()}dvol_usdc")["index_price"], 2)
+    except Exception as e:  # noqa: BLE001
+        errores[f"dvol_{a}"] = str(e)[:200]
+    dv = dia.get(f"dvol_{a}") or []
+    if dv:
+        vol["dvol"] = vol.get("dvol") or dv[-1][1]
+        ano = [v for _, v in dv[-365:]]
+        vol["dvol_pct"] = cc.percentil(ano, vol["dvol"])
+        vol["dvol_serie"] = dv[-365:]
+    vol["rv30"] = cc.vol_realizada(velas[:-1] + [spot]) if velas else None   # la vela de hoy, con el precio actual
+    if vol.get("dvol") is not None and vol["rv30"] is not None:
+        vol["vrp"] = round(vol["dvol"] - vol["rv30"], 2)
+    out["vol"] = vol
+    out["futuros"] = futuros(a, spot, ahora, errores)
+
+    sth = dia.get("bd_sth") if a == "BTC" else None
+    lth = dia.get("bd_lth") if a == "BTC" else None
+    out["onchain"] = cc.onchain(dia.get(f"cm_{a}") or [], spot, sth, lth)
+    out["niveles"] = cc.niveles(spot, out["gex"]["all"], out["onchain"], out["venc"])
+    out["lectura"] = cc.lectura(out, merc)
+    return out
+
+
+def main() -> int:
+    st = almacen.abrir()
+    ahora = datetime.now(timezone.utc).replace(microsecond=0)
+    errores: dict = {}
+    dia = diario(st, ahora, errores)
+    merc = mercado(dia, errores)
+    previo = almacen.get_json(st, PUB, {}) or {}
+    activos = {}
+    for a in ACTIVOS:
+        try:
+            activos[a] = activo(a, ahora, dia, merc, errores)
+        except Exception as e:  # noqa: BLE001  (se publica el anterior, marcado)
+            errores[f"activo_{a}"] = str(e)[:200]
+            if (previo.get("activos") or {}).get(a):
+                activos[a] = {**previo["activos"][a], "viejo": previo.get("generado")}
+    if not activos:
+        print("cripto: sin datos", json.dumps(errores), file=sys.stderr)
+        return 1
+    out = {"generado": ahora.isoformat(), "activos": activos, "mercado": merc, "errores": errores,
+           "umbrales": cc.UMBRALES}
+    n = almacen.put_json(st, PUB, out)
+    for a, x in activos.items():
+        lec = x.get("lectura") or {}
+        print(f"{a} {x['spot']:,.0f}  GEX {x['gex']['all']['total'] / 1e6:+,.1f} M$/1%  flip {x['gex']['all']['flip']}"
+              f"  CW {x['gex']['all']['call_wall']}  PW {x['gex']['all']['put_wall']}  -> {lec.get('resumen')}")
+    print(f"pub/cripto.json {n / 1024:.0f} KB, errores: {json.dumps(errores) if errores else 'ninguno'}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

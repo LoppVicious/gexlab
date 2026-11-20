@@ -602,6 +602,12 @@ function tocaSocial(d) {
   return ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(wd) && min === 16 * 60 + 20;
 }
 
+// seccion Crypto (cripto.yml): cada 15 min, todos los dias (el mercado cripto no cierra); a los 5 min del cuarto
+// (el reloj va cada 5) para no coincidir con el ciclo del motor
+function tocaCripto(d) {
+  return d.getUTCMinutes() % 15 === 5;
+}
+
 // historial diario (historial500.yml): dias laborables a las 16:30 ET; el script descarta festivos
 function tocaHistorial(d) {
   const { wd, min } = nyParts(d);
@@ -652,6 +658,7 @@ export default {
     if (tocaRapido(d)) ctx.waitUntil(dispatch(env, { modo: "rapido" }));
     if (tocaHistorial(d)) ctx.waitUntil(dispatch(env, {}, "historial500.yml"));
     if (tocaSocial(d)) ctx.waitUntil(dispatch(env, {}, "social.yml"));
+    if (tocaCripto(d)) ctx.waitUntil(dispatch(env, {}, "cripto.yml"));
     ctx.waitUntil(programarCalendario(env).catch((e) => console.log("calendario:", e.message)));
   },
 

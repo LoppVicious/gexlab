@@ -182,6 +182,15 @@ Cada bloque trae `motivos` y `destacado`. Gráficos en `social_graficos.py` (160
 - Pruebas: `python pruebas/test_social.py` (sin red; los gráficos solo si hay matplotlib),
   `node --test pruebas/test_social_api.mjs` y, con red, `pruebas/tradier_mercados.py` en `prueba_tradier.yml`.
 
+**Crypto (BTC y ETH, `docs/CRIPTO.md`):** `cripto.yml` cada 15 min, todos los días (cron del Worker `tocaCripto`, a
+los 5 min de cada cuarto), ejecuta `cripto.py`: Deribit (opciones, futuros, DVOL, velas), OKX (funding, OI, long/short),
+CoinGecko, CoinMetrics Community, bitcoin-data.com (STH y LTH realized price, 15 peticiones al día: se renueva cada
+20 h y espera 2 h tras un fallo), DefiLlama y alternative.me. Sin claves. Bybit y Binance bloquean las IP de Actions.
+- R2: `pub/cripto.json` (la web, `/api/crypto`) y `cripto/diario.json` (fuentes diarias, renovadas cada 6 h).
+- GEX con la metodología del motor Perfil en `cripto_calc.py`, no con `gex_engine.compute` (atado al horario de NYSE).
+- Pruebas: `python pruebas/test_cripto.py` (sin red); con red, `pruebas/cripto_fuentes.py` y `pruebas/cripto_actions.py`
+  (todo `cripto.py` con almacén local) en `comparar.yml`.
+
 **Claves de vista:** `{dte}_{range}_{pos}_{combo}` + `_gb` si el motor es gexbot + `_{sess}` en el mapa.
 El motor solo precalcula la lente Gamma del mapa. Las lentes `delta` y `charm` (`heatmap(lens=...)`, clave con
 `_delta`/`_charm` en `nube.js`) no están en R2: el navegador las calcula con el paquete y las guarda en memoria hasta

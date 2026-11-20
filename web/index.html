@@ -18,6 +18,7 @@
 <link rel="stylesheet" href="takes.css">
 <link rel="stylesheet" href="social.css">
 <link rel="stylesheet" href="trading.css">
+<link rel="stylesheet" href="cripto.css">
 <link rel="stylesheet" href="tema.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f8"</script>
 </head>
@@ -40,6 +41,8 @@
       <button class="item" id="navVol" data-title="Volatility dashboard" title="Volatility dashboard"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Volatility dashboard</span></button>
       <button class="item" id="navVix" data-title="VIX curve" title="VIX curve"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">VIX curve</span></button>
       <button class="item" id="navCorr" data-title="Correlation" title="Implied correlation and dispersion"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="10" r="4.5"/><circle cx="12.5" cy="10" r="4.5"/></svg><span class="lbl">Correlation</span></button>
+    <div class="sec">Crypto</div>
+      <button class="item" id="navCrypto" data-title="Crypto" title="Bitcoin and ether: options gamma, on-chain cost basis, leverage and volatility"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M8 6.5v7M8 6.5h3a1.75 1.75 0 0 1 0 3.5H8M8 10h3.4a1.75 1.75 0 0 1 0 3.5H8M9.5 5v1.5M9.5 13.5V15"/></svg><span class="lbl">Crypto</span></button>
     <div class="sec">Research</div>
       <button class="item" id="navTakes" data-title="Founder Takes" title="Founder Takes"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3.5h7l3 3V16a.5.5 0 0 1-.5.5h-9.5a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M12 3.5V7h3M7.5 10h5M7.5 13h3.5"/></svg><span class="lbl">Takes</span></button>
       <button class="item" id="navSocial" data-title="Social" title="Posts for X after the close: the day and the next-day playbook (only you)" hidden><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15.5V8.5l6-4 6 4v7"/><path d="M4 15.5h12"/><path d="M7.5 12.5l2-2 1.5 1.5 2.5-3"/></svg><span class="lbl">Social</span></button>
@@ -590,6 +593,73 @@
   </section>
 </main>
 
+<main class="macro cx-view" id="cryptoView" hidden>
+  <aside class="cx-side" aria-label="Crypto reading">
+    <div class="seg boxed" role="radiogroup" aria-label="Asset" id="cxSym"><button role="radio" data-v="BTC" aria-checked="true">BTC</button><button role="radio" data-v="ETH" aria-checked="false">ETH</button></div>
+    <div class="mhead">
+      <div class="sym" id="cxTitle">—</div>
+      <div class="mstate" id="cxState">—</div>
+      <div class="msub" id="cxSub"></div>
+    </div>
+    <div class="cx-axes" id="cxAxes"></div>
+    <div class="cx-read" id="cxRead"></div>
+    <div class="facts" id="cxFacts"></div>
+    <p class="cx-err" id="cxErr" hidden></p>
+    <p class="mnote"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p>
+  </aside>
+  <section class="cx-main">
+    <div class="cx-panel cx-wide">
+      <div class="mchart-head cx-head">
+        <span class="mtitle">Gamma exposure</span>
+        <div class="seg boxed" role="radiogroup" aria-label="Expirations" id="cxFilt"><button role="radio" data-v="7" aria-checked="false">7 days</button><button role="radio" data-v="30" aria-checked="false">30 days</button><button role="radio" data-v="all" aria-checked="true">All</button></div>
+      </div>
+      <p class="chart-caption cx-cap" id="cxGexCap"></p>
+      <div class="cx-chart cx-tall" id="cxGex" role="img" aria-label="Gamma exposure by strike"></div>
+    </div>
+    <div class="cx-panel cx-wide">
+      <div class="mchart-head"><span class="mtitle">Levels map</span><p class="chart-caption">Options levels and on-chain cost bases on one price line; the bar is the price.</p></div>
+      <div class="cx-chart cx-levels" id="cxLevels" role="img" aria-label="Map of price levels"></div>
+    </div>
+    <div class="cx-panel">
+      <div class="mchart-head"><span class="mtitle">Price against cost basis</span></div>
+      <p class="chart-caption cx-cap" id="cxCostCap"></p>
+      <div class="cx-chart" id="cxCost" role="img" aria-label="Price against realized price"></div>
+    </div>
+    <div class="cx-panel">
+      <div class="mchart-head"><span class="mtitle">Implied volatility</span></div>
+      <p class="chart-caption cx-cap" id="cxDvolCap"></p>
+      <div class="cx-chart" id="cxDvol" role="img" aria-label="DVOL over the last year"></div>
+    </div>
+    <div class="cx-panel">
+      <div class="mchart-head"><span class="mtitle">Term structure</span></div>
+      <p class="chart-caption cx-cap" id="cxTermCap"></p>
+      <div class="cx-chart" id="cxTerm" role="img" aria-label="Implied volatility term structure"></div>
+    </div>
+    <div class="cx-panel">
+      <div class="mchart-head"><span class="mtitle">Futures basis</span><p class="chart-caption">Deribit futures against the index, annualized</p></div>
+      <div class="cx-tw"><table class="scan cx-table">
+        <thead><tr><th class="l">Expiry</th><th>Days</th><th title="Future over the index">Premium</th><th>Annualized</th><th title="Open interest, USD">OI</th></tr></thead>
+        <tbody id="cxBasisBody"></tbody>
+      </table></div>
+    </div>
+    <div class="cx-panel cx-wide">
+      <div class="mchart-head"><span class="mtitle">Expirations</span><p class="chart-caption">Deribit options. Highlighted: expirations with at least 10% of the open interest, whose settlement can pull price toward max pain.</p></div>
+      <div class="cx-tw"><table class="scan cx-table">
+        <thead><tr><th class="l">Expiry</th><th>Days</th><th>Notional</th><th title="Put open interest / call open interest">Put/call</th><th title="Settlement price at which option buyers collect the least">Max pain</th><th>From price</th><th>ATM IV</th><th title="25-delta call IV minus 25-delta put IV">25Δ RR</th></tr></thead>
+        <tbody id="cxExpBody"></tbody>
+      </table></div>
+    </div>
+    <div class="cx-panel cx-wide">
+      <div class="mchart-head"><span class="mtitle">Market</span><p class="chart-caption">Largest coins by market cap (CoinGecko)</p></div>
+      <div class="cx-tw"><table class="scan cx-table">
+        <thead><tr><th class="l">#</th><th class="l">Coin</th><th>Price</th><th>24h</th><th>7d</th><th>30d</th><th>Market cap</th><th>From high</th></tr></thead>
+        <tbody id="cxMktBody"></tbody>
+      </table></div>
+    </div>
+    <div class="tip" id="cxTip" hidden></div>
+  </section>
+</main>
+
 <main class="macro tk-view" id="takesView" hidden>
   <div class="scan-bar tk-bar">
     <input class="tk-q" id="tkQ" type="search" placeholder="Search takes" aria-label="Search takes" autocomplete="off">
@@ -666,6 +736,7 @@
 <script src="vol.js"></script>
 <script src="corr.js"></script>
 <script src="skewsig.js"></script>
+<script src="cripto.js"></script>
 <script src="takes-md.js"></script>
 <script src="takes.js"></script>
 <script src="social.js"></script>

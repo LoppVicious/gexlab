@@ -293,6 +293,12 @@ class Handler(SimpleHTTPRequestHandler):
             if not d:
                 return self._json(503, {"error": "Skew signal: no data yet. The daily history computes it after each close."})
             return self._json(200, d)
+        if url.path == "/api/crypto":  # lo calcula cripto.py (cripto.yml en la nube); aqui se lee del almacen
+            import almacen
+            d = almacen.get_json(almacen.abrir(), "pub/cripto.json")
+            if not d:
+                return self._json(503, {"error": "Crypto: no data yet. Run cripto.py to compute it."})
+            return self._json(200, d)
         if url.path == "/api/takes" or url.path.startswith("/api/takes/"):
             return self._json(404, {"error": "Founder Takes are available in the cloud version."})
         if url.path != "/api/gex":

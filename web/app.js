@@ -2218,6 +2218,7 @@ const TOOLS = {
   calendar: { view: "calView", ticker: false, show: () => showCal(), render: () => renderCal(), load: (r) => loadCal(r) },
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
   skewsig: { view: "skewSigView", ticker: false, show: () => showSigSkew(), render: () => renderSigSkew(), load: () => loadSigSkew() },
+  crypto: { view: "cryptoView", ticker: false, show: () => showCrypto(), render: () => renderCrypto(), load: () => loadCrypto() },
   takes: { view: "takesView", ticker: false, show: () => showTakes(), render: () => renderTakes(), load: (r) => loadTakes(r) },
   social: { view: "postsView", ticker: false, show: () => showSocial(), render: () => renderSocial(), load: (r) => loadSocial(r) },
 };
@@ -3493,6 +3494,7 @@ const NAV = {
   navVol: { t: "Volatility dashboard", go: () => setMode("vol") },
   navVix: { t: "VIX curve", go: () => setMode("vix") },
   navCorr: { t: "Correlation", go: () => setMode("corr") },
+  navCrypto: { t: "Crypto", go: () => setMode("crypto") },
   navTakes: { t: "Founder Takes", go: () => setMode("takes") },
   navSocial: { t: "Social", go: () => setMode("social") },
   navScan: { t: "Scanner", go: () => { setMode("scanner"); setScanView("table"); } },
@@ -3512,6 +3514,7 @@ function currentNav() {
   if (m === "vix") return "navVix";
   if (m === "corr") return "navCorr";
   if (m === "skewsig") return "navSkew";
+  if (m === "crypto") return "navCrypto";
   if (m === "takes") return "navTakes";
   if (m === "social") return "navSocial";
   if (m === "cot") return "navCot";

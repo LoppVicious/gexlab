@@ -72,6 +72,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   debajo de 1, curva invertida, igual que en el régimen de volatilidad y en TradingView.
 
 **Corregido**
+- **Crypto, mapa de liquidaciones y cupo de Coinalyze:** cada visita pedía los datos dos veces y gastaba el doble del
+  cupo (40 peticiones por minuto). Además, si las liquidaciones reales fallaban por el cupo, la lectura decía que no
+  había datos: ahora lo explica y las vuelve a pedir a los 30 segundos.
 - **VIX al cierre en la curva del VIX:** salía «—» cuando el histórico diario aún no traía el cierre del día; ahora se
   toma del cierre oficial de CBOE y la curva vuelve a empezar en el VIX.
 - **Datos que venían de las cotizaciones de CBOE** (dan 403 desde el 2026-11-20, también los históricos y los gráficos

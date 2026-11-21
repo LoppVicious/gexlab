@@ -109,7 +109,11 @@ async function lqCargar(forzar = false) {
   const desde = cfg.desde || hasta - cfg.dias * 86400 * (1 + lq.extra);
   const clave = [a.sym, lq.tf, syms.join(","), desde].join("|");
   if (!forzar && clave === lq.clave && lq.datos && Date.now() - lq.at < 60000) { lqCalcular(); return; }
+  // la misma carga ya en curso: no se cancela ni se repite (cada peticion gasta del cupo de Coinalyze, 40 por minuto,
+  // aunque el navegador la cancele)
+  if (!forzar && clave === lq.enCurso) return;
   if (lq.ctrl) lq.ctrl.abort();
+  lq.enCurso = clave;
   lq.ctrl = new AbortController();
   $("lqCarga").hidden = false;
   lqMensaje("");
@@ -117,7 +121,7 @@ async function lqCargar(forzar = false) {
     const [ohlcv, oi, liq] = await Promise.all([
       lqPedir("ohlcv", [a.velas], cfg, desde, hasta),
       syms.length ? lqPedir("oi", syms, cfg, desde, hasta) : [],
-      syms.length ? lqPedir("liq", syms, cfg, desde, hasta).catch(() => []) : [],
+      syms.length ? lqPedir("liq", syms, cfg, desde, hasta).catch((e) => (e.name === "AbortError" ? Promise.reject(e) : { error: e.message })) : [],
     ]);
     const velas = ((ohlcv[0] || {}).history || []).filter((v) => v.h > 0 && v.l > 0).sort((p, q) => p.t - q.t);
     if (velas.length < 20) throw new Error(`Not enough ${cfg.nombre} history for ${a.sym}`);
@@ -139,15 +143,31 @@ async function lqCargar(forzar = false) {
       if (dOI[i] != null) { acc = (acc ?? 0) + dOI[i]; if (oiCum[i - 1] == null && i > 0) oiCum[i - 1] = acc - dOI[i]; }
       oiCum[i] = acc;
     }
-    const L = LQ_MODELO.sumar(liq, "l"), S = LQ_MODELO.sumar(liq, "s");
-    const t0 = Math.min(...[...L.keys(), ...S.keys(), Infinity]);
-    const realL = ts.map((t) => (t >= t0 ? L.get(t) || 0 : null)), realS = ts.map((t) => (t >= t0 ? S.get(t) || 0 : null));
-    lq.datos = { velas, oi: oiCum, nivel, realL, realS, conOI, exs, sym: a.sym, tf: lq.tf };
+    lq.datos = { velas, oi: oiCum, nivel, conOI, exs, sym: a.sym, tf: lq.tf };
+    lqReales(liq);
     lq.clave = clave; lq.at = Date.now(); lq.resClave = "";
     lqCalcular(true);
+    // liquidaciones reales que fallaron (casi siempre por el cupo de Coinalyze): se reintentan una vez a los 30 s
+    clearTimeout(lq.reintento);
+    if (liq && liq.error) lq.reintento = setTimeout(async () => {
+      if (lq.clave !== clave) return;
+      try { lqReales(await lqPedir("liq", syms, cfg, desde, hasta)); lqSeries(false); lqLectura(); } catch { /* sigue sin ellas */ }
+    }, 30000);
   } catch (e) {
     if (e.name !== "AbortError") lqMensaje(e.message === "Failed to fetch" ? "The server is not responding." : e.message);
-  } finally { $("lqCarga").hidden = true; }
+  } finally {
+    if (lq.enCurso === clave) lq.enCurso = "";
+    $("lqCarga").hidden = true;
+  }
+}
+
+// liquidaciones reales por vela (suma de los perpetuos elegidos); si la peticion fallo, quedan sin dato y se avisa
+function lqReales(liq) {
+  const d = lq.datos, ts = d.velas.map((v) => v.t);
+  d.liqError = liq && liq.error ? liq.error : "";
+  const L = LQ_MODELO.sumar(d.liqError ? [] : liq, "l"), S = LQ_MODELO.sumar(d.liqError ? [] : liq, "s");
+  const t0 = Math.min(...[...L.keys(), ...S.keys(), Infinity]);
+  d.realL = ts.map((t) => (t >= t0 ? L.get(t) || 0 : null)); d.realS = ts.map((t) => (t >= t0 ? S.get(t) || 0 : null));
 }
 
 /* ---------- modelo y dibujo */
@@ -418,7 +438,8 @@ function lqLectura() {
   const i0 = Math.max(0, r.desdeOI);
   const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null || i < i0 ? 0 : r.predL[i] + r.predS[i])),
     d.realL.map((x, i) => (x == null || i < i0 ? null : x + d.realS[i])));
-  const calidad = !aj ? "not enough real liquidation data" : aj.r >= 0.5 ? "good" : aj.r >= 0.3 ? "fair" : "weak";
+  const calidad = d.liqError ? "real liquidations unavailable right now (the data source is busy); retrying in 30 seconds"
+    : !aj ? "not enough real liquidation data" : aj.r >= 0.5 ? "good" : aj.r >= 0.3 ? "fair" : "weak";
   const desde = r.desdeOI >= 0 ? new Date(d.velas[r.desdeOI].t * 1000).toISOString().slice(0, 10) : null;
   const ex = (lq.merc.exchanges || {});
   $("lqRead").innerHTML = `

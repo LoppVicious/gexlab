@@ -37,7 +37,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   intradía): el tipo libre de riesgo del Summary vuelve a ser el de la letra a 13 semanas (IRX) y no el 4 % fijo; el IV
   rank del Compass y de la ficha, la volatilidad realizada, la correlación implícita, el pre-market por ETF de los
   índices, la IV a 30 días de la ficha, las velas intradía de las acciones y el paquete de X (curva del VIX y el 10 años)
-  vuelven a tener datos. Salen de Tradier y, para los índices de CBOE (VIX y familia, IRX, TNX, COR...), de sus cierres
+  vuelven a tener datos, igual que el régimen de volatilidad, el régimen gamma y los tramos de la curva del VIX (que
+  usan el SPX desde 2009). Salen de Tradier y, para los índices de CBOE (VIX y familia, IRX, TNX, COR...), de sus cierres
   oficiales diarios. La IV a 30 días pasa a ser la IV ATM del vencimiento más cercano a 30 días.
 - **Régimen de volatilidad** (curva del VIX y Summary): con el mercado cerrado, los cuatro indicadores salen siempre
   del mismo cierre. CBOE no publica los cierres a la vez y la tarjeta podía mostrar el VVIX del día con el VIX, el

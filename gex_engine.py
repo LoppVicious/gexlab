@@ -739,7 +739,8 @@ _aux_cache: dict[str, tuple[float, dict]] = {}
 def _aux_alt(kind: str, symbol: str) -> dict | None:
     """Sustituto de los graficos de delayed_quotes (403 desde el 2026-11-20) en el mismo formato. Historico: CSV
     oficial de CBOE para sus indices (VIX y familia, IRX...) y velas diarias de Tradier para el resto y para los indices
-    cuyo CSV solo trae el cierre (SPX: la volatilidad Yang-Zhang necesita apertura, maximo y minimo). Intradia: velas
+    cuyo CSV solo trae el cierre (SPX: la volatilidad Yang-Zhang necesita apertura, maximo y minimo; antes de 2010,
+    cierres del CSV). Intradia: velas
     de 1 min de Tradier (no tiene las de NDX ni RUT). Tradier solo con token (Actions)."""
     csv_ = None
     if kind == "historical" and (symbol in INDEX_SYMBOLS or symbol in CBOE_VOL_INDICES or symbol in ("SKEW", "VVIX")):
@@ -752,7 +753,10 @@ def _aux_alt(kind: str, symbol: str) -> dict | None:
         if not ft.token():
             return csv_
         if kind == "historical":
-            return ft.historico(symbol)
+            h = ft.historico(symbol)
+            if csv_:  # Tradier empieza en 2010: los cierres anteriores, del CSV (curva_tramos y datos_1sigma los usan)
+                h["data"] = [r for r in csv_["data"] if r["date"] < h["data"][0]["date"]] + h["data"]
+            return h
         if kind == "intraday":
             return ft.velas(symbol)
     except Exception:  # noqa: BLE001  (navegador sin el modulo, o Tradier sin el simbolo)

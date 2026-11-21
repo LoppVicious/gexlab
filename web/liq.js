@@ -243,10 +243,11 @@ function lqCalcular(nuevos = false) {
   const d = lq.datos;
   if (!d) return;
   const cfg = LQ_TF[d.tf];
-  const levs = LQ_MODELO.APAL.map((x) => ({ ...x, w: lq.levOff.has(String(x.L)) ? 0 : x.w }));
-  const clave = [lq.clave, levs.map((x) => x.w).join(","), lq.vida].join("|");
+  // ocultar un apalancamiento solo quita sus franjas: el reparto y los colores siguen calculados con todos
+  const ver = LQ_MODELO.APAL.map((x) => x.L).filter((L) => !lq.levOff.has(String(L)));
+  const clave = [lq.clave, ver.join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel });
+    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel });
     lq.resClave = clave; lq.imgClave = "";
   }
   if (!lq.res) { lqMensaje("Choose at least one leverage."); return; }

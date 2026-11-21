@@ -106,6 +106,26 @@ test("rejilla de dibujo: tamano constante mientras el nivel vive", () => {
   assert.ok(Math.abs(col(21) - 500) < 1e-3);   // el largo, tocado en la vela 20; el corto sigue
 });
 
+test("ocultar apalancamientos solo quita sus franjas: tamanos y escala de color no cambian", () => {
+  const velas = [];
+  for (let i = 0; i < 80; i++) velas.push(vela(i, 100 + 5 * Math.sin(i / 6), { bv: 30 + (i % 7) * 5 }));
+  const oi = velas.map((_, i) => 1000 + i * 40 - (i % 9 === 0 ? 150 : 0));
+  const nivel = oi.map((x) => x * 3);
+  const todo = M.calcular(velas, oi, { vida: 30, nivel });
+  const poco = M.calcular(velas, oi, { vida: 30, nivel, ver: [5, 10] });
+  assert.equal(poco.topeV, todo.topeV);   // misma escala de color
+  for (let k = 0; k < poco.niveles.N; k++) {   // cada nivel visible, con el mismo tamano que con todos
+    const j = [...Array(todo.niveles.N).keys()].find((q) => todo.niveles.i[q] === poco.niveles.i[k]
+      && todo.niveles.p[q] === poco.niveles.p[k] && todo.niveles.lado[q] === poco.niveles.lado[k]);
+    assert.ok(j != null && Math.abs(todo.niveles.a[j] - poco.niveles.a[k]) < 1e-6);
+  }
+  assert.ok(poco.niveles.N < todo.niveles.N && poco.niveles.N > 0);
+  const suma = (r) => r.finL.reduce((a, b) => a + b, 0) + r.finS.reduce((a, b) => a + b, 0);
+  assert.ok(suma(poco) < suma(todo));   // lo vivo visible es una parte, no todo el OI
+  assert.deepEqual(Array.from(poco.predL), Array.from(todo.predL));   // previstas: todos los apalancamientos
+  assert.equal(M.calcular(velas, oi, { ver: [] }), null);
+});
+
 test("en el mapa un nivel solo desaparece cuando el precio lo toca, no por la memoria", () => {
   const velas = Array.from({ length: 60 }, (_, i) => vela(i, 100));
   const oi = velas.map((_, i) => (i >= 1 ? 1000 : 0));

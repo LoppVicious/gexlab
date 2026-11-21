@@ -14,6 +14,9 @@
       fuerza con el tiempo (vida media en velas): una posicion de hace meses casi seguro que ya no existe.
    El calor de cada casilla (precio x vela) es lo vivo en ese tramo de precio en esa vela. Rejilla de precios
    logaritmica, para que sirva igual en 5 min que en diario desde 2019.
+   Opcion `ver` (lista de apalancamientos): el reparto, la escala al OI y la escala de color se calculan siempre con
+   todos los de `levs`; los que no estan en `ver` solo se quitan de lo que se dibuja y de la lectura (rejillas, perfil,
+   niveles), asi ocultar uno no cambia el tamano ni el color de los demas. Las liquidaciones previstas cuentan todos.
    Lo dibuja web/liq.js; lo prueba pruebas/test_liq.mjs con node (module.exports). */
 
 const LQ_MODELO = (() => {
@@ -40,7 +43,8 @@ const LQ_MODELO = (() => {
     // o.ancho: fraccion del rango de la vela (a cada lado del precio medio) en que se reparte cada nivel; 0 (por
     // defecto) lo deja en un solo tramo: niveles nitidos
     const ancho = o.ancho || 0;
-    if (!n || !levs.length) return null;
+    const ver = o.ver ? new Set(o.ver.map(Number)) : null, visible = (L) => !ver || ver.has(L);
+    if (!n || !levs.length || !levs.some((x) => visible(x.L))) return null;
     const pw = levs.reduce((a, x) => a + x.w, 0);
     const tip = velas.map((v) => (v.h + v.l + v.c) / 3);
 
@@ -82,8 +86,8 @@ const LQ_MODELO = (() => {
       for (const x of levs) {
         const w = x.w / pw;
         const fL = 1 - 1 / x.L + mm, fS = 1 + 1 / x.L - mm;
-        largos.push({ p: tip[i] * fL, a: nuevo[i] * fc * w, f: fL });
-        cortos.push({ p: tip[i] * fS, a: nuevo[i] * (1 - fc) * w, f: fS });
+        largos.push({ p: tip[i] * fL, a: nuevo[i] * fc * w, f: fL, vis: visible(x.L) });
+        cortos.push({ p: tip[i] * fS, a: nuevo[i] * (1 - fc) * w, f: fS, vis: visible(x.L) });
       }
       // largos: el mas alto cae antes; se recorre hacia delante una vez con el minimo acumulado
       largos.sort((p, q) => q.p - p.p);
@@ -110,9 +114,9 @@ const LQ_MODELO = (() => {
         if (bc < 0 && b0 < 0 && b1 < 0) continue;
         if (b0 < 0) b0 = bc >= 0 ? bc : 0;
         if (b1 < 0) b1 = bc >= 0 ? bc : B - 1;
-        altas[i].push([lado, b0, b1, x.a]);
-        if (x.fin != null) bajas[x.fin].push([lado, b0, b1, x.a, i]);
-        lista_.push([i, x.fin ?? n, x.p, lado, x.a]);
+        altas[i].push([lado, b0, b1, x.a, x.vis]);
+        if (x.fin != null) bajas[x.fin].push([lado, b0, b1, x.a, i, x.vis]);
+        lista_.push([i, x.fin ?? n, x.p, lado, x.a, x.vis]);
       }
     }
 
@@ -128,18 +132,24 @@ const LQ_MODELO = (() => {
       const r = dOI[t] < 0 && base > 0 ? Math.max(0.05, 1 - -dOI[t] / base) : 1;
       const f = dec * r;
       m *= f; M[t] = m;
+      // total: lo vivo de todos los apalancamientos (para la escala); SL y SS: solo los visibles
       for (let b = 0; b < B; b++) { SL[b] *= f; SS[b] *= f; }
-      for (const [lado, b0, b1, a] of altas[t]) {
+      total *= f;
+      for (const [lado, b0, b1, a, vis] of altas[t]) {
+        total += a;
+        if (!vis) continue;
         const S = lado ? SS : SL, q = a / (b1 - b0 + 1);
         for (let b = b0; b <= b1; b++) S[b] += q;
       }
-      for (const [lado, b0, b1, a, i] of bajas[t]) {
-        const vivo = M[i] > 0 ? (a * m) / M[i] : 0, S = lado ? SS : SL, q = vivo / (b1 - b0 + 1);
-        for (let b = b0; b <= b1; b++) S[b] = Math.max(0, S[b] - q);
+      for (const [lado, b0, b1, a, i, vis] of bajas[t]) {
+        const vivo = M[i] > 0 ? (a * m) / M[i] : 0;
+        total = Math.max(0, total - vivo);
         if (lado) predS[t] += vivo; else predL[t] += vivo;
+        if (!vis) continue;
+        const S = lado ? SS : SL, q = vivo / (b1 - b0 + 1);
+        for (let b = b0; b <= b1; b++) S[b] = Math.max(0, S[b] - q);
       }
-      total = 0;
-      for (let b = 0; b < B; b++) { gL[b * n + t] = SL[b]; gS[b * n + t] = SS[b]; total += SL[b] + SS[b]; }
+      for (let b = 0; b < B; b++) { gL[b * n + t] = SL[b]; gS[b * n + t] = SS[b]; }
       // escala: el cambio de OI de una vela es neto (lo que se abre y se cierra dentro se anula), asi que el modelo
       // acierta la forma pero no el tamano. Cada posicion abierta tiene su precio de liquidacion: con el OI de la vela
       // (o.nivel), lo vivo se escala para sumar ese OI
@@ -159,9 +169,10 @@ const LQ_MODELO = (() => {
     // niveles sueltos para dibujarlos como franjas de color fijo: inicio, fin (vela en que el precio lo toca o en que
     // la memoria lo da por cerrado: le queda menos de VIVO_MIN de lo que nacio), precio, lado y tamano al nacer (USD,
     // con la escala del OI). M solo baja: el fin por memoria sale de una busqueda binaria
-    const N = lista_.length, nivI = new Int32Array(N), nivFin = new Int32Array(N), nivP = new Float64Array(N),
+    const vis_ = lista_.filter((x) => x[5]);
+    const N = vis_.length, nivI = new Int32Array(N), nivFin = new Int32Array(N), nivP = new Float64Array(N),
       nivLado = new Uint8Array(N), nivA = new Float64Array(N);
-    lista_.forEach(([i, fin, pr, lado, a], k) => {
+    vis_.forEach(([i, fin, pr, lado, a], k) => {
       const corte = M[i] * VIVO_MIN;
       let lo = i + 1, hi = n;   // primera vela con M < corte
       while (lo < hi) { const mid = (lo + hi) >> 1; if (M[mid] < corte) hi = mid; else lo = mid + 1; }
@@ -170,24 +181,31 @@ const LQ_MODELO = (() => {
     // rejilla de dibujo: en cada tramo y vela, la suma de los niveles vivos a su tamano al nacer. En el mapa un nivel
     // solo desaparece cuando el precio lo toca (la memoria cuenta para el perfil y la lectura, no aqui): cada banda
     // mantiene el color hasta que la tocan o se le suman otros
-    const gV = new Float32Array(B * n);
-    for (let k = 0; k < N; k++) {
-      const b = binDe(nivP[k]), toque = lista_[k][1];
-      if (b < 0 || toque <= nivI[k]) continue;
-      gV[b * n + nivI[k]] += nivA[k];
-      if (toque < n) gV[b * n + toque] -= nivA[k];
-    }
-    const muestra = [], cada = Math.max(1, Math.floor((B * n) / 60000));
-    for (let b = 0; b < B; b++) {
-      let acc = 0;
-      for (let t = 0; t < n; t++) {
-        acc += gV[b * n + t];
-        const v = acc > 1e-9 ? acc : 0;
-        gV[b * n + t] = v;
-        if (v > 0 && (b * n + t) % cada === 0) muestra.push(v);
+    const cada = Math.max(1, Math.floor((B * n) / 60000));
+    const rejilla = (niveles, muestra) => {
+      const g = new Float32Array(B * n);
+      for (const [i, toque, pr, , a] of niveles) {
+        const b = binDe(pr), aE = a * (escala[i] || 1);
+        if (b < 0 || toque <= i) continue;
+        g[b * n + i] += aE;
+        if (toque < n) g[b * n + toque] -= aE;
       }
-    }
-    // escala fija del mapa (percentil 99,9 de las casillas con algo): no depende del zoom ni de lo que se ve
+      for (let b = 0; b < B; b++) {
+        let acc = 0;
+        for (let t = 0; t < n; t++) {
+          acc += g[b * n + t];
+          const v = acc > 1e-9 ? acc : 0;
+          g[b * n + t] = v;
+          if (muestra && v > 0 && (b * n + t) % cada === 0) muestra.push(v);
+        }
+      }
+      return g;
+    };
+    // escala fija del mapa (percentil 99,9 de las casillas con algo, con todos los apalancamientos): no depende del
+    // zoom ni de los apalancamientos que se ven
+    const muestra = [];
+    const gTodo = rejilla(lista_, muestra);
+    const gV = vis_.length === lista_.length ? gTodo : rejilla(vis_, null);
     muestra.sort((x, y) => x - y);
     const topeV = muestra.length ? muestra[Math.min(muestra.length - 1, Math.floor(muestra.length * 0.999))] : 1;
     return { n, B, bordes, gL, gS, gV, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),

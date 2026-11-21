@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-22 — Mapa de liquidaciones: Expand y pantalla completa, carga más fluida; historial diario con BRK.B y BF.B
+## 2026-11-22 — Mapa de liquidaciones: Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B
 
 **Añadido**
 - **Crypto, mapa de liquidaciones, Expand:** agranda el mapa dentro de la página, con el resto oscurecido; se cierra
@@ -16,6 +16,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   activo o marco ya visto en la sesión es inmediato; los clics seguidos solo cargan el último; si la fuente está al
   límite, el mapa espera lo que indica y reintenta solo, con una cuenta atrás, o enseña la copia anterior; y las
   liquidaciones reales llegan después del mapa, sin retrasarlo.
+- **Crypto, mapa de liquidaciones, ocultar un apalancamiento:** ahora solo quita sus franjas. Antes el open interest
+  se repartía entre los que quedaban marcados y la escala de color se recalculaba, así que los demás niveles crecían en
+  dólares y cambiaban de color. Los grupos, la presión y el perfil cuentan solo lo visible; el acierto frente a las
+  liquidaciones reales sigue usando todos.
 - **Crypto, mapa de liquidaciones, colores estables:** el color ya no cambia al hacer zoom (la escala es fija para cada
   activo y marco, no la de lo que se ve, y cada fila muestra el precio más cargado que contiene en vez de sumarlos), y
   una franja solo desaparece cuando el precio la toca. Antes la memoria las daba por cerradas a medio camino; ahora

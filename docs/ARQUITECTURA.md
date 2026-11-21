@@ -98,7 +98,9 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
   - `chain`: cadena compacta (`chain_to_min`, contratos con OI o volumen); se recalcula con `parse_chain({"_min": chain})`.
   - `levels[posición][motor][filtro]`: los mismos campos que el histórico (`_snap`), rango 5 %, estándar y flujo, calculados
     tras el cierre. Todos los filtros de la barra; el 0DTE solo con vencimientos diarios (≥4 en 7 días).
-  - `hist500/_niveles/{SYM}.json.gz`: índice `{fecha: levels}` con los campos que usa la Validación (`CAMPOS_INDICE`).
+  - `hist500/_niveles/{SYM}.json.gz`: índice `{fecha: levels}` con los campos que usa la Validación (`CAMPOS_INDICE`),
+    flip y probabilidades implícitas de cierre (`pc_*`; al reconstruirlo, `g.completar_probs` las calcula con la cadena
+    guardada para los días anteriores al 2026-11-21).
     Se actualiza con cada sesión y se reconstruye con todos los días si falta (`historial500.py --indice`, o el
     workflow con `indice`). `motor.fase_listas` lo lee para los tickers de las listas y `g.validation(extra=...)` lo
     usa para las sesiones que falten en `history/{SYM}.json` (foto tras el cierre, como la clave `fecha|filtro`).
@@ -356,6 +358,14 @@ Los dos:
   varianza forward del tramo por encima de la mediana y de un vecino, `EVENT_RATIO`). `summary`: IV30 sin modelo (en
   el SPX da el VIX), realizada, prima de varianza frente a la de cierre a cierre de 20 sesiones, forma y evento.
   `realized`: Yang-Zhang y cierre a cierre por ventana, y cono del último año; no se calcula en el VIX y su familia.
+  `dists`: distribución implícita del próximo vencimiento (aunque sea diario) y de cada smile (`g.dist_json`, rejilla
+  de 200 puntos, densidad relativa a su máximo y CDF).
+- **Distribución implícita** (`g.implied_distribution`, Breeden-Litzenberger): IV fuera de dinero por strike (sin
+  |delta| < 0,02), interpolada en log-strike, plana fuera de los strikes y suavizada (gaussiana de `DIST_SMOOTH` = 0,2σ
+  ATM: sin ella el ruido de strikes contiguos de SPX y NDX daba un 10-20 % de densidad negativa); calls de Black sobre
+  el forward y segunda derivada. `clip` = masa negativa recortada (`noisy` > 5 %). `compute` añade `level_probs`
+  (`level_dists`: próximo vencimiento y el semanal de esa semana; probabilidad de cerrar más allá de Call Wall, Put Wall
+  y flip y de tocarlos, estimada como el doble). `_snap` guarda `pc_exp`, `pc_cw`, `pc_pw` y `pc_flip`.
 - **Histórico:** clave `fecha|filtro+variante`, con `c` (combo), `f` (flujo) y `s` (SpotGamma); `|a` = foto ex ante;
   `|i` = niveles durante la sesión (Trading Window), lista de filas; quien lea el histórico debe saltarla.
 

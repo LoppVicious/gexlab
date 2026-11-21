@@ -3,9 +3,16 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Crypto: mapa de liquidaciones, señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; datos sin la API de cotizaciones de CBOE
+## 2026-11-21 — Crypto: mapa de liquidaciones, señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; distribución implícita y probabilidades de los niveles; datos sin la API de cotizaciones de CBOE
 
 **Añadido**
+- **Distribución implícita y probabilidades de los niveles:** la distribución del precio al vencimiento que descuentan
+  las opciones (a partir del smile de cada vencimiento). En la tarjeta del rango de 1σ, la probabilidad de cerrar el
+  próximo vencimiento por encima del Call Wall, por debajo del Put Wall y al otro lado del flip, y la de tocarlos antes
+  (estimada); al pasar el ratón, la del viernes. En Volatility, vista nueva Distribution: densidad frente a la
+  lognormal de la IV ATM, ±1σ, percentiles, niveles del ticker con su probabilidad y probabilidad por encima y por
+  debajo de cualquier precio. Las probabilidades de cierre se guardan cada día con los niveles para comprobar más
+  adelante si se cumplen.
 - **Crypto, mapa de liquidaciones** (pestaña Liquidations): dónde se liquidarían las posiciones apalancadas abiertas,
   estimado como Coinglass o Hyblock, para cualquier moneda del top 250 con perpetuos en Binance, Bybit, OKX o
   Hyperliquid. Velas de 5 min a diarias (diario desde 2019, con open interest real desde 2022); mapa de calor sobre el

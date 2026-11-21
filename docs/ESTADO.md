@@ -3,6 +3,9 @@
 Última revisión: 2026-11-11. Cambios hechos: ver `CHANGELOG.md`.
 
 ## Pendiente / ideas apuntadas por el usuario
+- **Probabilidades implícitas de los niveles** (primera versión el 2026-11-21): con 20-30 sesiones en
+  `hist500/_niveles/` (`pc_*`, rellenables desde el 2026-11-04 con `historial500.py --indice`), comparar la frecuencia
+  real de cierres más allá de cada nivel con la implícita (calibración, en la Validación).
 - **Report semanal** (primera versión el 2026-11-13, `/report-semanal`): siguientes posibles: report diario sin LLM,
   tarea programada, percentiles de rebalanceo con el histórico de AUM de ProShares (lo publica por día), ajustar los
   umbrales de destacado tras los primeros reports.

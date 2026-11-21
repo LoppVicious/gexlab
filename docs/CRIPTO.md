@@ -160,9 +160,11 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
 - **Niveles sueltos** (`niveles` del modelo): inicio, fin (vela en que el precio lo toca o en que le queda menos de
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
 - **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer (diferencias
-  por tramo y suma acumulada). No decae por el camino: cada banda mantiene el color hasta que cambia lo que contiene.
-- **Dibujo** (`lqPintar`), como Bitunix: filas de 8 px (`LQ_BANDA`) con la suma de los tramos que caen en cada una y
-  1 px de separación, una columna por vela visible. Color frente al máximo de lo visible (`lqPaleta`: azul marino casi
+  por tramo y suma acumulada). En el mapa un nivel solo desaparece cuando el precio lo toca (la memoria cuenta para el
+  perfil, la presión y los grupos, no aquí). Escala fija `topeV`: percentil 99,9 de las casillas con algo.
+- **Dibujo** (`lqPintar`): filas de 8 px (`LQ_BANDA`) con el tramo más cargado de los que caen en cada una (no la
+  suma: el zoom no enciende las filas) y 1 px de separación, una columna por vela visible. Color frente a `topeV`, fijo
+  para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: azul marino casi
   transparente lo flojo, verde, amarillo y rojo sólidos, colores del tema); solo lo que pasa la intensidad mínima
   (15 %). Por defecto sin 5x ni 10x (`lqLevOff2`): sus niveles casi nunca se tocan y llenaban el historial. Perfil
   con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.

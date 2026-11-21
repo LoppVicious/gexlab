@@ -10,6 +10,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   con el mismo botón o con Esc. Full screen sigue llevándolo a pantalla completa.
 
 **Corregido**
+- **Crypto, mapa de liquidaciones, colores estables:** el color ya no cambia al hacer zoom (la escala es fija para cada
+  activo y marco, no la de lo que se ve, y cada fila muestra el precio más cargado que contiene en vez de sumarlos), y
+  una franja solo desaparece cuando el precio la toca. Antes la memoria las daba por cerradas a medio camino; ahora
+  la memoria solo cuenta para el perfil, la presión y los grupos de la lectura.
 - **Crypto, mapa de liquidaciones:** Full screen y Older abrían además una ventana de gráfico ampliado vacía, que
   quedaba a la vista al salir de la pantalla completa.
 

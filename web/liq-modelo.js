@@ -167,20 +167,30 @@ const LQ_MODELO = (() => {
       while (lo < hi) { const mid = (lo + hi) >> 1; if (M[mid] < corte) hi = mid; else lo = mid + 1; }
       nivI[k] = i; nivFin[k] = Math.min(fin, lo); nivP[k] = pr; nivLado[k] = lado; nivA[k] = a * (escala[i] || 1);
     });
-    // rejilla de dibujo: en cada tramo y vela, la suma de los niveles vivos a su tamano al nacer. Sin decaer por el
-    // camino: cada banda mantiene el color hasta que el precio la toca, la memoria la cierra o se le suman otros
+    // rejilla de dibujo: en cada tramo y vela, la suma de los niveles vivos a su tamano al nacer. En el mapa un nivel
+    // solo desaparece cuando el precio lo toca (la memoria cuenta para el perfil y la lectura, no aqui): cada banda
+    // mantiene el color hasta que la tocan o se le suman otros
     const gV = new Float32Array(B * n);
     for (let k = 0; k < N; k++) {
-      const b = binDe(nivP[k]);
-      if (b < 0 || nivFin[k] <= nivI[k]) continue;
+      const b = binDe(nivP[k]), toque = lista_[k][1];
+      if (b < 0 || toque <= nivI[k]) continue;
       gV[b * n + nivI[k]] += nivA[k];
-      if (nivFin[k] < n) gV[b * n + nivFin[k]] -= nivA[k];
+      if (toque < n) gV[b * n + toque] -= nivA[k];
     }
+    const muestra = [], cada = Math.max(1, Math.floor((B * n) / 60000));
     for (let b = 0; b < B; b++) {
       let acc = 0;
-      for (let t = 0; t < n; t++) { acc += gV[b * n + t]; gV[b * n + t] = acc > 1e-9 ? acc : 0; }
+      for (let t = 0; t < n; t++) {
+        acc += gV[b * n + t];
+        const v = acc > 1e-9 ? acc : 0;
+        gV[b * n + t] = v;
+        if (v > 0 && (b * n + t) % cada === 0) muestra.push(v);
+      }
     }
-    return { n, B, bordes, gL, gS, gV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+    // escala fija del mapa (percentil 99,9 de las casillas con algo): no depende del zoom ni de lo que se ve
+    muestra.sort((x, y) => x - y);
+    const topeV = muestra.length ? muestra[Math.min(muestra.length - 1, Math.floor(muestra.length * 0.999))] : 1;
+    return { n, B, bordes, gL, gS, gV, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
       niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA },
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }

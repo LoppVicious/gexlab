@@ -248,9 +248,9 @@ function lqTramosEntre(serie, yArriba, yAbajo) {
   return [Math.max(0, Math.min(lo, hi)), Math.min(B - 1, Math.max(lo, hi))];
 }
 
-// mapa de la vista, como Bitunix: filas de LQ_BANDA pixeles con la suma de los niveles vivos de sus tramos de precio
-// (a su tamano al nacer, r.gV) y una columna por vela visible (o por pixel si hay mas velas que pixeles), con 1 px de
-// separacion entre filas. Color frente al maximo de lo que se ve: azul tenue lo flojo, verde, amarillo y rojo
+// mapa de la vista: filas de LQ_BANDA pixeles con el tramo de precio mas cargado de cada una (niveles vivos a su
+// tamano al nacer, r.gV) y una columna por vela visible (o por pixel si hay mas velas que pixeles), con 1 px de
+// separacion entre filas. Color frente a la escala fija del activo (r.topeV): azul tenue lo flojo, verde, amarillo y rojo
 // los grupos; lo que no pasa la intensidad minima no se pinta
 function lqPintar(serie, ancho, alto, c0, c1) {
   const r = lq.res, n = r.n, cols = c1 - c0 + 1;
@@ -262,21 +262,19 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   const colDe = new Int32Array(outW);
   for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
   const val = new Float64Array(nb * outW);
-  let tope = 0;
   for (let f = 0; f < nb; f++) {
     const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
     if (!tr) continue;
     for (let k = 0; k < outW; k++) {
       const t = colDe[k];
+      // el tramo mas cargado de la fila (no la suma): al alejar el zoom una fila abarca mas tramos y no debe encenderse
       let v = 0;
-      for (let b = tr[0]; b <= tr[1]; b++) v += g[b * n + t];
+      for (let b = tr[0]; b <= tr[1]; b++) if (g[b * n + t] > v) v = g[b * n + t];
       val[f * outW + k] = v;
-      if (v > tope) tope = v;
     }
   }
-  // escala frente al maximo de lo visible: lo normal queda bajo (azul tenue) y solo destacan los grupos
-  if (!(tope > 0)) tope = 1;
-  const umbral = (lq.min / 100) * tope;
+  // escala fija del activo y el marco (r.topeV, del modelo): el zoom cambia la resolucion, nunca los colores
+  const tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope;
   const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
@@ -460,7 +458,7 @@ function lqLectura() {
   $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Estimated liquidation levels of open leveraged positions: brighter means more size. ` +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, volume-based" : ""}.` : "No open interest for this choice: volume-based estimate.") +
     (r.escalado ? " Sizes scaled so the live levels add up to the open interest of each candle." : "") +
-    ` Position memory: half-life of ${fmtNum(cfg.vida * +lq.vida)} candles. Bottom panel: real liquidations (longs down, shorts up).`;
+    ` Each level stays on the map until price reaches it; position memory (half-life of ${fmtNum(cfg.vida * +lq.vida)} candles) sets how much is still open in the profile and the reading. Bottom panel: real liquidations (longs down, shorts up).`;
 }
 
 /* ---------- eventos */

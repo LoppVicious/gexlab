@@ -105,3 +105,13 @@ test("rejilla de dibujo: tamano constante mientras el nivel vive", () => {
   assert.ok(Math.abs(col(2) - 1000) < 1e-3 && Math.abs(col(15) - 1000) < 1e-3);   // sin decaer: largo + corto
   assert.ok(Math.abs(col(21) - 500) < 1e-3);   // el largo, tocado en la vela 20; el corto sigue
 });
+
+test("en el mapa un nivel solo desaparece cuando el precio lo toca, no por la memoria", () => {
+  const velas = Array.from({ length: 60 }, (_, i) => vela(i, 100));
+  const oi = velas.map((_, i) => (i >= 1 ? 1000 : 0));
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 2, mm: 0 });   // memoria muy corta
+  let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + 59];
+  assert.ok(Math.abs(s - 1000) < 1e-3);   // largo y corto siguen en el mapa: el precio no los ha tocado
+  assert.ok(r.niveles.fin[0] < 59);       // pero la memoria los da por cerrados para la lectura
+  assert.ok(r.topeV > 0);
+});

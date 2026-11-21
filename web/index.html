@@ -623,21 +623,24 @@
 
 <main class="macro cx-view" id="cryptoView" hidden>
   <aside class="cx-side" aria-label="Crypto reading">
-    <div class="seg boxed" role="radiogroup" aria-label="Asset" id="cxSym"><button role="radio" data-v="BTC" aria-checked="true">BTC</button><button role="radio" data-v="ETH" aria-checked="false">ETH</button></div>
-    <div class="mhead">
-      <div class="sym" id="cxTitle">—</div>
-      <div class="mstate" id="cxState">—</div>
-      <div class="msub" id="cxSub"></div>
+    <div class="cx-top">
+      <div class="seg boxed" role="radiogroup" aria-label="Asset" id="cxSym"><button role="radio" data-v="BTC" aria-checked="true">BTC</button><button role="radio" data-v="ETH" aria-checked="false">ETH</button></div>
+      <span class="cx-upd" id="cxUpd"></span>
     </div>
+    <div class="cx-price"><span class="cx-pname" id="cxTitle">—</span><span class="cx-pval" id="cxPrice">—</span></div>
+    <div class="cx-chg" id="cxSub"></div>
+    <div class="mstate" id="cxState">—</div>
     <div class="cx-axes" id="cxAxes"></div>
     <div class="cx-read" id="cxRead"></div>
-    <div class="facts" id="cxFacts"></div>
+    <div class="cx-kpis" id="cxKpis"></div>
+    <button class="cx-siglink" id="cxSigLink" hidden></button>
     <p class="cx-err" id="cxErr" hidden></p>
-    <p class="mnote"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. <b>Signals with history</b>: past cases on daily closes and what price did 30 and 90 days later, against any day of the same period; few cases and overlapping windows make them context, not proof. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p>
+    <details class="cx-more"><summary>All numbers</summary><div class="facts" id="cxFacts"></div></details>
+    <details class="cx-more"><summary>How to read this page</summary><p class="mnote cx-note"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. <b>Signals with history</b>: past cases on daily closes and what price did 30 and 90 days later, against any day of the same period; few cases and overlapping windows make them context, not proof. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p></details>
   </aside>
   <section class="cx-main">
     <div class="cx-tabs" role="tablist" aria-label="Crypto sections" id="cxTabs">
-      <button role="tab" data-v="overview" aria-selected="true">Overview</button><button role="tab" data-v="derivatives" aria-selected="false">Derivatives</button><button role="tab" data-v="onchain" aria-selected="false">On-chain</button><button role="tab" data-v="signals" aria-selected="false">Signals</button><button role="tab" data-v="market" aria-selected="false">Market</button>
+      <button role="tab" data-v="overview" aria-selected="true">Overview</button><button role="tab" data-v="derivatives" aria-selected="false">Derivatives</button><button role="tab" data-v="liquidations" aria-selected="false">Liquidations</button><button role="tab" data-v="onchain" aria-selected="false">On-chain</button><button role="tab" data-v="signals" aria-selected="false">Signals</button><button role="tab" data-v="market" aria-selected="false">Market</button>
     </div>
     <div class="cx-panel cx-wide" data-tabs="overview derivatives">
       <div class="mchart-head cx-head">
@@ -689,6 +692,29 @@
         <thead><tr><th class="l">Expiry</th><th>Days</th><th>Notional</th><th title="Put open interest / call open interest">Put/call</th><th title="Settlement price at which option buyers collect the least">Max pain</th><th>From price</th><th>ATM IV</th><th title="25-delta call IV minus 25-delta put IV">25Δ RR</th></tr></thead>
         <tbody id="cxExpBody"></tbody>
       </table></div>
+    </div>
+    <div class="cx-panel cx-wide lq-panel" data-tabs="liquidations" id="lqPanel">
+      <div class="lq-bar">
+        <input id="lqSym" class="lq-asset" list="lqList" autocomplete="off" spellcheck="false" aria-label="Asset" title="Type any coin with perpetual futures"><datalist id="lqList"></datalist>
+        <div class="cx-chips" role="radiogroup" aria-label="Quick assets" id="lqQuick"></div>
+        <div class="seg boxed" role="radiogroup" aria-label="Candles" id="lqTf"><button role="radio" data-v="5m">5m</button><button role="radio" data-v="15m">15m</button><button role="radio" data-v="1h">1h</button><button role="radio" data-v="4h">4h</button><button role="radio" data-v="1D">1D</button></div>
+      </div>
+      <div class="lq-bar lq-bar2">
+        <span class="lq-lab">Exchanges</span><div class="cx-chips" role="group" aria-label="Exchanges" id="lqEx"></div>
+        <span class="lq-lab">Leverage</span><div class="cx-chips" role="group" aria-label="Leverage" id="lqLev"></div>
+        <label class="lq-ctl" title="Hide the weakest levels">Min. intensity <input type="range" id="lqMin" min="0" max="80" step="5"> <b id="lqMinV"></b></label>
+        <label class="lq-ctl" title="How long an open position is assumed to last">Memory <select id="lqVida"><option value="0.5">Short</option><option value="1">Normal</option><option value="2">Long</option></select></label>
+        <button class="cx-exp" id="lqMas" title="Request older candles">Older</button>
+        <button class="cx-exp" id="lqFull" title="Full screen">Full screen</button>
+      </div>
+      <p class="chart-caption cx-cap" id="lqCap"></p>
+      <p class="cx-err" id="lqMsg" hidden></p>
+      <div class="lq-wrap">
+        <div class="lq-leg" id="lqLeg"></div>
+        <div class="lq-chart" id="lqChart" role="img" aria-label="Liquidation map"></div>
+        <div class="lq-carga" id="lqCarga" hidden>Loading…</div>
+      </div>
+      <div class="lq-read" id="lqRead"></div>
     </div>
     <div class="cx-panel cx-btc" data-tabs="onchain">
       <div class="mchart-head cx-head"><span class="mtitle">Miners</span><button class="cx-exp" data-chart="min" title="Expand: history since 2012">Expand</button></div>
@@ -841,6 +867,8 @@
 <script src="corr.js"></script>
 <script src="skewsig.js"></script>
 <script src="cripto.js"></script>
+<script src="liq-modelo.js"></script>
+<script src="liq.js"></script>
 <script src="takes-md.js"></script>
 <script src="takes.js"></script>
 <script src="social.js"></script>

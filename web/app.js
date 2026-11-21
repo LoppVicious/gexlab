@@ -2218,7 +2218,8 @@ const TOOLS = {
   calendar: { view: "calView", ticker: false, show: () => showCal(), render: () => renderCal(), load: (r) => loadCal(r) },
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
   skewsig: { view: "skewSigView", ticker: false, show: () => showSigSkew(), render: () => renderSigSkew(), load: () => loadSigSkew() },
-  crypto: { view: "cryptoView", ticker: false, show: () => showCrypto(), render: () => renderCrypto(), load: () => loadCrypto() },
+  crypto: { view: "cryptoView", ticker: false, show: () => showCrypto(), render: () => renderCrypto(),
+    load: () => { loadCrypto(); if (cx.tab === "liquidations" && typeof lqCargar === "function") lqCargar(true); } },
   takes: { view: "takesView", ticker: false, show: () => showTakes(), render: () => renderTakes(), load: (r) => loadTakes(r) },
   social: { view: "postsView", ticker: false, show: () => showSocial(), render: () => renderSocial(), load: (r) => loadSocial(r) },
 };

@@ -2,7 +2,7 @@
 # Despliegue en Cloudflare (lo ejecuta GitHub Actions). Idempotente.
 # Un solo Worker "dashboard": web (archivos estaticos), API, y reloj del motor (cron).
 # Variables: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, GH_DISPATCH_TOKEN, GEX_SETUP_CODE, REPORT_TOKEN (opcional),
-# TRADIER_TOKEN (opcional: precio en vivo de la Trading Window, /api/precio)
+# TRADIER_TOKEN (opcional: precio en vivo de la Trading Window, /api/precio), COINALYZE_API_KEY (opcional: /api/liq)
 set -euo pipefail
 cd "$(dirname "$0")"
 W="wrangler"
@@ -60,6 +60,9 @@ printf '%s' "$GEX_SETUP_CODE" | $W secret put GEX_SETUP_CODE >/dev/null
 printf '%s' "$GH_DISPATCH_TOKEN" | $W secret put GH_DISPATCH_TOKEN >/dev/null
 if [ -n "${REPORT_TOKEN:-}" ]; then   # report semanal (/api/report/*); sin el secreto esas rutas responden 404
   printf '%s' "$REPORT_TOKEN" | $W secret put REPORT_TOKEN >/dev/null
+fi
+if [ -n "${COINALYZE_API_KEY:-}" ]; then   # mapa de liquidaciones de Crypto; sin el secreto /api/liq responde 404
+  printf '%s' "$COINALYZE_API_KEY" | $W secret put COINALYZE_API_KEY >/dev/null
 fi
 if [ -n "${TRADIER_TOKEN:-}" ]; then   # precio en vivo de la Trading Window; sin el secreto /api/precio responde 404
   printf '%s' "$TRADIER_TOKEN" | $W secret put TRADIER_TOKEN >/dev/null

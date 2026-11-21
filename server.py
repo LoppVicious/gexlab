@@ -307,6 +307,17 @@ class Handler(SimpleHTTPRequestHandler):
             if not d:
                 return self._json(503, {"error": "Crypto: no data yet. Run cripto.py to compute it."})
             return self._json(200, d)
+        if url.path in ("/api/liq", "/api/liq_markets"):   # mapa de liquidaciones de Crypto (liq_local.py)
+            import almacen
+            import liq_local
+            try:
+                if url.path == "/api/liq_markets":
+                    d = None if not os.environ.get("COINALYZE_API_KEY") else almacen.get_json(almacen.abrir(), "pub/liq_mercados.json")
+                    return self._json(200, d or liq_local.mercados())
+                code, d = liq_local.responder(q)
+                return self._json(code, d)
+            except Exception as e:  # noqa: BLE001
+                return self._json(502, {"error": f"The data source failed: {e}"})
         if url.path == "/api/takes" or url.path.startswith("/api/takes/"):
             return self._json(404, {"error": "Founder Takes are available in the cloud version."})
         if url.path != "/api/gex":

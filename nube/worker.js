@@ -331,6 +331,37 @@ async function precio(env, sym) {
   return json(200, d);
 }
 
+// ------------------------------------------------------------------ mapa de liquidaciones (Coinalyze)
+// La web pide OI, velas y liquidaciones de los perpetuos elegidos; el Worker pone la clave (secreto
+// COINALYZE_API_KEY, nunca llega al navegador) y guarda cada respuesta en memoria un rato (la Cache API no funciona
+// en workers.dev). Coinalyze admite 40 peticiones por minuto por clave; la clave va como parametro (la cabecera
+// api_key la descartan algunos intermediarios).
+const LIQ_RUTAS = { oi: "open-interest-history", ohlcv: "ohlcv-history", liq: "liquidation-history" };
+const LIQ_TTL = { "5min": 60, "15min": 120, "1hour": 300, "4hour": 900, daily: 1800 };   // segundos en memoria
+const _liq = new Map();
+async function liq(env, q) {
+  if (!env.COINALYZE_API_KEY) return json(404, { error: "The liquidation map is not configured" });
+  const kind = q.get("kind"), ruta = LIQ_RUTAS[kind], iv = q.get("interval");
+  const syms = String(q.get("symbols") || "").split(",").filter(Boolean);
+  const from = parseInt(q.get("from"), 10), to = parseInt(q.get("to"), 10), ahora = Date.now() / 1000;
+  if (!ruta || !LIQ_TTL[iv] || !syms.length || syms.length > 20 || !syms.every((s) => /^[A-Za-z0-9_.\-]{2,40}$/.test(s))
+    || !(from >= 1262304000) || !(to > from) || to > ahora + 86400) return json(400, { error: "Invalid request" });
+  const clave = `${kind}|${iv}|${from}|${to}|${syms.join(",")}`;
+  const hit = _liq.get(clave);
+  const res = (txt) => new Response(txt, { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, max-age=60" } });
+  if (hit && ahora - hit.t < LIQ_TTL[iv]) return res(hit.txt);
+  const p = new URLSearchParams({ symbols: syms.join(","), interval: iv, from: String(from), to: String(to) });
+  if (kind !== "ohlcv") p.set("convert_to_usd", "true");
+  p.set("api_key", env.COINALYZE_API_KEY);
+  const r = await fetch(`https://api.coinalyze.net/v1/${ruta}?${p}`, { headers: { "User-Agent": "gexlab" } });
+  if (r.status === 429) return json(429, { error: "The data source is busy. Try again in a minute." });
+  if (!r.ok) return json(502, { error: `The data source answered ${r.status}` });
+  const txt = await r.text();
+  if (_liq.size > 80) _liq.clear();
+  _liq.set(clave, { t: ahora, txt });
+  return res(txt);
+}
+
 // ------------------------------------------------------------------ buscador
 let _syms = null, _symsT = 0;
 async function symbols(env) {
@@ -457,6 +488,7 @@ async function api(req, env, url, me) {
     const sym = normalize(url.searchParams.get("symbol"));
     return sym ? precio(env, sym) : json(400, { error: "Invalid ticker" });
   }
+  if (p === "/api/liq") return liq(env, url.searchParams);
   if (p === "/api/pedir" && req.method === "POST") {
     const b = await body(req);
     const syms = [...new Set((b.symbols || []).map(normalize).filter(Boolean))];

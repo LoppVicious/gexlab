@@ -9,6 +9,7 @@ Uso: GEX_ALMACEN=r2 python cripto.py   (en local: GEX_ALMACEN=local:./data/x)
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 import urllib.parse
@@ -37,6 +38,11 @@ BD_SERIES = (("bd_sth", "sth-realized-price", "sthRealizedPrice"), ("bd_lth", "l
 DERIBIT = "https://www.deribit.com/api/v2/public/"
 OKX = "https://www.okx.com/api/v5/"
 SERIES = "pub/cripto_series.json"   # historias largas para ampliar graficos y las senales (la web lo pide al usarlo)
+# mapa de liquidaciones: activos con perpetuos en estos exchanges (codigos de Coinalyze); la web pide los datos por
+# el Worker (/api/liq), que pone la clave COINALYZE_API_KEY
+LIQ_MERCADOS = "pub/liq_mercados.json"
+LIQ_EXCH = {"A": "Binance", "6": "Bybit", "3": "OKX", "H": "Hyperliquid"}
+COINALYZE = "https://api.coinalyze.net/v1/"
 FUNDING_DESDE = datetime(2019, 5, 1, tzinfo=timezone.utc)   # funding horario del perpetuo de Deribit
 # redes con direcciones activas y transacciones gratis en CoinMetrics (SOL, BNB y DOT no lo estan)
 REDES = {"BTC": "Bitcoin", "ETH": "Ethereum", "TRX": "Tron", "XRP": "XRP Ledger", "LTC": "Litecoin",
@@ -192,6 +198,8 @@ def diario(st, ahora: datetime, errores: dict) -> dict:
             return [[str(x["time"])[:10], cc._f(x.get("PriceUSD")), cc._f(x.get("AdrActCnt")), cc._f(x.get("TxCnt"))]
                     for x in http_json(url)["data"]]
         renovar(f"red_{r}", CADUCA_H * 2, red)
+    # activos del mapa de liquidaciones (Coinalyze y CoinGecko), una vez al dia
+    renovar("liq_mercados", 24, lambda: liq_mercados(ahora))
     renovar("stables_det", CADUCA_H, lambda: [
         {k: p.get(k) for k in ("symbol", "name", "circulating", "circulatingPrevWeek", "circulatingPrevMonth")}
         for p in http_json("https://stablecoins.llama.fi/stablecoins?includePrices=false")["peggedAssets"]])
@@ -353,6 +361,43 @@ def series(dia: dict, ahora: datetime) -> tuple[dict, dict]:
     return out, redes
 
 
+def coinalyze(ruta: str, **q):
+    """Coinalyze con la clave como parametro (la cabecera api_key la descartan algunos intermediarios)."""
+    clave = os.environ.get("COINALYZE_API_KEY")
+    if not clave:
+        raise RuntimeError("sin COINALYZE_API_KEY")
+    return http_json(COINALYZE + ruta + "?" + urllib.parse.urlencode({**q, "api_key": clave}))
+
+
+def liq_mercados(ahora: datetime) -> dict:
+    """Activos del top 250 de CoinGecko con perpetuos en LIQ_EXCH: simbolos de Coinalyze por exchange y el de las
+    velas (el primero con volumen comprador, preferido Binance en USDT)."""
+    mk = coinalyze("future-markets")
+    cg = []
+    for pag in (1, 2):
+        cg += http_json("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=125&page=" + str(pag))
+        time.sleep(2)
+    rango = {}
+    for c in cg:   # el primero (mayor capitalizacion) gana si dos comparten simbolo
+        rango.setdefault(c["symbol"].upper(), (c["market_cap_rank"] or 9999, c["name"]))
+    por = {}
+    for m in mk:
+        b, ex = str(m.get("base_asset") or "").upper(), str(m.get("exchange") or "")
+        if not m.get("is_perpetual") or ex not in LIQ_EXCH or b not in rango:
+            continue
+        por.setdefault(b, {}).setdefault(ex, []).append(m)
+    activos = []
+    for b, exs in por.items():
+        cand = [m for e in ("A", "6", "3", "H") for m in exs.get(e, []) if m.get("has_ohlcv_data") and m.get("has_buy_sell_data")]
+        cand.sort(key=lambda m: (m["exchange"] != "A", m.get("quote_asset") != "USDT"))
+        if not cand:
+            continue
+        activos.append({"sym": b, "nombre": rango[b][1], "rank": rango[b][0], "velas": cand[0]["symbol"],
+                        "ex": {e: [m["symbol"] for m in ms][:6] for e, ms in exs.items()}})
+    activos.sort(key=lambda x: x["rank"])
+    return {"generado": ahora.isoformat(), "exchanges": LIQ_EXCH, "activos": activos}
+
+
 def main() -> int:
     st = almacen.abrir()
     ahora = datetime.now(timezone.utc).replace(microsecond=0)
@@ -385,6 +430,8 @@ def main() -> int:
            "umbrales": cc.UMBRALES}
     n = almacen.put_json(st, PUB, out)
     if cambio:   # historias largas: solo cuando cambian los datos diarios (unas 4 veces al dia)
+        if dia.get("liq_mercados"):
+            almacen.put_json(st, LIQ_MERCADOS, dia["liq_mercados"])
         principal, redes = series(dia, ahora)
         n2 = almacen.put_json(st, SERIES, principal)
         for r, x in redes.items():

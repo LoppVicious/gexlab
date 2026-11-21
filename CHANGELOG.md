@@ -3,9 +3,16 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Crypto: señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; datos sin la API de cotizaciones de CBOE
+## 2026-11-21 — Crypto: mapa de liquidaciones, señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; datos sin la API de cotizaciones de CBOE
 
 **Añadido**
+- **Crypto, mapa de liquidaciones** (pestaña Liquidations): dónde se liquidarían las posiciones apalancadas abiertas,
+  estimado como Coinglass o Hyblock, para cualquier moneda del top 250 con perpetuos en Binance, Bybit, OKX o
+  Hyperliquid. Velas de 5 min a diarias (diario desde 2019, con open interest real desde 2022); mapa de calor sobre el
+  precio con zoom, perfil de lo pendiente a la derecha (largos por debajo, cortos por encima), liquidaciones reales
+  debajo, exchanges y apalancamientos activables, intensidad mínima, memoria de las posiciones y pantalla completa.
+  Debajo, hacia qué lado tira la liquidez, los grupos más cargados y cuánto se parece lo previsto a lo que de verdad se
+  liquidó. Datos de Coinalyze (clave gratuita guardada en el servidor).
 - **Curva del VIX, tres gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por
   punto desde 1990, con el día de hoy resaltado y un titular calculado ("only N days had a bigger VIX jump with the
   SPX doing better") y cuánto se aparta el VIX de lo habitual para ese movimiento del SPX. Al lado, put skew proxy
@@ -39,6 +46,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   una foto diaria de los derivados (GEX, risk reversal, funding, long/short...); sus percentiles salen a partir de 30 días.
 
 **Cambiado**
+- **Crypto, columna lateral más limpia:** precio y cambios en una línea, el veredicto con tendencia y posicionamiento
+  en dos píldoras, los cuatro puntos que más pesan (el resto, con "Show more"), seis cifras clave en mosaico y un aviso
+  de las señales activas que abre la pestaña Signals. Todas las cifras y la explicación de la página, plegadas.
 - **Curva del VIX, nueva distribución:** sin barra lateral, en franjas a todo el ancho. Arriba la lectura de la curva
   con VIX, pendiente M2/M1, VIX3M/VIX e indicadores en zona de compra; luego el régimen de volatilidad en cuatro
   tarjetas, los días parecidos, los dos gráficos lado a lado y, plegado, el detalle de futuros, la tabla por tramos de

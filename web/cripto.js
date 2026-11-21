@@ -103,27 +103,58 @@ function renderCrypto() {
   if (vis("cxSigBody")) cxSignals(a);
   cxStables(m);
   if (cx.modal) cxModalRender();
+  if (cx.tab === "liquidations" && typeof lqShow === "function") lqShow();   // web/liq.js
 }
 
 /* ---------- lectura y cifras (columna izquierda) */
 function cxSide(a, m, d) {
   const lec = a.lectura || {}, oc = a.onchain, v = a.vol || {}, f = a.futuros || {};
-  $("cxTitle").textContent = `${CX_NAME[cx.sym] || cx.sym} ${cxPx(a.spot)}`;
-  $("cxTitle").title = "Deribit index";
+  const up = (x) => (x > 0 ? "pos" : x < 0 ? "neg" : "");
+  $("cxTitle").textContent = CX_NAME[cx.sym] || cx.sym;
+  $("cxPrice").textContent = cxPx(a.spot);
+  $("cxPrice").title = "Deribit index";
+  $("cxUpd").textContent = new Date(d.generado).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  $("cxUpd").title = "Updated every 15 minutes";
+  $("cxSub").innerHTML = [[a.chg24, "24h", 2], [a.chg7, "7d", 1], [a.chg30, "30d", 1]]
+    .map(([x, l, dec]) => `<span><b class="${up(x)}">${cxPct(x, dec)}</b> ${l}</span>`).join("") +
+    (a.viejo ? `<span class="cx-old">Data from ${esc(new Date(a.viejo).toLocaleString("en-US"))}: the last update failed</span>` : "");
   const st = $("cxState");
   st.textContent = lec.resumen || "—";
   st.className = "mstate " + (lec.especial === "Capitulation zone" ? "mixed" : lec.tend > 0 ? "contango" : lec.tend < 0 ? "backwardation" : "mixed");
-  $("cxSub").innerHTML = `${cxPct(a.chg24, 2)} in 24 h, ${cxPct(a.chg7)} in 7 days, ${cxPct(a.chg30)} in 30 days${a.viejo ? `. <b class="neg">Data from ${esc(new Date(a.viejo).toLocaleString("en-US"))}: the last update failed</b>` : ""}`;
-  $("cxAxes").innerHTML = `<span><b>Trend</b> ${esc(lec.tendencia || "—")}</span><span><b>Positioning</b> ${esc(lec.posicion || "—")}</span>`;
-  const grupos = [["tendencia", "Trend"], ["posicion", "Positioning and value"], ["senal", "Signals with history"]];
-  $("cxRead").innerHTML = grupos.map(([k, t]) => {
-    const p = (lec.puntos || []).filter((x) => x.eje === k);
-    return p.length ? `<div class="cx-rg">${t}</div>` + p.map((x) => `<div class="cx-pt"><i class="${cxTone(x.tono)}"></i><div><span class="cx-bl">${esc(x.bloque)}</span> ${esc(x.texto)}</div></div>`).join("") : "";
-  }).join("");
+  const tonoT = lec.tend > 0 ? "pos" : lec.tend < 0 ? "neg" : "", tonoP = lec.pos > 0 ? "pos" : lec.pos < 0 ? "neg" : "";
+  $("cxAxes").innerHTML = `<span class="cx-pill ${tonoT}" title="Price against the short-term holder cost and the gamma flip, and the 30-day change">Trend <b>${esc(lec.tendencia || "—")}</b></span>` +
+    `<span class="cx-pill ${tonoP}" title="Crowding read as a contrarian: fear, funding, retail long/short, puts and exchange flows">Positioning <b>${esc(lec.posicion || "—")}</b></span>`;
 
-  const g = a.gex.all, fact = (l, val, s, warn) => `<div class="fact"><span class="fl">${l}</span><strong>${val}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
-  const fng = m.fng, pp = a.pct_propio || {}, mi = a.mineros, be = a.beneficio || {}, ac = a.actividad, lq = m.liquidez;
-  // percentil frente a nuestras fotos diarias (desde 30 dias de historia)
+  // lectura: primero la tendencia, luego lo que mas pesa; el resto, plegado
+  const pts = (lec.puntos || []).filter((x) => x.eje !== "senal");
+  pts.sort((p, q) => (p.eje === "tendencia" ? 0 : 1) - (q.eje === "tendencia" ? 0 : 1) || Math.abs(q.tono) - Math.abs(p.tono));
+  const N = 4, todos = !!cx.verTodo;
+  const punto = (x) => `<div class="cx-pt"><i class="${cxTone(x.tono)}"></i><div><span class="cx-bl">${esc(x.bloque)}</span> ${esc(x.texto)}</div></div>`;
+  $("cxRead").innerHTML = (todos ? pts : pts.slice(0, N)).map(punto).join("") +
+    (pts.length > N ? `<button class="cx-mas" id="cxMas">${todos ? "Show less" : `Show ${pts.length - N} more`}</button>` : "");
+
+  // cifras clave: seis, con una linea de contexto
+  const kpi = (l, val, s, cls = "") => `<div class="cx-kpi"><span class="kl">${l}</span><b class="${cls}">${val}</b><span class="ks">${s}</span></div>`;
+  const fng = m.fng, g = a.gex.all;
+  const coste = oc && oc.sth ? ["Short-term cost", oc.sth.valor] : oc ? ["Realized price", oc.rp] : null;
+  $("cxKpis").innerHTML = [
+    kpi("Net GEX", fmtBig(g.total, true), g.total < 0 ? "dealers short gamma" : "dealers long gamma", up(g.total)),
+    oc ? kpi("MVRV", fmtNum(oc.mvrv, 2), `${ordinal(oc.mvrv_pct)} pct since 2015`) : "",
+    coste ? kpi(coste[0], cxPx(coste[1]), `price ${cxPct((a.spot / coste[1] - 1) * 100)}`, up(a.spot - coste[1])) : "",
+    v.dvol != null ? kpi("DVOL", fmtNum(v.dvol, 1), `${ordinal(v.dvol_pct)} pct of the year`) : "",
+    f.funding_7d != null ? kpi("Funding 7d", cxPct(f.funding_7d), "a year, OKX", up(f.funding_7d)) : "",
+    fng ? kpi("Fear & Greed", String(fng.valor), esc(fng.clase).toLowerCase(), fng.valor <= 25 ? "neg" : fng.valor >= 75 ? "pos" : "") : "",
+  ].join("");
+
+  // senales activas: un aviso que lleva a su pestana
+  const hace30 = a.hace30 || "", act = (a.senales || []).filter((x) => x.hoy || (x.ultima && x.ultima >= hace30));
+  const sl = $("cxSigLink");
+  sl.hidden = !act.length;
+  sl.innerHTML = act.length ? `<b>${act.length} signal${act.length === 1 ? "" : "s"} active or recent</b><span>${act.slice(0, 3).map((x) => esc(x.nombre)).join(", ")}${act.length > 3 ? "…" : ""}</span>` : "";
+
+  // todas las cifras, plegadas
+  const fact = (l, val, s, warn) => `<div class="fact"><span class="fl">${l}</span><strong>${val}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
+  const pp = a.pct_propio || {}, mi = a.mineros, be = a.beneficio || {}, ac = a.actividad, lq = m.liquidez;
   const own = (k) => (pp[k] != null ? `. ${ordinal(pp[k])} percentile of our ${a.dias_propios} days` : "");
   $("cxFacts").innerHTML = [
     fact("Net GEX (Deribit)", fmtBig(g.total, true), `per 1% move, all expirations${own("gex")}. Open interest ${fmtBig(a.oi.nocional, true)}, put/call ${fmtNum(a.oi.pcr, 2)}`),
@@ -139,9 +170,9 @@ function cxSide(a, m, d) {
     fng ? fact("Fear & Greed", String(fng.valor), `${esc(fng.clase)}${fng.semana != null ? `, ${fng.semana} a week ago` : ""}${fng.pct != null ? `. ${ordinal(fng.pct)} percentile since 2018` : ""}`) : "",
     lq ? fact("Stablecoin supply", fmtBig(lq.total, true), `${cxPct(lq.c7)} in 7 days, ${cxPct(lq.c30)} in 30: dry powder to buy`) : "",
     m.dom ? fact("Bitcoin dominance", fmtNum(m.dom.BTC, 1) + "%", `ether ${fmtNum(m.dom.ETH, 1)}%. Total market ${fmtBig(m.cap_total, true)}`) : "",
-  ].join("") + (a.dias_propios != null && a.dias_propios < 30 ? `<p class="cx-err" style="color:var(--faint)">Our own daily history of the derivatives has ${a.dias_propios} day${a.dias_propios === 1 ? "" : "s"}: their percentiles show from 30.</p>` : "");
+  ].join("") + (a.dias_propios != null && a.dias_propios < 30 ? `<p class="cx-q">Our own daily history of the derivatives has ${a.dias_propios} day${a.dias_propios === 1 ? "" : "s"}: their percentiles show from 30.</p>` : "");
   const errs = Object.keys(d.errores || {});
-  $("cxErr").textContent = errs.length ? `Sources that failed this time: ${errs.join(", ")}. The rest is current.` : "";
+  $("cxErr").textContent = errs.length ? `Some sources failed this time (${errs.join(", ")}); the rest is current.` : "";
   $("cxErr").hidden = !errs.length;
 }
 
@@ -379,7 +410,8 @@ function cxTermChart(a) {
 
 /* ---------- ampliar un grafico */
 function cxOpenModal(kind) {
-  cx.modal = { kind, rango: store.get("cxR_" + kind, kind === "act" ? 1825 : 0), log: store.get("cxLog_" + kind, false) };
+  // store guarda texto (en la nube, "false" seria verdadero): se convierte
+  cx.modal = { kind, rango: +store.get("cxR_" + kind, kind === "act" ? 1825 : 0) || 0, log: String(store.get("cxLog_" + kind, false)) === "true" };
   $("cxModal").hidden = false;
   document.body.classList.add("cx-noscroll");
   cxModalRender();
@@ -590,6 +622,8 @@ function cxStables(m) {
 
 /* ---------- controles */
 const cxSeg = (id, fn) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && b.dataset.v != null) fn(b.dataset.v); });
+$("cxRead").addEventListener("click", (e) => { if (e.target.id === "cxMas") { cx.verTodo = !cx.verTodo; renderCrypto(); } });
+$("cxSigLink").addEventListener("click", () => { cx.tab = "signals"; cx.sigFilt = "on"; store.set("cxTab", "signals"); store.set("cxSigFilt", "on"); renderCrypto(); $("cxTabs").scrollIntoView({ block: "nearest" }); });
 cxSeg("cxSym", (v) => { cx.sym = v; store.set("cxSym", v); cx.sigOpen = null; renderCrypto(); });
 cxSeg("cxFilt", (v) => { cx.filt = v; store.set("cxFilt", v); renderCrypto(); });
 cxSeg("cxTabs", (v) => { cx.tab = v; store.set("cxTab", v); renderCrypto(); });

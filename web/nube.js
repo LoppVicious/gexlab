@@ -224,6 +224,7 @@
       case "/api/skew": return pub("skew.json", s, "Skew signal");
       case "/api/crypto": return pub("cripto.json", s, "Crypto");
       case "/api/crypto_series": return pub("cripto_series.json", s, "Crypto history");
+      case "/api/liq_markets": return pub("liq_mercados.json", s, "Liquidation map");
       case "/api/crypto_net": {
         const net = String(q.get("net") || "").toUpperCase();
         if (!/^[A-Z]{2,6}$/.test(net)) return json(400, { error: "Invalid network" });

@@ -29,4 +29,6 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
           GEX_ALMACEN: r2
+          # lista de activos del mapa de liquidaciones (future-markets de Coinalyze)
+          COINALYZE_API_KEY: ${{ secrets.COINALYZE_API_KEY }}
         run: python cripto.py

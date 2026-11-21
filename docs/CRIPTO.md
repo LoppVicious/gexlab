@@ -130,6 +130,38 @@ días por delante.
 - Señales: filtro por grupo o activas, orden por columna y, al abrir una, sus casos sobre el precio (verde si 90 días
   después estaba más arriba) con la lista de casos.
 
+## Mapa de liquidaciones (pestaña Liquidations)
+
+Estimación de dónde están los precios de liquidación de las posiciones apalancadas abiertas, como Coinglass o Hyblock,
+para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, OKX o Hyperliquid.
+
+- **Datos:** Coinalyze (clave gratuita, secreto `COINALYZE_API_KEY`): velas con volumen comprador, OI y liquidaciones
+  reales de cada perpetuo. Historia probada (BTCUSDT de Binance): velas diarias desde 2019, OI diario desde octubre de
+  2022, liquidaciones diarias desde 2020; OI cada 4 h unos 11 meses, cada hora unos 3 meses, cada 5 min 7 días (unos
+  2.000 puntos por petición; el botón Older pide tramos anteriores).
+- **Lista de activos:** `cripto.py` (`liq_mercados`) una vez al día: `future-markets` de Coinalyze cruzado con el top
+  250 de CoinGecko; para cada activo, sus perpetuos por exchange y el símbolo de las velas (Binance en USDT si existe).
+  R2 `pub/liq_mercados.json`, ruta `/api/liq_markets`.
+- **Intermediario:** `/api/liq?kind=ohlcv|oi|liq&interval=&symbols=&from=&to=` en el Worker: lista cerrada de
+  parámetros, pone la clave (como parámetro: la cabecera `api_key` la descarta algún intermediario), guarda la
+  respuesta en memoria de 1 a 30 min según el intervalo (la Cache API no funciona en workers.dev). La clave nunca llega
+  al navegador. Coinalyze: 40 peticiones por minuto; cada mapa son 3.
+- **Modelo** (`web/liq-modelo.js`, pruebas en `pruebas/test_liq.mjs`):
+  1. Posiciones nuevas de cada vela: subida del OI sumando el cambio de cada perpetuo (no el nivel, para que un
+     exchange que empieza tarde no cree un salto). Antes del primer OI, volumen × factor calibrado con el tramo con OI.
+  2. Largos = parte compradora del volumen agresor (bv / v); cortos, el resto.
+  3. Apalancamientos 5x, 10x, 25x, 50x y 100x con pesos 10/30/30/20/10 %; liquidación de un largo
+     precio × (1 − 1/L + 0,5 %), de un corto precio × (1 + 1/L − 0,5 %); precio de entrada (máx + mín + cierre) / 3.
+  4. Un nivel vive hasta que el precio lo toca; entonces cuenta como liquidación prevista de esa vela.
+  5. Si baja el OI, lo vivo se reduce en proporción; y todo decae con una vida media (5 min: 12 h; 15 min: 1 día;
+     1 h: 4 días; 4 h: 15 días; diario: 45 días; Memory la multiplica por 0,5 o 2).
+  6. Rejilla de 240 tramos de precio logarítmicos; recurrencia por tramo (decae, se reduce, suma altas, resta tocadas).
+- **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
+  grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por
+  vela.
+- **Modo PC** (`liq_local.py`): con `COINALYZE_API_KEY` en el entorno, igual que el Worker; sin ella, datos públicos
+  de Binance (velas con volumen comprador y 30 días de OI), sin liquidaciones reales.
+
 ## Pendiente
 
 - Flujos de los ETF spot (no hay fuente gratuita estable).

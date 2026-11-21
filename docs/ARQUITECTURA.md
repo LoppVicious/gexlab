@@ -196,6 +196,10 @@ CoinGecko, CoinMetrics Community (desde 2012), bitcoin-data.com (STH y LTH reali
   y `pub/cripto_red/{RED}.json` (direcciones y transacciones de cada red, al elegirla). Se escriben solo cuando cambian
   los datos diarios. Rutas: `/api/crypto_series` y `/api/crypto_net?net=` (`nube.js` y `server.py`).
 - Señales con su historia y backtest (`cripto_calc.senales`), mineros, SOPR, actividad y stablecoins: `docs/CRIPTO.md`.
+- **Mapa de liquidaciones:** `/api/liq` (Worker, intermediario de Coinalyze con el secreto `COINALYZE_API_KEY`, que
+  `desplegar.sh` sube al Worker; sin él, 404) y `pub/liq_mercados.json` (lista de activos, `cripto.py` una vez al día,
+  también con la clave en `cripto.yml`). Modelo en el navegador (`web/liq-modelo.js`), vista `web/liq.js` sobre
+  Lightweight Charts; en el PC, `liq_local.py`. Detalle en `docs/CRIPTO.md`.
 - GEX con la metodología del motor Perfil en `cripto_calc.py`, no con `gex_engine.compute` (atado al horario de NYSE).
 - Pruebas: `python pruebas/test_cripto.py` (sin red); con red, `pruebas/cripto_fuentes.py` y `pruebas/cripto_actions.py`
   (todo `cripto.py` con almacén local) en `comparar.yml`.

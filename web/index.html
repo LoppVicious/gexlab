@@ -509,31 +509,38 @@
 </main>
 
 <main class="macro" id="vixView" hidden>
-  <aside class="mside" aria-label="Curve summary">
-    <div class="mhead">
+  <section class="vx-card vx-head" aria-label="Curve summary">
+    <div class="vx-state">
       <div class="sym">VIX futures</div>
       <div class="mstate" id="vxState">—</div>
       <div class="msub" id="vxSub"></div>
+      <p class="regime" id="vxRead"></p>
     </div>
-    <p class="regime" id="vxRead"></p>
-    <div class="facts" id="vxFacts"></div>
-    <div class="vxreg" id="vxReg" hidden></div>
-    <div class="vxreg" id="vxVol" hidden></div>
-    <p class="mnote"><b>Contango:</b> later expirations trade above nearer ones; the norm in a calm market. <b>Backwardation:</b> nearer expirations trade richer; traders pay up for immediate protection, and it tends to coincide with selloffs.</p>
-  </aside>
-  <section class="mcharts">
-    <div class="mchart-head">
-      <span class="mtitle">Term structure</span>
+    <div class="vx-kpis" id="vxKpis"></div>
+  </section>
+  <section class="vx-card" id="vxVol" hidden></section>
+  <section class="vx-card" id="vxSim" hidden></section>
+  <section class="vx-charts">
+    <div class="vx-card vx-chart">
+      <div class="mchart-head"><span class="mtitle">Term structure</span></div>
+      <div class="mchart" id="vxCurve" role="img" aria-label="VIX futures curve"></div>
       <p class="chart-caption" id="vxCap"></p>
     </div>
-    <div class="mchart" id="vxCurve" role="img" aria-label="VIX futures curve"></div>
-    <div class="mchart-head">
-      <span class="mtitle">M2 over M1 contango, last year</span>
+    <div class="vx-card vx-chart">
+      <div class="mchart-head"><span class="mtitle">M2 over M1 contango, last year</span></div>
+      <div class="mchart" id="vxHist" role="img" aria-label="Contango history"></div>
       <p class="chart-caption">Green, contango; red, backwardation; gray, flat (under 0.5%). The line is the VIX at the close.</p>
     </div>
-    <div class="mchart short" id="vxHist" role="img" aria-label="Contango history"></div>
     <div class="tip" id="vxTip" hidden></div>
   </section>
+  <details class="vx-card vx-more" id="vxMore">
+    <summary>Curve details <span>futures, SPX after each VIX3M / VIX range, glossary</span></summary>
+    <div class="vx-more-g">
+      <div class="facts" id="vxFacts"></div>
+      <div class="vxreg" id="vxReg" hidden></div>
+      <p class="mnote"><b>Contango:</b> later expirations trade above nearer ones; the norm in a calm market. <b>Backwardation:</b> nearer expirations trade richer; traders pay up for immediate protection, and it tends to coincide with selloffs.</p>
+    </div>
+  </details>
 </main>
 
 <main class="macro mview" id="corrView" hidden>

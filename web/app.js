@@ -2880,20 +2880,28 @@ function renderVix() {
   };
   $("vxRead").innerHTML = reads[sh];
   const live = (d.term || []).find((t) => t.symbol === "VIX");
-  const ratio = d.vix_vix3m;
-  const fact = (l, v, s, warn, g) => `<div class="fact"><span class="fl"${g ? ` data-g="${g}"` : ""}>${l}</span><strong>${v}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
+  // VIX3M / VIX en toda la pagina (como el regimen y TradingView): por debajo de 1, curva invertida
+  const term = d.vix_vix3m ? 1 / d.vix_vix3m : null;
+  const vixNow = lv && lv.vix ? lv.vix : d.vix_close ?? (live && live.value);
+  const vixSub = lv && lv.vix ? `now, close ${fmtNum(d.vix_close, 2)}` : live && d.vix_close != null && Math.abs(live.value - d.vix_close) > 0.005 ? `close, now ${fmtNum(live.value, 2)}` : "at the close";
+  const vr = d.volreg && d.volreg.items ? d.volreg : null;
+  const kpi = (l, val, s, cls = "", g = "") => `<div class="vx-kpi"><span${g ? ` data-g="${g}"` : ""}>${l}</span><strong>${val}</strong><em class="${cls}">${s}</em></div>`;
+  $("vxKpis").innerHTML = [
+    kpi("VIX", fmtNum(vixNow, 2), vixSub, "", "vix"),
+    kpi("M2 / M1 slope", sgnPct(v.spread), `${ordinal(v.spread_pct_rank)} percentile of the last year`, "", "slope"),
+    kpi("VIX3M / VIX", term ? fmtNum(term, 2) : "—", term ? (term < 1 ? "under 1: inverted, short-term stress" : "above 1: normal structure") : "no data", term && term < 1 ? "warn" : "", "vix3m"),
+    vr ? kpi("Volatility regime", `${vr.buy} of ${vr.items.length}`, "indicators in a buy zone", vr.buy ? "buy" : "") : "",
+  ].join("");
+  const fact = (l, val, s, warn, g) => `<div class="fact"><span class="fl"${g ? ` data-g="${g}"` : ""}>${l}</span><strong>${val}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
   $("vxFacts").innerHTML = [
-    lv && lv.vix ? fact("VIX", fmtNum(lv.vix, 2), `now (close ${fmtNum(d.vix_close, 2)})`, false, "vix")
-      : fact("VIX", fmtNum(d.vix_close, 2), live && Math.abs(live.value - d.vix_close) > 0.005 ? `at the close (now ${fmtNum(live.value, 2)})` : "at the close", false, "vix"),
     fact(`M1 ${monLabel(m1x.expiry)}`, fmtNum(v.m1, 2), `${m1x.days} days, ${sgnPct(v.basis)} over the VIX`, false, "m1"),
     fact(`M2 ${monLabel(m2x.expiry)}`, fmtNum(v.m2, 2), `${m2x.days} days`, false, "m2"),
-    fact("M2 / M1 slope", sgnPct(v.spread), `${ordinal(v.spread_pct_rank)} percentile of the last year`, false, "slope"),
     fact("30-day future", fmtNum(v.cm30, 2), "interpolated between expirations", false, "cm30"),
-    fact("VIX / VIX3M", ratio ? fmtNum(ratio, 2) : "—", ratio ? (ratio >= 1 ? "above 1: short-term stress" : "below 1: normal structure") : "no data", ratio >= 1, "vix3m"),
     fact("Streak", `${v.streak} ${v.streak === 1 ? "session" : "sessions"}`, `${lv ? "counting today, " : ""}in ${v.streak_contango ? "contango" : "backwardation"} (M2/M1), ${fmtNum(d.contango_share * 100, 0)}% of the year in contango`, false, "streak"),
   ].join("");
   renderVixRegime(d.regime);
-  renderVolRegime(d.volreg);
+  renderVolRegime(vr);
+  renderVolSim(vr && vr.analogs, vr);
   const idx = d.term_live === false ? "at the close (market closed)" : "live (15 min)";
   const lvNote = d.live ? " Today: each future implied by VIX options (put-call parity) until the settlement is published; small points, weekly expirations." : "";
   $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lvNote}`;
@@ -2907,15 +2915,17 @@ function renderVixRegime(rg) {
   const el = $("vxReg");
   el.hidden = !rg || !rg["3m"];
   if (el.hidden) return;
-  const lab = (f) => (f.lo === 0 ? `< ${fmtNum(f.hi, 2)}` : f.hi > 5 ? `> ${fmtNum(f.lo, 2)}` : `${fmtNum(f.lo, 2)}–${fmtNum(f.hi, 2)}`);
+  // los tramos vienen en VIX/VIX3M (macro.TRAMOS_3M); en pantalla, VIX3M/VIX como el resto de la pagina
+  const inv = (x) => fmtNum(1 / x, 2);
+  const lab = (f) => (f.lo === 0 ? `> ${inv(f.hi)}` : f.hi > 5 ? `< ${inv(f.lo)}` : `${inv(f.hi)}–${inv(f.lo)}`);
   const pts = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 1));
-  const rows = rg["3m"].map((f, k) => `<tr class="${k === rg.q3 ? "on" : ""}"><td class="l">${lab(f)}</td><td>${sgnPct(f.r20, 1)}</td><td>${f.up20 == null ? "—" : fmtNum(f.up20 * 100, 0) + "%"}</td><td>${pts(f.vrp)}</td></tr>`).join("");
+  const rows = rg["3m"].map((f, k) => `<tr class="${k === rg.q3 ? "on" : ""}"><td class="l">${lab(f)}</td><td>${sgnPct(f.r20, 1)}</td><td>${f.up20 == null ? "—" : fmtNum(f.up20 * 100, 0) + "%"}</td><td>${pts(f.vrp)}</td></tr>`).reverse().join("");
   const f9 = rg.q9 != null ? rg["9d"][rg.q9] : null;
   const short = f9 && rg.q9 === rg["9d"].length - 1
     ? `<p class="vxreg-note warn">VIX9D / VIX at ${fmtNum(rg.r9, 2)}: the short end is inverted. After days like this, realized volatility came only ${fmtNum(Math.abs(f9.vrp), 1)} points under the VIX (${fmtNum(Math.abs(rg["9d"][1].vrp), 1)} in a normal curve): selling premium has paid much less.</p>`
     : f9 ? `<p class="vxreg-note">VIX9D / VIX at ${fmtNum(rg.r9, 2)}: after days like this, realized volatility came ${fmtNum(Math.abs(f9.vrp), 1)} points under the VIX.</p>` : "";
-  el.innerHTML = `<div class="fl" title="SPX after each VIX / VIX3M range, from the close: average 20-session return, share of times higher, and realized volatility of those 20 sessions minus the VIX of the day (negative: the VIX overpriced the move). Daily CBOE closes since ${rg.since.slice(0, 4)}. A lean, not a certainty: in backwardation the higher average return comes with much larger swings.">SPX after similar curves <span class="vxreg-since">since ${rg.since.slice(0, 4)}</span></div>
-    <table class="vxreg-t"><thead><tr><th class="l">VIX/VIX3M</th><th>20 sessions</th><th>Higher</th><th title="Realized volatility of the next 20 sessions minus the VIX (points)">RV − VIX</th></tr></thead><tbody>${rows}</tbody></table>${short}`;
+  el.innerHTML = `<div class="fl" title="SPX after each VIX3M / VIX range, from the close: average 20-session return, share of times higher, and realized volatility of those 20 sessions minus the VIX of the day (negative: the VIX overpriced the move). Daily CBOE closes since ${rg.since.slice(0, 4)}. A lean, not a certainty: in an inverted curve the higher average return comes with much larger swings.">SPX after each VIX3M / VIX range <span class="vxreg-since">since ${rg.since.slice(0, 4)}</span></div>
+    <table class="vxreg-t"><thead><tr><th class="l">VIX3M/VIX</th><th>20 sessions</th><th>Higher</th><th title="Realized volatility of the next 20 sessions minus the VIX (points)">RV − VIX</th></tr></thead><tbody>${rows}</tbody></table>${short}`;
 }
 
 // Regimen de volatilidad (macro.regimen_vol): zona de VIX, VIX3M/VIX, VVIX y SKEW/VIX (en directo con la sesion
@@ -2952,8 +2962,36 @@ function renderVolRegime(vr) {
   el.hidden = !vr || !vr.items;
   if (el.hidden) return;
   const p = volRegParts(vr);
-  el.innerHTML = `<div class="fl" title="${VR_TIP}">Volatility regime <span class="vxreg-since">${p.count}, ${p.when}</span></div>
-    ${p.rows.join("")}<p class="vxreg-note">${p.note}</p>`;
+  el.innerHTML = `<div class="vx-sec"><span class="mtitle" title="${VR_TIP}">Volatility regime</span><span class="sub">${p.count}, ${p.when}. Each zone with what the SPX did after the days in it.</span></div>
+    <div class="vx-vreg-g">${p.rows.join("")}</div><p class="vx-foot">${p.note}</p>`;
+}
+
+// Dias parecidos (macro.analogos_vol): episodios desde 2010 con los cuatro indicadores del regimen a la vez cerca de
+// los de hoy, y que hizo el SPX despues frente a cualquier dia
+function renderVolSim(a, vr) {
+  const el = $("vxSim");
+  el.hidden = !a || !a.episodes || !a.episodes.length;
+  if (el.hidden) return;
+  const n = a.episodes.length, s = a.stats, since = a.since.slice(0, 4);
+  const pc = (v) => (v == null ? "—" : sgnPct(v, 1));
+  const cls = (v) => (v == null ? "" : v > 0 ? "pos" : v < 0 ? "neg" : "");
+  const box = (h) => {
+    const x = s[h], b = a.base[h];
+    return `<div><span>SPX in ${h} sessions</span><strong class="${cls(x.med)}">${pc(x.med)}</strong><em>higher in ${x.up} of ${x.n}; any day ${pc(b.med)}, ${fmtNum(b.up * 100, 0)}%</em></div>`;
+  };
+  const z = a.zones || {};
+  const zl = z.days ? `Same four zones exactly: ${z.days} ${z.days === 1 ? "day" : "days"} in ${z.episodes} ${z.episodes === 1 ? "episode" : "episodes"}, SPX ${pc(z["20"].med)} in 20 sessions (higher in ${z["20"].up} of ${z["20"].n}) and ${pc(z["60"].med)} in 60 (higher in ${z["60"].up} of ${z["60"].n}), further drop ${pc(z.dd60.med)}.` : "No day since " + since + " had the same four zones.";
+  const dec = (k, v) => (v == null ? "—" : fmtNum(v, k === "vix" || k === "vvix" ? 1 : 2));
+  const rows = a.episodes.map((e) => `<tr><td class="l">${fullDate(e.date)}</td>${["vix", "vvix", "term", "skew"].map((k) => `<td>${dec(k, e[k])}</td>`).join("")}<td class="${cls(e.r20)}">${pc(e.r20)}</td><td class="${cls(e.r60)}">${pc(e.r60)}</td><td class="${cls(e.r120)}">${pc(e.r120)}</td><td>${e.dd60 != null && e.dd60 >= 0 ? "none" : pc(e.dd60)}</td></tr>`).join("");
+  const tip = `Each indicator is turned into its percentile since ${since}, so the four weigh the same, and the ${a.k} closest days to today are grouped into episodes (days less than ${a.gap} sessions apart are one episode, represented by its closest day). Median of the episodes; overlapping windows and few cases: a lean, not a certainty.`;
+  const open = el.querySelector("details")?.open;   // el plegable sigue abierto al refrescar
+  el.className = "vx-card vx-sim";
+  el.innerHTML = `<div class="vx-sec"><span class="mtitle" title="${tip}">Similar days</span><span class="sub">${n} episodes since ${since} with VIX, VVIX, VIX3M / VIX and SKEW / VIX close to ${vr && vr.items.some((it) => it.live) ? "now" : "this close"} at the same time. Median of the episodes.</span></div>
+    <div class="vx-sim-g">${box("20")}${box("60")}${box("120")}<div><span>Further drop in 60 sessions</span><strong>${pc(s.dd60.med)}</strong><em>median; worst ${pc(s.dd60.min)}</em></div></div>
+    <p class="vx-foot">${zl}</p>
+    <details${open ? " open" : ""}><summary>Show the ${n} episodes</summary><div class="vx-ep"><table>
+      <thead><tr><th class="l">Day</th><th>VIX</th><th>VVIX</th><th>VIX3M/VIX</th><th>SKEW/VIX</th><th>20 sessions</th><th>60 sessions</th><th>120 sessions</th><th title="Lowest SPX close in the next 60 sessions">Further drop</th></tr></thead>
+      <tbody>${rows}</tbody></table></div></details>`;
 }
 
 function interpAt(arr, days) {
@@ -3428,9 +3466,9 @@ const GLOSSARY = {
   cm30: { t: "30-day future", c: "text",
     what: "A synthetic future with a fixed 30-day maturity, comparable with the VIX day by day.",
     use: "It avoids the jumps caused by the M1 roll as each contract expires. If it is above the VIX, the structure is normal." },
-  vix3m: { t: "VIX / VIX3M", c: "text",
-    what: "30-day implied volatility versus 3-month implied volatility.",
-    use: "Below 1, normal structure. Above 1, the market pays more for immediate protection than for protection further out: a classic stress signal, and its return below 1 usually marks normalization." },
+  vix3m: { t: "VIX3M / VIX", c: "text",
+    what: "3-month implied volatility divided by 30-day implied volatility.",
+    use: "Above 1, normal structure. Under 1, the market pays more for immediate protection than for protection further out: a classic stress signal, and its return above 1 usually marks normalization. Under 0.90, deep inversion: historically a better entry than a warning." },
   streak: { t: "Streak", c: "text",
     what: "How many consecutive sessions the M2/M1 slope has kept the same sign.",
     use: "A long contango streak that breaks is an early warning of a regime change. Together with the share of the year in contango, it shows whether the current situation is exceptional." },

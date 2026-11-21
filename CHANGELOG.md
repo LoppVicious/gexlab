@@ -3,9 +3,13 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Crypto: señales con su historia, mineros y on-chain; régimen de volatilidad sin mezclar sesiones; datos sin la API de cotizaciones de CBOE
+## 2026-11-21 — Crypto: señales con su historia, mineros y on-chain; curva del VIX rediseñada con días parecidos; datos sin la API de cotizaciones de CBOE
 
 **Añadido**
+- **Curva del VIX, días parecidos:** episodios desde 2010 en los que VIX, VVIX, VIX3M/VIX y SKEW/VIX estuvieron a la
+  vez cerca de los de hoy (cada indicador en su percentil, los días seguidos de una misma crisis cuentan una vez) y qué
+  hizo el SPX después: mediana y veces al alza a 20, 60 y 120 sesiones y caída adicional en 60, frente a cualquier día.
+  También los días con la misma combinación exacta de zonas y la lista de episodios, plegable.
 - **Crypto, señales con su historia:** diez señales de BTC y ETH (MVRV por debajo de 1 o por encima de 3, precio que
   recupera o pierde el coste de los holders recientes, compra de hash ribbons, Puell bajo 0,5, SOPR de corto plazo que
   vuelve a 1, miedo y codicia extremos, pico de volatilidad implícita) con sus casos desde 2012, 2015, 2018 o 2022 y qué
@@ -18,7 +22,17 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Crypto, percentiles:** MVRV, Puell, direcciones, SOPR, DVOL y Fear & Greed frente a su historia. Desde hoy se guarda
   una foto diaria de los derivados (GEX, risk reversal, funding, long/short...); sus percentiles salen a partir de 30 días.
 
+**Cambiado**
+- **Curva del VIX, nueva distribución:** sin barra lateral, en franjas a todo el ancho. Arriba la lectura de la curva
+  con VIX, pendiente M2/M1, VIX3M/VIX e indicadores en zona de compra; luego el régimen de volatilidad en cuatro
+  tarjetas, los días parecidos, los dos gráficos lado a lado y, plegado, el detalle de futuros, la tabla por tramos de
+  la curva y el glosario.
+- **VIX3M/VIX en toda la web:** la curva del VIX y el Summary dejan de mostrar el ratio al revés (VIX/VIX3M); por
+  debajo de 1, curva invertida, igual que en el régimen de volatilidad y en TradingView.
+
 **Corregido**
+- **VIX al cierre en la curva del VIX:** salía «—» cuando el histórico diario aún no traía el cierre del día; ahora se
+  toma del cierre oficial de CBOE y la curva vuelve a empezar en el VIX.
 - **Datos que venían de las cotizaciones de CBOE** (dan 403 desde el 2026-11-20, también los históricos y los gráficos
   intradía): el tipo libre de riesgo del Summary vuelve a ser el de la letra a 13 semanas (IRX) y no el 4 % fijo; el IV
   rank del Compass y de la ficha, la volatilidad realizada, la correlación implícita, el pre-market por ETF de los

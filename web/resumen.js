@@ -201,7 +201,7 @@ function suVol(d) {
   series.push({ pts: cv(vp, V.vix_close), c: C.accent, fill: true, w: 2.2, end: "Today" });
   return `<section class="su-card su-vol" data-go="vix" title="Open the VIX curve">${head}
     <div class="su-kpis"><div><span>VIX</span><b>${fmtNum(V.vix_close, 2)}</b><em class="${dv > 0 ? "dn" : "up"}">${dv != null ? (dv >= 0 ? "+" : "−") + fmtNum(Math.abs(dv), 2) + " vs prev." : ""}</em></div>
-      <div><span>VIX / VIX3M</span><b>${V.vix_vix3m ? fmtNum(V.vix_vix3m, 2) : "—"}</b><em>${V.vix_vix3m >= 1 ? "stress: front above back" : "calm term structure"}</em></div>
+      <div><span>VIX3M / VIX</span><b>${V.vix_vix3m ? fmtNum(1 / V.vix_vix3m, 2) : "—"}</b><em>${V.vix_vix3m >= 1 ? "inverted: front above back" : "calm term structure"}</em></div>
       <div><span>Curve slope M2/M1</span><b>${sgnPct(V.spread)}</b><em>${ordinal(V.spread_pct_rank)} pct of the year</em></div></div>
     <div class="su-chart">${suArea(series, 600, 180, { id: "v", xt: [[0, "spot"], [30, "30d"], [90, "90d"], [180, "180d"]].filter((t) => t[0] <= last) })}</div>
     <div class="su-term">${(V.term || []).map((t) => `<div><span>${esc(t.symbol)}</span><b>${fmtNum(t.value, 2)}</b></div>`).join("")}</div>

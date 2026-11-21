@@ -302,6 +302,12 @@ def _vix_curve() -> dict:
 
     vix_hist, _ = g.history_ohlc("VIX")
     vix_close = {d: v[3] for d, v in vix_hist.items()}
+    # el CSV oficial de CBOE suele traer el cierre del día antes que el histórico diario
+    try:
+        for d, v in _csv_cierres("VIX").items():
+            vix_close.setdefault(d, v)
+    except Exception:  # noqa: BLE001
+        pass
 
     # todas las sesiones con cierre de futuros
     dates = sorted({d for rows in contracts.values() for d in rows})
@@ -857,7 +863,6 @@ def _regimen_curva(r3: float | None, r9: float | None) -> dict | None:
 # mejor); VIX3M/VIX <= 1 no da ventaja a 60 sesiones, <= 0,90 sí a 120; VIX3M/VIX >= 1,25 y SKEW/VIX >= 12 rinden por
 # debajo de la media (complacencia). Series: CSV de daily_prices de CBOE (gex_engine.daily_csv).
 VOLREG_DESDE = "2010-01-01"      # el SKEW sube de nivel con los años: antes de 2010 el SKEW/VIX no es comparable
-VOLREG_H = (60, 120)             # sesiones del rendimiento del SPX
 VOLREG = (
     # clave, nombre, cortes (ascendentes), zonas (nombre, tono) de abajo arriba
     ("vix", "VIX", (20, 30, 35),
@@ -918,8 +923,16 @@ def _volreg_seguro(vivo: dict[str, float] | None = None) -> dict | None:
         res = regimen_vol()
     except Exception:  # noqa: BLE001  (sin los CSV de CBOE la página sigue sin la tarjeta)
         return None
-    if not vivo or not vivo.get("VIX"):
-        return res
+    if vivo and vivo.get("VIX"):
+        res = _volreg_vivo(res, vivo)
+    try:
+        res = {**res, "analogs": analogos_vol({it["key"]: it["value"] for it in res["items"]})}
+    except Exception as e:  # noqa: BLE001  (la tarjeta del régimen sale igual, sin los días parecidos)
+        print(f"analogos_vol: {e}", flush=True)
+    return res
+
+
+def _volreg_vivo(res: dict, vivo: dict[str, float]) -> dict:
     vx = vivo["VIX"]
     ahora = {"vix": vx, "vvix": vivo.get("VVIX"),
              "term": vivo["VIX3M"] / vx if vivo.get("VIX3M") else None,
@@ -934,16 +947,13 @@ def _volreg_seguro(vivo: dict[str, float] | None = None) -> dict | None:
             "buy": sum(1 for it in items if it["zones"][it["zone"]]["tone"] == "buy")}
 
 
-def regimen_vol() -> dict:
-    """Zona de hoy de cada indicador (último cierre de CBOE) y qué hizo el SPX desde 2010 tras los días de cada zona:
-    rendimiento medio a 60 y 120 sesiones, % al alza a 60 y mediana de la caída adicional máxima en 60 sesiones."""
-    hit = _volreg_cache.get("r")
+def _volreg_base() -> dict:
+    """Series de los cuatro indicadores sobre las sesiones del SPX desde VOLREG_DESDE, con el rendimiento del SPX a
+    20, 60 y 120 sesiones y su caída adicional máxima en 60. La comparten regimen_vol y analogos_vol."""
+    hit = _volreg_cache.get("base")
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
     vix, v3, vv, sk = (_csv_cierres(s) for s in ("VIX", "VIX3M", "VVIX", "SKEW"))
-    # todas las zonas del mismo día: CBOE no sube los cuatro CSV a la vez (el VVIX puede llevar el cierre de hoy y el
-    # VIX aún el de ayer) y mezclarlos daría una fila de otra sesión
-    dia = min(max(vix), max(v3), max(vv), max(sk))
     spx = {k: v[3] for k, v in g.history_ohlc("SPX")[0].items() if v[3] > 0}
     series = {"vix": vix, "vvix": vv,
               "term": {f: v3[f] / vix[f] for f in v3 if vix.get(f)},
@@ -951,8 +961,28 @@ def regimen_vol() -> dict:
     F = [f for f in sorted(spx) if f >= VOLREG_DESDE]
     C = np.array([spx[f] for f in F])
     n = len(C)
-    fwd = {h: np.array([C[i + h] / C[i] - 1 if i + h < n else np.nan for i in range(n)]) for h in VOLREG_H}
-    dd = np.array([C[i + 1:i + 61].min() / C[i] - 1 if i + 60 < n else np.nan for i in range(n)])
+    res = {
+        # todas las zonas del mismo día: CBOE no sube los cuatro CSV a la vez (el VVIX puede llevar el cierre de hoy y
+        # el VIX aún el de ayer) y mezclarlos daría una fila de otra sesión
+        "dia": min(max(vix), max(v3), max(vv), max(sk)),
+        "series": series, "F": F,
+        "X": np.array([[series[k].get(f, np.nan) for k, *_ in VOLREG] for f in F]),
+        "fwd": {h: np.array([C[i + h] / C[i] - 1 if i + h < n else np.nan for i in range(n)]) for h in (20, 60, 120)},
+        "dd": np.array([C[i + 1:i + 61].min() / C[i] - 1 if i + 60 < n else np.nan for i in range(n)]),
+    }
+    _volreg_cache["base"] = (time.time(), res)
+    return res
+
+
+def regimen_vol() -> dict:
+    """Zona de hoy de cada indicador (último cierre de CBOE) y qué hizo el SPX desde 2010 tras los días de cada zona:
+    rendimiento medio a 60 y 120 sesiones, % al alza a 60 y mediana de la caída adicional máxima en 60 sesiones."""
+    hit = _volreg_cache.get("r")
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    b = _volreg_base()
+    dia, series, F, fwd, dd = b["dia"], b["series"], b["F"], b["fwd"], b["dd"]
+    n = len(F)
 
     def stats(m):
         m = m & np.isfinite(fwd[60])
@@ -980,6 +1010,78 @@ def regimen_vol() -> dict:
            "buy": sum(1 for it in items if it["zones"][it["zone"]]["tone"] == "buy")}
     _volreg_cache["r"] = (time.time(), res)
     return res
+
+
+# ---------------------------------------------------------------- días parecidos (los cuatro indicadores a la vez)
+# Cada indicador pasa a su percentil histórico (pesan igual) y se buscan los ANALOGOS_K días más cercanos a hoy en
+# esos cuatro percentiles. Vienen en racimos (una misma crisis da días seguidos): se agrupan en episodios separados por
+# más de ANALOGOS_GAP sesiones y cada episodio cuenta una vez, con su día más parecido. Ventanas que se solapan y pocos
+# episodios (unos 20): una inclinación, no una probabilidad.
+ANALOGOS_K = 120
+ANALOGOS_GAP = 20
+ANALOGOS_H = (20, 60, 120)
+
+
+def analogos_vol(ahora: dict[str, float]) -> dict | None:
+    """Episodios desde 2010 con VIX, VVIX, VIX3M/VIX y SKEW/VIX parecidos a `ahora` ({clave de VOLREG: valor}) y qué
+    hizo el SPX después: mediana y veces al alza a 20, 60 y 120 sesiones y caída adicional en 60, frente a cualquier
+    día. También los días con la misma combinación de zonas exacta."""
+    keys = [k for k, *_ in VOLREG]
+    if any(ahora.get(k) is None for k in keys):
+        return None
+    b = _volreg_base()
+    F, X, fwd, dd = b["F"], b["X"], b["fwd"], b["dd"]
+    n = len(F)
+    x0 = np.array([ahora[k] for k in keys], float)
+    ok = np.all(np.isfinite(X), axis=1) & np.isfinite(fwd[60])   # con 60 sesiones de recorrido
+    if ok.sum() < ANALOGOS_K:
+        return None
+    P = np.full_like(X, np.inf)
+    p0 = np.empty(len(keys))
+    for j in range(len(keys)):
+        col = np.sort(X[ok, j])
+        P[ok, j] = np.searchsorted(col, X[ok, j]) / len(col)
+        p0[j] = np.searchsorted(col, x0[j]) / len(col)
+    dist = np.sqrt(((P - p0) ** 2).sum(axis=1))
+    sel = np.sort(np.argsort(dist)[:ANALOGOS_K])
+
+    def grupos(idx) -> list[int]:
+        """Un día por racimo (días a menos de ANALOGOS_GAP sesiones entre sí): el más parecido a hoy."""
+        ep, prev = [], None
+        for i in idx:
+            if prev is None or i - prev > ANALOGOS_GAP:
+                ep.append(int(i))
+            elif dist[i] < dist[ep[-1]]:
+                ep[-1] = int(i)
+            prev = i
+        return ep
+
+    def resumen(idx) -> dict:
+        idx = np.asarray(idx, int)
+        out = {}
+        for h in ANALOGOS_H:
+            v = fwd[h][idx]
+            v = v[np.isfinite(v)]
+            out[str(h)] = {"n": int(len(v)), "med": _r(float(np.median(v))) if len(v) else None,
+                           "up": int((v > 0).sum())}
+        out["dd60"] = {"med": _r(float(np.median(dd[idx]))), "min": _r(float(dd[idx].min()))}
+        return out
+
+    ep = grupos(sel)
+    val = lambda a, i: _r(a[i])   # noqa: E731
+    episodios = [{"date": F[i], "dist": _r(dist[i], 3), **{k: _r(X[i, j], 4) for j, k in enumerate(keys)},
+                  **{f"r{h}": val(fwd[h], i) for h in ANALOGOS_H}, "dd60": val(dd, i)} for i in reversed(ep)]
+    base = {}
+    for h in ANALOGOS_H:
+        v = fwd[h][np.isfinite(fwd[h])]
+        base[str(h)] = {"med": _r(float(np.median(v))), "up": _r(float(np.mean(v > 0)))}
+    # misma combinación de zonas que hoy (cortes de VOLREG)
+    zona = np.stack([np.searchsorted(c, X[:, j], side="right") for j, (_, _, c, _) in enumerate(VOLREG)], axis=1)
+    z0 = np.array([np.searchsorted(c, x0[j], side="right") for j, (_, _, c, _) in enumerate(VOLREG)])
+    mz = np.where(ok & np.all(zona == z0, axis=1))[0]
+    return {"since": F[0], "k": ANALOGOS_K, "gap": ANALOGOS_GAP, "episodes": episodios, "stats": resumen(ep),
+            "base": base, "zones": {"days": int(len(mz)), "episodes": len(grupos(mz)), "first": F[int(mz[0])] if len(mz) else None,
+                                    **(resumen(mz) if len(mz) else {})}}
 
 
 # ---------------------------------------------------------------- probabilidad de cerrar fuera del 1σ (modelo 1)

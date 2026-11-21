@@ -12,7 +12,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   precio con zoom, perfil de lo pendiente a la derecha (largos por debajo, cortos por encima), liquidaciones reales
   debajo, exchanges y apalancamientos activables, intensidad mínima, memoria de las posiciones y pantalla completa.
   Debajo, hacia qué lado tira la liquidez, los grupos más cargados y cuánto se parece lo previsto a lo que de verdad se
-  liquidó. Datos de Coinalyze (clave gratuita guardada en el servidor).
+  liquidó. Los tamaños se escalan para que lo pendiente sume el open interest de cada vela. Sin stablecoins en la lista.
+  Datos de Coinalyze (clave gratuita guardada en el servidor).
 - **Curva del VIX, tres gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por
   punto desde 1990, con el día de hoy resaltado y un titular calculado ("only N days had a bigger VIX jump with the
   SPX doing better") y cuánto se aparta el VIX de lo habitual para ese movimiento del SPX. Al lado, put skew proxy

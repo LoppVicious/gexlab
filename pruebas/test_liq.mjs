@@ -54,6 +54,17 @@ test("presion, grupos y ajuste", () => {
   assert.equal(M.ajuste([1, 2], [1, 2]), null);   // pocas velas
 });
 
+test("con el OI de cada vela, la reduccion es la fraccion cerrada y lo vivo suma ese OI", () => {
+  const velas = Array.from({ length: 10 }, (_, i) => vela(i, 100));
+  const oi = [0, 1000, 1000, 500, 500, 500, 500, 500, 500, 500];
+  const nivel = [5000, 6000, 6000, 5500, 5500, 5500, 5500, 5500, 5500, 5500];   // OI total: el cambio es neto
+  const r = M.calcular(velas, oi, { levs: [{ L: 2, w: 1 }], vida: 1e9, nivel });
+  const vivo = (t) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gL[b * r.n + t] + r.gS[b * r.n + t]; return s; };
+  assert.ok(Math.abs(vivo(2) - 6000) < 1e-6 && Math.abs(vivo(3) - 5500) < 1e-6);   // escalado al OI de cada vela
+  const fin = r.finL.reduce((a, b) => a + b, 0) + r.finS.reduce((a, b) => a + b, 0);
+  assert.ok(Math.abs(fin - 5500) < 1e-6 && r.escalado);
+});
+
 test("sumar une simbolos por tiempo", () => {
   const m = M.sumar([{ history: [{ t: 1, c: 2 }, { t: 2, c: 3 }] }, { history: [{ t: 1, c: 5 }] }], "c");
   assert.equal(m.get(1), 7); assert.equal(m.get(2), 3);

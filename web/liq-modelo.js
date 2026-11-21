@@ -8,7 +8,8 @@
       precio * (1 - 1/L + MM); de un corto, precio * (1 + 1/L - MM). Precio de entrada: (max + min + cierre) / 3.
    4. Un nivel vive hasta que el precio lo toca (min de una vela por debajo de un largo, max por encima de un corto):
       entonces cuenta como liquidacion prevista en esa vela y desaparece.
-   5. Cuando el OI baja, todos los niveles vivos se reducen en proporcion (posiciones cerradas), y todos pierden
+   5. Cuando el OI baja, todos los niveles vivos se reducen en la fraccion del OI total que desaparece (posiciones
+      cerradas; opcion `nivel`, el OI de cada vela), y todos pierden
       fuerza con el tiempo (vida media en velas): una posicion de hace meses casi seguro que ya no existe.
    El calor de cada casilla (precio x vela) es lo vivo en ese tramo de precio en esa vela. Rejilla de precios
    logaritmica, para que sirva igual en 5 min que en diario desde 2019.
@@ -104,11 +105,13 @@ const LQ_MODELO = (() => {
     // recurrencia por tramo de precio: decae, se reduce si baja el OI, suma altas y resta las tocadas
     const gL = new Float32Array(B * n), gS = new Float32Array(B * n);
     const SL = new Float64Array(B), SS = new Float64Array(B), M = new Float64Array(n);
-    const predL = new Float64Array(n), predS = new Float64Array(n);
+    const predL = new Float64Array(n), predS = new Float64Array(n), escala = new Float64Array(n);
     let m = 1, total = 0;
     for (let t = 0; t < n; t++) {
-      // suelo de 0,05: con 0 el factor acumulado seria 0 y los niveles posteriores no se podrian restar
-      const r = dOI[t] < 0 && total > 0 ? Math.max(0.05, 1 - -dOI[t] / total) : 1;
+      // posiciones cerradas: la fraccion del OI total que desaparece (o.nivel: OI de la vela anterior; sin el, lo
+      // vivo del modelo). Suelo de 0,05: con 0 el factor acumulado seria 0 y los niveles posteriores no se podrian restar
+      const base = o.nivel && o.nivel[t - 1] > 0 ? o.nivel[t - 1] : total;
+      const r = dOI[t] < 0 && base > 0 ? Math.max(0.05, 1 - -dOI[t] / base) : 1;
       const f = dec * r;
       m *= f; M[t] = m;
       for (let b = 0; b < B; b++) { SL[b] *= f; SS[b] *= f; }
@@ -119,9 +122,24 @@ const LQ_MODELO = (() => {
       }
       total = 0;
       for (let b = 0; b < B; b++) { gL[b * n + t] = SL[b]; gS[b * n + t] = SS[b]; total += SL[b] + SS[b]; }
+      // escala: el cambio de OI de una vela es neto (lo que se abre y se cierra dentro se anula), asi que el modelo
+      // acierta la forma pero no el tamano. Cada posicion abierta tiene su precio de liquidacion: con el OI de la vela
+      // (o.nivel), lo vivo se escala para sumar ese OI
+      escala[t] = o.nivel && o.nivel[t] > 0 && total > 0 ? o.nivel[t] / total : NaN;
     }
-    return { n, B, bordes, gL, gS, predL, predS, finL: Float64Array.from(SL), finS: Float64Array.from(SS),
-      desdeOI, k, calibrado: sOI > 0 };
+    // sin OI (antes de su primer dato): la escala mediana del tramo con OI, para que el calor no salte
+    const conE = Array.from(escala).filter((x) => isFinite(x)).sort((a, b) => a - b);
+    const med = conE.length ? conE[Math.floor(conE.length / 2)] : 1;
+    for (let t = 0; t < n; t++) {
+      const e = isFinite(escala[t]) ? escala[t] : med;
+      escala[t] = e;
+      if (e === 1) continue;
+      predL[t] *= e; predS[t] *= e;
+      for (let b = 0; b < B; b++) { gL[b * n + t] *= e; gS[b * n + t] *= e; }
+    }
+    const eF = escala[n - 1] || 1;
+    return { n, B, bordes, gL, gS, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+      desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }
 
   // liquidez pendiente cerca del precio: cortos por encima y largos por debajo dentro de +-pct

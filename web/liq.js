@@ -121,13 +121,14 @@ async function lqCargar(forzar = false) {
     const velas = ((ohlcv[0] || {}).history || []).filter((v) => v.h > 0 && v.l > 0).sort((p, q) => p.t - q.t);
     if (velas.length < 20) throw new Error(`Not enough ${cfg.nombre} history for ${a.sym}`);
     // OI: se suma el cambio de cada simbolo (no el nivel), para que un exchange que empieza tarde no cree un salto
-    const ts = velas.map((v) => v.t), dOI = new Array(ts.length).fill(null);
+    const ts = velas.map((v) => v.t), dOI = new Array(ts.length).fill(null), nivel = new Array(ts.length).fill(0);
     const conOI = [];
     for (const s of oi) {
       const m = new Map((s.history || []).map((p) => [p.t, p.c]));
       if (m.size) conOI.push(s.symbol);
-      for (let i = 1; i < ts.length; i++) {
-        const x = m.get(ts[i]), y = m.get(ts[i - 1]);
+      for (let i = 0; i < ts.length; i++) {
+        const x = m.get(ts[i]), y = i > 0 ? m.get(ts[i - 1]) : null;
+        if (x != null) nivel[i] += x;   // OI total de la vela: para la fraccion que se cierra
         if (x != null && y != null) dOI[i] = (dOI[i] || 0) + (x - y);
       }
     }
@@ -140,7 +141,7 @@ async function lqCargar(forzar = false) {
     const L = LQ_MODELO.sumar(liq, "l"), S = LQ_MODELO.sumar(liq, "s");
     const t0 = Math.min(...[...L.keys(), ...S.keys(), Infinity]);
     const realL = ts.map((t) => (t >= t0 ? L.get(t) || 0 : null)), realS = ts.map((t) => (t >= t0 ? S.get(t) || 0 : null));
-    lq.datos = { velas, oi: oiCum, realL, realS, conOI, exs, sym: a.sym, tf: lq.tf };
+    lq.datos = { velas, oi: oiCum, nivel, realL, realS, conOI, exs, sym: a.sym, tf: lq.tf };
     lq.clave = clave; lq.at = Date.now(); lq.resClave = "";
     lqCalcular(true);
   } catch (e) {
@@ -156,7 +157,7 @@ function lqCalcular(nuevos = false) {
   const levs = LQ_MODELO.APAL.map((x) => ({ ...x, w: lq.levOff.has(String(x.L)) ? 0 : x.w }));
   const clave = [lq.clave, levs.map((x) => x.w).join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 240 });
+    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 240, nivel: d.nivel });
     lq.resClave = clave; lq.imgClave = "";
   }
   if (!lq.res) { lqMensaje("Choose at least one leverage."); return; }
@@ -343,6 +344,7 @@ function lqLectura() {
       <span class="ks">${aj ? `Correlation between the liquidations the model expected in each candle and the real ones (${fmtNum(aj.n)} candles): ${calidad}.` : calidad}</span></div>`;
   $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Estimated liquidation levels of open leveraged positions: brighter means more size. ` +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, volume-based" : ""}.` : "No open interest for this choice: volume-based estimate.") +
+    (r.escalado ? " Sizes scaled so the live levels add up to the open interest of each candle." : "") +
     ` Position memory: half-life of ${fmtNum(cfg.vida * +lq.vida)} candles. Bottom panel: real liquidations (longs down, shorts up).`;
 }
 

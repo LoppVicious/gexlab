@@ -199,7 +199,9 @@ def diario(st, ahora: datetime, errores: dict) -> dict:
                     for x in http_json(url)["data"]]
         renovar(f"red_{r}", CADUCA_H * 2, red)
     # activos del mapa de liquidaciones (Coinalyze y CoinGecko), una vez al dia
-    renovar("liq_mercados", 24, lambda: liq_mercados(ahora))
+    renovar("liq_activos", 24, lambda: liq_mercados(ahora))   # clave nueva: sin stablecoins
+    if d.pop("liq_mercados", None) is not None:   # la clave anterior (con stablecoins)
+        cambio = True
     renovar("stables_det", CADUCA_H, lambda: [
         {k: p.get(k) for k in ("symbol", "name", "circulating", "circulatingPrevWeek", "circulatingPrevMonth")}
         for p in http_json("https://stablecoins.llama.fi/stablecoins?includePrices=false")["peggedAssets"]])
@@ -379,6 +381,9 @@ def liq_mercados(ahora: datetime) -> dict:
         time.sleep(2)
     rango = {}
     for c in cg:   # el primero (mayor capitalizacion) gana si dos comparten simbolo
+        p = c.get("current_price") or 0
+        if "USD" in c["symbol"].upper() and 0.97 < p < 1.03:   # stablecoins: sin interes para el mapa
+            continue
         rango.setdefault(c["symbol"].upper(), (c["market_cap_rank"] or 9999, c["name"]))
     por = {}
     for m in mk:
@@ -430,8 +435,8 @@ def main() -> int:
            "umbrales": cc.UMBRALES}
     n = almacen.put_json(st, PUB, out)
     if cambio:   # historias largas: solo cuando cambian los datos diarios (unas 4 veces al dia)
-        if dia.get("liq_mercados"):
-            almacen.put_json(st, LIQ_MERCADOS, dia["liq_mercados"])
+        if dia.get("liq_activos"):
+            almacen.put_json(st, LIQ_MERCADOS, dia["liq_activos"])
         principal, redes = series(dia, ahora)
         n2 = almacen.put_json(st, SERIES, principal)
         for r, x in redes.items():

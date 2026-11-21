@@ -3194,10 +3194,10 @@ function renderVixMove(m) {
 // fit_since (solo el SKEW, que ha subido de fondo) van atenuados: la recta y la banda son de los recientes
 const SCAT_FIT = {
   term: {
-    el: "vxTerm", ylab: "VIX3M / VIX", dec: 3, tdec: 2, ref: 1, name: "VIX3M / VIX",
-    head: (z) => (z <= -1 ? "Front end <b>richer than usual</b> for this VIX level" : z >= 1 ? "Front end <b>calmer than usual</b> for this VIX level" : "VIX3M / VIX <b>within its usual range</b> for this VIX level"),
+    el: "vxTerm", ylab: "Put skew proxy (VIX3M / VIX)", dec: 3, tdec: 2, ref: 1, name: "VIX3M / VIX",
+    head: (z) => (z <= -1 ? "Demand for OTM puts: <b>above its historical range</b>" : z >= 1 ? "Demand for OTM puts: <b>below its historical range</b>" : "Demand for OTM puts: <b>within its historical range</b>"),
     read: (z) => (z <= -1 ? "Near-term protection is bid beyond what this VIX level usually brings." : z >= 1 ? "Near-term protection is cheaper than this VIX level usually brings." : ""),
-    cap: (m, n, yr) => `${fmtNum(n)} daily CBOE closes, ${yr} to ${fullDate(m.last)}. Dashed line: VIX3M / VIX fitted on the log of the VIX; band, ±1σ of the residuals. The ratio always falls as the VIX rises; below the band, the front end prices more stress than that alone explains. A term-structure gauge, not a direct skew measure.`,
+    cap: (m, n, yr) => `${fmtNum(n)} daily CBOE closes, ${yr} to ${fullDate(m.last)}. Dashed line: VIX3M / VIX fitted on the log of the VIX; band, ±1σ of the residuals. The ratio always falls as the VIX rises; below the band, near-term protection is bid beyond what that alone explains. A proxy: VIX3M / VIX compares maturities, not strikes, so an event in the next month moves it too.`,
   },
   skew: {
     el: "vxSkew", ylab: "CBOE SKEW", dec: 1, tdec: 0, ref: null, name: "SKEW",
@@ -3229,7 +3229,7 @@ function renderVixFit(key, m) {
     if (x < L || x > R) continue;
     s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${C.grid}"/>` + txt(x, B + 16, String(v), { a: "middle", mono: true, fs: 11 });
   }
-  s += txt((L + R) / 2, B + 32, "VIX (log scale)", { a: "middle", fs: 11.5 });
+  s += txt((L + R) / 2, B + 32, key === "term" ? "ATM vol: VIX (log scale)" : "VIX (log scale)", { a: "middle", fs: 11.5 });
   s += txt(R - 6, T + 12, cf.ylab, { a: "end", fs: 11.5 });
   // banda de ±1σ y recta del ajuste (rectas en el eje logaritmico)
   const v0 = Math.exp(lx0), v1 = Math.exp(lx1), sd = m.sd;

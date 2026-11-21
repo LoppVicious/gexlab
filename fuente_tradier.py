@@ -191,6 +191,7 @@ def cadena(symbol: str) -> dict:
     data = {
         "symbol": sym, "current_price": spot, "close": spot, "prev_day_close": prev,
         "price_change_percent": q.get("change_percentage"), "iv30": None,
+        "volume": q.get("volume"),  # acciones negociadas en la sesion (O/S de skew.py)
         "last_trade_time": ts.strftime("%Y-%m-%dT%H:%M:%S"), "options": options,
     }
     return {"timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"), "source": "tradier", "data": data}

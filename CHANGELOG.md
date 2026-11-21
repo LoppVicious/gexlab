@@ -56,6 +56,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   vuelven a tener datos, igual que el régimen de volatilidad, el régimen gamma y los tramos de la curva del VIX (que
   usan el SPX desde 2009). Salen de Tradier y, para los índices de CBOE (VIX y familia, IRX, TNX, COR...), de sus cierres
   oficiales diarios. La IV a 30 días pasa a ser la IV ATM del vencimiento más cercano a 30 días.
+- **Historial diario sin cadenas:** el del viernes 20 guardó 0 de 529 tickers porque seguía pidiendo las cadenas a
+  CBOE. Ahora las pide a Tradier (con el volumen de la acción para el O/S) y tiene hasta 150 minutos, porque Tradier
+  sirve la cadena por vencimiento.
 - **Régimen de volatilidad** (curva del VIX y Summary): con el mercado cerrado, los cuatro indicadores salen siempre
   del mismo cierre. CBOE no publica los cierres a la vez y la tarjeta podía mostrar el VVIX del día con el VIX, el
   VIX3M/VIX y el SKEW/VIX de la sesión anterior.

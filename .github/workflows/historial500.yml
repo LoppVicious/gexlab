@@ -28,7 +28,8 @@ permissions:
 jobs:
   historial:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # con Tradier la cadena se pide por vencimiento (unas 20 peticiones por ticker): mas lenta que el JSON de CBOE
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,6 +45,8 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
           GEX_ALMACEN: r2
+          # cadenas de Tradier: la API de CBOE (delayed_quotes) da 403 desde el 2026-11-20
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
           FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
           INDICE: ${{ inputs.indice && '--indice' || '' }}
           VALIDACION: ${{ inputs.validacion && '--validacion' || '' }}

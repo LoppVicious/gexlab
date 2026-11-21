@@ -7,7 +7,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 
 **Añadido**
 - **Distribución implícita y probabilidades de los niveles:** la distribución del precio al vencimiento que descuentan
-  las opciones (a partir del smile de cada vencimiento). En la tarjeta del rango de 1σ, la probabilidad de cerrar el
+  las opciones (a partir del smile de cada vencimiento, sin las alas sin oferta ni los saltos de IV que dan algunas
+  cotizaciones lejanas). En la tarjeta del rango de 1σ, la probabilidad de cerrar el
   próximo vencimiento por encima del Call Wall, por debajo del Put Wall y al otro lado del flip, y la de tocarlos antes
   (estimada); al pasar el ratón, la del viernes. En Volatility, vista nueva Distribution: densidad frente a la
   lognormal de la IV ATM, ±1σ, percentiles, niveles del ticker con su probabilidad y probabilidad por encima y por

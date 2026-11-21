@@ -362,7 +362,8 @@ Los dos:
   de 200 puntos, densidad relativa a su máximo y CDF).
 - **Distribución implícita** (`g.implied_distribution`, Breeden-Litzenberger): IV fuera de dinero por strike (sin
   |delta| < 0,02), interpolada en log-strike, plana fuera de los strikes y suavizada (gaussiana de `DIST_SMOOTH` = 0,2σ
-  ATM: sin ella el ruido de strikes contiguos de SPX y NDX daba un 10-20 % de densidad negativa); calls de Black sobre
+  ATM: sin ella el ruido de strikes contiguos de SPX y NDX daba un 10-20 % de densidad negativa), sin opciones sin bid
+  y sin saltos de IV de más de `DIST_OUTLIER` (35 %) hacia las alas (Tradier da 170-500 % en calls lejanas del SPX); calls de Black sobre
   el forward y segunda derivada. `clip` = masa negativa recortada (`noisy` > 5 %). `compute` añade `level_probs`
   (`level_dists`: próximo vencimiento y el semanal de esa semana; probabilidad de cerrar más allá de Call Wall, Put Wall
   y flip y de tocarlos, estimada como el doble). `_snap` guarda `pc_exp`, `pc_cw`, `pc_pw` y `pc_flip`.

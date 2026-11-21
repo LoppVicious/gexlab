@@ -130,6 +130,20 @@ def test_completar_probs_rellena_dias_antiguos():
     assert nuevo["pc_cw"] == 0.5          # los que ya lo tienen no se tocan
 
 
+def test_alas_sin_bid_y_picos_fuera():
+    # alas como las del SPX de Tradier: calls lejanas sin bid con IV de 170-500 % y un pico suelto con bid
+    limpia = g.implied_distribution(cadena([VTO], lambda k: 0.20), 100.0, AHORA, VTO)
+    ch = cadena([VTO], lambda k: 0.20)
+    ch["bid"] = np.ones(ch["K"].shape)
+    lejos = (ch["K"] >= 112) & (ch["K"] <= 116)
+    ch["iv"][lejos] = 3.0
+    ch["bid"][lejos] = 0.0
+    ch["iv"][(ch["K"] == 92.0)] = 0.45
+    d = g.implied_distribution(ch, 100.0, AHORA, VTO)
+    assert d["clip"] < 0.01, d["clip"]
+    assert abs(d["q"]["50"] - limpia["q"]["50"]) < 0.05 and abs(d["q"]["5"] - limpia["q"]["5"]) < 0.1
+
+
 def test_dist_json_y_dist_for_day():
     import json
     ch = cadena(["2026-12-02T16:00", "2026-12-11T16:00"], lambda k: 0.20)

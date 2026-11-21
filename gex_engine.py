@@ -1342,6 +1342,7 @@ DIST_SIGMAS = 5.0       # la rejilla cubre +-5 desviaciones (IV ATM) alrededor d
 DIST_NOISY = 0.05       # masa negativa recortada por encima de la cual la forma es aproximada
 DIST_MIN_MIN = 30.0     # minutos de mercado minimos hasta el vencimiento
 DIST_SMOOTH = 0.2       # ancho del suavizado de la IV, en desviaciones ATM (0 = sin suavizar)
+DIST_OUTLIER = 0.35     # salto maximo de la IV frente al strike aceptado anterior (hacia las alas)
 VIX_LIKE = {"VIX", "VIXW"}
 
 
@@ -1361,6 +1362,10 @@ def implied_distribution(ch: dict, spot: float, now: datetime, exp, n: int = DIS
     if trading_minutes(q, exp.astype(datetime)) < DIST_MIN_MIN:
         return None
     sel = (ch["exp"] == exp) & (ch["iv"] > 0.01) & (ch["iv"] < 5)
+    if ch.get("bid") is not None:
+        # sin oferta, la IV de las alas lejanas no vale (Tradier da 170-500 % en calls del SPX sin bid) y el filtro
+        # de delta no la quita: con esa IV la delta sale grande
+        sel &= ch["bid"] > 0
     if not sel.any():
         return None
     Fc = ch.get("fwd")
@@ -1379,6 +1384,19 @@ def implied_distribution(ch: dict, spot: float, now: datetime, exp, n: int = DIS
     if K.size:
         K, inv = np.unique(K, return_inverse=True)
         IV = np.bincount(inv, weights=IV) / np.bincount(inv)
+    if K.size >= 5:
+        # saltos: desde el strike mas cercano al forward hacia cada ala, fuera la IV que se aparta mas de un
+        # DIST_OUTLIER del ultimo strike aceptado de ese lado (vale tambien para grupos de strikes malos seguidos)
+        ok = np.zeros(K.size, bool)
+        c = int(np.argmin(np.abs(K - F)))
+        ok[c] = True
+        for paso in (1, -1):
+            prev = IV[c]
+            for i in range(c + paso, K.size if paso > 0 else -1, paso):
+                if abs(IV[i] / prev - 1) <= DIST_OUTLIER:
+                    ok[i] = True
+                    prev = IV[i]
+        K, IV = K[ok], IV[ok]
     if K.size < 5:
         return None
     lk = np.log(K)

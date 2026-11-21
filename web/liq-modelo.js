@@ -5,7 +5,8 @@
       primer dato de OI, el volumen de la vela por un factor calibrado con el tramo que si tiene OI.
    2. Largos y cortos: la parte del volumen agresor comprador (bv / v) son largos; el resto, cortos.
    3. Apalancamiento: cada posicion se reparte entre APAL (pesos supuestos). Liquidacion de un largo:
-      precio * (1 - 1/L + MM); de un corto, precio * (1 + 1/L - MM). Precio de entrada: (max + min + cierre) / 3.
+      precio * (1 - 1/L + MM); de un corto, precio * (1 + 1/L - MM). Precio de entrada: (max + min + cierre) / 3, y
+      la cantidad se reparte entre las entradas posibles (la mitad central del rango de la vela).
    4. Un nivel vive hasta que el precio lo toca (min de una vela por debajo de un largo, max por encima de un corto):
       entonces cuenta como liquidacion prevista en esa vela y desaparece.
    5. Cuando el OI baja, todos los niveles vivos se reducen en la fraccion del OI total que desaparece (posiciones
@@ -19,6 +20,7 @@ const LQ_MODELO = (() => {
   const APAL = [{ L: 5, w: 0.1 }, { L: 10, w: 0.3 }, { L: 25, w: 0.3 }, { L: 50, w: 0.2 }, { L: 100, w: 0.1 }];
   const MM = 0.005;   // margen de mantenimiento aproximado
   const K_DEFECTO = 0.05;   // posiciones nuevas por USD negociado si no hay tramo con OI para calibrar
+  const ANCHO = 0.5;   // fraccion del rango de la vela (a cada lado del precio medio) donde se reparten las entradas
 
   // suma por tiempo la historia de varios simbolos de una respuesta de Coinalyze: campo de cada punto
   function sumar(resp, campo) {
@@ -76,8 +78,9 @@ const LQ_MODELO = (() => {
       const largos = [], cortos = [];
       for (const x of levs) {
         const w = x.w / pw;
-        largos.push({ p: tip[i] * (1 - 1 / x.L + mm), a: nuevo[i] * fc * w });
-        cortos.push({ p: tip[i] * (1 + 1 / x.L - mm), a: nuevo[i] * (1 - fc) * w });
+        const fL = 1 - 1 / x.L + mm, fS = 1 + 1 / x.L - mm;
+        largos.push({ p: tip[i] * fL, a: nuevo[i] * fc * w, f: fL });
+        cortos.push({ p: tip[i] * fS, a: nuevo[i] * (1 - fc) * w, f: fS });
       }
       // largos: el mas alto cae antes; se recorre hacia delante una vez con el minimo acumulado
       largos.sort((p, q) => q.p - p.p);
@@ -94,11 +97,18 @@ const LQ_MODELO = (() => {
         while (kS < cortos.length && cortos[kS].p <= mx) { cortos[kS].fin = j; kS++; }
         j++;
       }
+      // cada nivel se reparte en la franja de precios de entrada posibles (la mitad central del rango de la vela):
+      // no todos entraron al precio medio, y el mapa sale con bandas suaves en vez de escalones
+      const eLo = tip[i] - (tip[i] - v.l) * ANCHO, eHi = tip[i] + (v.h - tip[i]) * ANCHO;
       for (const [lado, lista] of [[0, largos], [1, cortos]]) for (const x of lista) {
-        const b = binDe(x.p);
-        if (b < 0 || !(x.a > 0)) continue;
-        altas[i].push([lado, b, x.a]);
-        if (x.fin != null) bajas[x.fin].push([lado, b, x.a, i]);
+        if (!(x.a > 0)) continue;
+        let b0 = binDe(eLo * x.f), b1 = binDe(eHi * x.f);
+        const bc = binDe(x.p);
+        if (bc < 0 && b0 < 0 && b1 < 0) continue;
+        if (b0 < 0) b0 = bc >= 0 ? bc : 0;
+        if (b1 < 0) b1 = bc >= 0 ? bc : B - 1;
+        altas[i].push([lado, b0, b1, x.a]);
+        if (x.fin != null) bajas[x.fin].push([lado, b0, b1, x.a, i]);
       }
     }
 
@@ -115,10 +125,14 @@ const LQ_MODELO = (() => {
       const f = dec * r;
       m *= f; M[t] = m;
       for (let b = 0; b < B; b++) { SL[b] *= f; SS[b] *= f; }
-      for (const [lado, b, a] of altas[t]) (lado ? SS : SL)[b] += a;
-      for (const [lado, b, a, i] of bajas[t]) {
-        const vivo = M[i] > 0 ? (a * m) / M[i] : 0;
-        if (lado) { SS[b] = Math.max(0, SS[b] - vivo); predS[t] += vivo; } else { SL[b] = Math.max(0, SL[b] - vivo); predL[t] += vivo; }
+      for (const [lado, b0, b1, a] of altas[t]) {
+        const S = lado ? SS : SL, q = a / (b1 - b0 + 1);
+        for (let b = b0; b <= b1; b++) S[b] += q;
+      }
+      for (const [lado, b0, b1, a, i] of bajas[t]) {
+        const vivo = M[i] > 0 ? (a * m) / M[i] : 0, S = lado ? SS : SL, q = vivo / (b1 - b0 + 1);
+        for (let b = b0; b <= b1; b++) S[b] = Math.max(0, S[b] - q);
+        if (lado) predS[t] += vivo; else predL[t] += vivo;
       }
       total = 0;
       for (let b = 0; b < B; b++) { gL[b * n + t] = SL[b]; gS[b * n + t] = SS[b]; total += SL[b] + SS[b]; }

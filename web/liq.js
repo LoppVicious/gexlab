@@ -16,12 +16,13 @@ const LQ_TF = {
   "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 540, nombre: "4 hours" },
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
+const LQ_CONTRASTE = 1.6;   // exponente de la escala de color del calor
 const LQ_VIDA = { "0.5": "short", 1: "normal", 2: "long" };
 const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin", 20), vida: String(store.get("lqVida", "1")), extra: 0,
+  min: +store.get("lqMin", 10), vida: String(store.get("lqVida", "1")), extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -157,7 +158,7 @@ function lqCalcular(nuevos = false) {
   const levs = LQ_MODELO.APAL.map((x) => ({ ...x, w: lq.levOff.has(String(x.L)) ? 0 : x.w }));
   const clave = [lq.clave, levs.map((x) => x.w).join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 240, nivel: d.nivel });
+    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 400, nivel: d.nivel });
     lq.resClave = clave; lq.imgClave = "";
   }
   if (!lq.res) { lqMensaje("Choose at least one leverage."); return; }
@@ -180,41 +181,74 @@ function lqSeries(nuevos) {
   lq.chart.applyOptions({ timeScale: { timeVisible: d.tf !== "1D", secondsVisible: false } });
   if (nuevos) {
     const n = d.velas.length, ver = LQ_TF[d.tf].ver;
-    lq.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - ver), to: n + 4 });
+    // margen a la derecha: el perfil queda despues de la ultima vela, sin taparla
+    lq.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - ver), to: n + Math.ceil(Math.min(n, ver) * 0.16) });
   }
 }
 
-// imagen de una casilla por pixel (vela x tramo de precio), con la escala del tema
+// paleta del calor con los colores del tema: de lo flojo (azul, casi transparente) a lo fuerte (rojo)
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function lqPaleta() {
+  const paradas = [C.prevClose, C.put, C.amber, C.call].map(lqHex), lut = new Uint8ClampedArray(256 * 4);
+  for (let k = 0; k < 256; k++) {
+    const u = k / 255, x = u * (paradas.length - 1), i0 = Math.min(paradas.length - 2, Math.floor(x)), f = x - i0;
+    const a = paradas[i0], c = paradas[i0 + 1];
+    lut[k * 4] = a[0] + (c[0] - a[0]) * f; lut[k * 4 + 1] = a[1] + (c[1] - a[1]) * f; lut[k * 4 + 2] = a[2] + (c[2] - a[2]) * f;
+    lut[k * 4 + 3] = 255 * (0.1 + 0.9 * Math.sqrt(u));
+  }
+  return lut;
+}
+
+// escala del calor (percentil 99,5 de las casillas con algo) y paleta: se rehacen al cambiar el calculo, la intensidad
+// minima o el tema. El dibujo se hace en lqPintar, con la vista de cada momento
 function lqImagen() {
   if (!lq.res) return;
   const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme].join("|");
-  if (clave === lq.imgClave && lq.img) return;
-  const { n, B, gL, gS } = r;
-  // escala: percentil 99 de las casillas con algo (muestra), para que un pico no apague el resto
-  const muestra = [];
-  const paso = Math.max(1, Math.floor((n * B) / 40000));
+  if (clave === lq.imgClave) return;
+  const { n, B, gL, gS } = r, muestra = [], paso = Math.max(1, Math.floor((n * B) / 40000));
   for (let k = 0; k < n * B; k += paso) { const v = gL[k] + gS[k]; if (v > 0) muestra.push(v); }
   muestra.sort((a, b) => a - b);
-  const tope = muestra.length ? muestra[Math.floor(muestra.length * 0.995)] : 1, umbral = (lq.min / 100) * tope;
-  const paradas = [C.purple, C.accent, C.amber, C.call].map(lqHex);
-  const cv = document.createElement("canvas");
-  cv.width = n; cv.height = B;
-  const ctx = cv.getContext("2d"), im = ctx.createImageData(n, B), px = im.data;
-  for (let b = 0; b < B; b++) {
-    const fila = B - 1 - b;
-    for (let t = 0; t < n; t++) {
-      const v = gL[b * n + t] + gS[b * n + t];
+  lq.tope = muestra.length ? muestra[Math.floor(muestra.length * 0.995)] : 1;
+  lq.lut = lqPaleta();
+  lq.lLo = Math.log(r.bordes[0]); lq.paso = (Math.log(r.bordes[B]) - lq.lLo) / B;
+  lq.imgClave = clave; lq.pintado = null;
+}
+
+// tramo fraccionario (entre centros de tramo) de un precio, para interpolar entre los dos vecinos
+function lqTramo(p) { return (Math.log(p) - lq.lLo) / lq.paso - 0.5; }
+
+// calor de la vista: una columna por vela visible (o por pixel si hay mas velas que pixeles) y una fila por pixel,
+// interpolando en precio entre tramos vecinos: bandas suaves con cualquier escala o zoom
+function lqPintar(serie, ancho, alto, c0, c1) {
+  const r = lq.res, n = r.n, B = r.B, cols = c1 - c0 + 1;
+  const pTop = serie.coordinateToPrice(0), pBot = serie.coordinateToPrice(alto);
+  const clave = [lq.imgClave, c0, c1, Math.round(ancho), Math.round(alto), pTop, pBot].join("|");
+  if (lq.pintado && lq.pintado.clave === clave) return lq.pintado;
+  const outW = Math.max(1, Math.min(cols, Math.ceil(ancho))), outH = Math.max(1, Math.min(900, Math.ceil(alto)));
+  const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
+  cv.width = outW; cv.height = outH;
+  const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
+  const { gL, gS } = r, lut = lq.lut, tope = lq.tope, umbral = (lq.min / 100) * tope;
+  const colDe = new Int32Array(outW);
+  for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
+  for (let y = 0; y < outH; y++) {
+    const p = serie.coordinateToPrice(((y + 0.5) * alto) / outH);
+    if (!(p > 0)) continue;
+    const fb = lqTramo(p), b0 = Math.floor(fb), f = fb - b0;
+    if (b0 < -1 || b0 >= B) continue;
+    const bA = Math.max(0, b0), bB = Math.min(B - 1, b0 + 1);
+    const oA = bA * n, oB = bB * n, fila = y * outW * 4;
+    for (let k = 0; k < outW; k++) {
+      const t = colDe[k], v = (gL[oA + t] + gS[oA + t]) * (1 - f) + (gL[oB + t] + gS[oB + t]) * f;
       if (!(v > umbral)) continue;
-      // lineal: los grupos grandes destacan y lo flojo queda tenue (transparencia segun la intensidad)
-      const u = Math.min(1, v / tope), x = u * (paradas.length - 1), i0 = Math.min(paradas.length - 2, Math.floor(x)), f = x - i0;
-      const a = paradas[i0], c = paradas[i0 + 1], o = (fila * n + t) * 4;
-      px[o] = a[0] + (c[0] - a[0]) * f; px[o + 1] = a[1] + (c[1] - a[1]) * f; px[o + 2] = a[2] + (c[2] - a[2]) * f;
-      px[o + 3] = 35 + 215 * Math.pow(u, 0.6);
+      // contraste: lo medio en azul y verde; solo los grupos grandes llegan a amarillo y rojo
+      const i = Math.floor(Math.pow(Math.min(1, v / tope), LQ_CONTRASTE) * 255) * 4, o = fila + k * 4;
+      px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
     }
   }
   ctx.putImageData(im, 0, 0);
-  lq.img = cv; lq.imgClave = clave;
+  lq.pintado = { clave, cv };
+  return lq.pintado;
 }
 
 class LqHeat {
@@ -224,25 +258,27 @@ class LqHeat {
   paneViews() { return [this.view]; }
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
-    const r = lq.res, img = lq.img, p = this.p;
-    if (!r || !img || !p) return;
+    const r = lq.res, p = this.p;
+    if (!r || !p || !lq.lut) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      const ts = lq.chart.timeScale(), x0 = ts.logicalToCoordinate(0), x1 = ts.logicalToCoordinate(1);
-      if (x0 == null || x1 == null) return;
-      const w = x1 - x0, left = x0 - w / 2, ancho = w * r.n;
+      const ts = lq.chart.timeScale(), vr = ts.getVisibleLogicalRange();
+      if (!vr) return;
+      const c0 = Math.max(0, Math.floor(vr.from)), c1 = Math.min(r.n - 1, Math.ceil(vr.to));
+      if (c1 < c0) return;
+      const xA = ts.logicalToCoordinate(c0), xB = ts.logicalToCoordinate(c0 + 1);
+      if (xA == null || xB == null) return;
+      const w = xB - xA, left = xA - w / 2, ancho = w * (c1 - c0 + 1);
+      const img = lqPintar(p.series, Math.min(ancho, mediaSize.width), mediaSize.height, c0, c1);
       ctx.save();
       ctx.imageSmoothingEnabled = false;
-      for (let b = 0; b < r.B; b++) {
-        const yA = p.series.priceToCoordinate(r.bordes[b + 1]), yB = p.series.priceToCoordinate(r.bordes[b]);
-        if (yA == null || yB == null || yB < 0 || yA > mediaSize.height) continue;
-        ctx.drawImage(img, 0, r.B - 1 - b, r.n, 1, left, yA, ancho, Math.max(1, yB - yA));
-      }
+      ctx.drawImage(img.cv, left, 0, ancho, mediaSize.height);
       ctx.restore();
     });
   }
 }
 
-// perfil de lo pendiente ahora: largos (por debajo, se liquidan al bajar) y cortos (por encima)
+// perfil de lo pendiente ahora, por intensidad (la misma paleta), con lo acumulado desde el precio hacia arriba
+// (cortos que se liquidarian si sube) y hacia abajo (largos si baja)
 class LqPerfil {
   constructor() { this.p = null; this.view = { zOrder: () => "top", renderer: () => ({ draw: (t) => this.draw(t) }) }; }
   attached(p) { this.p = p; }
@@ -250,31 +286,62 @@ class LqPerfil {
   paneViews() { return [this.view]; }
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
-    const r = lq.res, p = this.p;
-    if (!r || !p) return;
+    const r = lq.res, p = this.p, d = lq.datos;
+    if (!r || !p || !d || !lq.lut) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      const W = Math.round(Math.min(150, Math.max(70, mediaSize.width * 0.12))), right = mediaSize.width - 2;
+      const H = mediaSize.height, W = Math.round(Math.min(170, Math.max(70, mediaSize.width * 0.14))), right = mediaSize.width - 2;
+      const precio = d.velas[d.velas.length - 1].c, yP = p.series.priceToCoordinate(precio);
+      const paso = 2, filas = [];
       let mx = 0;
-      const filas = [];
-      for (let b = 0; b < r.B; b++) {
-        const yA = p.series.priceToCoordinate(r.bordes[b + 1]), yB = p.series.priceToCoordinate(r.bordes[b]);
-        if (yA == null || yB == null || yB < 0 || yA > mediaSize.height) continue;
-        filas.push([yA, yB, r.finL[b], r.finS[b]]);
-        mx = Math.max(mx, r.finL[b] + r.finS[b]);
+      for (let y = 0; y < H; y += paso) {
+        const pr = p.series.coordinateToPrice(y + paso / 2);
+        if (!(pr > 0)) continue;
+        const fb = lqTramo(pr), b0 = Math.floor(fb), f = fb - b0;
+        if (b0 < -1 || b0 >= r.B) { filas.push([y, 0]); continue; }
+        const bA = Math.max(0, b0), bB = Math.min(r.B - 1, b0 + 1);
+        const v = (r.finL[bA] + r.finS[bA]) * (1 - f) + (r.finL[bB] + r.finS[bB]) * f;
+        filas.push([y, v]); mx = Math.max(mx, v);
       }
       if (!mx) return;
       ctx.save();
-      ctx.fillStyle = C.surface; ctx.globalAlpha = 0.55;
-      ctx.fillRect(right - W, 0, W, mediaSize.height);
-      for (const [yA, yB, l, s] of filas) {
-        const h = Math.max(1, yB - yA - 0.5), wl = (l / mx) * W, ws = (s / mx) * W;
-        ctx.globalAlpha = 0.85;
-        if (wl > 0.3) { ctx.fillStyle = C.call; ctx.fillRect(right - wl, yA, wl, h); }
-        if (ws > 0.3) { ctx.fillStyle = C.put; ctx.fillRect(right - wl - ws, yA, ws, h); }
+      ctx.fillStyle = C.surface; ctx.globalAlpha = 0.6;
+      ctx.fillRect(right - W, 0, W, H);
+      ctx.globalAlpha = 1;
+      for (const [y, v] of filas) {
+        if (v <= 0) continue;
+        const i = Math.min(255, Math.floor((v / mx) * 255)) * 4, l = lq.lut;
+        ctx.fillStyle = `rgba(${l[i]},${l[i + 1]},${l[i + 2]},${Math.max(0.35, l[i + 3] / 255)})`;
+        const wv = (v / mx) * W * 0.92;
+        ctx.fillRect(right - wv, y, wv, paso - 0.4);
+      }
+      // acumulados desde el precio: arriba (cortos, verde) y abajo (largos, rojo), escala propia
+      if (yP != null) {
+        const arriba = filas.filter(([y]) => y < yP).reverse(), abajo = filas.filter(([y]) => y >= yP);
+        const acum = (lista) => { let s = 0; return lista.map(([y, v]) => [y, (s += v)]); };
+        const cA = acum(arriba), cB = acum(abajo), cm = Math.max(1, ...cA.map((x) => x[1]), ...cB.map((x) => x[1]));
+        for (const [lista, col] of [[cA, C.put], [cB, C.call]]) {
+          if (!lista.length) continue;
+          ctx.beginPath(); ctx.moveTo(right - W, yP);
+          for (const [y, s] of lista) ctx.lineTo(right - W + (s / cm) * W, y);
+          ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.9; ctx.stroke();
+          ctx.lineTo(right - W, lista[lista.length - 1][0]); ctx.closePath();
+          ctx.fillStyle = col; ctx.globalAlpha = 0.12; ctx.fill();
+        }
       }
       ctx.restore();
     });
   }
+}
+
+// niveles clave: el grupo mas cargado por encima y por debajo, como lineas con su etiqueta en el eje
+function lqNivelesClave(g) {
+  for (const l of lq.lineas || []) lq.serie.removePriceLine(l);
+  lq.lineas = [];
+  const linea = (x, col, titulo) => lq.lineas.push(lq.serie.createPriceLine({ price: x.p, color: col, lineWidth: 1, lineStyle: 2,
+    axisLabelVisible: true, title: `${titulo} ${lqUsd(x.a)}` }));
+  const arriba = g.arriba.slice().sort((p, q) => q.a - p.a)[0], abajo = g.abajo.slice().sort((p, q) => q.a - p.a)[0];
+  if (arriba) linea(arriba, C.put, "Shorts");
+  if (abajo) linea(abajo, C.call, "Longs");
 }
 
 function lqChart() {
@@ -306,7 +373,7 @@ function lqTema() {
   });
   lq.serie.applyOptions({ upColor: C.candle, downColor: C.surface, borderUpColor: C.candle, borderDownColor: C.candle,
     wickUpColor: C.candle, wickDownColor: C.candle, priceLineColor: C.spotline });
-  if (lq.res) { lq.imgClave = ""; lqImagen(); lqSeries(false); lq.heat.redraw(); }
+  if (lq.res) { lq.imgClave = ""; lqImagen(); lqSeries(false); lqLectura(); lq.heat.redraw(); }
 }
 
 function lqLeyenda(prm) {
@@ -325,6 +392,7 @@ function lqLectura() {
   const d = lq.datos, r = lq.res, cfg = LQ_TF[d.tf], n = d.velas.length;
   const precio = d.velas[n - 1].c, pct = d.tf === "1D" ? 0.15 : d.tf === "4h" ? 0.1 : 0.05;
   const pr = LQ_MODELO.presion(r, precio, pct), g = LQ_MODELO.grupos(r, precio, 3, pct * 2);
+  lqNivelesClave(g);
   let veredicto, cls = "";
   if (pr.ratio == null || (pr.arriba + pr.abajo) === 0) veredicto = "No clear pull";
   else if (pr.ratio >= 1.5) { veredicto = "Pull up: more short liquidations above"; cls = "pos"; }
@@ -368,7 +436,7 @@ $("lqLev").addEventListener("click", (e) => {
   const s = new Set(lq.levOff); if (s.has(b.dataset.v)) s.delete(b.dataset.v); else s.add(b.dataset.v);
   Object.assign(lq, { levOff: s }); store.set("lqLevOff", [...s].join(",")); lqControles(); lqCalcular();
 });
-$("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) lq.heat.redraw(); });
+$("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
 $("lqMin").addEventListener("change", () => store.set("lqMin", lq.min));
 $("lqVida").addEventListener("change", (e) => { lq.vida = e.target.value; store.set("lqVida", lq.vida); lqCalcular(); });
 $("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });

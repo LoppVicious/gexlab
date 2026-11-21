@@ -20,7 +20,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   precio con zoom, perfil de lo pendiente a la derecha (largos por debajo, cortos por encima), liquidaciones reales
   debajo, exchanges y apalancamientos activables, intensidad mínima, memoria de las posiciones y pantalla completa.
   Debajo, hacia qué lado tira la liquidez, los grupos más cargados y cuánto se parece lo previsto a lo que de verdad se
-  liquidó (desde que hay open interest). Los tamaños se escalan para que lo pendiente sume el open interest de cada vela. Sin stablecoins en la lista.
+  liquidó (desde que hay open interest). Los tamaños se escalan para que lo pendiente sume el open interest de cada vela. Sin stablecoins en la lista. El calor es suave, como
+  los mapas de Coinglass o coinperps: 400 tramos de precio, cada nivel repartido en las entradas posibles de su vela,
+  interpolado a la resolución de la pantalla y en una escala de azul a rojo donde solo los grupos grandes destacan;
+  el perfil va coloreado por intensidad con las curvas de lo acumulado hacia arriba y hacia abajo, y los dos grupos
+  más cargados quedan marcados con su importe en el eje.
   Datos de Coinalyze (clave gratuita guardada en el servidor).
 - **Curva del VIX, tres gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por
   punto desde 1990, con el día de hoy resaltado y un titular calculado ("only N days had a bigger VIX jump with the

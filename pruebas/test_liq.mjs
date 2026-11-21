@@ -65,6 +65,17 @@ test("con el OI de cada vela, la reduccion es la fraccion cerrada y lo vivo suma
   assert.ok(Math.abs(fin - 5500) < 1e-6 && r.escalado);
 });
 
+test("cada nivel se reparte en la franja de entradas posibles de su vela", () => {
+  const velas = [vela(0, 100), { t: 1, o: 95, h: 105, l: 95, c: 100, v: 100, bv: 100 }];
+  for (let i = 2; i < 6; i++) velas.push(vela(i, 100));
+  const r = M.calcular(velas, [0, 1000, 1000, 1000, 1000, 1000], { levs: [{ L: 10, w: 1 }], vida: 1e9, mm: 0, bins: 400 });
+  const llenos = []; for (let b = 0; b < r.B; b++) if (r.finL[b] > 0) llenos.push(b);
+  assert.ok(llenos.length >= 3, `tramos ${llenos.length}`);   // de 97,5 a 102,5 por 0,9: varios tramos
+  const lo = r.bordes[llenos[0]], hi = r.bordes[llenos[llenos.length - 1] + 1];
+  assert.ok(lo < 90 && hi > 90 && lo > 86 && hi < 94, `${lo} - ${hi}`);
+  assert.ok(Math.abs(r.finL.reduce((a, b) => a + b, 0) - 1000) < 1e-3);   // la cantidad no cambia
+});
+
 test("sumar une simbolos por tiempo", () => {
   const m = M.sumar([{ history: [{ t: 1, c: 2 }, { t: 2, c: 3 }] }, { history: [{ t: 1, c: 5 }] }], "c");
   assert.equal(m.get(1), 7); assert.equal(m.get(2), 3);

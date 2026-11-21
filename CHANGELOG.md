@@ -3,6 +3,13 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-21 — Régimen de volatilidad sin mezclar sesiones
+
+**Corregido**
+- **Régimen de volatilidad** (curva del VIX y Summary): con el mercado cerrado, los cuatro indicadores salen siempre
+  del mismo cierre. CBOE no publica los cierres a la vez y la tarjeta podía mostrar el VVIX del día con el VIX, el
+  VIX3M/VIX y el SKEW/VIX de la sesión anterior.
+
 ## 2026-11-20 — Sección Crypto, Social pasa a Research y régimen de volatilidad en la curva del VIX y el Summary
 
 **Añadido**

@@ -653,9 +653,10 @@ def _with_quote(sym: str, closes: list[tuple[str, float]]) -> tuple[list[tuple[s
     day = g.session_date(q.get("timestamp")) if q.get("timestamp") else None
     if v <= 0 or not day or (closes and day < closes[-1][0]):
         return closes, False
+    vivo = bool(q.get("today")) and g.market_open(g.now_ny())
     if closes and closes[-1][0] == day:
-        return closes[:-1] + [(day, v)], g.market_open(g.now_ny())
-    return closes + [(day, v)], g.market_open(g.now_ny())
+        return closes[:-1] + [(day, v)], vivo
+    return closes + [(day, v)], vivo
 
 
 def _stats(vals: list[float]) -> dict:
@@ -874,48 +875,28 @@ _csv_cache: dict[str, tuple[float, dict]] = {}
 
 
 def _csv_cierres(sym: str, ttl: float = 3600) -> dict[str, float]:
-    """Cierres diarios {aaaa-mm-dd: valor} del CSV de CBOE (última columna: CLOSE o el propio índice)."""
-    hit = _csv_cache.get(sym)
-    if hit and time.time() - hit[0] < ttl:
-        return hit[1]
-    out = {}
-    for r in csv.reader(io.StringIO(fetch_text(VOLREG_CSV.format(s=sym)))):
-        try:
-            v = float(r[-1])
-            out[datetime.strptime(r[0], "%m/%d/%Y").strftime("%Y-%m-%d")] = v
-        except (ValueError, IndexError):
-            continue
+    """Cierres diarios {aaaa-mm-dd: valor} del CSV de CBOE (gex_engine.daily_csv)."""
+    out = {r["date"]: r["close"] for r in g.daily_csv(sym, ttl)}
     if not out:
         raise ConnectionError(f"No {sym} history from CBOE")
-    _csv_cache[sym] = (time.time(), out)
     return out
 
 
 def indices_vol(syms: list[str], live: bool) -> tuple[dict[str, dict], str | None]:
     """Valor y cierre anterior de índices de volatilidad: {SYM: {"value", "prev"}} y la hora (UTC) de la cotización.
-    Con la sesión abierta, en directo: CBOE (15 min) y, si no responde (desde Actions da 403), Tradier. Con la sesión
+    Con la sesión abierta, en directo: la cotización de hoy (Tradier, gex_engine.fetch_quote). Con la sesión
     cerrada, el último cierre oficial de todos (CSV de CBOE) en la misma fecha: el VIX cotiza también en horario
     extendido y VIX3M, VVIX o SKEW no, y mezclarlos daría ratios de dos momentos distintos (TradingView lo hace)."""
     out: dict[str, dict] = {}
     if live:
         ts = None
         for s in syms:
-            q = (g.fetch_quote(s) or {})
+            q = g.fetch_quote(s) or {}
             qd = q.get("data") or {}
-            if qd.get("current_price"):
+            # solo si cotizó hoy: un índice sin cálculo en directo devolvería el cierre de ayer
+            if q.get("today") and qd.get("current_price"):
                 out[s] = {"value": float(qd["current_price"]), "prev": float(qd.get("prev_day_close") or 0) or None}
                 ts = ts or q.get("timestamp")
-        falta = [s for s in syms if s not in out]
-        if falta:
-            import fuente_tradier as ft
-            if ft.disponible():
-                hoy = g.now_ny().strftime("%Y-%m-%d")
-                for s, x in ft.cotizaciones(falta).items():
-                    # solo si cotizó hoy: un índice sin cálculo en directo devolvería el cierre de ayer
-                    t = datetime.fromtimestamp(x["ts"] / 1000, tz=timezone.utc) if x.get("ts") else None
-                    if s in falta and t and (t + g._ny_offset(t)).strftime("%Y-%m-%d") == hoy:
-                        out[s] = {"value": x["ultimo"], "prev": x["previo"]}
-                        ts = ts or t.strftime("%Y-%m-%d %H:%M:%S")
         return out, ts
     series = {}
     for s in syms:
@@ -962,6 +943,9 @@ def regimen_vol() -> dict:
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
     vix, v3, vv, sk = (_csv_cierres(s) for s in ("VIX", "VIX3M", "VVIX", "SKEW"))
+    # todas las zonas del mismo día: CBOE no sube los cuatro CSV a la vez (el VVIX puede llevar el cierre de hoy y el
+    # VIX aún el de ayer) y mezclarlos daría una fila de otra sesión
+    dia = min(max(vix), max(v3), max(vv), max(sk))
     spx = {k: v[3] for k, v in g.history_ohlc("SPX")[0].items() if v[3] > 0}
     series = {"vix": vix, "vvix": vv,
               "term": {f: v3[f] / vix[f] for f in v3 if vix.get(f)},
@@ -990,7 +974,7 @@ def regimen_vol() -> dict:
             lo, hi = bordes[k], bordes[k + 1]
             filas.append({"lo": None if k == 0 else lo, "hi": None if k == len(zonas) - 1 else hi,
                           "label": zn, "tone": tono, **stats(np.isfinite(X) & (X >= lo) & (X < hi))})
-        ult = max(s)
+        ult = max(f for f in s if f <= dia)
         v = s[ult]
         items.append({"key": key, "name": nombre, "value": round(v, 4), "date": ult,
                       "zone": int(np.searchsorted(cortes, v, side="right")), "zones": filas})

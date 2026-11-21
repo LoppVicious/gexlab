@@ -130,6 +130,18 @@ def test_completar_probs_rellena_dias_antiguos():
     assert nuevo["pc_cw"] == 0.5          # los que ya lo tienen no se tocan
 
 
+def test_dist_json_y_dist_for_day():
+    import json
+    ch = cadena(["2026-12-02T16:00", "2026-12-11T16:00"], lambda k: 0.20)
+    d = g.dist_for_day(ch, 100.0, AHORA, "2026-12-11", n=200)
+    assert d and d["exp"] == "2026-12-11"
+    j = g.dist_json(d)
+    assert len(j["x"]) == 200 and max(j["pdf"]) == 1.0 and j["cdf"][-1] == 1.0
+    assert set(j) == {"exp", "days", "T", "fwd", "atm_iv", "x", "pdf", "logn", "cdf", "q", "clip", "noisy"}
+    json.dumps(j)                         # serializable
+    assert g.dist_for_day(ch, 100.0, AHORA, "2026-12-09") is None
+
+
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):

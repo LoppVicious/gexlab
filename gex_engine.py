@@ -1501,6 +1501,26 @@ def completar_probs(doc: dict) -> None:
         sn.update(probs_snap(level_probs(cache[s], s, sn)))
 
 
+def dist_for_day(ch: dict, spot: float, now: datetime, day: str, n: int = DIST_N) -> dict | None:
+    """Distribucion del primer vencimiento de ese dia con datos (en SPX, el mensual AM antes que el semanal PM)."""
+    for e in np.unique(ch["exp"][ch["exp"].astype("datetime64[D]") == np.datetime64(day, "D")]):
+        dist = implied_distribution(ch, spot, now, e, n=n)
+        if dist:
+            return dist
+    return None
+
+
+def dist_json(dist: dict) -> dict:
+    """Para la web: densidad y lognormal relativas al maximo de la densidad (0-1), CDF y precios redondeados."""
+    pm = float(dist["pdf"].max()) or 1.0
+    r = lambda a, k: np.round(np.asarray(a, float), k).tolist()   # noqa: E731
+    return {"exp": dist["exp"], "days": dist["days"], "T": round(dist["T"], 6), "fwd": round(dist["fwd"], 4),
+            "atm_iv": round(dist["atm_iv"], 5), "x": r(dist["x"], 4), "pdf": r(dist["pdf"] / pm, 4),
+            "logn": r(dist["logn"] / pm, 4), "cdf": r(dist["cdf"], 5),
+            "q": {k: round(v, 4) for k, v in dist["q"].items()}, "clip": round(dist["clip"], 4),
+            "noisy": dist["noisy"]}
+
+
 INDEX_LIKE = INDEX_SYMBOLS | {"SPY", "QQQ", "IWM", "DIA"}  # productos de indice: Vol Trigger; acciones: Hedge Wall
 
 

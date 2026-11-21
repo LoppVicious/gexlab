@@ -450,9 +450,19 @@ def vol_data(sym: str, save: bool = True) -> dict:
             rv = realized(sym)
         except Exception:  # noqa: BLE001  (sin historico de precios el resto del panel sigue)
             rv = None
+    dists = []
+    try:   # distribucion implicita: proximo vencimiento (aunque sea diario) y el de cada smile
+        first = g.level_dists(ch, spot, now, sym)[:1]
+        dias = ([first[0]["exp"]] if first else []) + [s["exp"] for s in sm]
+        for day in dict.fromkeys(dias):
+            dist = g.dist_for_day(ch, spot, now, day, n=200)
+            if dist:
+                dists.append(g.dist_json(dist))
+    except Exception:  # noqa: BLE001  (el resto del panel sigue)
+        dists = []
     return {
         "symbol": sym, "name": g.name_of(sym), "spot": spot, "generado": now.strftime("%Y-%m-%d %H:%M ET"),
-        "timestamp": ch["timestamp"], "smiles": sm, "term": term, "prev": prev,
+        "timestamp": ch["timestamp"], "smiles": sm, "dists": dists, "term": term, "prev": prev,
         "realized": rv, "summary": summary(term, rv),
         "matrix": matrix(sm, (prev.get("1d") or {}).get("smiles", []), spot),
         "bands": bands(h, today), "tenors": TENORS, "deltas": DELTAS, "term_grid": TERM_GRID,

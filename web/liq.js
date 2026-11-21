@@ -324,14 +324,17 @@ function lqLeyenda(prm) {
 function lqLectura() {
   const d = lq.datos, r = lq.res, cfg = LQ_TF[d.tf], n = d.velas.length;
   const precio = d.velas[n - 1].c, pct = d.tf === "1D" ? 0.15 : d.tf === "4h" ? 0.1 : 0.05;
-  const pr = LQ_MODELO.presion(r, precio, pct), g = LQ_MODELO.grupos(r, precio, 3);
+  const pr = LQ_MODELO.presion(r, precio, pct), g = LQ_MODELO.grupos(r, precio, 3, pct * 2);
   let veredicto, cls = "";
   if (pr.ratio == null || (pr.arriba + pr.abajo) === 0) veredicto = "No clear pull";
   else if (pr.ratio >= 1.5) { veredicto = "Pull up: more short liquidations above"; cls = "pos"; }
   else if (pr.ratio <= 1 / 1.5) { veredicto = "Pull down: more long liquidations below"; cls = "neg"; }
   else veredicto = "No clear pull: liquidity on both sides";
   const fila = (x) => `<div class="lq-g"><span>${lqPx(x.p)}</span><span class="lq-d">${cxPct((x.p / precio - 1) * 100)}</span><b>${lqUsd(x.a)}</b></div>`;
-  const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null ? 0 : r.predL[i] + r.predS[i])), d.realL.map((x, i) => (x == null ? null : x + d.realS[i])));
+  // acierto solo donde hay OI: antes, el mapa sale del volumen y no es el modelo que se juzga
+  const i0 = Math.max(0, r.desdeOI);
+  const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null || i < i0 ? 0 : r.predL[i] + r.predS[i])),
+    d.realL.map((x, i) => (x == null || i < i0 ? null : x + d.realS[i])));
   const calidad = !aj ? "not enough real liquidation data" : aj.r >= 0.5 ? "good" : aj.r >= 0.3 ? "fair" : "weak";
   const desde = r.desdeOI >= 0 ? new Date(d.velas[r.desdeOI].t * 1000).toISOString().slice(0, 10) : null;
   const ex = (lq.merc.exchanges || {});
@@ -341,7 +344,7 @@ function lqLectura() {
     <div class="lq-card"><span class="kl">Biggest clusters above (short liquidations)</span>${g.arriba.map(fila).join("") || "<span class='ks'>None</span>"}</div>
     <div class="lq-card"><span class="kl">Biggest clusters below (long liquidations)</span>${g.abajo.map(fila).join("") || "<span class='ks'>None</span>"}</div>
     <div class="lq-card"><span class="kl">Model against real liquidations</span><b>${aj ? "r = " + fmtNum(aj.r, 2) : "—"}</b>
-      <span class="ks">${aj ? `Correlation between the liquidations the model expected in each candle and the real ones (${fmtNum(aj.n)} candles): ${calidad}.` : calidad}</span></div>`;
+      <span class="ks">${aj ? `Correlation between the liquidations the model expected in each candle and the real ones (${fmtNum(aj.n)} candles with open interest): ${calidad}.` : calidad}</span></div>`;
   $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Estimated liquidation levels of open leveraged positions: brighter means more size. ` +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, volume-based" : ""}.` : "No open interest for this choice: volume-based estimate.") +
     (r.escalado ? " Sizes scaled so the live levels add up to the open interest of each candle." : "") +

@@ -154,13 +154,18 @@ const LQ_MODELO = (() => {
   }
 
   // grupos mas cargados por encima y por debajo del precio (maximos locales del perfil suavizado)
-  function grupos(res, precio, cuantos = 3) {
+  // `lejos`: solo a menos de esa fraccion del precio; los picos de menos del 2 % del mayor no cuentan
+  function grupos(res, precio, cuantos = 3, lejos = Infinity) {
     const v = Array.from({ length: res.B }, (_, b) => res.finL[b] + res.finS[b]);
     const s = v.map((_, b) => (v[b - 1] || 0) * 0.25 + v[b] * 0.5 + (v[b + 1] || 0) * 0.25);
-    const picos = [];
+    let picos = [];
     for (let b = 1; b < res.B - 1; b++) {
-      if (s[b] > 0 && s[b] >= s[b - 1] && s[b] >= s[b + 1]) picos.push({ p: Math.sqrt(res.bordes[b] * res.bordes[b + 1]), a: v[b - 1] + v[b] + v[b + 1] });
+      const p = Math.sqrt(res.bordes[b] * res.bordes[b + 1]);
+      if (Math.abs(p / precio - 1) > lejos) continue;
+      if (s[b] > 0 && s[b] >= s[b - 1] && s[b] >= s[b + 1]) picos.push({ p, a: v[b - 1] + v[b] + v[b + 1] });
     }
+    const mx = Math.max(0, ...picos.map((x) => x.a));
+    picos = picos.filter((x) => x.a >= mx * 0.02);
     const arriba = picos.filter((x) => x.p > precio).sort((p, q) => q.a - p.a).slice(0, cuantos).sort((p, q) => p.p - q.p);
     const abajo = picos.filter((x) => x.p < precio).sort((p, q) => q.a - p.a).slice(0, cuantos).sort((p, q) => q.p - p.p);
     return { arriba, abajo };

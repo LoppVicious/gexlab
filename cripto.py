@@ -375,10 +375,12 @@ def liq_mercados(ahora: datetime) -> dict:
     """Activos del top 250 de CoinGecko con perpetuos en LIQ_EXCH: simbolos de Coinalyze por exchange y el de las
     velas (el primero con volumen comprador, preferido Binance en USDT)."""
     mk = coinalyze("future-markets")
-    cg = []
-    for pag in (1, 2):
-        cg += http_json("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=125&page=" + str(pag))
-        time.sleep(2)
+    url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&per_page=250&page=1"
+    try:
+        cg = http_json(url)
+    except Exception:  # noqa: BLE001  (CoinGecko gratis limita a pocas peticiones por minuto: un reintento)
+        time.sleep(30)
+        cg = http_json(url)
     rango = {}
     for c in cg:   # el primero (mayor capitalizacion) gana si dos comparten simbolo
         p = c.get("current_price") or 0

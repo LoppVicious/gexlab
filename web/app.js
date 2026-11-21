@@ -3074,7 +3074,8 @@ function renderVixCurve() {
 }
 
 function renderVixHist() {
-  const d = vx.data, el = $("vxHist"), h = d.history;
+  // los ultimos 6 meses: con el ano entero las barras quedaban demasiado finas
+  const d = vx.data, el = $("vxHist"), h = d.history.slice(-126);
   const W = Math.max(320, el.clientWidth), H = Math.max(170, el.clientHeight);
   const pad = { l: 52, r: 46, t: 12, b: 28 };
   const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
@@ -3106,7 +3107,7 @@ function renderVixHist() {
     if (m !== prevM && i > 2 && xOf(i) - lastLab >= 30) { s += txt(xOf(i), B + 18, MESES[+m.slice(5) - 1], { a: "middle", fs: 11 }); lastLab = xOf(i); }
     prevM = m;
   });
-  vx.histGeo = { L, R, bw, n };
+  vx.histGeo = { L, R, bw, n, h };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
 }
 
@@ -3158,7 +3159,7 @@ function vixHistTip(e) {
   const rect = $("vxHist").getBoundingClientRect();
   const i = Math.floor((e.clientX - rect.left - g.L) / g.bw);
   if (i < 0 || i >= g.n) return macroTip("vxTip", null, e, "");
-  const x = vx.data.history[i];
+  const x = g.h[i];
   const lab = SHAPE_LABEL[x.shape] || x.shape;
   macroTip("vxTip", null, e, `<div class="t">${fullDate(x.date)}</div>
     <div class="r">VIX <b>${x.vix != null ? fmtNum(x.vix, 2) : "—"}</b></div>

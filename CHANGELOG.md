@@ -26,7 +26,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Curva del VIX, nueva distribución:** sin barra lateral, en franjas a todo el ancho. Arriba la lectura de la curva
   con VIX, pendiente M2/M1, VIX3M/VIX e indicadores en zona de compra; luego el régimen de volatilidad en cuatro
   tarjetas, los días parecidos, los dos gráficos lado a lado y, plegado, el detalle de futuros, la tabla por tramos de
-  la curva y el glosario.
+  la curva y el glosario. La cabecera lleva las cuatro cifras en una fila y el contango M2/M1 muestra los últimos 6
+  meses (con el año entero las barras quedaban demasiado finas).
 - **VIX3M/VIX en toda la web:** la curva del VIX y el Summary dejan de mostrar el ratio al revés (VIX/VIX3M); por
   debajo de 1, curva invertida, igual que en el régimen de volatilidad y en TradingView.
 

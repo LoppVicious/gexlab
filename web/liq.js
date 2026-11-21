@@ -16,13 +16,13 @@ const LQ_TF = {
   "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 540, nombre: "4 hours" },
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
-const LQ_CONTRASTE = 1.6;   // exponente de la escala de color del calor
+const LQ_BANDA = 6;   // alto en pixeles de cada franja del mapa y del perfil
 const LQ_VIDA = { "0.5": "short", 1: "normal", 2: "long" };
 const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin", 10), vida: String(store.get("lqVida", "1")), extra: 0,
+  min: +store.get("lqMin2", 40), vida: String(store.get("lqVida", "1")), extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -85,7 +85,7 @@ function lqControles() {
 
 function lqSet(cambio) {
   Object.assign(lq, cambio);
-  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin", lq.min); store.set("lqVida", lq.vida);
+  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin2", lq.min); store.set("lqVida", lq.vida);
   store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
@@ -158,7 +158,7 @@ function lqCalcular(nuevos = false) {
   const levs = LQ_MODELO.APAL.map((x) => ({ ...x, w: lq.levOff.has(String(x.L)) ? 0 : x.w }));
   const clave = [lq.clave, levs.map((x) => x.w).join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 400, nivel: d.nivel });
+    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { levs, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel });
     lq.resClave = clave; lq.imgClave = "";
   }
   if (!lq.res) { lqMensaje("Choose at least one leverage."); return; }
@@ -186,64 +186,80 @@ function lqSeries(nuevos) {
   }
 }
 
-// paleta del calor con los colores del tema: de lo flojo (azul, casi transparente) a lo fuerte (rojo)
+// paleta de los niveles con los colores del tema, solida: de lo flojo (azul apagado hacia el fondo) a lo fuerte (rojo)
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function lqPaleta() {
-  const paradas = [C.prevClose, C.put, C.amber, C.call].map(lqHex), lut = new Uint8ClampedArray(256 * 4);
+  const azul = lqHex(C.prevClose), fondo = lqHex(C.surface), apagado = azul.map((x, i) => x * 0.55 + fondo[i] * 0.45);
+  const paradas = [apagado, lqHex(C.put), lqHex(C.amber), lqHex(C.call)], lut = new Uint8ClampedArray(256 * 4);
   for (let k = 0; k < 256; k++) {
     const u = k / 255, x = u * (paradas.length - 1), i0 = Math.min(paradas.length - 2, Math.floor(x)), f = x - i0;
     const a = paradas[i0], c = paradas[i0 + 1];
     lut[k * 4] = a[0] + (c[0] - a[0]) * f; lut[k * 4 + 1] = a[1] + (c[1] - a[1]) * f; lut[k * 4 + 2] = a[2] + (c[2] - a[2]) * f;
-    lut[k * 4 + 3] = 255 * (0.1 + 0.9 * Math.sqrt(u));
+    lut[k * 4 + 3] = 235;
   }
   return lut;
 }
 
-// escala del calor (percentil 99,5 de las casillas con algo) y paleta: se rehacen al cambiar el calculo, la intensidad
-// minima o el tema. El dibujo se hace en lqPintar, con la vista de cada momento
+// paleta y rejilla de precios: se rehacen al cambiar el calculo, la intensidad minima o el tema. El dibujo (y la
+// escala de color, frente a lo que se ve) se hace en lqPintar, con la vista de cada momento
 function lqImagen() {
   if (!lq.res) return;
   const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme].join("|");
   if (clave === lq.imgClave) return;
-  const { n, B, gL, gS } = r, muestra = [], paso = Math.max(1, Math.floor((n * B) / 40000));
-  for (let k = 0; k < n * B; k += paso) { const v = gL[k] + gS[k]; if (v > 0) muestra.push(v); }
-  muestra.sort((a, b) => a - b);
-  lq.tope = muestra.length ? muestra[Math.floor(muestra.length * 0.995)] : 1;
+  const B = r.B;
   lq.lut = lqPaleta();
   lq.lLo = Math.log(r.bordes[0]); lq.paso = (Math.log(r.bordes[B]) - lq.lLo) / B;
   lq.imgClave = clave; lq.pintado = null;
 }
 
-// tramo fraccionario (entre centros de tramo) de un precio, para interpolar entre los dos vecinos
-function lqTramo(p) { return (Math.log(p) - lq.lLo) / lq.paso - 0.5; }
+// tramos de precio (de menor a mayor) que caen entre dos filas de pantalla
+function lqTramosEntre(serie, yArriba, yAbajo) {
+  const pA = serie.coordinateToPrice(yArriba), pB = serie.coordinateToPrice(yAbajo);
+  if (!(pA > 0) || !(pB > 0)) return null;
+  const B = lq.res.B, hi = Math.floor((Math.log(pA) - lq.lLo) / lq.paso), lo = Math.floor((Math.log(pB) - lq.lLo) / lq.paso);
+  if (hi < 0 || lo >= B) return null;
+  return [Math.max(0, Math.min(lo, hi)), Math.min(B - 1, Math.max(lo, hi))];
+}
 
-// calor de la vista: una columna por vela visible (o por pixel si hay mas velas que pixeles) y una fila por pixel,
-// interpolando en precio entre tramos vecinos: bandas suaves con cualquier escala o zoom
+// niveles de la vista: franjas de LQ_BANDA pixeles de alto (la suma de los tramos de precio que caen en cada una) y
+// una columna por vela visible (o por pixel si hay mas velas que pixeles), separadas por una linea de 1 px: franjas
+// nitidas y continuas con cualquier zoom. Color por tamano frente a lo que se ve; solo lo que pasa la intensidad minima
 function lqPintar(serie, ancho, alto, c0, c1) {
-  const r = lq.res, n = r.n, B = r.B, cols = c1 - c0 + 1;
+  const r = lq.res, n = r.n, cols = c1 - c0 + 1;
   const pTop = serie.coordinateToPrice(0), pBot = serie.coordinateToPrice(alto);
   const clave = [lq.imgClave, c0, c1, Math.round(ancho), Math.round(alto), pTop, pBot].join("|");
   if (lq.pintado && lq.pintado.clave === clave) return lq.pintado;
-  const outW = Math.max(1, Math.min(cols, Math.ceil(ancho))), outH = Math.max(1, Math.min(900, Math.ceil(alto)));
+  const outW = Math.max(1, Math.min(cols, Math.ceil(ancho))), outH = Math.max(1, Math.ceil(alto));
+  const nb = Math.ceil(outH / LQ_BANDA), { gL, gS } = r, lut = lq.lut;
+  const colDe = new Int32Array(outW);
+  for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
+  const val = new Float64Array(nb * outW), muestra = [];
+  for (let f = 0; f < nb; f++) {
+    const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
+    if (!tr) continue;
+    for (let k = 0; k < outW; k++) {
+      const t = colDe[k];
+      let v = 0;
+      for (let b = tr[0]; b <= tr[1]; b++) v += gL[b * n + t] + gS[b * n + t];
+      val[f * outW + k] = v;
+      if (v > 0 && (k & 3) === 0) muestra.push(v);
+    }
+  }
+  muestra.sort((x, y) => x - y);
+  const tope = muestra.length ? muestra[Math.floor(muestra.length * 0.99)] : 1, umbral = (lq.min / 100) * tope;
   const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
-  const { gL, gS } = r, lut = lq.lut, tope = lq.tope, umbral = (lq.min / 100) * tope;
-  const colDe = new Int32Array(outW);
-  for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
-  for (let y = 0; y < outH; y++) {
-    const p = serie.coordinateToPrice(((y + 0.5) * alto) / outH);
-    if (!(p > 0)) continue;
-    const fb = lqTramo(p), b0 = Math.floor(fb), f = fb - b0;
-    if (b0 < -1 || b0 >= B) continue;
-    const bA = Math.max(0, b0), bB = Math.min(B - 1, b0 + 1);
-    const oA = bA * n, oB = bB * n, fila = y * outW * 4;
+  for (let f = 0; f < nb; f++) {
+    const y0 = f * LQ_BANDA, y1 = Math.min(outH, y0 + LQ_BANDA - 1);   // la ultima fila de cada franja, vacia
     for (let k = 0; k < outW; k++) {
-      const t = colDe[k], v = (gL[oA + t] + gS[oA + t]) * (1 - f) + (gL[oB + t] + gS[oB + t]) * f;
+      const v = val[f * outW + k];
       if (!(v > umbral)) continue;
-      // contraste: lo medio en azul y verde; solo los grupos grandes llegan a amarillo y rojo
-      const i = Math.floor(Math.pow(Math.min(1, v / tope), LQ_CONTRASTE) * 255) * 4, o = fila + k * 4;
-      px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
+      const u = Math.min(1, (v - umbral) / Math.max(1e-9, tope - umbral)), i = Math.floor(u * 255) * 4;
+      for (let y = y0; y < y1; y++) {
+        const o = (y * outW + k) * 4;
+        px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
+      }
     }
   }
   ctx.putImageData(im, 0, 0);
@@ -291,15 +307,12 @@ class LqPerfil {
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const H = mediaSize.height, W = Math.round(Math.min(170, Math.max(70, mediaSize.width * 0.14))), right = mediaSize.width - 2;
       const precio = d.velas[d.velas.length - 1].c, yP = p.series.priceToCoordinate(precio);
-      const paso = 2, filas = [];
+      const paso = LQ_BANDA, filas = [];
       let mx = 0;
       for (let y = 0; y < H; y += paso) {
-        const pr = p.series.coordinateToPrice(y + paso / 2);
-        if (!(pr > 0)) continue;
-        const fb = lqTramo(pr), b0 = Math.floor(fb), f = fb - b0;
-        if (b0 < -1 || b0 >= r.B) { filas.push([y, 0]); continue; }
-        const bA = Math.max(0, b0), bB = Math.min(r.B - 1, b0 + 1);
-        const v = (r.finL[bA] + r.finS[bA]) * (1 - f) + (r.finL[bB] + r.finS[bB]) * f;
+        const tr = lqTramosEntre(p.series, y, y + paso);
+        let v = 0;
+        if (tr) for (let b = tr[0]; b <= tr[1]; b++) v += r.finL[b] + r.finS[b];
         filas.push([y, v]); mx = Math.max(mx, v);
       }
       if (!mx) return;
@@ -312,7 +325,7 @@ class LqPerfil {
         const i = Math.min(255, Math.floor((v / mx) * 255)) * 4, l = lq.lut;
         ctx.fillStyle = `rgba(${l[i]},${l[i + 1]},${l[i + 2]},${Math.max(0.35, l[i + 3] / 255)})`;
         const wv = (v / mx) * W * 0.92;
-        ctx.fillRect(right - wv, y, wv, paso - 0.4);
+        ctx.fillRect(right - wv, y, wv, paso - 1);
       }
       // acumulados desde el precio: arriba (cortos, verde) y abajo (largos, rojo), escala propia
       if (yP != null) {
@@ -437,7 +450,7 @@ $("lqLev").addEventListener("click", (e) => {
   Object.assign(lq, { levOff: s }); store.set("lqLevOff", [...s].join(",")); lqControles(); lqCalcular();
 });
 $("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
-$("lqMin").addEventListener("change", () => store.set("lqMin", lq.min));
+$("lqMin").addEventListener("change", () => store.set("lqMin2", lq.min));
 $("lqVida").addEventListener("change", (e) => { lq.vida = e.target.value; store.set("lqVida", lq.vida); lqCalcular(); });
 $("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });
 $("lqFull").addEventListener("click", () => {

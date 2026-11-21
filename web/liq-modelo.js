@@ -6,7 +6,7 @@
    2. Largos y cortos: la parte del volumen agresor comprador (bv / v) son largos; el resto, cortos.
    3. Apalancamiento: cada posicion se reparte entre APAL (pesos supuestos). Liquidacion de un largo:
       precio * (1 - 1/L + MM); de un corto, precio * (1 + 1/L - MM). Precio de entrada: (max + min + cierre) / 3, y
-      la cantidad se reparte entre las entradas posibles (la mitad central del rango de la vela).
+      con la opcion `ancho`, la cantidad se reparte entre las entradas posibles (parte central del rango de la vela).
    4. Un nivel vive hasta que el precio lo toca (min de una vela por debajo de un largo, max por encima de un corto):
       entonces cuenta como liquidacion prevista en esa vela y desaparece.
    5. Cuando el OI baja, todos los niveles vivos se reducen en la fraccion del OI total que desaparece (posiciones
@@ -20,7 +20,6 @@ const LQ_MODELO = (() => {
   const APAL = [{ L: 5, w: 0.1 }, { L: 10, w: 0.3 }, { L: 25, w: 0.3 }, { L: 50, w: 0.2 }, { L: 100, w: 0.1 }];
   const MM = 0.005;   // margen de mantenimiento aproximado
   const K_DEFECTO = 0.05;   // posiciones nuevas por USD negociado si no hay tramo con OI para calibrar
-  const ANCHO = 0.5;   // fraccion del rango de la vela (a cada lado del precio medio) donde se reparten las entradas
 
   // suma por tiempo la historia de varios simbolos de una respuesta de Coinalyze: campo de cada punto
   function sumar(resp, campo) {
@@ -37,6 +36,9 @@ const LQ_MODELO = (() => {
     const n = velas.length;
     const B = o.bins || 240, levs = (o.levs || APAL).filter((x) => x.w > 0), mm = o.mm ?? MM;
     const vida = Math.max(1, o.vida || 90), dec = Math.pow(0.5, 1 / vida);
+    // o.ancho: fraccion del rango de la vela (a cada lado del precio medio) en que se reparte cada nivel; 0 (por
+    // defecto) lo deja en un solo tramo: niveles nitidos
+    const ancho = o.ancho || 0;
     if (!n || !levs.length) return null;
     const pw = levs.reduce((a, x) => a + x.w, 0);
     const tip = velas.map((v) => (v.h + v.l + v.c) / 3);
@@ -97,9 +99,9 @@ const LQ_MODELO = (() => {
         while (kS < cortos.length && cortos[kS].p <= mx) { cortos[kS].fin = j; kS++; }
         j++;
       }
-      // cada nivel se reparte en la franja de precios de entrada posibles (la mitad central del rango de la vela):
-      // no todos entraron al precio medio, y el mapa sale con bandas suaves en vez de escalones
-      const eLo = tip[i] - (tip[i] - v.l) * ANCHO, eHi = tip[i] + (v.h - tip[i]) * ANCHO;
+      // con o.ancho, cada nivel se reparte en la franja de precios de entrada posibles (no todos entraron al precio
+      // medio): bandas suaves; sin el, un solo tramo
+      const eLo = tip[i] - (tip[i] - v.l) * ancho, eHi = tip[i] + (v.h - tip[i]) * ancho;
       for (const [lado, lista] of [[0, largos], [1, cortos]]) for (const x of lista) {
         if (!(x.a > 0)) continue;
         let b0 = binDe(eLo * x.f), b1 = binDe(eHi * x.f);

@@ -155,7 +155,12 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   4. Un nivel vive hasta que el precio lo toca; entonces cuenta como liquidación prevista de esa vela.
   5. Si baja el OI, lo vivo se reduce en proporción; y todo decae con una vida media (5 min: 12 h; 15 min: 1 día;
      1 h: 4 días; 4 h: 15 días; diario: 45 días; Memory la multiplica por 0,5 o 2).
-  6. Rejilla de 240 tramos de precio logarítmicos; recurrencia por tramo (decae, se reduce, suma altas, resta tocadas).
+  6. Rejilla de 600 tramos de precio logarítmicos; recurrencia por tramo (decae, se reduce, suma altas, resta tocadas).
+     Con la opción `ancho`, cada nivel se reparte en la parte central del rango de su vela (no se usa en la web).
+- **Dibujo** (`lqPintar`): franjas de pantalla de 6 px (`LQ_BANDA`) con la suma de los tramos que caen en cada una, una
+  columna por vela visible y 1 px de separación; color sólido de azul apagado a verde, amarillo y rojo (colores del
+  tema) según el tamaño frente al percentil 99 de lo visible, y solo lo que pasa la intensidad mínima (40 %). Perfil
+  con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.
 - **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
   grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por
   vela.

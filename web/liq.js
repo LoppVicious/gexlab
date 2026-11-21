@@ -16,7 +16,7 @@ const LQ_TF = {
   "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 540, nombre: "4 hours" },
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
-const LQ_BANDA = 6;   // alto en pixeles de cada franja del mapa y del perfil
+const LQ_BANDA = 8;   // alto en pixeles de cada franja del mapa y del perfil
 const LQ_VIDA = { "0.5": "short", 1: "normal", 2: "long" };
 const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
@@ -201,7 +201,7 @@ function lqPaleta() {
 }
 
 // paleta y rejilla de precios: se rehacen al cambiar el calculo, la intensidad minima o el tema. El dibujo (y la
-// escala de color, frente a lo que se ve) se hace en lqDibujarNiveles, con la vista de cada momento
+// escala de color, frente a lo que se ve) se hace en lqPintar, con la vista de cada momento
 function lqImagen() {
   if (!lq.res) return;
   const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme].join("|");
@@ -210,7 +210,7 @@ function lqImagen() {
   lq.lut = lqPaleta();
   lq.colores = Array.from({ length: 256 }, (_, k) => `rgba(${lq.lut[k * 4]},${lq.lut[k * 4 + 1]},${lq.lut[k * 4 + 2]},${(lq.lut[k * 4 + 3] / 255).toFixed(3)})`);
   lq.lLo = Math.log(r.bordes[0]); lq.paso = (Math.log(r.bordes[B]) - lq.lLo) / B;
-  lq.imgClave = clave;
+  lq.imgClave = clave; lq.pintado = null;
 }
 
 // tramos de precio (de menor a mayor) que caen entre dos filas de pantalla
@@ -222,32 +222,51 @@ function lqTramosEntre(serie, yArriba, yAbajo) {
   return [Math.max(0, Math.min(lo, hi)), Math.min(B - 1, Math.max(lo, hi))];
 }
 
-// niveles de la vista: cada uno es una franja de color fijo (su tamano al nacer, por posicion entre los que se ven)
-// desde su vela
-// hasta que el precio lo toca o la memoria lo da por cerrado, en la fila de LQ_BANDA pixeles de su precio; los mayores
-// se dibujan encima. Solo los que pasan la intensidad minima
-function lqDibujarNiveles(ctx, serie, alto, c0, c1, xDe, w) {
-  const nv = lq.res.niveles, vis = [], ys = new Float64Array(nv.N);
-  for (let k = 0; k < nv.N; k++) {
-    if (nv.i[k] > c1 || nv.fin[k] < c0) continue;
-    const y = serie.priceToCoordinate(nv.p[k]);
-    if (y == null || y < -LQ_BANDA || y > alto + LQ_BANDA) continue;
-    ys[k] = y; vis.push(k);
+// mapa de la vista, como Bitunix: filas de LQ_BANDA pixeles con la suma de los niveles vivos de sus tramos de precio
+// (a su tamano al nacer, r.gV) y una columna por vela visible (o por pixel si hay mas velas que pixeles), con 1 px de
+// separacion entre filas. Color frente a lo que se ve (percentil 99): azul apagado lo flojo, verde, amarillo y rojo
+// los grupos; lo que no pasa la intensidad minima no se pinta
+function lqPintar(serie, ancho, alto, c0, c1) {
+  const r = lq.res, n = r.n, cols = c1 - c0 + 1;
+  const pTop = serie.coordinateToPrice(0), pBot = serie.coordinateToPrice(alto);
+  const clave = [lq.imgClave, c0, c1, Math.round(ancho), Math.round(alto), pTop, pBot].join("|");
+  if (lq.pintado && lq.pintado.clave === clave) return lq.pintado;
+  const outW = Math.max(1, Math.min(cols, Math.ceil(ancho))), outH = Math.max(1, Math.ceil(alto));
+  const nb = Math.ceil(outH / LQ_BANDA), g = r.gV, lut = lq.lut;
+  const colDe = new Int32Array(outW);
+  for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
+  const val = new Float64Array(nb * outW), muestra = [];
+  for (let f = 0; f < nb; f++) {
+    const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
+    if (!tr) continue;
+    for (let k = 0; k < outW; k++) {
+      const t = colDe[k];
+      let v = 0;
+      for (let b = tr[0]; b <= tr[1]; b++) v += g[b * n + t];
+      val[f * outW + k] = v;
+      if (v > 0 && (k & 3) === 0) muestra.push(v);
+    }
   }
-  if (!vis.length) return;
-  vis.sort((p, q) => nv.a[p] - nv.a[q]);
-  const tope = nv.a[vis[Math.min(vis.length - 1, Math.floor(vis.length * 0.99))]], umbral = (lq.min / 100) * tope;
-  // color por posicion entre los que se ven (al cuadrado): sobre todo azul y verde, amarillo hacia el 20 % mayor y
-  // rojo solo el 5 % mayor
-  const pasan = vis.filter((k) => nv.a[k] > umbral), m = Math.max(1, pasan.length - 1);
-  pasan.forEach((k, j) => {
-    const u = (j / m) ** 2;
-    const y0 = Math.floor(ys[k] / LQ_BANDA) * LQ_BANDA;
-    const x0 = xDe(Math.max(nv.i[k], c0)) - w / 2, x1 = xDe(Math.min(nv.fin[k], c1 + 1)) - w / 2;
-    if (x1 <= x0) return;
-    ctx.fillStyle = lq.colores[Math.floor(u * 255)];
-    ctx.fillRect(x0, y0, x1 - x0, LQ_BANDA - 1);
-  });
+  muestra.sort((x, y) => x - y);
+  const tope = muestra.length ? muestra[Math.floor(muestra.length * 0.99)] : 1, umbral = (lq.min / 100) * tope;
+  const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
+  cv.width = outW; cv.height = outH;
+  const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
+  for (let f = 0; f < nb; f++) {
+    const y0 = f * LQ_BANDA, y1 = Math.min(outH, y0 + LQ_BANDA - 1);   // la ultima fila de cada franja, vacia
+    for (let k = 0; k < outW; k++) {
+      const v = val[f * outW + k];
+      if (!(v > umbral)) continue;
+      const u = Math.min(1, (v - umbral) / Math.max(1e-9, tope - umbral)), i = Math.floor(u * 255) * 4;
+      for (let y = y0; y < y1; y++) {
+        const o = (y * outW + k) * 4;
+        px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
+      }
+    }
+  }
+  ctx.putImageData(im, 0, 0);
+  lq.pintado = { clave, cv };
+  return lq.pintado;
 }
 
 class LqHeat {
@@ -258,7 +277,7 @@ class LqHeat {
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
     const r = lq.res, p = this.p;
-    if (!r || !p || !lq.colores || !r.niveles) return;
+    if (!r || !p || !lq.lut || !r.gV) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const ts = lq.chart.timeScale(), vr = ts.getVisibleLogicalRange();
       if (!vr) return;
@@ -266,9 +285,11 @@ class LqHeat {
       if (c1 < c0) return;
       const xA = ts.logicalToCoordinate(c0), xB = ts.logicalToCoordinate(c0 + 1);
       if (xA == null || xB == null) return;
-      const w = xB - xA;
+      const w = xB - xA, left = xA - w / 2, ancho = w * (c1 - c0 + 1);
+      const img = lqPintar(p.series, Math.min(ancho, mediaSize.width), mediaSize.height, c0, c1);
       ctx.save();
-      lqDibujarNiveles(ctx, p.series, mediaSize.height, c0, c1, (c) => xA + (c - c0) * w, w);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img.cv, left, 0, ancho, mediaSize.height);
       ctx.restore();
     });
   }

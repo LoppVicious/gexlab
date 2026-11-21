@@ -94,3 +94,14 @@ test("lista de niveles: termina al tocarlo el precio o cuando la memoria lo da p
   const k2 = [...Array(r2.niveles.N).keys()].find((j) => r2.niveles.lado[j] === 1);   // el corto (110), sin tocar
   assert.equal(r2.niveles.fin[k2], 6);   // a las 4 velas le queda 1/4: se da por cerrado
 });
+
+test("rejilla de dibujo: tamano constante mientras el nivel vive", () => {
+  const velas = [vela(0, 100), vela(1, 100)];
+  for (let i = 2; i < 30; i++) velas.push(vela(i, 100));
+  velas[20] = { t: 20, o: 100, h: 100, l: 89, c: 95, v: 100, bv: 50 };
+  const oi = velas.map((_, i) => (i >= 1 ? 1000 : 0));
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 10, mm: 0 });
+  const col = (t) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t]; return s; };
+  assert.ok(Math.abs(col(2) - 1000) < 1e-3 && Math.abs(col(15) - 1000) < 1e-3);   // sin decaer: largo + corto
+  assert.ok(Math.abs(col(21) - 500) < 1e-3);   // el largo, tocado en la vela 20; el corto sigue
+});

@@ -167,7 +167,20 @@ const LQ_MODELO = (() => {
       while (lo < hi) { const mid = (lo + hi) >> 1; if (M[mid] < corte) hi = mid; else lo = mid + 1; }
       nivI[k] = i; nivFin[k] = Math.min(fin, lo); nivP[k] = pr; nivLado[k] = lado; nivA[k] = a * (escala[i] || 1);
     });
-    return { n, B, bordes, gL, gS, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+    // rejilla de dibujo: en cada tramo y vela, la suma de los niveles vivos a su tamano al nacer. Sin decaer por el
+    // camino: cada banda mantiene el color hasta que el precio la toca, la memoria la cierra o se le suman otros
+    const gV = new Float32Array(B * n);
+    for (let k = 0; k < N; k++) {
+      const b = binDe(nivP[k]);
+      if (b < 0 || nivFin[k] <= nivI[k]) continue;
+      gV[b * n + nivI[k]] += nivA[k];
+      if (nivFin[k] < n) gV[b * n + nivFin[k]] -= nivA[k];
+    }
+    for (let b = 0; b < B; b++) {
+      let acc = 0;
+      for (let t = 0; t < n; t++) { acc += gV[b * n + t]; gV[b * n + t] = acc > 1e-9 ? acc : 0; }
+    }
+    return { n, B, bordes, gL, gS, gV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
       niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA },
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }

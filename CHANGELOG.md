@@ -21,10 +21,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   debajo, exchanges y apalancamientos activables, intensidad mínima, memoria de las posiciones y pantalla completa.
   Debajo, hacia qué lado tira la liquidez, los grupos más cargados y cuánto se parece lo previsto a lo que de verdad se
   liquidó (desde que hay open interest). Los tamaños se escalan para que lo pendiente sume el open interest de cada vela. Sin stablecoins en la lista. Se ve como franjas nítidas,
-  al estilo de Bitunix o tradingdifferent: cada nivel es una franja de 6 píxeles y de un solo color que empieza en su vela y
-  sigue hasta que el precio la toca o la memoria la da por cerrada. Color sólido según su tamaño entre los que se ven:
-  sobre todo azul y verde, amarillo hacia el 20 % mayor y rojo solo el 5 % mayor; y solo lo que pasa la intensidad
-  mínima (40 % por defecto). El perfil usa las mismas franjas y colores, con las curvas de lo acumulado hacia
+  al estilo de Bitunix o tradingdifferent: en filas de 8 píxeles, cada precio muestra lo que suman los niveles vivos (a su
+  tamaño al abrirse, sin apagarse por el camino), así que una banda mantiene el color hasta que el precio la toca, la
+  memoria la da por cerrada o se le suman otros. Color sólido frente a lo que se ve: azul apagado lo flojo y verde,
+  amarillo y rojo los grupos; solo lo que pasa la intensidad mínima (40 % por defecto). El perfil usa las mismas franjas y colores, con las curvas de lo acumulado hacia
   arriba y hacia abajo, y los dos grupos más cargados quedan marcados con su importe en el eje.
   Datos de Coinalyze (clave gratuita guardada en el servidor).
 - **Curva del VIX, tres gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por

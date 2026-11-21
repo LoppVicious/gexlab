@@ -159,9 +159,11 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
      Con la opción `ancho`, cada nivel se reparte en la parte central del rango de su vela (no se usa en la web).
 - **Niveles sueltos** (`niveles` del modelo): inicio, fin (vela en que el precio lo toca o en que le queda menos de
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
-- **Dibujo** (`lqDibujarNiveles`): cada nivel, una franja de color fijo en la fila de 6 px (`LQ_BANDA`) de su precio,
-  con 1 px de separación; los mayores encima. Color por posición entre los visibles, al cuadrado (azul apagado, verde,
-  amarillo, rojo: colores del tema); solo los que pasan la intensidad mínima (40 % del percentil 99 de lo visible). Perfil
+- **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer (diferencias
+  por tramo y suma acumulada). No decae por el camino: cada banda mantiene el color hasta que cambia lo que contiene.
+- **Dibujo** (`lqPintar`), como Bitunix: filas de 8 px (`LQ_BANDA`) con la suma de los tramos que caen en cada una y
+  1 px de separación, una columna por vela visible. Color sólido frente al percentil 99 de lo visible (azul apagado,
+  verde, amarillo, rojo: colores del tema); solo lo que pasa la intensidad mínima (40 %). Perfil
   con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.
 - **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
   grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por

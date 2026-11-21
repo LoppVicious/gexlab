@@ -81,6 +81,39 @@ def test_sin_dato():
     assert g.implied_distribution(ch, 100.0, datetime(2026, 12, 1, 15, 45), casi) is None
 
 
+def test_level_dists_proximo_y_viernes():
+    exps = ["2026-12-02T16:00", "2026-12-04T16:00", "2026-12-11T16:00"]
+    ds = g.level_dists(cadena(exps, lambda k: 0.20), 100.0, AHORA, "SPX")
+    assert [d["exp"] for d in ds] == ["2026-12-02", "2026-12-04"]
+    # el proximo ya es viernes: solo uno
+    ds = g.level_dists(cadena(["2026-12-04T16:00", "2026-12-11T16:00"], lambda k: 0.20), 100.0, AHORA, "SPY")
+    assert [d["exp"] for d in ds] == ["2026-12-04"]
+    # VIX: miercoles
+    ds = g.level_dists(cadena(["2026-12-01T16:00", "2026-12-02T16:00", "2026-12-04T16:00"], lambda k: 0.8, F=18.0,
+                              ks=np.arange(10.0, 40.05, 0.1)), 18.0, AHORA, "VIX")
+    assert [d["exp"] for d in ds] == ["2026-12-01", "2026-12-02"]
+
+
+def test_level_probs():
+    ds = g.level_dists(cadena([VTO], lambda k: 0.20), 100.0, AHORA, "SPY")
+    lp = g.level_probs(ds, 100.0, {"call_wall": 105.0, "put_wall": 95.0, "flip": 98.0})
+    r = lp[0]
+    assert r["exp"] == "2026-12-11"
+    assert 0 < r["call_wall"]["close"] < 0.5 and abs(r["call_wall"]["touch"] - 2 * r["call_wall"]["close"]) < 2e-4
+    assert 0 < r["put_wall"]["close"] < 0.5
+    assert r["flip"]["side"] == "down" and r["flip"]["close"] > r["put_wall"]["close"]
+    # spot ya por encima del Call Wall: sin toque; nivel ausente: fuera
+    lp = g.level_probs(ds, 100.0, {"call_wall": 99.0, "put_wall": None, "flip": None})
+    assert "touch" not in lp[0]["call_wall"] and "put_wall" not in lp[0] and "flip" not in lp[0]
+
+
+def test_probs_snap():
+    lp = [{"exp": "2026-12-11", "days": 10, "call_wall": {"close": 0.12, "touch": 0.24},
+           "put_wall": {"close": 0.18, "touch": 0.36}, "flip": {"side": "down", "close": 0.41, "touch": 0.82}}]
+    assert g.probs_snap(lp) == {"pc_exp": "2026-12-11", "pc_cw": 0.12, "pc_pw": 0.18, "pc_flip": 0.41}
+    assert g.probs_snap([]) == {"pc_exp": None, "pc_cw": None, "pc_pw": None, "pc_flip": None}
+
+
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):

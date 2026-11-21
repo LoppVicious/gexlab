@@ -1341,6 +1341,7 @@ DIST_N = 400            # puntos de la rejilla de precios
 DIST_SIGMAS = 5.0       # la rejilla cubre +-5 desviaciones (IV ATM) alrededor del forward
 DIST_NOISY = 0.05       # masa negativa recortada por encima de la cual la forma es aproximada
 DIST_MIN_MIN = 30.0     # minutos de mercado minimos hasta el vencimiento
+DIST_SMOOTH = 0.2       # ancho del suavizado de la IV, en desviaciones ATM (0 = sin suavizar)
 VIX_LIKE = {"VIX", "VIXW"}
 
 
@@ -1384,7 +1385,14 @@ def implied_distribution(ch: dict, spot: float, now: datetime, exp, n: int = DIS
     atm = float(np.interp(math.log(F), lk, IV))
     s = atm * math.sqrt(T)
     x = F * np.exp(np.linspace(-DIST_SIGMAS * s, DIST_SIGMAS * s, n))
-    sx = np.interp(np.log(x), lk, IV) * math.sqrt(T)     # np.interp deja la IV plana fuera de los extremos
+    lx = np.log(x)
+    ivx = np.interp(lx, lk, IV)                          # np.interp deja la IV plana fuera de los extremos
+    if DIST_SMOOTH > 0:
+        # la IV de strikes contiguos tiene ruido de horquilla (sobre todo en indices, con muchos strikes) que la
+        # segunda derivada convierte en densidad negativa: suavizado gaussiano en log-strike, ancho en sigmas ATM
+        w = np.exp(-0.5 * ((lx[:, None] - lx[None, :]) / (DIST_SMOOTH * s)) ** 2)
+        ivx = (w @ ivx) / w.sum(axis=1)
+    sx = ivx * math.sqrt(T)
     d1 = (np.log(F / x) + 0.5 * sx * sx) / sx
     call = F * _ncdf_exact(d1) - x * _ncdf_exact(d1 - sx)
     pdf = np.gradient(np.gradient(call, x), x)
@@ -1414,6 +1422,66 @@ def prob_beyond(dist: dict, level: float, side: str) -> float:
 def prob_touch(p_close: float) -> float:
     """Probabilidad de tocar el nivel antes del vencimiento: regla de reflexion (sin deriva), tope 1. Estimada."""
     return min(1.0, 2.0 * p_close)
+
+
+def level_dists(ch: dict, spot: float, now: datetime, symbol: str) -> list[dict]:
+    """Distribucion del proximo vencimiento (0DTE en los indices) y, si es otro, del semanal de esa misma semana
+    (viernes o jueves por festivo; en el VIX, miercoles o martes)."""
+    from datetime import date
+    now64 = np.datetime64(now.replace(second=0, microsecond=0))
+    exps = np.unique(ch["exp"][ch["exp"] > now64])[:12]
+    first = None
+    for e in exps:
+        first = implied_distribution(ch, spot, now, e)
+        if first:
+            break
+    if not first:
+        return []
+    out = [first]
+    wd = 2 if normalize(symbol) in VIX_LIKE else 4
+    d0 = date.fromisoformat(first["exp"])
+    dias = {str(x.astype("datetime64[D]")) for x in exps}
+    for e in exps:
+        de = date.fromisoformat(str(e.astype("datetime64[D]")))
+        if de <= d0 or de.isocalendar()[:2] != d0.isocalendar()[:2] or de.weekday() not in (wd, wd - 1):
+            continue
+        # el dia anterior solo si el habitual no tiene vencimiento (festivo)
+        if de.weekday() == wd - 1 and str(de + timedelta(days=1)) in dias:
+            continue
+        dist = implied_distribution(ch, spot, now, e)
+        if dist:
+            out.append(dist)
+            break
+    return out
+
+
+def level_probs(dists: list[dict], spot: float, levels: dict) -> list[dict]:
+    """Probabilidad de cerrar mas alla de Call Wall (por encima), Put Wall (por debajo) y flip (hacia su lado) y,
+    si el spot aun no lo ha cruzado, de tocarlo antes (estimada)."""
+    out = []
+    for dist in dists:
+        row = {"exp": dist["exp"], "days": dist["days"]}
+        for key, side in (("call_wall", "up"), ("put_wall", "down"), ("flip", None)):
+            lv = levels.get(key)
+            if lv is None or (side is None and lv == spot):
+                continue
+            sd = side or ("down" if lv < spot else "up")
+            p = prob_beyond(dist, float(lv), sd)
+            item = {"close": round(p, 4)}
+            if not (spot >= lv if sd == "up" else spot <= lv):
+                item["touch"] = round(prob_touch(p), 4)
+            if side is None:
+                item["side"] = sd
+            row[key] = item
+        out.append(row)
+    return out
+
+
+def probs_snap(lp: list[dict] | None) -> dict:
+    """Probabilidades de cierre del primer vencimiento, para la foto diaria y el indice de niveles."""
+    r = (lp or [{}])[0]
+    return {"pc_exp": r.get("exp"), "pc_cw": (r.get("call_wall") or {}).get("close"),
+            "pc_pw": (r.get("put_wall") or {}).get("close"), "pc_flip": (r.get("flip") or {}).get("close")}
 
 
 INDEX_LIKE = INDEX_SYMBOLS | {"SPY", "QQQ", "IWM", "DIA"}  # productos de indice: Vol Trigger; acciones: Hedge Wall
@@ -1590,6 +1658,7 @@ def _snap(res: dict) -> dict:
             "em_expiry": (res.get("expected_move") or {}).get("expiry"),
             "m1_pct": ((res.get("moves") or {}).get("d1") or {}).get("pct"),
             "m1_session": ((res.get("moves") or {}).get("d1") or {}).get("session"),
+            **probs_snap(res.get("level_probs")),
             "saved": now_ny().strftime("%Y-%m-%d %H:%M")}
 
 
@@ -2265,6 +2334,10 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
                  "max_dte": max_dte, "window_pct": window_pct, "window_auto": window_auto},
     }
     res["session"] = session_date(ch["timestamp"])
+    try:   # auxiliar: si falla, el resto del resultado sigue
+        res["level_probs"] = level_probs(level_dists(ch, spot, now_dt, normalize(symbol)), spot, res["levels"])
+    except Exception:  # noqa: BLE001
+        res["level_probs"] = []
     variant = ("c" if combo else "") + ("f" if res["positioning"] == "flow" else "") + ("s" if model == "spotgamma" else "")
     res["prev"] = history_update(res, max_dte, save=not spot_override, variant=variant)
     res["history"] = history_series(res["symbol"], max_dte, variant)

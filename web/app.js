@@ -684,6 +684,22 @@ function syncRange(d) {
 }
 function move1(d) { return d.moves && d.moves.d1; }
 function sessLabel(iso) { return iso ? `${DIAS_SEM[new Date(iso + "T12:00:00").getDay()]} ${+iso.slice(8, 10)}` : ""; }
+// probabilidades implicitas de los niveles (level_probs del motor, distribucion de Breeden-Litzenberger):
+// cerrar mas alla al vencimiento y tocar antes (estimada, el doble por la regla de reflexion)
+function paintLevelProbs(d) {
+  const el = $("emProbs"), lp = d.level_probs || [];
+  const pp = (v) => `${fmtNum(v * 100, v < 0.1 ? 1 : 0)}%`;
+  const part = (o, label) => (o ? `${label} ${pp(o.close)}${o.touch != null ? ` (touch ≈${pp(o.touch)})` : ""}` : "");
+  const line = (r) => [part(r.call_wall, "above Call Wall"), part(r.put_wall, "below Put Wall"),
+    r.flip ? part(r.flip, `${r.flip.side === "up" ? "above" : "below"} flip`) : ""].filter(Boolean).join(", ");
+  const txt1 = lp[0] ? line(lp[0]) : "";
+  el.hidden = !txt1;
+  if (!txt1) return;
+  el.textContent = `Close ${ddmm(lp[0].exp)}: ${txt1}`;
+  const second = lp[1] && line(lp[1]);
+  el.title = "Probability implied by option prices (risk-neutral distribution at expiration, from the smile). " +
+    "Touch is an estimate: about twice the close probability, before expiration." + (second ? ` Close ${ddmm(lp[1].exp)}: ${second}.` : "");
+}
 // Regimen de gamma del SPX (GEX de SqueezeMetrics, /api/regimen): corrige el rango implicito de 1σ con lo que de
 // verdad se movio cada indice desde 2012 en cada quintil del GEX (estudio en pruebas/regimen_gamma.py) y da la
 // probabilidad de cerrar fuera del 1σ (pruebas/modelo_1sigma.py). S&P 500 calibrado con el SPX y el VIX; Nasdaq-100
@@ -1240,6 +1256,7 @@ function paintSide(d) {
   $("emRange").title = `1 standard deviation range (68.3%) implied by options: ATM variance interpolated over market hours.` +
     (st ? ` ATM straddle for ${ddmm(st.expiry)}: ±${fmtNum(st.pct, 2)}% (average move, ≈ 0.8σ).` : "");
   paintEmRegime(d, em);
+  paintLevelProbs(d);
   const vf = t.vanna_flow, cf = t.charm_flow;
   $("vannaVal").textContent = fmtBig(Math.abs(vf), true);
   $("vannaSub").textContent = vf >= 0 ? "hedge buying" : "hedge selling";

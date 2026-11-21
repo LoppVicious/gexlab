@@ -19,6 +19,7 @@ const vol = {
   show: Object.assign({ fwd: true, d1: true, w1: false, band: true, ev: true, cc: true, iv: true }, JSON.parse(store.get("volShow", "{}"))),
   mshow: store.get("volMat", "iv"),
   hor: store.get("volHor", "3m"),
+  distExp: "",                               // vencimiento de la distribucion (vacio = el primero)
 };
 const volH = () => ({ "1m": 32, "3m": 100, "6m": 190 }[vol.hor] || 100);   // horizonte en dias
 const MTAG = '<span class="vm" title="Monthly expiration">M</span>';
@@ -190,13 +191,14 @@ function renderTerm(W, H) {
 const pts2 = (v) => v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v * 100), 1) + " pts";
 // Overview: las cuatro graficas a la vez y la matriz debajo; cada tarjeta abre su vista en grande
 const VOL_VIEWS = [["term", "Term structure", "ATM implied volatility by expiration"], ["skew", "Skew", "Implied volatility by strike"],
-  ["shape", "Skew by expiration", "25-delta risk reversal and butterfly"], ["realized", "Realized vs. implied", "Realized cone of the last year and ATM implied"]];
+  ["shape", "Skew by expiration", "25-delta risk reversal and butterfly"], ["realized", "Realized vs. implied", "Realized cone of the last year and ATM implied"],
+  ["dist", "Distribution", "Price distribution at expiration implied by options"]];
 function renderVolGrid() {
   const g = $("volGrid");
   const open = `<span class="vg-open">Open<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><path d="M4.5 2.5h5v5M9.5 2.5 3 9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>`;
-  g.innerHTML = VOL_VIEWS.map(([k, t, s]) => `<section class="vg-cell" data-v="${k}" tabindex="0" role="button" aria-label="Open ${t}"><header><h3>${t}</h3><span>${s}</span>${open}</header><div class="vg-ch" data-k="${k}"></div></section>`).join("")
+  g.innerHTML = VOL_VIEWS.map(([k, t, s]) => `<section class="vg-cell${k === "dist" ? " vg-wide" : ""}" data-v="${k}" tabindex="0" role="button" aria-label="Open ${t}"><header><h3>${t}</h3><span>${s}</span>${open}</header><div class="vg-ch" data-k="${k}"></div></section>`).join("")
     + `<section class="vg-cell vg-mat" data-v="matrix" tabindex="0" role="button" aria-label="Open the fixed-strike matrix"><header><h3>Fixed-strike matrix</h3><span>IV by expiration and strike, colored by the change from the previous session</span>${open}</header><div class="vmatrix">${renderMatrix()}</div></section>`;
-  const draw = { term: renderTerm, skew: renderSkew, shape: renderShape, realized: renderRealized };
+  const draw = { term: renderTerm, skew: renderSkew, shape: renderShape, realized: renderRealized, dist: renderDist };
   g.querySelectorAll(".vg-ch").forEach((c) => { c.innerHTML = draw[c.dataset.k](Math.max(300, c.clientWidth), Math.max(240, c.clientHeight)); });
 }
 
@@ -420,6 +422,67 @@ function renderSkew(W, H) {
   return volFrame(W, H, s);
 }
 
+/* ------------------------------------------------------------ distribucion implicita */
+// probabilidad de cerrar por debajo de v (CDF interpolada); por encima = 1 - esto
+function distCdf(z, v) {
+  const x = z.x, c = z.cdf;
+  if (v <= x[0]) return 0;
+  if (v >= x[x.length - 1]) return 1;
+  let i = 1; while (x[i] < v) i++;
+  return c[i - 1] + (c[i] - c[i - 1]) * (v - x[i - 1]) / (x[i] - x[i - 1]);
+}
+// distribuciones dentro del horizonte elegido (llevan dias naturales, no dte)
+function distList() { return (vol.data.dists || []).filter((z) => z.days <= volH()); }
+function distSel() {
+  const ds = distList();
+  return ds.find((z) => z.exp === vol.distExp) || ds[0] || null;
+}
+// niveles del ticker cargado en la app, si es el mismo simbolo
+function distLevels() {
+  const sd = typeof state !== "undefined" && state.data;
+  if (!sd || sd.symbol !== vol.data.symbol || !sd.levels) return [];
+  const L = sd.levels;
+  return [["Call Wall", L.call_wall, C.call, "up"], ["Put Wall", L.put_wall, C.put, "down"],
+    ["Flip", L.flip, C.amber, L.flip != null && L.flip < sd.spot ? "down" : "up"]].filter((r) => r[1] != null);
+}
+
+function renderDist(W, H) {
+  const d = vol.data, z = distSel();
+  if (!z) return `<div class="placeholder">No implied distribution for this ticker.</div>`;
+  const narrow = W < 640, fs = narrow ? 10.5 : 11.5;
+  const L = narrow ? 18 : 24, R = W - (narrow ? 12 : 24), T = 30, B = H - 46;
+  const span = z.q["95"] - z.q["5"];
+  const lo = Math.max(z.x[0], z.q["5"] - 0.6 * span), hi = Math.min(z.x[z.x.length - 1], z.q["95"] + 0.6 * span);
+  const xOf = (v) => L + ((v - lo) / (hi - lo || 1)) * (R - L);
+  const idx = z.x.map((v, i) => i).filter((i) => z.x[i] >= lo && z.x[i] <= hi);
+  const ymax = Math.max(1, ...idx.map((i) => z.logn[i])) * 1.08;
+  const yOf = (v) => B - (v / ymax) * (B - T);
+  const path = (arr) => idx.map((i, j) => `${j ? "L" : "M"}${xOf(z.x[i]).toFixed(1)},${yOf(arr[i]).toFixed(1)}`).join("");
+  let s = "";
+  // +-1 sigma con la IV ATM
+  const sg = z.atm_iv * Math.sqrt(z.T), b0 = Math.max(lo, z.fwd * Math.exp(-sg)), b1 = Math.min(hi, z.fwd * Math.exp(sg));
+  s += `<rect x="${xOf(b0)}" y="${T}" width="${Math.max(0, xOf(b1) - xOf(b0))}" height="${B - T}" fill="${volColors().band}"/>`;
+  niceTicks(lo, hi, narrow ? 4 : 8).ticks.filter((v) => v >= lo && v <= hi).forEach((v) => { s += txt(xOf(v), B + fs + 8, fmtNum(v, v < 100 ? 1 : 0), { a: "middle", fs }); });
+  s += `<line x1="${L}" x2="${R}" y1="${B}" y2="${B}" stroke="${C.axis}"/>`;
+  s += `<path d="${path(z.pdf)}L${xOf(z.x[idx[idx.length - 1]]).toFixed(1)},${B}L${xOf(z.x[idx[0]]).toFixed(1)},${B}Z" fill="${C.accent}" fill-opacity=".16"/>`;
+  s += `<path d="${path(z.logn)}" fill="none" stroke="${C.muted}" stroke-width="1.4" stroke-dasharray="4 4"/>`;
+  s += `<path d="${path(z.pdf)}" fill="none" stroke="${C.accent}" stroke-width="2.2"/>`;
+  const sx = xOf(d.spot);
+  if (d.spot >= lo && d.spot <= hi) s += `<line x1="${sx}" x2="${sx}" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-dasharray="2 4" stroke-opacity=".7"/>` + txt(sx + 5, T + fs, `Spot ${fmtSpot(d.spot)}`, { fs, c: C.muted });
+  distLevels().forEach(([name, v, col, side], j) => {
+    if (v < lo || v > hi) return;
+    const p = side === "up" ? 1 - distCdf(z, v) : distCdf(z, v);
+    const x = xOf(v);
+    s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${col}" stroke-width="1.4"/>` +
+      txt(x + 5, T + fs * (2.4 + j * 1.3), `${name} ${fmtLevel(v)}: ${side === "up" ? "above" : "below"} ${fmtNum(p * 100, p < 0.1 ? 1 : 0)}%`, { fs, c: col });
+  });
+  if (z.noisy) s += txt(R, T - 10, "Sparse quotes, shape approximate", { a: "end", fs, c: C.amber });
+  s += txt(R, B + fs * 2 + 14, `Price at expiration ${volDate(z.exp)}`, { a: "end", fs, c: C.faint });
+  s += `<line id="vhl" x1="0" x2="0" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-opacity=".6" visibility="hidden"/>`;
+  vol.geo = { kind: "dist", z, lo, hi, L, R };
+  return volFrame(W, H, s);
+}
+
 /* ------------------------------------------------------------ matriz */
 function renderMatrix() {
   const m = vol.data.matrix;
@@ -454,6 +517,13 @@ function volControls() {
     if (!d.realized) return "";
     return `<div class="vrow">${chip("yz", "Realized, Yang-Zhang", true, C.text)}${chip("cc", "Realized, close-to-close", sh.cc, C.muted)}${chip("iv", "Implied (ATM, same horizon)", sh.iv, C.accent)}<span class="vleg"><i style="background:color-mix(in srgb, ${C.purple} 32%, transparent)"></i>Last year: 10th–90th percentile, min–max and median (dashed)</span></div>`;
   }
+  if (vol.tab === "dist") {
+    const z = distSel();
+    const ex = distList().map((x) => `<button class="vexp${z && x.exp === z.exp ? " on" : ""}" data-de="${x.exp}"${z && x.exp === z.exp ? ` style="--c:${C.accent}"` : ""}>${volDate(x.exp)}<small>${volDays(x)}d</small></button>`).join("");
+    const q = z ? `<span class="vleg">Percentiles: 5th ${fmtNum(z.q["5"], 2)}, 25th ${fmtNum(z.q["25"], 2)}, median ${fmtNum(z.q["50"], 2)}, 75th ${fmtNum(z.q["75"], 2)}, 95th ${fmtNum(z.q["95"], 2)}</span>` : "";
+    return `<div class="vrow">${horSeg()}<span class="vleg"><i style="background:${C.accent}"></i>Implied by options <i style="background:${C.muted}"></i>Lognormal at ATM IV (dashed) <i style="background:${volColors().band}"></i>±1σ</span></div>
+      <div class="vrow">${q}</div><div class="vrow vexps" aria-label="Expiration">${ex}</div>`;
+  }
   if (vol.tab === "skew") {
     const ex = d.smiles.filter(inH).map((s) => {
       const k = vol.sel.indexOf(s.exp);
@@ -479,6 +549,7 @@ function volNote() {
     return rv ? `Volatility cone: for each window, the range of realized volatility over the last ${rv.days} sessions (Yang-Zhang, which also uses the open, high and low). On top, today's realized volatility and the ATM implied volatility for the same horizon. Implied near the top of the cone means options are expensive compared with what the ticker usually moves; near the bottom, cheap.${rv.proxy ? ` Prices from ${rv.proxy}: CBOE does not publish the index history.` : ""}` : "";
   }
   const vixNote = vol.data && vol.data.symbol === "VIX" ? " For the VIX, that forward is the future of each expiration." : "";
+  if (vol.tab === "dist") return "Risk-neutral distribution of the price at expiration, from option prices (second derivative of call prices across strikes, Breeden-Litzenberger), with the implied volatility of each strike, lightly smoothed. The dashed line is a lognormal with the at-the-money IV: where the solid curve sits above it, the market pays more for that move than plain volatility would. Shaded: ±1σ. With the ticker loaded, the levels show the probability of closing beyond them. Not a forecast: it includes the premium the market pays for protection.";
   if (vol.tab === "skew") return `Implied volatility of the out-of-the-money option at each strike (puts below the forward, calls above). The forward is the price the options of each expiration imply (put-call parity), and the IV is calculated from the bid/ask midpoint against it (Black-76), so puts and calls agree at the money.${vixNote} The dashed line is the previous session; the band, the 10th–90th percentile for the same tenor and delta. ${band}`;
   return "IV of each expiration at fixed strikes around the spot. The color shows the change from the last copy of the chain in the previous session: green, up; magenta, down.";
 }
@@ -498,7 +569,7 @@ function renderVol() {
   if (isM) { $("volMatrix").innerHTML = renderMatrix(); return; }
   const el = $("volChart");
   const W = Math.max(320, el.clientWidth), H = Math.max(340, el.clientHeight);
-  const draw = { term: renderTerm, shape: renderShape, realized: renderRealized }[vol.tab] || renderSkew;
+  const draw = { term: renderTerm, shape: renderShape, realized: renderRealized, dist: renderDist }[vol.tab] || renderSkew;
   el.innerHTML = draw(W, H);
 }
 
@@ -539,6 +610,13 @@ function volTip(e) {
       <div class="r">Last year: max <b>${pct(c[4], 1)}</b></div><div class="r">90th percentile <b>${pct(c[3], 1)}</b></div>
       <div class="r">Median <b>${pct(c[2], 1)}</b></div><div class="r">10th percentile <b>${pct(c[1], 1)}</b></div><div class="r">Min <b>${pct(c[0], 1)}</b></div>`;
     if (hl) { hl.setAttribute("x1", best.x); hl.setAttribute("x2", best.x); hl.setAttribute("visibility", "visible"); }
+  } else if (g.kind === "dist") {
+    if (x < g.L || x > g.R) { $("volTip").hidden = true; if (hl) hl.setAttribute("visibility", "hidden"); return; }
+    const v = g.lo + ((x - g.L) / (g.R - g.L)) * (g.hi - g.lo), c = distCdf(g.z, v);
+    html = `<div class="t">Price ${fmtNum(v, 2)} (${fmtNum((v / vol.data.spot - 1) * 100, 2)}%)</div>
+      <div class="r">Close above <b>${fmtNum((1 - c) * 100, 1)}%</b></div>
+      <div class="r">Close below <b>${fmtNum(c * 100, 1)}%</b></div>`;
+    if (hl) { hl.setAttribute("x1", x); hl.setAttribute("x2", x); hl.setAttribute("visibility", "visible"); }
   } else {
     if (x < g.L || x > g.R) { $("volTip").hidden = true; if (hl) hl.setAttribute("visibility", "hidden"); return; }
     const v = g.lo + ((x - g.L) / (g.R - g.L)) * (g.hi - g.lo);
@@ -565,6 +643,8 @@ function bindVol() {
       store.set("volShow", JSON.stringify(vol.show));
       renderVol(); return;
     }
+    const de = e.target.closest("button[data-de]");
+    if (de) { vol.distExp = de.dataset.de; renderVol(); return; }
     const x = e.target.closest(".vexp");
     if (x) {
       const i = vol.sel.indexOf(x.dataset.e);

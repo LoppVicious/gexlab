@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Crypto: señales con su historia, mineros y on-chain; curva del VIX rediseñada con días parecidos y dos gráficos de dispersión; datos sin la API de cotizaciones de CBOE
+## 2026-11-21 — Crypto: señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y dos gráficos de dispersión; datos sin la API de cotizaciones de CBOE
 
 **Añadido**
 - **Curva del VIX, dos gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por
@@ -20,6 +20,15 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   vuelve a 1, miedo y codicia extremos, pico de volatilidad implícita) con sus casos desde 2012, 2015, 2018 o 2022 y qué
   hizo el precio 30 y 90 días después frente a cualquier día del mismo periodo. Las activas o de los últimos 30 días
   entran en la lectura con su historia, aunque contradigan la lectura habitual.
+- **Crypto, señales de derivados con su historia:** funding del perpetuo negativo o por encima del 30 % anual (Deribit,
+  desde 2019), opciones baratas o caras frente a la volatilidad realizada (desde 2021), barrido de apalancamiento y
+  ratio long/short de OKX (desde mayo de 2026, y se amplían cada día), y risk reversal y GEX negativos con nuestra
+  propia historia, que se rellenan con el tiempo.
+- **Crypto, más usable:** pestañas (Overview, Derivatives, On-chain, Signals, Market); gráficos ampliables con rango
+  de 3 meses a toda la historia, escala logarítmica, eje derecho y series que se ocultan desde la leyenda; actividad de
+  red con selector de red (BTC, ETH, Tron, XRP, Litecoin, Dogecoin, Bitcoin Cash, Stellar, Cardano) y de medida;
+  señales filtrables y ordenables que, al abrirlas, muestran sus casos sobre el precio y su lista con el resultado a
+  30 y 90 días; funding desde 2019, apalancamiento de OKX y volatilidad implícita frente a realizada.
 - **Crypto, mineros:** hashrate (medias de 30 y 60 días, estado de los hash ribbons) y múltiplo de Puell, solo BTC.
 - **Crypto, beneficio de los vendedores:** SOPR y SOPR de los holders de corto plazo (media de 7 días), solo BTC.
 - **Crypto, actividad de la red y stablecoins:** direcciones activas frente a su media anual (BTC y ETH) y oferta de

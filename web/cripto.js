@@ -1,15 +1,22 @@
 "use strict";
 /* ============================================================ Crypto (BTC y ETH)
-   Datos: /api/crypto (pub/cripto.json, lo publica cripto.py cada 15 min; diseno en docs/CRIPTO.md).
-   A la izquierda la lectura por reglas (tendencia y posicionamiento) y las cifras clave; a la derecha GEX de
-   Deribit, mapa de niveles, coste on-chain, volatilidad, vencimientos, futuros y mercado.
+   Datos: /api/crypto (pub/cripto.json, cripto.py cada 15 min), /api/crypto_series (historias largas, pedidas al abrir
+   la pagina) y /api/crypto_net?net= (actividad de una red, al elegirla). Diseno en docs/CRIPTO.md.
+   A la izquierda la lectura por reglas y las cifras clave; a la derecha, pestanas (Overview, Derivatives, On-chain,
+   Signals, Market). Los graficos de series se pueden ampliar (rango, escala logaritmica, series ocultables).
    Nombres con prefijo cx: los globales se comparten entre los scripts de web/. */
 
-const cx = { data: null, at: 0, ctrl: null, sym: store.get("cxSym", "BTC"), filt: store.get("cxFilt", "all"), geo: {} };
+const cx = {
+  data: null, at: 0, ctrl: null, series: null, seriesAt: 0, redes: {},
+  sym: store.get("cxSym", "BTC"), filt: store.get("cxFilt", "all"), tab: store.get("cxTab", "overview"),
+  net: store.get("cxNet", ""), met: store.get("cxMet", "dir"), sigFilt: store.get("cxSigFilt", "all"),
+  sigSort: null, sigDir: -1, sigOpen: null, ocultas: {}, modal: null, geo: {},
+};
 const CX_NAME = { BTC: "Bitcoin", ETH: "Ether" };
 const CX_FILT = { 7: "7 days", 30: "30 days", all: "All expirations" };
+const CX_DAY = 86400000;
 
-const cxPx = (v) => (v == null ? "—" : "$" + fmtNum(v, v >= 1000 ? 0 : 2));
+const cxPx = (v) => (v == null ? "—" : "$" + fmtNum(v, v >= 1000 ? 0 : v >= 1 ? 2 : 4));
 const cxPct = (v, dec = 1) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), dec) + "%");
 const cxTone = (t) => (t > 0 ? "pos" : t < 0 ? "neg" : "");
 
@@ -36,6 +43,7 @@ async function loadCrypto() {
     if (!r.ok) throw new Error(d.error || "Could not load the crypto data");
     cx.data = d; cx.at = Date.now();
     if (state.mode === "crypto") { renderCrypto(); setStatus("", cxStatus()); }
+    cxLoadSeries();
   } catch (e) {
     if (e.name === "AbortError") return;
     if (state.mode === "crypto") {
@@ -45,14 +53,61 @@ async function loadCrypto() {
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
 
+// historias largas: una vez por media hora (cambian unas 4 veces al dia)
+async function cxLoadSeries() {
+  if (cx.series && Date.now() - cx.seriesAt < 1800000) return;
+  try {
+    const r = await fetch("/api/crypto_series");
+    if (!r.ok) return;
+    cx.series = await r.json(); cx.seriesAt = Date.now(); cx.redes = {};
+    if (state.mode === "crypto") renderCrypto();
+  } catch { /* sin historias largas: los graficos usan las cortas de /api/crypto */ }
+}
+
+async function cxLoadNet(net) {
+  if (cx.redes[net]) return cx.redes[net];
+  const r = await fetch(`/api/crypto_net?net=${encodeURIComponent(net)}`);
+  if (!r.ok) throw new Error("Could not load that network");
+  cx.redes[net] = await r.json();
+  return cx.redes[net];
+}
+
+const cxVisible = (el) => !el.closest("[hidden]") && el.offsetParent !== null;
+
 function renderCrypto() {
   const d = cx.data;
   if (!d) return;
   if (!d.activos[cx.sym]) cx.sym = Object.keys(d.activos)[0];
-  const a = d.activos[cx.sym], m = d.mercado || {}, lec = a.lectura || {}, oc = a.onchain, v = a.vol || {}, f = a.futuros || {};
+  const a = d.activos[cx.sym], m = d.mercado || {};
   document.querySelectorAll("#cxSym button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cx.sym)));
   document.querySelectorAll("#cxFilt button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cx.filt)));
+  document.querySelectorAll("#cxTabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === cx.tab)));
+  document.querySelectorAll("#cryptoView .cx-panel").forEach((p) => {
+    p.hidden = !(p.dataset.tabs || "").split(" ").includes(cx.tab) || (p.classList.contains("cx-btc") && cx.sym !== "BTC");
+  });
+  cxSide(a, m, d);
 
+  const vis = (id) => cxVisible($(id));
+  if (vis("cxGex")) {
+    const gf = a.gex[cx.filt] || a.gex.all;
+    $("cxGexCap").textContent = `Dealer gamma by strike (bars) and net GEX if price moved there (line), ${CX_FILT[cx.filt].toLowerCase()}. ${gf.flip ? "Flip " + cxPx(gf.flip) : "No flip within 15%"}, Call Wall ${cxPx(gf.call_wall)}, Put Wall ${cxPx(gf.put_wall)}.`;
+    cxGexChart(a, gf);
+  }
+  if (vis("cxLevels")) cxLevelsChart(a);
+  for (const [id, kind] of [["cxCost", "cost"], ["cxDvol", "dvol"], ["cxFund", "fund"], ["cxLev", "lev"], ["cxMin", "min"], ["cxSopr", "sopr"]]) {
+    if (vis(id)) cxDrawKind(id, kind);
+  }
+  if (vis("cxAct")) cxActivity();
+  if (vis("cxTerm")) cxTermChart(a);
+  cxTables(a, m);
+  if (vis("cxSigBody")) cxSignals(a);
+  cxStables(m);
+  if (cx.modal) cxModalRender();
+}
+
+/* ---------- lectura y cifras (columna izquierda) */
+function cxSide(a, m, d) {
+  const lec = a.lectura || {}, oc = a.onchain, v = a.vol || {}, f = a.futuros || {};
   $("cxTitle").textContent = `${CX_NAME[cx.sym] || cx.sym} ${cxPx(a.spot)}`;
   $("cxTitle").title = "Deribit index";
   const st = $("cxState");
@@ -88,84 +143,326 @@ function renderCrypto() {
   const errs = Object.keys(d.errores || {});
   $("cxErr").textContent = errs.length ? `Sources that failed this time: ${errs.join(", ")}. The rest is current.` : "";
   $("cxErr").hidden = !errs.length;
-
-  const gf = a.gex[cx.filt] || g;
-  $("cxGexCap").textContent = `Dealer gamma by strike (bars) and net GEX if price moved there (line), ${CX_FILT[cx.filt].toLowerCase()}. ${gf.flip ? "Flip " + cxPx(gf.flip) : "No flip within 15%"}, Call Wall ${cxPx(gf.call_wall)}, Put Wall ${cxPx(gf.put_wall)}.`;
-  cxGexChart(a, gf);
-  cxLevelsChart(a);
-  if (oc && oc.serie) {
-    $("cxCostCap").textContent = `Daily close against the average cost of all coins (realized price)${oc.sth_serie ? " and of short- and long-term holders" : ""}, last two years. CoinMetrics${oc.sth_serie ? " and bitcoin-data.com" : ""}.`;
-    cxCostChart(a);
-  } else { $("cxCost").innerHTML = `<div class="empty">No on-chain data</div>`; $("cxCostCap").textContent = ""; }
-  cxTermChart(a);
-  cxDvolChart(a);
-  cxTables(a, m);
-  cxSignals(a);
-  document.querySelectorAll("#cryptoView .cx-btc").forEach((p) => { p.hidden = cx.sym !== "BTC"; });
-  if (cx.sym === "BTC") { cxMinChart(a); cxSoprChart(a); }
-  cxActChart(a);
-  cxStables(m);
 }
 
-/* ---------- senales con su historia */
+/* ---------- series: definicion de cada grafico (historia larga si ya llego; si no, la corta de /api/crypto) */
+function cxCols(kind) {
+  // columnas del activo: fechas y valores alineados
+  const s = cx.series && cx.series.activos && cx.series.activos[cx.sym];
+  if (s && s.d) return s;
+  const a = cx.data.activos[cx.sym], oc = a.onchain || {}, be = a.beneficio || {}, mi = a.mineros || {};
+  // respaldo con las series cortas
+  if (kind === "cost" && oc.serie) {
+    const sth = new Map(oc.sth_serie || []), lth = new Map(oc.lth_serie || []);
+    return { d: oc.serie.map((r) => r[0]), precio: oc.serie.map((r) => r[1]), rp: oc.serie.map((r) => r[2]),
+      sth: oc.serie.map((r) => sth.get(r[0]) ?? null), lth: oc.serie.map((r) => lth.get(r[0]) ?? null) };
+  }
+  if (kind === "dvol" && a.vol.dvol_serie) return { d: a.vol.dvol_serie.map((r) => r[0]), dvol: a.vol.dvol_serie.map((r) => r[1]) };
+  if (kind === "min" && mi.serie) return { d: mi.serie.map((r) => r[0]), hash30: mi.serie.map((r) => r[1]), hash60: mi.serie.map((r) => r[2]), puell: mi.serie.map((r) => r[3]) };
+  if (kind === "sopr" && (be.sth_sopr_serie || be.sopr_serie)) {
+    const base = be.sth_sopr_serie || be.sopr_serie, todos = new Map(be.sopr_serie || []);
+    return { d: base.map((r) => r[0]), sth_sopr: be.sth_sopr_serie ? base.map((r) => r[1]) : null, sopr: base.map((r) => todos.get(r[0]) ?? null) };
+  }
+  return null;
+}
+
+const CX_KINDS = {
+  cost: { title: "Price against cost basis", rango: 730, log: true, fmt: cxPx, fmtY: (v) => "$" + fmtAxis(v),
+    series: () => [["precio", "Price", C.text, 1.8], ["rp", "Realized price", C.accent, 1.8], ["sth", "Short-term holders", C.purple, 1.5], ["lth", "Long-term holders", C.prevClose, 1.5, "4 3"]],
+    cap: () => `Daily close against the average cost of all coins (realized price)${cx.sym === "BTC" ? " and of short- and long-term holders" : ""}. CoinMetrics${cx.sym === "BTC" ? " and bitcoin-data.com" : ""}.` },
+  dvol: { title: "Implied against realized volatility", rango: 365, fmt: (v) => fmtNum(v, 1), fmtY: (v) => fmtNum(v, 0),
+    series: () => [["dvol", "DVOL (implied)", C.purple, 1.8], ["rv30", "Realized, 30 days", C.muted, 1.4, "4 3"]],
+    cap: () => { const v = cx.data.activos[cx.sym].vol; return v.dvol != null ? `DVOL (Deribit 30-day implied volatility index) against realized volatility of the last 30 days. Now ${fmtNum(v.dvol, 1)}, ${ordinal(v.dvol_pct)} percentile of the last year; ${v.vrp >= 0 ? "+" : "−"}${fmtNum(Math.abs(v.vrp), 1)} over realized.` : ""; } },
+  fund: { title: "Perpetual funding", rango: 730, ref: 0, fmt: (v) => cxPct(v), fmtY: (v) => fmtNum(v, 0) + "%",
+    series: () => [["funding", "Funding, 7-day average (% a year)", C.accent, 1.6]],
+    cap: () => `Deribit perpetual funding, 7-day average, annualized. Positive: longs pay shorts. Over ${fmtNum(cx.data.umbrales.funding_alto, 0)}% longs are crowded; under 0 shorts pay to hold.` },
+  lev: { title: "Leverage (OKX)", rango: 0, fmt: (v) => fmtBig(v, true), fmtY: (v) => "$" + fmtAxis(v), fmtR: (v) => fmtNum(v, 2),
+    series: () => [["oi", "Futures open interest", C.accent, 1.8], ["lsr", "Long/short accounts (right)", C.amber, 1.4, "4 3", true]],
+    cap: () => "Open interest of OKX futures in USD and long accounts for each short. OKX gives 180 days; we keep adding from November 2026." },
+  min: { title: "Miners", rango: 730, log: true, fmt: (v) => fmtNum(v, 0) + " EH/s", fmtY: (v) => fmtNum(v, 0), fmtR: (v) => fmtNum(v, 2),
+    series: () => [["hash30", "Hashrate, 30-day", C.accent, 1.8], ["hash60", "Hashrate, 60-day", C.purple, 1.5, "4 3"], ["puell", "Puell multiple (right)", C.amber, 1.2, "", true]],
+    cap: () => { const mi = cx.data.activos[cx.sym].mineros; if (!mi) return ""; const est = { capitulation: `in capitulation for ${mi.dias} days (30-day under 60-day: miners switching off)`, recovery: `just recovered (buy signal on ${ddmm(mi.ultima_compra)})`, healthy: "healthy (30-day over 60-day)" }[mi.estado]; return `Hashrate in EH/s. Hash ribbons ${est}. Puell multiple ${fmtNum(mi.puell, 2)}: miner revenue against its yearly average (under 0.5 stress, over 3 past tops).`; } },
+  sopr: { title: "Profit and loss of sellers", rango: 365, ref: 1, fmt: (v) => fmtNum(v, 3), fmtY: (v) => fmtNum(v, 2),
+    series: () => [["sth_sopr", "Short-term holders", C.purple, 1.8], ["sopr", "All coins", C.muted, 1.3]],
+    cap: () => { const s = (cx.data.activos[cx.sym].beneficio || {}).sth_sopr; return `SOPR, 7-day average: price at which coins sell against the price they were bought at. Over 1, sellers take profits; under 1, they sell at a loss.${s ? ` Data to ${ddmm(s.fecha)} (a week behind).` : ""}`; } },
+};
+
+function cxSpec(kind) {
+  const k = CX_KINDS[kind], cols = cxCols(kind);
+  if (!k || !cols) return null;
+  const series = k.series().filter(([key]) => Array.isArray(cols[key]) && cols[key].some((v) => v != null))
+    .map(([key, name, col, w, da, r]) => ({ key, name, col, w, da, r: !!r, v: cols[key] }));
+  if (!series.length) return null;
+  return { kind, x: cols.d, series, ref: k.ref, fmt: k.fmt, fmtY: k.fmtY, fmtR: k.fmtR, log: k.log, title: k.title };
+}
+
+function cxDrawKind(id, kind) {
+  const spec = cxSpec(kind);
+  const cap = { cxCost: "cxCostCap", cxDvol: "cxDvolCap", cxFund: "cxFundCap", cxLev: "cxLevCap", cxMin: "cxMinCap", cxSopr: "cxSoprCap" }[id];
+  if (!spec) { $(id).innerHTML = `<div class="empty">${cx.series ? "No data" : "Loading…"}</div>`; if (cap) $(cap).textContent = ""; return; }
+  if (cap) $(cap).textContent = CX_KINDS[kind].cap();
+  cxChart(id, spec, { rango: CX_KINDS[kind].rango });
+}
+
+/* ---------- grafico de series generico: eje izquierdo y derecho, escala logaritmica, leyenda que oculta series,
+   marcas (casos de una senal) y tooltip con todas las series en la fecha */
+function cxLogTicks(lo, hi) {
+  const out = [];
+  for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++) {
+    for (const m of [1, 2, 5]) { const v = m * 10 ** e; if (v >= lo && v <= hi) out.push(v); }
+  }
+  return out.length >= 2 ? out : [lo, hi];
+}
+
+function cxChart(id, spec, o = {}) {
+  const el = $(id), W = Math.max(300, el.clientWidth), Ht = Math.max(170, el.clientHeight);
+  const ocultas = cx.ocultas[spec.kind] || new Set();
+  const vis = spec.series.filter((s) => !ocultas.has(s.key));
+  const hayR = vis.some((s) => s.r);
+  // rango: ultimos n dias de la serie (0 = todo)
+  const n = spec.x.length;
+  let i0 = 0;
+  if (o.rango) {
+    const corte = Date.parse(spec.x[n - 1]) - o.rango * CX_DAY;
+    while (i0 < n - 1 && Date.parse(spec.x[i0]) < corte) i0++;
+  }
+  // sin datos al principio del rango (series que empiezan tarde): se recorta
+  while (i0 < n - 1 && !vis.some((s) => s.v[i0] != null)) i0++;
+  const H = Ht - (W < 560 ? 50 : 30);   // la leyenda va debajo, en HTML (dos filas en pantallas estrechas)
+  const L = 58, R = W - (hayR ? 54 : 16), T = 12, B = H - 24;
+  const log = !!(o.log && spec.log);
+  const rango = (ser) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const s of ser) for (let i = i0; i < n; i++) { const v = s.v[i]; if (v != null && (!log || v > 0)) { if (v < lo) lo = v; if (v > hi) hi = v; } }
+    return [lo, hi];
+  };
+  let [lo, hi] = rango(vis.filter((s) => !s.r));
+  if (!isFinite(lo) && !hayR) { el.innerHTML = `<div class="empty">No data in this range</div>`; return null; }
+  if (spec.ref != null && isFinite(lo)) { lo = Math.min(lo, spec.ref); hi = Math.max(hi, spec.ref); }
+  let yOf, ticks;
+  if (isFinite(lo)) {
+    if (log) {
+      const a = Math.log10(lo * 0.95), b = Math.log10(hi * 1.05);
+      yOf = (v) => B - ((Math.log10(v) - a) / (b - a)) * (B - T);
+      ticks = cxLogTicks(lo * 0.95, hi * 1.05);
+    } else {
+      const yt = niceTicks(lo, hi, Math.max(3, Math.round((B - T) / 42)));
+      yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
+      ticks = yt.ticks;
+    }
+  }
+  let yR = null, ticksR = [];
+  if (hayR) {
+    const [rl, rh] = rango(vis.filter((s) => s.r));
+    if (isFinite(rl)) {
+      const yt = niceTicks(rl, rh, Math.max(3, Math.round((B - T) / 42)));
+      yR = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
+      ticksR = yt.ticks;
+    }
+  }
+  const t0 = Date.parse(spec.x[i0]), t1 = Date.parse(spec.x[n - 1]);
+  const xOf = (i) => L + ((Date.parse(spec.x[i]) - t0) / (t1 - t0 || 1)) * (R - L);
+  let s = "";
+  if (yOf) s += ticks.map((v) => `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${C.grid}"/>` + txt(L - 8, yOf(v) + 4, spec.fmtY ? spec.fmtY(v) : fmtNum(v), { a: "end", fs: 11 })).join("");
+  if (yR) s += ticksR.map((v) => txt(R + 8, yR(v) + 4, spec.fmtR ? spec.fmtR(v) : fmtNum(v), { fs: 11, c: C.amber })).join("");
+  if (spec.ref != null && yOf) s += `<line x1="${L}" x2="${R}" y1="${yOf(spec.ref)}" y2="${yOf(spec.ref)}" stroke="${C.amber}" stroke-width="1.2" stroke-dasharray="5 4"/>`;
+  // muchos puntos: se dibuja uno de cada k para no pasar de ~2 por pixel
+  const paso = Math.max(1, Math.floor((n - i0) / ((R - L) * 2)));
+  for (const sr of vis) {
+    const f = sr.r ? yR : yOf;
+    if (!f) continue;
+    let dd = "", pen = false;
+    for (let i = i0; i < n; i += (i + paso < n ? paso : 1)) {
+      const v = sr.v[i];
+      if (v == null || (log && !sr.r && v <= 0)) { pen = false; continue; }
+      dd += `${pen ? "L" : "M"}${xOf(i).toFixed(1)},${f(v).toFixed(1)}`; pen = true;
+    }
+    s += `<path d="${dd}" fill="none" stroke="${sr.col}" stroke-width="${sr.w || 1.6}"${sr.da ? ` stroke-dasharray="${sr.da}"` : ""} stroke-linejoin="round"/>`;
+  }
+  // marcas: casos de una senal sobre la primera serie
+  for (const mk of o.marcas || []) {
+    if (mk.i < i0 || !yOf || spec.series[0].v[mk.i] == null) continue;
+    s += `<circle cx="${xOf(mk.i)}" cy="${yOf(spec.series[0].v[mk.i])}" r="5" fill="${mk.col}" stroke="${C.surface}" stroke-width="1.5"/>`;
+  }
+  // eje x: meses o anos segun el rango
+  const dias = (t1 - t0) / CX_DAY, anual = dias > 900;
+  let prev = "", last = -1e9;
+  for (let i = i0; i < n; i++) {
+    const d = spec.x[i], k = anual ? d.slice(0, 4) : d.slice(0, 7);
+    if (k !== prev && xOf(i) - last >= (anual ? 40 : 52) && xOf(i) > L + 8) {
+      s += txt(xOf(i), B + 18, anual ? k : MESES[+d.slice(5, 7) - 1] + (d.slice(5, 7) === "01" || last < 0 ? " '" + d.slice(2, 4) : ""), { a: "middle", fs: 11 });
+      last = xOf(i);
+    }
+    prev = k;
+  }
+  s += `<line class="cx-hl" x1="0" x2="0" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-opacity=".6" visibility="hidden"/>`;
+  const ley = spec.series.map((sr) => `<button class="cx-li${ocultas.has(sr.key) ? " off" : ""}" data-k="${sr.key}" title="Show or hide"><i style="border-color:${sr.col};${sr.da ? "border-top-style:dashed" : ""}"></i>${esc(sr.name)}</button>`).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg><div class="cx-leg" data-kind="${spec.kind}">${ley}</div>`;
+  cx.geo[id] = { L, R, i0, n, xOf, spec, tip: o.tip || "cxTip" };
+  return cx.geo[id];
+}
+
+function cxChartTip(id, e) {
+  const g = cx.geo[id];
+  if (!g) return;
+  const el = $(id), r = el.getBoundingClientRect(), x = e.clientX - r.left, hl = el.querySelector(".cx-hl");
+  if (x < g.L - 4 || x > g.R + 4 || e.target.closest(".cx-leg")) { if (hl) hl.setAttribute("visibility", "hidden"); return macroTip(g.tip, null, e, ""); }
+  // busqueda binaria del dia mas cercano
+  let a = g.i0, b = g.n - 1;
+  while (b - a > 1) { const m = (a + b) >> 1; if (g.xOf(m) < x) a = m; else b = m; }
+  const i = Math.abs(g.xOf(a) - x) < Math.abs(g.xOf(b) - x) ? a : b;
+  if (hl) { const X = g.xOf(i); hl.setAttribute("x1", X); hl.setAttribute("x2", X); hl.setAttribute("visibility", "visible"); }
+  const sp = g.spec, ocultas = cx.ocultas[sp.kind] || new Set();
+  const filas = sp.series.filter((s) => !ocultas.has(s.key) && s.v[i] != null)
+    .map((s) => `<div class="r">${esc(s.name.replace(" (right)", ""))} <b style="color:${s.col}">${(s.r && sp.fmtR ? sp.fmtR : sp.fmt)(s.v[i])}</b></div>`).join("");
+  macroTip(g.tip, null, e, `<div class="t">${longDate(sp.x[i])}</div>${filas}${sp.extra ? sp.extra(i) : ""}`);
+}
+
+/* ---------- actividad de la red: red y medida elegibles */
+async function cxActivity(target = "cxAct", rango = 730, tip = "cxTip", log = false) {
+  const lista = (cx.series && cx.series.redes) || {};
+  const nets = Object.keys(lista);
+  if (!nets.length) { $(target).innerHTML = `<div class="empty">${cx.series ? "No data" : "Loading…"}</div>`; return; }
+  if (!lista[cx.net]) cx.net = lista[cx.sym] ? cx.sym : nets[0];
+  const chips = nets.map((k) => `<button role="radio" data-v="${k}" aria-checked="${k === cx.net}" title="${esc(lista[k].nombre)}, since ${lista[k].desde.slice(0, 4)}">${k}</button>`).join("");
+  $("cxNets").innerHTML = chips;
+  if (cx.modal && cx.modal.kind === "act") $("cxModalNets").innerHTML = chips;
+  document.querySelectorAll("#cxActMet button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cx.met)));
+  let r;
+  try { r = await cxLoadNet(cx.net); } catch (e) { $(target).innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const v = r[cx.met] || [], n = v.length;
+  // medias de 30 y 365 dias (ignoran los dias sin dato)
+  const media = (k) => {
+    const out = new Array(n).fill(null);
+    let s = 0, c = 0;
+    for (let i = 0; i < n; i++) {
+      if (v[i] != null) { s += v[i]; c++; }
+      if (i >= k && v[i - k] != null) { s -= v[i - k]; c--; }
+      if (i >= k - 1 && c > k * 0.8) out[i] = s / c;
+    }
+    return out;
+  };
+  const m30 = media(30), m365 = media(365);
+  const nombre = cx.met === "dir" ? "Active addresses" : "Transactions";
+  const spec = { kind: "act", x: r.d, fmt: (x) => fmtNum(x), fmtY: fmtAxis, fmtR: cxPx, log: true,
+    series: [{ key: "m30", name: `${nombre}, 30-day`, col: C.accent, w: 1.8, v: m30 },
+      { key: "m365", name: `${nombre}, 365-day`, col: C.muted, w: 1.4, da: "4 3", v: m365 },
+      { key: "p", name: "Price (right)", col: C.amber, w: 1.1, r: true, v: r.p }],
+    extra: (i) => (v[i] != null ? `<div class="r">That day <b>${fmtNum(v[i])}</b></div>` : "") };
+  const ult = m30[n - 1], ultA = m365[n - 1];
+  const txtCap = `${esc(r.nombre)}: ${nombre.toLowerCase()} per day (CoinMetrics), 30-day average ${fmtBig(ult)}, ${cxPct(ult && ultA ? (ult / ultA - 1) * 100 : null)} against the yearly average. Price on the right axis.`;
+  $("cxActCap").textContent = txtCap;
+  if (target === "cxModalChart") $("cxModalCap").textContent = txtCap;
+  cxChart(target, spec, { rango, tip, log });
+}
+
+function cxTermChart(a) {
+  // sin los vencimientos de menos de un dia: su IV la mueve el ultimo tramo hasta la liquidacion
+  const t = (a.vol.term || []).filter((r) => r.atm != null && r.dias >= 1);
+  const el = $("cxTerm"), W = Math.max(300, el.clientWidth), H = Math.max(170, el.clientHeight);
+  const L = 48, R = W - 16, T = 12, B = H - 28;
+  if (t.length < 2) { el.innerHTML = `<div class="empty">No data</div>`; return; }
+  const f = (x) => Math.sqrt(x), x0 = f(t[0].dias), x1 = f(t[t.length - 1].dias);
+  const xOf = (x) => L + ((f(x) - x0) / (x1 - x0 || 1)) * (R - L);
+  const yt = niceTicks(Math.min(...t.map((r) => r.atm)), Math.max(...t.map((r) => r.atm)), 4);
+  const yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
+  let s = yt.ticks.map((v) => `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${C.grid}"/>` + txt(L - 8, yOf(v) + 4, fmtNum(v, 0), { a: "end", fs: 11 })).join("");
+  s += `<path d="${t.map((r, i) => `${i ? "L" : "M"}${xOf(r.dias).toFixed(1)},${yOf(r.atm).toFixed(1)}`).join("")}" fill="none" stroke="${C.accent}" stroke-width="2.2"/>`;
+  s += t.map((r) => `<circle cx="${xOf(r.dias)}" cy="${yOf(r.atm)}" r="3" fill="${C.surface}" stroke="${C.accent}" stroke-width="1.6"/>`).join("");
+  let last = -1e9;
+  for (const r of t) { const X = xOf(r.dias); if (X - last >= 46) { s += txt(X, B + 18, ddmm(r.exp), { a: "middle", fs: 11 }); last = X; } }
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
+  cx.geo.term = { t, xOf };
+  const v = a.vol;
+  $("cxTermCap").textContent = `At-the-money implied volatility by expiration (Deribit). 30 days: ATM ${fmtNum(v.atm30, 1)}, 25-delta risk reversal ${fmtNum(v.rr25_30, 1)}, butterfly ${fmtNum(v.bf25_30, 1)}.`;
+}
+
+/* ---------- ampliar un grafico */
+function cxOpenModal(kind) {
+  cx.modal = { kind, rango: store.get("cxR_" + kind, kind === "act" ? 1825 : 0), log: store.get("cxLog_" + kind, false) };
+  $("cxModal").hidden = false;
+  document.body.classList.add("cx-noscroll");
+  cxModalRender();
+  $("cxModalClose").focus();
+}
+function cxCloseModal() {
+  cx.modal = null;
+  $("cxModal").hidden = true; $("cxMTip").hidden = true;
+  document.body.classList.remove("cx-noscroll");
+}
+function cxModalRender() {
+  const md = cx.modal;
+  if (!md) return;
+  const k = md.kind;
+  $("cxModalTitle").textContent = k === "act" ? "Network activity" : `${CX_KINDS[k].title}, ${CX_NAME[cx.sym]}`;
+  document.querySelectorAll("#cxRange button").forEach((b) => b.setAttribute("aria-checked", String(+b.dataset.v === md.rango)));
+  const logOk = k === "act" || (CX_KINDS[k] && CX_KINDS[k].log);
+  $("cxLogWrap").hidden = !logOk; $("cxLog").checked = !!md.log;
+  $("cxModalNets").hidden = k !== "act";
+  if (k === "act") { cxActivity("cxModalChart", md.rango, "cxMTip", md.log); return; }
+  const spec = cxSpec(k);
+  $("cxModalCap").textContent = CX_KINDS[k].cap();
+  if (!spec) { $("cxModalChart").innerHTML = `<div class="empty">No data</div>`; return; }
+  cxChart("cxModalChart", spec, { rango: md.rango, log: md.log, tip: "cxMTip" });
+}
+
+/* ---------- senales con su historia: filtros, orden y casos sobre el precio */
+function cxSigVal(x, k) {
+  const e30 = x.h["30"] || {}, e90 = x.h["90"] || {};
+  return { nombre: x.nombre, ultima: x.hoy ? "9999" : x.ultima || "", n: x.casos.length, m30: e30.mediana, p30: e30.pos,
+    m90: e90.mediana, p90: e90.pos, edge: e90.mediana == null ? null : e90.mediana - (e90.base_mediana || 0) }[k];
+}
+
 function cxSignals(a) {
-  const s = a.senales || [], hace30 = a.hace30 || "";
-  const num = (v, suf = "%") => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 0) + suf);
+  const hace30 = a.hace30 || "";
+  const on = (x) => x.hoy || (x.ultima && x.ultima >= hace30);
+  let s = (a.senales || []).filter((x) => cx.sigFilt === "all" || (cx.sigFilt === "on" ? on(x) : x.grupo === cx.sigFilt));
+  if (cx.sigSort) {
+    const k = cx.sigSort, d = cx.sigDir;
+    s = s.slice().sort((p, q) => {
+      const x = cxSigVal(p, k), y = cxSigVal(q, k);
+      if (x == null) return 1; if (y == null) return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * d;
+    });
+  }
+  document.querySelectorAll("#cxSigFilt button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cx.sigFilt)));
+  document.querySelectorAll(".cx-sig th").forEach((th) => th.classList.toggle("cx-sorted", th.dataset.k === cx.sigSort));
+  const num = (v) => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 0) + "%");
   const col = (v, base) => (v == null || base == null ? "" : v > base ? "cx-up" : v < base ? "cx-dn" : "");
+  const lectura = { 1: "bullish", "-1": "bearish", 0: "no direction (volatility)" };
   $("cxSigBody").innerHTML = s.map((x) => {
     const e30 = x.h["30"] || {}, e90 = x.h["90"] || {};
-    const reciente = x.ultima && x.ultima >= hace30, on = x.hoy || reciente;
-    const ahora = x.hoy ? "Active now" : x.ultima ? `${ddmm(x.ultima)}, ${x.ultima.slice(0, 4)}` : "Never";
-    const pocos = (e90.n || 0) < 5 ? `, few` : "";
-    return `<tr${on ? ` class="cx-on"` : ""}><td class="l"><b>${esc(x.nombre)}</b><span class="cx-q">${esc(x.que)} Usual reading: ${x.sentido > 0 ? "bullish" : "bearish"}.</span></td>
-      <td class="l">${ahora}</td><td>${x.casos.length}<span class="cx-q">since ${x.desde ? x.desde.slice(0, 4) : "—"}${pocos}</span></td>
+    const ahora = x.hoy ? "Active now" : x.ultima ? `${ddmm(x.ultima)}, ${x.ultima.slice(0, 4)}` : x.casos.length ? "" : "Not yet";
+    const sinDatos = !x.casos.length && !e90.n;
+    const nota = sinDatos ? `collecting since ${ddmm(x.desde)}, ${(x.desde || "").slice(0, 4)}` : `since ${x.desde ? x.desde.slice(0, 4) : "—"}${(e90.n || 0) < 5 ? ", few" : ""}`;
+    const abierta = cx.sigOpen === x.id;
+    const fila = `<tr class="cx-sr${on(x) ? " cx-on" : ""}${abierta ? " cx-open" : ""}" data-id="${x.id}" tabindex="0" aria-expanded="${abierta}"><td class="l"><b>${esc(x.nombre)}</b><span class="cx-q">${esc(x.que)} Usual reading: ${lectura[x.sentido]}.</span></td>
+      <td class="l">${ahora}</td><td>${x.casos.length}<span class="cx-q">${nota}</span></td>
       <td class="${col(e30.mediana, e30.base_mediana)}">${num(e30.mediana)}</td><td class="${col(e30.pos, e30.base_pos)}">${e30.n ? e30.pos + "%" : "—"}</td>
       <td class="${col(e90.mediana, e90.base_mediana)}">${num(e90.mediana)}</td><td class="${col(e90.pos, e90.base_pos)}">${e90.n ? e90.pos + "%" : "—"}</td>
-      <td class="cx-vs">${num(e90.base_mediana)}, ${e90.base_pos ?? "—"}%</td></tr>`;
-  }).join("") || `<tr><td class="l" colspan="8">No signals</td></tr>`;
+      <td class="cx-vs">${e90.base_pos == null ? "—" : `${num(e90.base_mediana)}, ${e90.base_pos}%`}</td></tr>`;
+    return fila + (abierta ? `<tr class="cx-det"><td colspan="8"><div class="cx-detw"><div class="cx-chart cx-sigc" id="cxSigChart"></div><div class="cx-cases" id="cxSigCases"></div></div></td></tr>` : "");
+  }).join("") || `<tr><td class="l" colspan="8">No signals in this filter</td></tr>`;
+  if (cx.sigOpen && $("cxSigChart")) cxSigDetail(s.find((x) => x.id === cx.sigOpen));
 }
 
-/* ---------- mineros, beneficio, actividad y stablecoins */
-function cxMinChart(a) {
-  const mi = a.mineros;
-  if (!mi) { $("cxMin").innerHTML = `<div class="empty">No data</div>`; $("cxMinCap").textContent = ""; return; }
-  const rows = mi.serie;
-  cx.geo.minRows = rows;
-  cx.geo.cxMin = cxLines("cxMin", [{ name: "30-day average", col: C.accent, w: 1.8, pts: rows.map((r) => [r[0], r[1]]) },
-    { name: "60-day average", col: C.purple, w: 1.5, da: "4 3", pts: rows.map((r) => [r[0], r[2]]) }], { dates: true, legend: true, fmtY: (v) => fmtNum(v, 0) });
-  const est = { capitulation: `in capitulation for ${mi.dias} days (30-day under 60-day: miners switching off)`, recovery: `just recovered (buy signal on ${ddmm(mi.ultima_compra)})`, healthy: "healthy (30-day over 60-day)" }[mi.estado];
-  $("cxMinCap").textContent = `Hashrate in EH/s, last two years. Hash ribbons ${est}. Puell multiple ${fmtNum(mi.puell, 2)} (miner revenue against its yearly average; under 0.5 has marked stress, over 3 past tops).`;
-}
-
-function cxSoprChart(a) {
-  const be = a.beneficio || {};
-  if (!be.sth_sopr_serie && !be.sopr_serie) { $("cxSopr").innerHTML = `<div class="empty">No data</div>`; $("cxSoprCap").textContent = ""; return; }
-  const sr = [];
-  if (be.sth_sopr_serie) sr.push({ name: "Short-term holders", col: C.purple, w: 1.8, pts: be.sth_sopr_serie });
-  if (be.sopr_serie) sr.push({ name: "All coins", col: C.muted, w: 1.3, pts: be.sopr_serie });
-  const todos = new Map(be.sopr_serie || []);
-  cx.geo.soprRows = (be.sth_sopr_serie || be.sopr_serie).map((r) => [r[0], be.sth_sopr_serie ? r[1] : null, todos.get(r[0]) ?? null]);
-  cx.geo.cxSopr = cxLines("cxSopr", sr, { dates: true, legend: true, ref: 1, fmtY: (v) => fmtNum(v, 2) });
-  const s = be.sth_sopr;
-  $("cxSoprCap").textContent = `SOPR, 7-day average, last year: price at which coins sell against the price they were bought at. Over 1, sellers take profits; under 1, they sell at a loss.${s ? ` Data of ${ddmm(s.fecha)} (a week behind).` : ""}`;
-}
-
-function cxActChart(a) {
-  const ac = a.actividad;
-  if (!ac) { $("cxAct").innerHTML = `<div class="empty">No data</div>`; $("cxActCap").textContent = ""; return; }
-  cx.geo.actRows = ac.serie;
-  cx.geo.cxAct = cxLines("cxAct", [{ name: "30-day average", col: C.accent, w: 1.8, pts: ac.serie.map((r) => [r[0], r[1]]) },
-    { name: "365-day average", col: C.muted, w: 1.4, da: "4 3", pts: ac.serie.map((r) => [r[0], r[2]]) }], { dates: true, legend: true, fmtY: (v) => fmtAxis(v) });
-  $("cxActCap").textContent = `Daily active addresses (CoinMetrics), last two years: ${cxPct(ac.dir_chg)} against the yearly average${ac.tx_chg != null ? `; transactions ${cxPct(ac.tx_chg)}` : ""}.`;
-}
-
-function cxStables(m) {
-  const lq = m.liquidez;
-  if (!lq) { $("cxStbBody").innerHTML = `<tr><td class="l" colspan="5">No data</td></tr>`; $("cxStbCap").textContent = ""; return; }
-  const cell = (v) => `<td class="${v > 0 ? "cx-up" : v < 0 ? "cx-dn" : ""}">${cxPct(v)}</td>`;
-  $("cxStbCap").textContent = `Dollar stablecoins (DefiLlama): money parked inside crypto, ready to buy. Growing supply has gone with rising prices; shrinking, with money leaving.`;
-  $("cxStbBody").innerHTML = `<tr><td class="l"><b>All</b></td><td>${fmtBig(lq.total, true)}</td><td>100%</td>${cell(lq.c7)}${cell(lq.c30)}</tr>` +
-    lq.top.map((x) => `<tr><td class="l"><b>${esc(x.sym)}</b> <span class="cx-nm">${esc(x.nombre)}</span></td><td>${fmtBig(x.total, true)}</td><td>${fmtNum(x.cuota, 1)}%</td>${cell(x.c7)}${cell(x.c30)}</tr>`).join("");
+function cxSigDetail(x) {
+  if (!x) return;
+  const cols = cx.series && cx.series.activos && cx.series.activos[cx.sym];
+  if (!cols) { $("cxSigChart").innerHTML = `<div class="empty">Loading the price history…</div>`; return; }
+  const idx = new Map(cols.d.map((d, i) => [d, i])), p = cols.precio;
+  const fwd = (i, h) => (i + h < p.length && p[i] && p[i + h] ? (p[i + h] / p[i] - 1) * 100 : null);
+  const casos = x.casos.map((d) => ({ d, i: idx.get(d) })).filter((c) => c.i != null).map((c) => ({ ...c, r30: fwd(c.i, 30), r90: fwd(c.i, 90) }));
+  const marcas = casos.map((c) => ({ i: c.i, col: c.r90 == null ? C.muted : c.r90 > 0 ? C.put : C.call }));
+  const desde = idx.get(x.desde) ?? 0;
+  const spec = { kind: "sig_" + x.id, x: cols.d, log: true, fmt: cxPx, fmtY: (v) => "$" + fmtAxis(v),
+    series: [{ key: "precio", name: `${cx.sym} price`, col: C.text, w: 1.4, v: p }] };
+  const dias = (Date.parse(cols.d[cols.d.length - 1]) - Date.parse(cols.d[desde])) / CX_DAY;
+  cxChart("cxSigChart", spec, { rango: Math.ceil(dias) + 1, log: true, marcas });
+  const fila = (c) => `<tr><td class="l">${ddmm(c.d)}, ${c.d.slice(0, 4)}</td><td>${cxPx(p[c.i])}</td><td class="${c.r30 > 0 ? "cx-up" : c.r30 < 0 ? "cx-dn" : ""}">${cxPct(c.r30, 0)}</td><td class="${c.r90 > 0 ? "cx-up" : c.r90 < 0 ? "cx-dn" : ""}">${cxPct(c.r90, 0)}</td></tr>`;
+  $("cxSigCases").innerHTML = casos.length
+    ? `<p class="cx-q">Dots on the price: green, higher 90 days later; red, lower; grey, too recent to tell.</p><table class="cx-ctab"><thead><tr><th class="l">Case</th><th>Price</th><th>30 d</th><th>90 d</th></tr></thead><tbody>${casos.slice().reverse().map(fila).join("")}</tbody></table>`
+    : `<p class="cx-q">No cases yet: ${x.grupo === "derivados" ? "this signal uses our own daily history, which started " + ddmm(x.desde) + "." : "the condition has not happened since the data starts."}</p>`;
 }
 
 /* ---------- GEX por strike y perfil */
@@ -221,6 +518,18 @@ function cxGexTip(e) {
     <div class="r">Net <b>${fmtBig(b[1] + b[2], true)}</b></div>`);
 }
 
+function cxTermTip(e) {
+  const g = cx.geo.term;
+  if (!g) return;
+  const x = e.clientX - $("cxTerm").getBoundingClientRect().left;
+  const r = g.t.reduce((p, q) => (Math.abs(g.xOf(q.dias) - x) < Math.abs(g.xOf(p.dias) - x) ? q : p));
+  macroTip("cxTip", null, e, `<div class="t">${longDate(r.exp)}</div>
+    <div class="r">ATM IV <b style="color:${C.accent}">${fmtNum(r.atm, 1)}</b></div>
+    <div class="r">25-delta risk reversal <b>${r.rr25 == null ? "—" : fmtNum(r.rr25, 1)}</b></div>
+    <div class="r">25-delta butterfly <b>${r.bf25 == null ? "—" : fmtNum(r.bf25, 1)}</b></div>
+    <div class="r">Forward <b>${cxPx(r.fwd)}</b></div>`);
+}
+
 /* ---------- mapa de niveles: opciones y on-chain sobre el mismo eje de precio */
 function cxLevelsChart(a) {
   const el = $("cxLevels"), W = Math.max(320, el.clientWidth), H = Math.max(120, el.clientHeight);
@@ -253,87 +562,6 @@ function cxLevelsChart(a) {
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
 }
 
-/* ---------- grafico de lineas generico (fechas o numeros en el eje x) */
-function cxLines(id, series, o = {}) {
-  const el = $(id), W = Math.max(300, el.clientWidth), H = Math.max(170, el.clientHeight);
-  // la leyenda salta a una segunda fila en pantallas estrechas
-  const filasLey = o.legend && W < 520 ? 2 : 1;
-  const L = 56, R = W - 16, T = 12, B = H - (o.legend ? 44 + (filasLey - 1) * 20 : 28);
-  const fx = o.dates ? (d) => Date.parse(d) : (x) => (o.sqrt ? Math.sqrt(Math.max(x, 0)) : x);
-  const all = series.flatMap((sr) => sr.pts.filter((p) => p[1] != null));
-  if (all.length < 2) { el.innerHTML = `<div class="empty">No data</div>`; return null; }
-  const xs = all.map((p) => fx(p[0])), x0 = Math.min(...xs), x1 = Math.max(...xs);
-  const ys = all.map((p) => p[1]).concat(o.ref != null ? [o.ref] : []);
-  const yt = niceTicks(Math.min(...ys), Math.max(...ys), Math.max(3, Math.round((B - T) / 40)));
-  const xOf = (x) => L + ((fx(x) - x0) / (x1 - x0 || 1)) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
-  let s = yt.ticks.map((v) => `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${C.grid}"/>` + txt(L - 8, yOf(v) + 4, o.fmtY ? o.fmtY(v) : fmtNum(v), { a: "end", fs: 11 })).join("");
-  if (o.ref != null) s += `<line x1="${L}" x2="${R}" y1="${yOf(o.ref)}" y2="${yOf(o.ref)}" stroke="${C.amber}" stroke-width="1.2" stroke-dasharray="5 4"/>`;
-  for (const sr of series) {
-    let dd = "", pen = false;
-    sr.pts.forEach((p) => { if (p[1] == null) { pen = false; return; } dd += `${pen ? "L" : "M"}${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`; pen = true; });
-    s += `<path d="${dd}" fill="none" stroke="${sr.col}" stroke-width="${sr.w || 1.6}"${sr.da ? ` stroke-dasharray="${sr.da}"` : ""}/>`;
-    if (sr.dots) s += sr.pts.filter((p) => p[1] != null).map((p) => `<circle cx="${xOf(p[0])}" cy="${yOf(p[1])}" r="3" fill="${C.surface}" stroke="${sr.col}" stroke-width="1.6"/>`).join("");
-  }
-  if (o.dates) {
-    let prevM = "", last = -1e9;
-    const ref = series[0].pts;
-    ref.forEach((p) => {
-      const m = p[0].slice(0, 7);
-      if (m !== prevM && xOf(p[0]) - last >= 52 && xOf(p[0]) > L + 10) {
-        s += txt(xOf(p[0]), B + 18, MESES[+m.slice(5) - 1] + (m.slice(5) === "01" || last < 0 ? " '" + m.slice(2, 4) : ""), { a: "middle", fs: 11 });
-        last = xOf(p[0]);
-      }
-      prevM = m;
-    });
-  } else if (o.xlabels) {
-    let last = -1e9;
-    for (const [x, lab] of o.xlabels) { const X = xOf(x); if (X - last >= 46) { s += txt(X, B + 18, lab, { a: "middle", fs: 11 }); last = X; } }
-  }
-  if (o.legend) s += legendRows(series.filter((sr) => sr.name).map((sr) => [sr.name, sr.col, sr.da]), L, R, H - 10 - (filasLey - 1) * 20, 12);
-  s += `<line class="cx-hl" x1="0" x2="0" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-opacity=".6" visibility="hidden"/>`;
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
-  return { L, R, xOf };
-}
-
-function cxSeriesTip(id, e, rows, fmtRow) {
-  const g = cx.geo[id];
-  if (!g || !rows.length) return;
-  const el = $(id), r = el.getBoundingClientRect(), x = e.clientX - r.left, hl = el.querySelector(".cx-hl");
-  if (x < g.L - 4 || x > g.R + 4) { if (hl) hl.setAttribute("visibility", "hidden"); return macroTip("cxTip", null, e, ""); }
-  const best = rows.reduce((p, q) => (Math.abs(g.xOf(q[0]) - x) < Math.abs(g.xOf(p[0]) - x) ? q : p));
-  if (hl) { const X = g.xOf(best[0]); hl.setAttribute("x1", X); hl.setAttribute("x2", X); hl.setAttribute("visibility", "visible"); }
-  macroTip("cxTip", null, e, fmtRow(best));
-}
-
-function cxCostChart(a) {
-  const oc = a.onchain, sth = new Map(oc.sth_serie || []), lth = new Map(oc.lth_serie || []);
-  const rows = oc.serie.map(([d, p, rp]) => [d, p, rp, sth.get(d) ?? null, lth.get(d) ?? null]);
-  const sr = [{ name: "Price", col: C.text, w: 1.8, pts: rows.map((r) => [r[0], r[1]]) },
-    { name: "Realized price", col: C.accent, w: 1.8, pts: rows.map((r) => [r[0], r[2]]) }];
-  if (oc.sth_serie) sr.push({ name: "Short-term holders", col: C.purple, w: 1.5, pts: rows.map((r) => [r[0], r[3]]) });
-  if (oc.lth_serie) sr.push({ name: "Long-term holders", col: C.prevClose, w: 1.5, da: "4 3", pts: rows.map((r) => [r[0], r[4]]) });
-  cx.geo.cxCost = cxLines("cxCost", sr, { dates: true, legend: true, fmtY: (v) => "$" + fmtAxis(v) });
-  cx.geo.costRows = rows;
-}
-
-function cxTermChart(a) {
-  // sin los vencimientos de menos de un dia: su IV la mueve el ultimo tramo hasta la liquidacion
-  const t = (a.vol.term || []).filter((r) => r.atm != null && r.dias >= 1);
-  cx.geo.termRows = t.map((r) => [r.dias, r]);
-  cx.geo.cxTerm = cxLines("cxTerm", [{ col: C.accent, w: 2.2, dots: true, pts: t.map((r) => [r.dias, r.atm]) }],
-    { sqrt: true, xlabels: t.map((r) => [r.dias, ddmm(r.exp)]), fmtY: (v) => fmtNum(v, 0) });
-  const v = a.vol;
-  $("cxTermCap").textContent = `At-the-money implied volatility by expiration (Deribit). 30 days: ATM ${fmtNum(v.atm30, 1)}, 25-delta risk reversal ${fmtNum(v.rr25_30, 1)}, butterfly ${fmtNum(v.bf25_30, 1)}.`;
-}
-
-function cxDvolChart(a) {
-  const s = a.vol.dvol_serie || [];
-  cx.geo.dvolRows = s;
-  cx.geo.cxDvol = cxLines("cxDvol", [{ col: C.purple, w: 1.8, pts: s }], { dates: true, fmtY: (v) => fmtNum(v, 0) });
-  const v = a.vol;
-  $("cxDvolCap").textContent = v.dvol != null ? `DVOL (30-day implied volatility index), last year. Now ${fmtNum(v.dvol, 1)}, ${ordinal(v.dvol_pct)} percentile; ${v.vrp >= 0 ? "+" : "−"}${fmtNum(Math.abs(v.vrp), 1)} over realized.` : "";
-}
-
 /* ---------- tablas */
 function cxTables(a, m) {
   const term = new Map((a.vol.term || []).map((r) => [r.exp, r]));
@@ -351,28 +579,66 @@ function cxTables(a, m) {
     <td>${cxPx(c.precio)}</td>${cell(c.c24)}${cell(c.c7)}${cell(c.c30)}<td>${fmtBig(c.cap, true)}</td><td>${cxPct(c.ath_dist, 0)}</td></tr>`).join("") || `<tr><td class="l" colspan="8">No data</td></tr>`;
 }
 
-/* ---------- controles y tooltips */
-$("cxSym").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; cx.sym = b.dataset.v; store.set("cxSym", cx.sym); renderCrypto(); });
-$("cxFilt").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; cx.filt = b.dataset.v; store.set("cxFilt", cx.filt); renderCrypto(); });
+function cxStables(m) {
+  const lq = m.liquidez;
+  if (!lq) { $("cxStbBody").innerHTML = `<tr><td class="l" colspan="5">No data</td></tr>`; $("cxStbCap").textContent = ""; return; }
+  const cell = (v) => `<td class="${v > 0 ? "cx-up" : v < 0 ? "cx-dn" : ""}">${cxPct(v)}</td>`;
+  $("cxStbCap").textContent = "Dollar stablecoins (DefiLlama): money parked inside crypto, ready to buy. Growing supply has gone with rising prices; shrinking, with money leaving.";
+  $("cxStbBody").innerHTML = `<tr><td class="l"><b>All</b></td><td>${fmtBig(lq.total, true)}</td><td>100%</td>${cell(lq.c7)}${cell(lq.c30)}</tr>` +
+    lq.top.map((x) => `<tr><td class="l"><b>${esc(x.sym)}</b> <span class="cx-nm">${esc(x.nombre)}</span></td><td>${fmtBig(x.total, true)}</td><td>${fmtNum(x.cuota, 1)}%</td>${cell(x.c7)}${cell(x.c30)}</tr>`).join("");
+}
+
+/* ---------- controles */
+const cxSeg = (id, fn) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && b.dataset.v != null) fn(b.dataset.v); });
+cxSeg("cxSym", (v) => { cx.sym = v; store.set("cxSym", v); cx.sigOpen = null; renderCrypto(); });
+cxSeg("cxFilt", (v) => { cx.filt = v; store.set("cxFilt", v); renderCrypto(); });
+cxSeg("cxTabs", (v) => { cx.tab = v; store.set("cxTab", v); renderCrypto(); });
+cxSeg("cxActMet", (v) => { cx.met = v; store.set("cxMet", v); cxActivity(); });
+cxSeg("cxNets", (v) => { cx.net = v; store.set("cxNet", v); cxActivity(); });
+cxSeg("cxModalNets", (v) => { cx.net = v; store.set("cxNet", v); cxActivity(); cxModalRender(); });
+cxSeg("cxSigFilt", (v) => { cx.sigFilt = v; store.set("cxSigFilt", v); cxSignals(cx.data.activos[cx.sym]); });
+cxSeg("cxRange", (v) => { cx.modal.rango = +v; store.set("cxR_" + cx.modal.kind, +v); cxModalRender(); });
+$("cxLog").addEventListener("change", (e) => { cx.modal.log = e.target.checked; store.set("cxLog_" + cx.modal.kind, e.target.checked); cxModalRender(); });
+$("cxTabs").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const bs = [...$("cxTabs").querySelectorAll("button")], i = bs.findIndex((b) => b.dataset.v === cx.tab);
+  const b = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length];
+  cx.tab = b.dataset.v; store.set("cxTab", cx.tab); renderCrypto(); b.focus();
+});
+document.querySelectorAll("#cryptoView .cx-exp").forEach((b) => b.addEventListener("click", () => cxOpenModal(b.dataset.chart)));
+$("cxModalClose").addEventListener("click", cxCloseModal);
+$("cxModal").addEventListener("click", (e) => { if (e.target.id === "cxModal") cxCloseModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cx.modal) cxCloseModal(); });
+// leyenda: oculta o muestra una serie (se recuerda por grafico)
+$("cryptoView").addEventListener("click", (e) => {
+  const li = e.target.closest(".cx-li");
+  if (!li) return;
+  const kind = li.closest(".cx-leg").dataset.kind, set = cx.ocultas[kind] || (cx.ocultas[kind] = new Set());
+  if (set.has(li.dataset.k)) set.delete(li.dataset.k); else set.add(li.dataset.k);
+  if (kind === "act") { cxActivity(); if (cx.modal) cxModalRender(); } else renderCrypto();
+});
+// senales: ordenar por columna y abrir los casos de una
+document.querySelector(".cx-sig thead").addEventListener("click", (e) => {
+  const th = e.target.closest("th");
+  if (!th || !th.dataset.k) return;
+  cx.sigDir = cx.sigSort === th.dataset.k ? -cx.sigDir : th.dataset.k === "nombre" ? 1 : -1;
+  cx.sigSort = th.dataset.k;
+  cxSignals(cx.data.activos[cx.sym]);
+});
+const cxSigToggle = (tr) => { cx.sigOpen = cx.sigOpen === tr.dataset.id ? null : tr.dataset.id; cxSignals(cx.data.activos[cx.sym]); };
+$("cxSigBody").addEventListener("click", (e) => { const tr = e.target.closest("tr.cx-sr"); if (tr) cxSigToggle(tr); });
+$("cxSigBody").addEventListener("keydown", (e) => { const tr = e.target.closest("tr.cx-sr"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); cxSigToggle(tr); } });
+// tooltips
 $("cxGex").addEventListener("mousemove", cxGexTip);
-$("cxCost").addEventListener("mousemove", (e) => cxSeriesTip("cxCost", e, cx.geo.costRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
-  <div class="r">Price <b>${cxPx(r[1])}</b></div><div class="r">Realized price <b style="color:${C.accent}">${cxPx(r[2])}</b></div>
-  ${r[3] != null ? `<div class="r">Short-term holders <b style="color:${C.purple}">${cxPx(r[3])}</b></div>` : ""}
-  ${r[4] != null ? `<div class="r">Long-term holders <b style="color:${C.prevClose}">${cxPx(r[4])}</b></div>` : ""}`));
-$("cxTerm").addEventListener("mousemove", (e) => cxSeriesTip("cxTerm", e, cx.geo.termRows || [], ([, r]) => `<div class="t">${longDate(r.exp)}</div>
-  <div class="r">ATM IV <b style="color:${C.accent}">${fmtNum(r.atm, 1)}</b></div>
-  <div class="r">25-delta risk reversal <b>${r.rr25 == null ? "—" : fmtNum(r.rr25, 1)}</b></div>
-  <div class="r">25-delta butterfly <b>${r.bf25 == null ? "—" : fmtNum(r.bf25, 1)}</b></div>
-  <div class="r">Forward <b>${cxPx(r.fwd)}</b></div>`));
-$("cxDvol").addEventListener("mousemove", (e) => cxSeriesTip("cxDvol", e, cx.geo.dvolRows || [], (r) => `<div class="t">${longDate(r[0])}</div><div class="r">DVOL <b style="color:${C.purple}">${fmtNum(r[1], 1)}</b></div>`));
-$("cxMin").addEventListener("mousemove", (e) => cxSeriesTip("cxMin", e, cx.geo.minRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
-  <div class="r">Hashrate, 30-day <b style="color:${C.accent}">${fmtNum(r[1], 0)} EH/s</b></div><div class="r">60-day <b style="color:${C.purple}">${fmtNum(r[2], 0)} EH/s</b></div>
-  ${r[3] != null ? `<div class="r">Puell multiple <b>${fmtNum(r[3], 2)}</b></div>` : ""}`));
-$("cxSopr").addEventListener("mousemove", (e) => cxSeriesTip("cxSopr", e, cx.geo.soprRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
-  ${r[1] != null ? `<div class="r">Short-term holders <b style="color:${C.purple}">${fmtNum(r[1], 3)}</b></div>` : ""}
-  ${r[2] != null ? `<div class="r">All coins <b>${fmtNum(r[2], 3)}</b></div>` : ""}`));
-$("cxAct").addEventListener("mousemove", (e) => cxSeriesTip("cxAct", e, cx.geo.actRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
-  <div class="r">30-day average <b style="color:${C.accent}">${fmtNum(r[1])}</b></div><div class="r">365-day average <b>${fmtNum(r[2])}</b></div>`));
-for (const id of ["cxGex", "cxCost", "cxTerm", "cxDvol", "cxMin", "cxSopr", "cxAct"]) {
-  $(id).addEventListener("mouseleave", () => { $("cxTip").hidden = true; const hl = $(id).querySelector(".cx-hl"); if (hl) hl.setAttribute("visibility", "hidden"); });
+$("cxTerm").addEventListener("mousemove", cxTermTip);
+for (const id of ["cxCost", "cxDvol", "cxFund", "cxLev", "cxMin", "cxSopr", "cxAct", "cxModalChart"]) {
+  $(id).addEventListener("mousemove", (e) => cxChartTip(id, e));
+}
+$("cryptoView").addEventListener("mousemove", (e) => { if (e.target.closest("#cxSigChart")) cxChartTip("cxSigChart", e); });
+$("cxSigBody").addEventListener("mouseleave", () => { $("cxTip").hidden = true; });
+for (const id of ["cxGex", "cxTerm", "cxCost", "cxDvol", "cxFund", "cxLev", "cxMin", "cxSopr", "cxAct", "cxModalChart"]) {
+  $(id).addEventListener("mouseleave", () => {
+    $("cxTip").hidden = true; $("cxMTip").hidden = true;
+    const hl = $(id).querySelector(".cx-hl"); if (hl) hl.setAttribute("visibility", "hidden");
+  });
 }

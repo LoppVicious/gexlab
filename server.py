@@ -293,9 +293,17 @@ class Handler(SimpleHTTPRequestHandler):
             if not d:
                 return self._json(503, {"error": "Skew signal: no data yet. The daily history computes it after each close."})
             return self._json(200, d)
-        if url.path == "/api/crypto":  # lo calcula cripto.py (cripto.yml en la nube); aqui se lee del almacen
+        if url.path in ("/api/crypto", "/api/crypto_series", "/api/crypto_net"):  # cripto.py; del almacen
             import almacen
-            d = almacen.get_json(almacen.abrir(), "pub/cripto.json")
+            import re
+            if url.path == "/api/crypto_net":
+                net = (q.get("net") or "").upper()
+                if not re.fullmatch(r"[A-Z]{2,6}", net):
+                    return self._json(400, {"error": "Invalid network"})
+                clave = f"pub/cripto_red/{net}.json"
+            else:
+                clave = "pub/cripto.json" if url.path == "/api/crypto" else "pub/cripto_series.json"
+            d = almacen.get_json(almacen.abrir(), clave)
             if not d:
                 return self._json(503, {"error": "Crypto: no data yet. Run cripto.py to compute it."})
             return self._json(200, d)

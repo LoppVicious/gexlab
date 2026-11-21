@@ -40,6 +40,11 @@ UMBRALES = {
     "actividad_pct": 10.0,                             # direcciones activas (30 d) frente a su media de 365 d, %
     "puell_bajo": 0.5, "puell_alto": 3.0,
     "stables_pct": 3.0,                                # cambio de la oferta de stablecoins en 30 dias, %
+    # senales con su historia
+    "vrp_senal": 20.0,                                 # DVOL - RV30, puntos
+    "oi_flush": 15.0,                                  # caida del OI de OKX en 7 dias, %
+    "lsr_senal": 3.0,                                  # cuentas largas / cortas en OKX
+    "rr_senal": -8.0,                                  # risk reversal 25 delta a 30 dias, puntos
 }
 
 
@@ -467,61 +472,196 @@ def _alinear(fechas: list[str], serie) -> list:
     return [m.get(d) for d in fechas]
 
 
-def senales(filas: list[dict], sth=None, sth_sopr=None, fng=None, dvol=None, mineria: bool = True) -> list[dict]:
-    """Senales de BTC o ETH con su historia en el precio diario de CoinMetrics. Cada una: id, nombre, que espera la
-    lectura habitual (sentido +1 alcista, -1 bajista) y su backtest. `mineria`: solo con prueba de trabajo (BTC; el
-    hashrate de ETH es de antes del Merge)."""
+def _vr30(precios: list[float]) -> list:
+    """Volatilidad realizada a 30 dias (anualizada, %) de cada dia, con los cierres diarios."""
+    r = np.diff(np.log(np.array(precios)))
+    out = [None] * len(precios)
+    for i in range(30, len(precios)):
+        out[i] = float(r[i - 30:i].std(ddof=1) * math.sqrt(365) * 100)
+    return out
+
+
+def senales(filas: list[dict], sth=None, sth_sopr=None, fng=None, dvol=None, mineria: bool = True,
+            funding=None, okx=None, hist=None, sym: str = "") -> list[dict]:
+    """Senales de BTC o ETH con su historia en el precio diario de CoinMetrics. Cada una: id, grupo (onchain,
+    derivados o sentimiento), nombre, que espera la lectura habitual (sentido +1 alcista, -1 bajista, 0 sin direccion)
+    y su backtest. `mineria`: solo con prueba de trabajo (BTC; el hashrate de ETH es de antes del Merge).
+    `funding`: [[fecha, % anual]] diario del perpetuo de Deribit; `okx`: {fecha: [oi_usd, long/short]};
+    `hist`: fotos diarias propias (cripto/hist.json), para las senales sin historia publica."""
     fechas, precios = _cm(filas, "PriceUSD")
     if len(precios) < 400:
         return []
     out = []
+    U = UMBRALES
 
-    def add(id_, nombre, que, sentido, activa, previo=0):
-        if not any(x for x in activa if x):
+    def add(id_, grupo, nombre, que, sentido, activa, previo=0, siempre=False):
+        if not siempre and not any(x for x in activa if x):
             return
-        out.append({"id": id_, "nombre": nombre, "que": que, "sentido": sentido,
+        out.append({"id": id_, "grupo": grupo, "nombre": nombre, "que": que, "sentido": sentido,
                     **backtest(fechas, precios, activa, previo)})
 
     mv = _alinear(fechas, [[str(r["time"])[:10], _f(r.get("CapMVRVCur"))] for r in filas])
-    add("mvrv_bajo", "MVRV under 1", "Price falls under the average cost of all coins (realized price).", 1,
+    add("mvrv_bajo", "onchain", "MVRV under 1", "Price falls under the average cost of all coins (realized price).", 1,
         [None if x is None else x < 1 for x in mv])
-    add("mvrv_alto", "MVRV over 3", "Holders sit on three times their cost on average.", -1,
+    add("mvrv_alto", "onchain", "MVRV over 3", "Holders sit on three times their cost on average.", -1,
         [None if x is None else x > 3 for x in mv])
     if sth:
         s = _alinear(fechas, sth)
         sobre = [None if b is None else p > b for p, b in zip(precios, s)]
-        add("sth_recupera", "Price reclaims short-term holder cost", "First close above the short-term holder cost after 14 days or more below.", 1, sobre, 14)
-        add("sth_pierde", "Price loses short-term holder cost", "First close below the short-term holder cost after 14 days or more above.", -1,
+        add("sth_recupera", "onchain", "Price reclaims short-term holder cost",
+            "First close above the short-term holder cost after 14 days or more below.", 1, sobre, 14)
+        add("sth_pierde", "onchain", "Price loses short-term holder cost",
+            "First close below the short-term holder cost after 14 days or more above.", -1,
             [None if x is None else not x for x in sobre], 14)
     d, h = _cm(filas, "HashRate") if mineria else ([], [])
     if len(h) >= 400:
         s30, s60 = _sma(h, 30), _sma(h, 60)
         arriba = {d[i]: s30[i] > s60[i] for i in range(len(h)) if s60[i] is not None}
-        add("hash_compra", "Hash ribbon buy", "The 30-day hashrate average crosses back over the 60-day after 10 days or more of miner capitulation.", 1,
+        add("hash_compra", "onchain", "Hash ribbon buy",
+            "The 30-day hashrate average crosses back over the 60-day after 10 days or more of miner capitulation.", 1,
             [arriba.get(x) for x in fechas], 10)
     di, iss = _cm(filas, "IssTotUSD") if mineria else ([], [])
     if len(iss) >= 400:
         m365 = _sma(iss, 365)
-        pu ={di[i]: iss[i] / m365[i] < 0.5 for i in range(len(iss)) if m365[i]}
-        add("puell_bajo", "Puell multiple under 0.5", "Miner revenue falls to half its yearly average: miners under stress.", 1,
-            [pu.get(x) for x in fechas])
+        pu = {di[i]: iss[i] / m365[i] < 0.5 for i in range(len(iss)) if m365[i]}
+        add("puell_bajo", "onchain", "Puell multiple under 0.5",
+            "Miner revenue falls to half its yearly average: miners under stress.", 1, [pu.get(x) for x in fechas])
     if sth_sopr:
         v = [x for _, x in sth_sopr]
         m7 = dict(zip([x for x, _ in sth_sopr], _sma(v, 7)))
-        add("sth_sopr_recupera", "Short-term SOPR back over 1", "The 7-day average of short-term holder SOPR goes back over 1 after 14 days or more of selling at a loss.", 1,
+        add("sth_sopr_recupera", "onchain", "Short-term SOPR back over 1",
+            "The 7-day average of short-term holder SOPR goes back over 1 after 14 days or more of selling at a loss.", 1,
             [None if m7.get(x) is None else m7[x] > 1 for x in fechas], 14)
     if fng:
         f = _alinear(fechas, fng)
-        add("miedo", "Extreme fear (15 or less)", "Fear & Greed at 15 or less.", 1, [None if x is None else x <= 15 for x in f])
-        add("codicia", "Extreme greed (85 or more)", "Fear & Greed at 85 or more.", -1, [None if x is None else x >= 85 for x in f])
+        add("miedo", "sentimiento", "Extreme fear (15 or less)", "Fear & Greed at 15 or less.", 1,
+            [None if x is None else x <= 15 for x in f])
+        add("codicia", "sentimiento", "Extreme greed (85 or more)", "Fear & Greed at 85 or more.", -1,
+            [None if x is None else x >= 85 for x in f])
+
+    # --- derivados
     if dvol and len(dvol) > 400:
         dv = [x for _, x in dvol]
         alto = {}
         for i in range(365, len(dv)):
             alto[dvol[i][0]] = dv[i] >= float(np.percentile(dv[i - 365:i], 90))
-        add("dvol_alto", "Implied volatility spike", "DVOL at the 90th percentile of its last year or higher.", 1,
+        add("dvol_alto", "derivados", "Implied volatility spike", "DVOL at the 90th percentile of its last year or higher.", 1,
             [alto.get(x) for x in fechas])
+        rv = dict(zip(fechas, _vr30(precios)))
+        dvm = dict(dvol)
+        vrp = [None if dvm.get(x) is None or rv.get(x) is None else dvm[x] - rv[x] for x in fechas]
+        add("vrp_negativo", "derivados", "Options cheap against realized",
+            "DVOL under the 30-day realized volatility: the market moves more than options price.", 0,
+            [None if x is None else x < 0 for x in vrp])
+        add("vrp_alto", "derivados", "Options rich against realized",
+            f"DVOL {U['vrp_senal']:.0f} points or more over the 30-day realized volatility: traders pay a large premium for protection.", 1,
+            [None if x is None else x >= U["vrp_senal"] for x in vrp])
+    if funding and len(funding) > 60:
+        v = [x for _, x in funding]
+        m7 = dict(zip([x for x, _ in funding], _sma(v, 7)))
+        add("funding_negativo", "derivados", "Funding turns negative",
+            "The 7-day average of perpetual funding (Deribit) goes under 0 after 14 days or more over it: shorts start paying longs.", 1,
+            [None if m7.get(x) is None else m7[x] < 0 for x in fechas], 14)
+        add("funding_alto", "derivados", f"Funding over {U['funding_alto']:.0f}% a year",
+            f"The 7-day average of perpetual funding (Deribit) at {U['funding_alto']:.0f}% a year or more: crowded longs.", -1,
+            [None if m7.get(x) is None else m7[x] >= U["funding_alto"] for x in fechas])
+    if okx and len(okx) > 30:
+        dias = sorted(okx)
+        oi = {x: okx[x][0] for x in dias if okx[x][0]}
+        pmap = dict(zip(fechas, precios))
+        flush = {}
+        for i, x in enumerate(dias):
+            a, b = x, dias[i - 7] if i >= 7 else None
+            if b and oi.get(a) and oi.get(b) and pmap.get(a) and pmap.get(b):
+                flush[a] = oi[a] / oi[b] - 1 <= -U["oi_flush"] / 100 and pmap[a] < pmap[b]
+        add("oi_flush", "derivados", "Leverage flush",
+            f"OKX futures open interest down {U['oi_flush']:.0f}% or more in 7 days with price down: forced selling cleans out longs.", 1,
+            [flush.get(x) for x in fechas], siempre=True)
+        lsr = {x: okx[x][1] for x in dias if okx[x][1] is not None}
+        add("lsr_alto", "derivados", f"Retail long {U['lsr_senal']:.0f} to 1 or more",
+            f"{U['lsr_senal']:.0f} or more long accounts for each short on OKX.", -1,
+            [None if lsr.get(x) is None else lsr[x] >= U["lsr_senal"] for x in fechas], siempre=True)
+    if hist is not None:
+        # sin historia publica: solo con nuestras fotos diarias desde que existen
+        rr = {f: (h.get(sym) or {}).get("rr25_30") for f, h in hist.items()}
+        gx = {f: (h.get(sym) or {}).get("gex") for f, h in hist.items()}
+        add("puts_caras", "derivados", f"Puts {abs(U['rr_senal']):.0f} vol points over calls",
+            f"30-day 25-delta risk reversal at {U['rr_senal']:.0f} or lower: protection in heavy demand.", 1,
+            [None if rr.get(x) is None else rr[x] <= U["rr_senal"] for x in fechas], siempre=True)
+        add("gex_negativo", "derivados", "Dealers short gamma",
+            "Net GEX of Deribit options below zero: dealer hedging amplifies moves.", -1,
+            [None if gx.get(x) is None else gx[x] < 0 for x in fechas], siempre=True)
+    for s in out:   # sin dato aun: desde la primera foto propia
+        if s["desde"] is None and hist:
+            s["desde"] = min(hist)
     return out
+
+
+def _r(v, dec):
+    return None if v is None else round(v, dec)
+
+
+def series_largas(filas: list[dict], sth=None, lth=None, sopr=None, sth_sopr=None, dvol=None, funding=None,
+                  okx=None, mineria: bool = True) -> dict:
+    """Historias diarias en columnas sobre el calendario de CoinMetrics (pub/cripto_series.json): la web las usa
+    para ampliar los graficos y para los casos de cada senal. None donde no hay dato."""
+    fechas, precios = _cm(filas, "PriceUSD")
+    if not fechas:
+        return {}
+    col = lambda serie, dec: [_r(v, dec) for v in _alinear(fechas, serie)]  # noqa: E731
+    rp = []
+    for r in filas:
+        cap, mv, sp = _f(r.get("CapMrktCurUSD")), _f(r.get("CapMVRVCur")), _f(r.get("SplyCur"))
+        if cap and mv and sp and r.get("PriceUSD") is not None:
+            rp.append([str(r["time"])[:10], cap / mv / sp])
+    mvrv = [[str(r["time"])[:10], _f(r.get("CapMVRVCur"))] for r in filas]
+    out = {"d": fechas, "precio": [_r(p, 2) for p in precios], "rp": col(rp, 2), "mvrv": col(mvrv, 3)}
+    if mineria:
+        d, h = _cm(filas, "HashRate")
+        if h:
+            s30, s60 = _sma(h, 30), _sma(h, 60)
+            out["hash30"] = col([[d[i], s30[i] / 1e6] for i in range(len(d)) if s30[i]], 1)
+            out["hash60"] = col([[d[i], s60[i] / 1e6] for i in range(len(d)) if s60[i]], 1)
+        di, iss = _cm(filas, "IssTotUSD")
+        if iss:
+            m365 = _sma(iss, 365)
+            out["puell"] = col([[di[i], iss[i] / m365[i]] for i in range(len(di)) if m365[i]], 3)
+    for nombre, s, dec in (("sth", sth, 2), ("lth", lth, 2)):
+        if s:
+            out[nombre] = col(s, dec)
+    for nombre, s in (("sopr", sopr), ("sth_sopr", sth_sopr)):
+        if s:
+            m7 = _sma([x for _, x in s], 7)
+            out[nombre] = col([[s[i][0], m7[i]] for i in range(len(s)) if m7[i] is not None], 4)
+    rv = _vr30(precios)
+    out["rv30"] = [_r(v, 2) for v in rv]
+    if dvol:
+        out["dvol"] = col(dvol, 2)
+        out["vrp"] = [None if a is None or b is None else round(a - b, 2) for a, b in zip(out["dvol"], rv)]
+    if funding:
+        m7 = _sma([x for _, x in funding], 7)
+        out["funding"] = col([[funding[i][0], m7[i]] for i in range(len(funding)) if m7[i] is not None], 2)
+    if okx:
+        out["oi"] = col([[d, v[0]] for d, v in okx.items()], 0)
+        out["lsr"] = col([[d, v[1]] for d, v in okx.items() if v[1] is not None], 2)
+    d, a = _cm(filas, "AdrActCnt")
+    _, t = _cm(filas, "TxCnt")
+    if a:
+        out["dir"] = col(list(zip(d, a)), 0)
+    if t:
+        out["tx"] = col(list(zip(_cm(filas, "TxCnt")[0], t)), 0)
+    return out
+
+
+def funding_diario(horas: list[dict]) -> list:
+    """Funding horario de Deribit (`interest_1h`) -> [[fecha UTC, % anualizado del dia]], solo dias completos."""
+    por = {}
+    for h in horas:
+        d = datetime.fromtimestamp(h["timestamp"] / 1000, timezone.utc).strftime("%Y-%m-%d")
+        v = _f(h.get("interest_1h"))
+        if v is not None:
+            por.setdefault(d, []).append(v)
+    return [[d, round(sum(v) * 365 * 100, 3)] for d, v in sorted(por.items()) if len(v) >= 23]
 
 
 # ---------------------------------------------------------------- historial propio (una foto diaria)

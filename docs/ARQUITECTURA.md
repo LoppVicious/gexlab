@@ -189,6 +189,12 @@ CoinGecko, CoinMetrics Community (desde 2012), bitcoin-data.com (STH y LTH reali
 2018). Sin claves. Bybit y Binance bloquean las IP de Actions.
 - R2: `pub/cripto.json` (la web, `/api/crypto`), `cripto/diario.json` (fuentes diarias, renovadas cada 6 h; `DIARIO_V`
   fuerza a renovarlas si cambia su forma) y `cripto/hist.json` (una foto diaria de los derivados, no se borra).
+- Además, en `cripto/diario.json`: funding diario del perpetuo de Deribit desde 2019 (`fund_{A}`, se amplía por tramos
+  de 31 días; la primera vez, unas 90 peticiones por activo), OI y long/short de OKX (`okx_{A}`: la API da 180 días y se
+  guardan y amplían) y actividad de otras redes de CoinMetrics (`red_{RED}`, cada 12 h).
+- `pub/cripto_series.json` (historias largas en columnas, `cripto_calc.series_largas`; la web lo pide al abrir Crypto)
+  y `pub/cripto_red/{RED}.json` (direcciones y transacciones de cada red, al elegirla). Se escriben solo cuando cambian
+  los datos diarios. Rutas: `/api/crypto_series` y `/api/crypto_net?net=` (`nube.js` y `server.py`).
 - Señales con su historia y backtest (`cripto_calc.senales`), mineros, SOPR, actividad y stablecoins: `docs/CRIPTO.md`.
 - GEX con la metodología del motor Perfil en `cripto_calc.py`, no con `gex_engine.compute` (atado al horario de NYSE).
 - Pruebas: `python pruebas/test_cripto.py` (sin red); con red, `pruebas/cripto_fuentes.py` y `pruebas/cripto_actions.py`

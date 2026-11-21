@@ -117,6 +117,29 @@ def test_liquidez():
     assert lq["total"] == 200 and lq["c30"] == 0.0 and lq["top"][0]["sym"] == "USDT" and lq["top"][0]["c7"] == 10.0
 
 
+def test_funding_diario():
+    t0 = int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp() * 1000)
+    horas = [{"timestamp": t0 + h * 3600000, "interest_1h": 0.00001} for h in range(24 + 5)]   # dia completo + 5 h
+    f = cc.funding_diario(horas)
+    assert f == [["2026-01-01", round(24 * 0.00001 * 365 * 100, 3)]]
+
+
+def test_senales_derivados_y_series():
+    f = _fechas(800)
+    filas = [{"time": d, "PriceUSD": 100 * (1.001 ** i), "CapMVRVCur": 1.5, "CapMrktCurUSD": 1e9, "SplyCur": 1e7}
+             for i, d in enumerate(f)]
+    funding = [[d, 10.0 if i < 400 or i >= 420 else -5.0] for i, d in enumerate(f)]
+    okx = {d: [1e9 if i < 700 else 8e8, 3.5 if i > 750 else 2.0] for i, d in enumerate(f)}
+    hist = {f[-1]: {"BTC": {"rr25_30": -10.0, "gex": -5.0}}}
+    s = {x["id"]: x for x in cc.senales(filas, funding=funding, okx=okx, hist=hist, sym="BTC")}
+    assert s["funding_negativo"]["grupo"] == "derivados" and s["funding_negativo"]["casos"]
+    assert "oi_flush" in s and "lsr_alto" in s and s["lsr_alto"]["hoy"] is True
+    assert s["puts_caras"]["hoy"] is True and s["puts_caras"]["h"]["90"]["n"] == 0   # sin historia aun
+    ls = cc.series_largas(filas, funding=funding, okx=okx, mineria=False)
+    assert len(ls["d"]) == 800 and len(ls["funding"]) == 800 and ls["rp"][-1] == round(1e9 / 1.5 / 1e7, 2)
+    assert ls["rv30"][0] is None and ls["rv30"][-1] is not None
+
+
 if __name__ == "__main__":
     n = 0
     for nombre, f in list(globals().items()):

@@ -3,7 +3,7 @@
 #cryptoView[hidden] { display: none; }
 .cx-side, .cx-panel { background: var(--panel, var(--surface)); border-radius: var(--panel-r, 14px); }
 :root[data-theme="light"] :is(.cx-side, .cx-panel) { box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
-.cx-side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; padding: 18px 22px 18px; display: flex; flex-direction: column; }
+.cx-side { position: sticky; top: 62px; max-height: calc(100vh - 74px); overflow-y: auto; padding: 18px 22px 18px; display: flex; flex-direction: column; }
 .cx-side > * { flex-shrink: 0; }
 .cx-side #cxSym { align-self: flex-start; margin-bottom: 14px; }
 .cx-side .mstate { font-size: 26px; }
@@ -22,10 +22,74 @@
 .cx-head { justify-content: space-between; align-items: center; }
 .cx-cap { margin: 0 4px 6px; color: var(--faint); font-size: 12px; min-height: 16px; }
 .cx-panel .mchart-head { flex-wrap: wrap; }
-.cx-chart { position: relative; height: 240px; }
+.cx-chart { position: relative; height: 260px; }
 .cx-chart.cx-tall { height: 340px; }
 .cx-chart.cx-levels { height: 170px; }
-.cx-chart svg { position: absolute; inset: 0; display: block; }
+.cx-chart svg { position: absolute; left: 0; top: 0; display: block; }
+
+/* pestanas */
+.cx-tabs { grid-column: 1 / -1; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--panel, var(--surface));
+  overflow-x: auto; scrollbar-width: none; position: sticky; top: 62px; z-index: 5; }
+:root[data-theme="light"] .cx-tabs { box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 6px 18px rgba(17, 20, 43, .06); }
+.cx-tabs::-webkit-scrollbar { display: none; }
+.cx-tabs button { flex: none; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 500;
+  padding: 8px 16px; border-radius: 999px; cursor: pointer; }
+.cx-tabs button:hover { color: var(--text); }
+.cx-tabs button[aria-selected="true"] { background: var(--accent); color: var(--on-text, #fff); }
+.cx-tabs button:focus-visible, .cx-exp:focus-visible, .cx-li:focus-visible, .cx-chips button:focus-visible, .cx-sr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* controles de los paneles */
+.cx-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cx-exp { border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500;
+  padding: 4px 10px 4px 24px; border-radius: 999px; cursor: pointer; position: relative; }
+.cx-exp::before { content: ""; position: absolute; left: 9px; top: 50%; width: 9px; height: 9px; margin-top: -5px;
+  border: 1.5px solid currentColor; border-radius: 2px; border-left-color: transparent; border-bottom-color: transparent; }
+.cx-exp:hover { color: var(--text); border-color: var(--line-strong, var(--line)); }
+.cx-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 4px 8px; }
+.cx-chips button { border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 12px; font-weight: 500;
+  padding: 4px 11px; border-radius: 999px; cursor: pointer; }
+.cx-chips button:hover { color: var(--text); }
+.cx-chips button[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-text, #fff); }
+.cx-panel .mchart-head .cx-chips { margin: 0; }
+
+/* leyenda que oculta series */
+.cx-leg { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px 6px; padding: 0 4px; }
+.cx-li { display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px;
+  padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+.cx-li:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.cx-li i { width: 16px; border-top: 2.2px solid; }
+.cx-li.off { opacity: .4; text-decoration: line-through; }
+
+/* grafico ampliado */
+.cx-modal { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .55); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.cx-modal[hidden] { display: none; }
+.cx-mbox { position: relative; width: min(1400px, 100%); max-height: 100%; overflow-y: auto; background: var(--panel, var(--surface));
+  border-radius: var(--panel-r, 14px); padding: 16px 20px 14px; }
+.cx-mhead { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 8px; }
+.cx-mhead .mtitle { font-size: 16px; }
+.cx-chart.cx-big { height: min(68vh, 720px); }
+.cx-log { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.cx-log[hidden] { display: none; }
+.cx-close { border: 0; background: transparent; color: var(--muted); font-size: 24px; line-height: 1; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; }
+.cx-close:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
+body.cx-noscroll { overflow: hidden; }
+
+/* senales: filas que se abren con sus casos */
+.cx-sig th[data-k] { cursor: pointer; user-select: none; }
+.cx-sig th[data-k]:hover { color: var(--accent); }
+.cx-sig th.cx-sorted { color: var(--accent); }
+.cx-sr { cursor: pointer; }
+.cx-sr:hover td { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.cx-sr.cx-open td { border-bottom-color: transparent; }
+.cx-det td { padding: 4px 8px 14px !important; white-space: normal; }
+.cx-detw { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.cx-chart.cx-sigc { height: 300px; }
+.cx-cases { max-height: 300px; overflow-y: auto; }
+.cx-ctab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.cx-sig .cx-det .cx-ctab td, .cx-sig .cx-det .cx-ctab th { min-width: 0; background: none; padding: 4px 6px; font-size: 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line-soft); }
+.cx-sig .cx-det .cx-ctab th { color: var(--text); font-weight: 600; position: sticky; top: 0; background: var(--panel, var(--surface)); }
+.cx-sig .cx-det .cx-ctab .l { text-align: left; }
+.cx-cases .cx-q { margin: 0 0 6px; }
 .cx-chart .empty { color: var(--faint); padding: 40px; text-align: center; }
 .cx-tw { overflow-x: auto; }
 .cx-table { width: 100%; }
@@ -44,6 +108,9 @@
 .cx-nm { color: var(--faint); }
 @media (max-width: 1100px) { .cx-main { grid-template-columns: 1fr; } }
 @media (max-width: 900px) {
+  .cx-detw { grid-template-columns: 1fr; }
+  .cx-modal { padding: 0; }
+  .cx-mbox { border-radius: 0; height: 100%; }
   #cryptoView { grid-template-columns: 1fr; }
   .cx-side { position: static; max-height: none; }
 }

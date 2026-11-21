@@ -630,7 +630,10 @@
     <p class="mnote"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. <b>Signals with history</b>: past cases on daily closes and what price did 30 and 90 days later, against any day of the same period; few cases and overlapping windows make them context, not proof. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p>
   </aside>
   <section class="cx-main">
-    <div class="cx-panel cx-wide">
+    <div class="cx-tabs" role="tablist" aria-label="Crypto sections" id="cxTabs">
+      <button role="tab" data-v="overview" aria-selected="true">Overview</button><button role="tab" data-v="derivatives" aria-selected="false">Derivatives</button><button role="tab" data-v="onchain" aria-selected="false">On-chain</button><button role="tab" data-v="signals" aria-selected="false">Signals</button><button role="tab" data-v="market" aria-selected="false">Market</button>
+    </div>
+    <div class="cx-panel cx-wide" data-tabs="overview derivatives">
       <div class="mchart-head cx-head">
         <span class="mtitle">Gamma exposure</span>
         <div class="seg boxed" role="radiogroup" aria-label="Expirations" id="cxFilt"><button role="radio" data-v="7" aria-checked="false">7 days</button><button role="radio" data-v="30" aria-checked="false">30 days</button><button role="radio" data-v="all" aria-checked="true">All</button></div>
@@ -638,55 +641,72 @@
       <p class="chart-caption cx-cap" id="cxGexCap"></p>
       <div class="cx-chart cx-tall" id="cxGex" role="img" aria-label="Gamma exposure by strike"></div>
     </div>
-    <div class="cx-panel cx-wide">
+    <div class="cx-panel cx-wide" data-tabs="overview">
       <div class="mchart-head"><span class="mtitle">Levels map</span><p class="chart-caption">Options levels and on-chain cost bases on one price line; the bar is the price.</p></div>
       <div class="cx-chart cx-levels" id="cxLevels" role="img" aria-label="Map of price levels"></div>
     </div>
-    <div class="cx-panel cx-wide">
-      <div class="mchart-head"><span class="mtitle">Signals with history</span><p class="chart-caption">Each signal's past cases (30 days apart at least) and what price did next, against any day of the same period. Highlighted: active now or in the last 30 days.</p></div>
-      <div class="cx-tw"><table class="scan cx-table cx-sig">
-        <thead><tr><th class="l">Signal</th><th class="l" title="Active now, or the date of the last case">Last case</th><th title="Past cases, since the first day with data for the signal">Cases</th><th title="Median return 30 days after each case">30 d</th><th title="Share of cases with price higher 30 days later">Up</th><th title="Median return 90 days after each case">90 d</th><th title="Share of cases with price higher 90 days later">Up</th><th title="Any day of the same period, 90 days later: median return and share up">Any day</th></tr></thead>
-        <tbody id="cxSigBody"></tbody>
-      </table></div>
-    </div>
-    <div class="cx-panel">
-      <div class="mchart-head"><span class="mtitle">Price against cost basis</span></div>
+    <div class="cx-panel" data-tabs="overview onchain">
+      <div class="mchart-head cx-head"><span class="mtitle">Price against cost basis</span><button class="cx-exp" data-chart="cost" title="Expand: longer history, log scale">Expand</button></div>
       <p class="chart-caption cx-cap" id="cxCostCap"></p>
       <div class="cx-chart" id="cxCost" role="img" aria-label="Price against realized price"></div>
     </div>
-    <div class="cx-panel">
-      <div class="mchart-head"><span class="mtitle">Implied volatility</span></div>
+    <div class="cx-panel" data-tabs="overview derivatives">
+      <div class="mchart-head cx-head"><span class="mtitle">Implied against realized volatility</span><button class="cx-exp" data-chart="dvol" title="Expand: longer history">Expand</button></div>
       <p class="chart-caption cx-cap" id="cxDvolCap"></p>
-      <div class="cx-chart" id="cxDvol" role="img" aria-label="DVOL over the last year"></div>
+      <div class="cx-chart" id="cxDvol" role="img" aria-label="DVOL and realized volatility"></div>
     </div>
-    <div class="cx-panel">
+    <div class="cx-panel" data-tabs="derivatives">
       <div class="mchart-head"><span class="mtitle">Term structure</span></div>
       <p class="chart-caption cx-cap" id="cxTermCap"></p>
       <div class="cx-chart" id="cxTerm" role="img" aria-label="Implied volatility term structure"></div>
     </div>
-    <div class="cx-panel">
+    <div class="cx-panel" data-tabs="derivatives">
+      <div class="mchart-head cx-head"><span class="mtitle">Perpetual funding</span><button class="cx-exp" data-chart="fund" title="Expand: history since 2019">Expand</button></div>
+      <p class="chart-caption cx-cap" id="cxFundCap"></p>
+      <div class="cx-chart" id="cxFund" role="img" aria-label="Perpetual funding history"></div>
+    </div>
+    <div class="cx-panel" data-tabs="derivatives">
       <div class="mchart-head"><span class="mtitle">Futures basis</span><p class="chart-caption">Deribit futures against the index, annualized</p></div>
       <div class="cx-tw"><table class="scan cx-table">
         <thead><tr><th class="l">Expiry</th><th>Days</th><th title="Future over the index">Premium</th><th>Annualized</th><th title="Open interest, USD">OI</th></tr></thead>
         <tbody id="cxBasisBody"></tbody>
       </table></div>
     </div>
-    <div class="cx-panel cx-btc" id="cxMinPanel">
-      <div class="mchart-head"><span class="mtitle">Miners</span></div>
+    <div class="cx-panel" data-tabs="derivatives">
+      <div class="mchart-head cx-head"><span class="mtitle">Leverage (OKX)</span><button class="cx-exp" data-chart="lev" title="Expand">Expand</button></div>
+      <p class="chart-caption cx-cap" id="cxLevCap"></p>
+      <div class="cx-chart" id="cxLev" role="img" aria-label="Futures open interest and long/short ratio"></div>
+    </div>
+    <div class="cx-panel cx-wide" data-tabs="derivatives">
+      <div class="mchart-head"><span class="mtitle">Expirations</span><p class="chart-caption">Deribit options. Highlighted: expirations with at least 10% of the open interest, whose settlement can pull price toward max pain.</p></div>
+      <div class="cx-tw"><table class="scan cx-table">
+        <thead><tr><th class="l">Expiry</th><th>Days</th><th>Notional</th><th title="Put open interest / call open interest">Put/call</th><th title="Settlement price at which option buyers collect the least">Max pain</th><th>From price</th><th>ATM IV</th><th title="25-delta call IV minus 25-delta put IV">25Δ RR</th></tr></thead>
+        <tbody id="cxExpBody"></tbody>
+      </table></div>
+    </div>
+    <div class="cx-panel cx-btc" data-tabs="onchain">
+      <div class="mchart-head cx-head"><span class="mtitle">Miners</span><button class="cx-exp" data-chart="min" title="Expand: history since 2012">Expand</button></div>
       <p class="chart-caption cx-cap" id="cxMinCap"></p>
       <div class="cx-chart" id="cxMin" role="img" aria-label="Hashrate 30-day and 60-day averages"></div>
     </div>
-    <div class="cx-panel cx-btc" id="cxSoprPanel">
-      <div class="mchart-head"><span class="mtitle">Profit and loss of sellers</span></div>
+    <div class="cx-panel cx-btc" data-tabs="onchain">
+      <div class="mchart-head cx-head"><span class="mtitle">Profit and loss of sellers</span><button class="cx-exp" data-chart="sopr" title="Expand: history since 2022">Expand</button></div>
       <p class="chart-caption cx-cap" id="cxSoprCap"></p>
       <div class="cx-chart" id="cxSopr" role="img" aria-label="SOPR and short-term holder SOPR"></div>
     </div>
-    <div class="cx-panel">
-      <div class="mchart-head"><span class="mtitle">Network activity</span></div>
+    <div class="cx-panel cx-wide" data-tabs="onchain">
+      <div class="mchart-head cx-head">
+        <span class="mtitle">Network activity</span>
+        <div class="cx-ctl">
+          <div class="seg boxed" role="radiogroup" aria-label="Measure" id="cxActMet"><button role="radio" data-v="dir" aria-checked="true">Active addresses</button><button role="radio" data-v="tx" aria-checked="false">Transactions</button></div>
+          <button class="cx-exp" data-chart="act" title="Expand: history since 2015">Expand</button>
+        </div>
+      </div>
+      <div class="cx-chips" role="radiogroup" aria-label="Network" id="cxNets"></div>
       <p class="chart-caption cx-cap" id="cxActCap"></p>
-      <div class="cx-chart" id="cxAct" role="img" aria-label="Active addresses"></div>
+      <div class="cx-chart" id="cxAct" role="img" aria-label="Network activity"></div>
     </div>
-    <div class="cx-panel">
+    <div class="cx-panel" data-tabs="onchain market">
       <div class="mchart-head"><span class="mtitle">Stablecoins</span></div>
       <p class="chart-caption cx-cap" id="cxStbCap"></p>
       <div class="cx-tw"><table class="scan cx-table">
@@ -694,14 +714,24 @@
         <tbody id="cxStbBody"></tbody>
       </table></div>
     </div>
-    <div class="cx-panel cx-wide">
-      <div class="mchart-head"><span class="mtitle">Expirations</span><p class="chart-caption">Deribit options. Highlighted: expirations with at least 10% of the open interest, whose settlement can pull price toward max pain.</p></div>
-      <div class="cx-tw"><table class="scan cx-table">
-        <thead><tr><th class="l">Expiry</th><th>Days</th><th>Notional</th><th title="Put open interest / call open interest">Put/call</th><th title="Settlement price at which option buyers collect the least">Max pain</th><th>From price</th><th>ATM IV</th><th title="25-delta call IV minus 25-delta put IV">25Δ RR</th></tr></thead>
-        <tbody id="cxExpBody"></tbody>
+    <div class="cx-panel cx-wide" data-tabs="signals">
+      <div class="mchart-head cx-head">
+        <span class="mtitle">Signals with history</span>
+        <div class="cx-chips" role="radiogroup" aria-label="Filter signals" id="cxSigFilt">
+          <button role="radio" data-v="all" aria-checked="true">All</button><button role="radio" data-v="on" aria-checked="false">Active or recent</button><button role="radio" data-v="onchain" aria-checked="false">On-chain</button><button role="radio" data-v="derivados" aria-checked="false">Derivatives</button><button role="radio" data-v="sentimiento" aria-checked="false">Sentiment</button>
+        </div>
+      </div>
+      <p class="chart-caption cx-cap">Each signal's past cases (30 days apart at least) and what price did next, against any day of the same period. Click a signal to see its cases on the price; click a column to sort.</p>
+      <div class="cx-tw"><table class="scan cx-table cx-sig">
+        <thead><tr><th class="l" data-k="nombre">Signal</th><th class="l" data-k="ultima" title="Active now, or the date of the last case">Last case</th>
+          <th data-k="n" title="Past cases, since the first day with data for the signal">Cases</th>
+          <th data-k="m30" title="Median return 30 days after each case">30 d</th><th data-k="p30" title="Share of cases with price higher 30 days later">Up</th>
+          <th data-k="m90" title="Median return 90 days after each case">90 d</th><th data-k="p90" title="Share of cases with price higher 90 days later">Up</th>
+          <th data-k="edge" title="Any day of the same period, 90 days later: median return and share up">Any day</th></tr></thead>
+        <tbody id="cxSigBody"></tbody>
       </table></div>
     </div>
-    <div class="cx-panel cx-wide">
+    <div class="cx-panel cx-wide" data-tabs="market">
       <div class="mchart-head"><span class="mtitle">Market</span><p class="chart-caption">Largest coins by market cap (CoinGecko)</p></div>
       <div class="cx-tw"><table class="scan cx-table">
         <thead><tr><th class="l">#</th><th class="l">Coin</th><th>Price</th><th>24h</th><th>7d</th><th>30d</th><th>Market cap</th><th>From high</th></tr></thead>
@@ -710,6 +740,22 @@
     </div>
     <div class="tip" id="cxTip" hidden></div>
   </section>
+  <div class="cx-modal" id="cxModal" hidden role="dialog" aria-modal="true" aria-labelledby="cxModalTitle">
+    <div class="cx-mbox">
+      <div class="cx-mhead">
+        <span class="mtitle" id="cxModalTitle"></span>
+        <div class="cx-ctl">
+          <div class="seg boxed" role="radiogroup" aria-label="Range" id="cxRange"><button role="radio" data-v="90">3M</button><button role="radio" data-v="365">1Y</button><button role="radio" data-v="730">2Y</button><button role="radio" data-v="1825">5Y</button><button role="radio" data-v="0">All</button></div>
+          <label class="cx-log" id="cxLogWrap"><input type="checkbox" id="cxLog"> Log scale</label>
+          <button class="cx-close" id="cxModalClose" title="Close (Esc)" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="cx-chips" id="cxModalNets" hidden></div>
+      <p class="chart-caption cx-cap" id="cxModalCap"></p>
+      <div class="cx-chart cx-big" id="cxModalChart" role="img"></div>
+      <div class="tip" id="cxMTip" hidden></div>
+    </div>
+  </div>
 </main>
 
 <main class="macro tk-view" id="takesView" hidden>

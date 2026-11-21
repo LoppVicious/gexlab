@@ -11,7 +11,8 @@ permissions:
 jobs:
   cripto:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    # la primera pasada descarga el funding de Deribit desde 2019 (unas 180 peticiones); despues, menos de 2 min
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

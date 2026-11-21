@@ -223,6 +223,12 @@
       case "/api/regimen": return pub("regimen.json", s, "Gamma regime");
       case "/api/skew": return pub("skew.json", s, "Skew signal");
       case "/api/crypto": return pub("cripto.json", s, "Crypto");
+      case "/api/crypto_series": return pub("cripto_series.json", s, "Crypto history");
+      case "/api/crypto_net": {
+        const net = String(q.get("net") || "").toUpperCase();
+        if (!/^[A-Z]{2,6}$/.test(net)) return json(400, { error: "Invalid network" });
+        return pub(`cripto_red/${net}.json`, s, "Network activity");
+      }
       case "/api/cot": return pub("cot.json", s, "COT");
       case "/api/cot_history": return pub(`cot_hist/${encodeURIComponent(q.get("key") || "ES")}.json`, s, "COT");
       case "/api/summary": return pub("resumen.json", s, "Summary");

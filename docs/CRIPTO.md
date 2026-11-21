@@ -101,7 +101,35 @@ historia frente a la referencia (no según la lectura habitual).
 butterfly, DVOL, realizada, funding, OI, long/short, put/call) en la primera pasada del día. Con 30 días o más, la
 web muestra su percentil (`percentiles_propios`). Servirá para backtestear las señales de derivados.
 
+## Señales de derivados
+
+Grupo `derivados` en `senales` (los demás: `onchain`, `sentimiento`). Con historia pública:
+
+| Señal | Condición | Desde | Fuente |
+|---|---|---|---|
+| `dvol_alto` | DVOL en el percentil 90 de su último año o más | 2022 | Deribit |
+| `vrp_negativo` / `vrp_alto` | DVOL − volatilidad realizada a 30 días < 0 / ≥ 20 (`vrp_senal`) | 2021 | Deribit y CoinMetrics |
+| `funding_negativo` | media 7 d del funding del perpetuo < 0 tras 14 días por encima | 2019 | Deribit (`get_funding_rate_history`) |
+| `funding_alto` | media 7 d del funding ≥ 30 % anual | 2019 | Deribit |
+| `oi_flush` | OI de OKX −15 % o más en 7 días con el precio a la baja | 2026-05 (180 días y se amplía) | OKX |
+| `lsr_alto` | 3 o más cuentas largas por cada corta | 2026-05 (ídem) | OKX |
+
+Sin historia pública (risk reversal y GEX): `puts_caras` (risk reversal 25 delta a 30 días ≤ −8) y `gex_negativo`
+(GEX neta < 0) usan nuestra foto diaria; la tabla las muestra "collecting since" hasta que haya casos con 30 y 90
+días por delante.
+
+## Web
+
+- Pestañas: Overview (GEX, niveles, coste on-chain, volatilidad), Derivatives (GEX, estructura temporal, funding,
+  basis, apalancamiento de OKX, vencimientos), On-chain (coste, mineros, SOPR, actividad de redes, stablecoins),
+  Signals y Market. Se recuerda la última pestaña.
+- Gráficos de series ampliables (`cxChart`, `cxOpenModal`): rango 3M a todo, escala logarítmica donde tiene sentido
+  (coste, mineros, actividad), eje derecho, leyenda que oculta series y tooltip con todas las series del día.
+- Actividad de red: BTC, ETH, TRX, XRP, LTC, DOGE, BCH, XLM y ADA (SOL, BNB y DOT no son gratis en CoinMetrics),
+  direcciones activas o transacciones, medias de 30 y 365 días y precio.
+- Señales: filtro por grupo o activas, orden por columna y, al abrir una, sus casos sobre el precio (verde si 90 días
+  después estaba más arriba) con la lista de casos.
+
 ## Pendiente
 
-- Señales de derivados (funding, risk reversal, GEX) con el historial propio cuando tenga meses.
 - Flujos de los ETF spot (no hay fuente gratuita estable).

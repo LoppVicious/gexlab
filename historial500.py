@@ -65,7 +65,8 @@ NUNCA_BORRAR = ("VIX/", "_indices_vol/")  # el VIX y la familia VIX se guardan s
 POSICIONES = ("standard", "flow")
 RANGO = 5.0                     # el mismo rango que usa el historico de la app
 PAUSA = 0.5                     # segundos entre tickers (ademas del limite de gex_engine)
-CAMPOS_INDICE = ("spot", "call_wall", "put_wall", "net_per_pct", "m1_pct", "m1_session", "saved")
+CAMPOS_INDICE = ("spot", "call_wall", "put_wall", "flip", "net_per_pct", "m1_pct", "m1_session", "saved",
+                 "pc_exp", "pc_cw", "pc_pw", "pc_flip")
 VALIDACION_PREFIX = "pub/validacion500/"  # Validacion de toda la lista (publicar_validacion)
 EVENTOS_KEY = "estado/eventos.json"       # calendario del motor (motor.EVENTOS_KEY)
 
@@ -234,6 +235,10 @@ def reconstruir_indice(st, sym: str) -> dict:
         if m:
             d = almacen.get_json(st, k) or {}
             if d.get("levels"):
+                try:   # dias anteriores a las probabilidades implicitas: se calculan con la cadena guardada
+                    g.completar_probs(d)
+                except Exception as e:  # noqa: BLE001
+                    log(f"ERROR probabilidades {sym} {m.group(1)}: {type(e).__name__}: {str(e)[:120]}")
                 idx[m.group(1)] = _niveles_indice(d["levels"])
     return idx
 

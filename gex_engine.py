@@ -1484,6 +1484,23 @@ def probs_snap(lp: list[dict] | None) -> dict:
             "pc_pw": (r.get("put_wall") or {}).get("close"), "pc_flip": (r.get("flip") or {}).get("close")}
 
 
+def completar_probs(doc: dict) -> None:
+    """Dia de hist500 guardado antes de level_probs: anade pc_* a cada foto de niveles con la cadena del cierre
+    (como si se calculara a las 16:15 ET de esa sesion). Una distribucion por spot distinto."""
+    fotos = [sn for ms in (doc.get("levels") or {}).values() for fs in ms.values() for sn in fs.values()
+             if "pc_cw" not in sn and sn.get("spot")]
+    if not fotos or not doc.get("chain"):
+        return
+    ch = chain_from_min(doc["chain"])
+    ahora = datetime.strptime(doc["session"] + " 16:15", "%Y-%m-%d %H:%M")
+    cache: dict = {}
+    for sn in fotos:
+        s = float(sn["spot"])
+        if s not in cache:
+            cache[s] = level_dists(ch, s, ahora, doc.get("symbol") or "")
+        sn.update(probs_snap(level_probs(cache[s], s, sn)))
+
+
 INDEX_LIKE = INDEX_SYMBOLS | {"SPY", "QQQ", "IWM", "DIA"}  # productos de indice: Vol Trigger; acciones: Hedge Wall
 
 

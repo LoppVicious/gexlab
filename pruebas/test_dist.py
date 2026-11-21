@@ -114,6 +114,22 @@ def test_probs_snap():
     assert g.probs_snap([]) == {"pc_exp": None, "pc_cw": None, "pc_pw": None, "pc_flip": None}
 
 
+def test_completar_probs_rellena_dias_antiguos():
+    ch = cadena(["2026-12-02T16:00", "2026-12-04T16:00"], lambda k: 0.20)
+    viejo = {"spot": 100.0, "call_wall": 101.0, "put_wall": 99.0, "flip": 99.5}   # vencimiento a un dia: sigma ~1 %
+    nuevo = {"spot": 100.0, "call_wall": 105.0, "put_wall": 95.0, "flip": 98.0, "pc_cw": 0.5}
+    doc = {"symbol": "SPY", "session": "2026-12-01", "chain": {"falso": True},
+           "levels": {"standard": {"spotgamma": {"0": viejo, "45": nuevo}}}}
+    orig = g.chain_from_min
+    g.chain_from_min = lambda d: ch
+    try:
+        g.completar_probs(doc)
+    finally:
+        g.chain_from_min = orig
+    assert viejo["pc_exp"] == "2026-12-02" and 0 < viejo["pc_cw"] < 0.5 and viejo["pc_flip"] > 0
+    assert nuevo["pc_cw"] == 0.5          # los que ya lo tienen no se tocan
+
+
 if __name__ == "__main__":
     fallos = 0
     for nombre, f in sorted(globals().items()):

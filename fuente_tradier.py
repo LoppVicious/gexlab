@@ -157,20 +157,35 @@ def _opciones_cache(sym: str, exp: str, hoy) -> list[dict]:
     return opts
 
 
+def _clase(sym: str) -> list[str]:
+    """Formas de escribir una acción de clase (BRK.B) que se prueban en Tradier, por orden; el resto, tal cual."""
+    if "." not in sym:
+        return [sym]
+    a, b = sym.split(".", 1)
+    return [sym, f"{a}/{b}", f"{a}{b}"]
+
+
 def cadena(symbol: str) -> dict:
     """Cadena completa de Tradier en el formato de CBOE (lo que espera gex_engine.parse_chain)."""
     sym = symbol.upper()
-    q = _lista(((_get(f"/markets/quotes?symbols={sym}&greeks=false") or {}).get("quotes") or {}).get("quote"))
-    q = q[0] if q else {}
+    # las acciones de clase (BRK.B, BF.B) no cotizan con el punto: la primera forma con precio y vencimientos
+    q, exps, api = {}, [], sym
+    for forma in _clase(sym):
+        api = forma.replace("/", "%2F")
+        cot = _lista(((_get(f"/markets/quotes?symbols={api}&greeks=false") or {}).get("quotes") or {}).get("quote"))
+        q = cot[0] if cot else {}
+        if float(q.get("last") or q.get("close") or q.get("prevclose") or 0) > 0:
+            exps = _vencimientos(api)
+            if exps:
+                break
     spot = float(q.get("last") or q.get("close") or q.get("prevclose") or 0)
     if spot <= 0:
         raise TradierError(f"Tradier no tiene precio de {sym}")
-    exps = _vencimientos(sym)
     if not exps:
         raise TradierError(f"Tradier no tiene opciones de {sym}")
     hoy = datetime.now(timezone.utc).date()
     with ThreadPoolExecutor(max_workers=HILOS) as pool:
-        partes = list(pool.map(lambda e: _opciones_cache(sym, e, hoy), exps))
+        partes = list(pool.map(lambda e: _opciones_cache(api, e, hoy), exps))
     opts = [o for p in partes for o in p if o.get("symbol")]
     if not opts:
         raise TradierError(f"Tradier no devuelve contratos de {sym}")

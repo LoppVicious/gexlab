@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-22 — Mapa de liquidaciones: Expand y pantalla completa
+## 2026-11-22 — Mapa de liquidaciones: Expand y pantalla completa; historial diario con BRK.B y BF.B
 
 **Añadido**
 - **Crypto, mapa de liquidaciones, Expand:** agranda el mapa dentro de la página, con el resto oscurecido; se cierra
@@ -16,6 +16,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   la memoria solo cuenta para el perfil, la presión y los grupos de la lectura.
 - **Crypto, mapa de liquidaciones:** Full screen y Older abrían además una ventana de gráfico ampliado vacía, que
   quedaba a la vista al salir de la pantalla completa.
+- **Historial diario, acciones de clase (BRK.B, BF.B):** con las cadenas de Tradier se quedaban sin guardar, porque
+  Tradier no las reconoce con el punto; ahora se prueban también las formas con barra y sin separador.
 
 ## 2026-11-21 — Crypto: mapa de liquidaciones, señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; distribución implícita y probabilidades de los niveles; datos sin la API de cotizaciones de CBOE
 

@@ -12,7 +12,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 **Corregido**
 - **Crypto, mapa de liquidaciones, «The data source is busy»:** salía a menudo al cambiar de activo o de marco, porque
   Coinalyze cuenta cada perpetuo pedido como una llamada (40 por minuto) y BTC gastaba 23 en cada carga. Ahora se
-  piden solo los perpetuos principales de cada exchange (USDT e inverso en USD: 15 llamadas para BTC); volver a un
+  piden solo el perpetuo principal de cada exchange (el de USDT, o el inverso en USD si no hay: 9 llamadas para BTC); volver a un
   activo o marco ya visto en la sesión es inmediato; los clics seguidos solo cargan el último; si la fuente está al
   límite, el mapa espera lo que indica y reintenta solo, con una cuenta atrás, o enseña la copia anterior; y las
   liquidaciones reales llegan después del mapa, sin retrasarlo.

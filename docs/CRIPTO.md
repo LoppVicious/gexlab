@@ -146,8 +146,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   parámetros, pone la clave (como parámetro: la cabecera `api_key` la descarta algún intermediario), guarda la
   respuesta en memoria de 1 a 30 min según el intervalo (la Cache API no funciona en workers.dev). La clave nunca llega
   al navegador. Coinalyze: 40 llamadas por minuto, y **cada símbolo cuenta como una llamada**: cada mapa pide las velas
-  (1) y el OI y las liquidaciones de los perpetuos principales de cada exchange (USDT e inverso en USD, `lqSimbolos`:
-  BTC son 1 + 7 + 7). Al límite (429), el Worker devuelve la copia anterior si la tiene o `retry` con los segundos
+  (1) y el OI y las liquidaciones de un perpetuo por exchange (el de USDT, o el inverso en USD si no hay;
+  `lqSimbolos`: BTC son 1 + 4 + 4). La clave es una sola para todos los usuarios. Al límite (429), el Worker devuelve la copia anterior si la tiene o `retry` con los segundos
   de `Retry-After`, y la web espera y reintenta con cuenta atrás. La web guarda en memoria lo ya cargado por activo,
   marco y exchanges (24 entradas, frescas lo mismo que en el Worker) y pide las liquidaciones reales después del mapa.
 - **Modelo** (`web/liq-modelo.js`, pruebas en `pruebas/test_liq.mjs`):

@@ -100,11 +100,12 @@ const LQ_CACHE = new Map();   // clave -> { at, ohlcv, oi, liq }
 const LQ_CACHE_MAX = 24;
 const LQ_TTL = { "5m": 60, "15m": 120, "1h": 300, "4h": 900, "1D": 1800 };   // segundos: los del Worker
 
-// por exchange, el perpetuo en USDT y el inverso en USD (los de mas OI); USDC, USD1 y similares apenas suman
+// un perpetuo por exchange, el de mas OI: en USDT si lo hay, si no el inverso en USD (USDC, USD1 y similares apenas
+// suman). Con el cupo compartido entre usuarios, cada simbolo de mas resta cargas por minuto.
 function lqSimbolos(a, e) {
   const xs = a.ex[e] || [];
-  const ok = xs.filter((s) => /(USDT|USD)(_PERP)?\.[A-Z0-9]$/.test(s)).slice(0, 2);
-  return ok.length ? ok : xs.slice(0, 1);
+  const s = xs.find((x) => /USDT(_PERP)?\.[A-Z0-9]$/.test(x)) || xs.find((x) => /USD(_PERP)?\.[A-Z0-9]$/.test(x)) || xs[0];
+  return s ? [s] : [];
 }
 
 function lqEstado(t) {

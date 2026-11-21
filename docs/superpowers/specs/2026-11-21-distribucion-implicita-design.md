@@ -65,7 +65,8 @@ En el resultado de `compute` (junto a `moves`), bloque `level_probs`:
 ]
 ```
 
-- Vencimientos: el próximo (0DTE en los índices) y el viernes semanal si es distinto (en el VIX, el miércoles).
+- Vencimientos: el próximo (0DTE en los índices) y el viernes de esa misma semana si es distinto (en el VIX, el
+  miércoles; jueves o martes si el día habitual es festivo).
 - Niveles: los del filtro y motor activos (`levels`). Call Wall siempre "por encima", Put Wall siempre "por debajo",
   flip hacia el lado donde está respecto al spot. Si el spot ya está más allá del nivel, `touch` se omite (ya lo ha
   tocado) y solo se da `close`. Un nivel ausente se omite.

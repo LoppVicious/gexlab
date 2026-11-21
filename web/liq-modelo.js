@@ -19,6 +19,7 @@
 const LQ_MODELO = (() => {
   const APAL = [{ L: 5, w: 0.1 }, { L: 10, w: 0.3 }, { L: 25, w: 0.3 }, { L: 50, w: 0.2 }, { L: 100, w: 0.1 }];
   const MM = 0.005;   // margen de mantenimiento aproximado
+  const VIVO_MIN = 0.25;   // un nivel se da por cerrado cuando le queda menos de esta fraccion (memoria y OI cerrado)
   const K_DEFECTO = 0.05;   // posiciones nuevas por USD negociado si no hay tramo con OI para calibrar
 
   // suma por tiempo la historia de varios simbolos de una respuesta de Coinalyze: campo de cada punto
@@ -73,7 +74,7 @@ const LQ_MODELO = (() => {
     }
 
     // niveles: altas por vela y bajas (vela en que el precio los toca)
-    const altas = Array.from({ length: n }, () => []), bajas = Array.from({ length: n }, () => []);
+    const altas = Array.from({ length: n }, () => []), bajas = Array.from({ length: n }, () => []), lista_ = [];
     for (let i = 0; i < n; i++) {
       if (!(nuevo[i] > 0)) continue;
       const v = velas[i], fc = v.v > 0 ? Math.min(1, Math.max(0, v.bv / v.v)) : 0.5;
@@ -111,6 +112,7 @@ const LQ_MODELO = (() => {
         if (b1 < 0) b1 = bc >= 0 ? bc : B - 1;
         altas[i].push([lado, b0, b1, x.a]);
         if (x.fin != null) bajas[x.fin].push([lado, b0, b1, x.a, i]);
+        lista_.push([i, x.fin ?? n, x.p, lado, x.a]);
       }
     }
 
@@ -154,7 +156,19 @@ const LQ_MODELO = (() => {
       for (let b = 0; b < B; b++) { gL[b * n + t] *= e; gS[b * n + t] *= e; }
     }
     const eF = escala[n - 1] || 1;
+    // niveles sueltos para dibujarlos como franjas de color fijo: inicio, fin (vela en que el precio lo toca o en que
+    // la memoria lo da por cerrado: le queda menos de VIVO_MIN de lo que nacio), precio, lado y tamano al nacer (USD,
+    // con la escala del OI). M solo baja: el fin por memoria sale de una busqueda binaria
+    const N = lista_.length, nivI = new Int32Array(N), nivFin = new Int32Array(N), nivP = new Float64Array(N),
+      nivLado = new Uint8Array(N), nivA = new Float64Array(N);
+    lista_.forEach(([i, fin, pr, lado, a], k) => {
+      const corte = M[i] * VIVO_MIN;
+      let lo = i + 1, hi = n;   // primera vela con M < corte
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (M[mid] < corte) hi = mid; else lo = mid + 1; }
+      nivI[k] = i; nivFin[k] = Math.min(fin, lo); nivP[k] = pr; nivLado[k] = lado; nivA[k] = a * (escala[i] || 1);
+    });
     return { n, B, bordes, gL, gS, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+      niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA },
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }
 

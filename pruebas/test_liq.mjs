@@ -80,3 +80,17 @@ test("sumar une simbolos por tiempo", () => {
   const m = M.sumar([{ history: [{ t: 1, c: 2 }, { t: 2, c: 3 }] }, { history: [{ t: 1, c: 5 }] }], "c");
   assert.equal(m.get(1), 7); assert.equal(m.get(2), 3);
 });
+
+test("lista de niveles: termina al tocarlo el precio o cuando la memoria lo da por cerrado", () => {
+  const velas = [vela(0, 100), vela(1, 100)];
+  for (let i = 2; i < 30; i++) velas.push(vela(i, 100));
+  velas[20] = { t: 20, o: 100, h: 100, l: 89, c: 95, v: 100, bv: 50 };   // toca el largo a 10x (90)
+  const oi = velas.map((_, i) => (i >= 1 ? 1000 : 0));
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, mm: 0 });
+  const nv = r.niveles, k = [...Array(nv.N).keys()].find((j) => nv.lado[j] === 0);
+  assert.equal(nv.i[k], 1); assert.equal(nv.fin[k], 20); assert.ok(Math.abs(nv.p[k] - 90) < 0.5);
+  assert.ok(Math.abs(nv.a[k] - 500) < 1e-6);   // la mitad del OI nuevo (bv = v / 2)
+  const r2 = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 2, mm: 0 });   // vida media de 2 velas
+  const k2 = [...Array(r2.niveles.N).keys()].find((j) => r2.niveles.lado[j] === 1);   // el corto (110), sin tocar
+  assert.equal(r2.niveles.fin[k2], 6);   // a las 4 velas le queda 1/4: se da por cerrado
+});

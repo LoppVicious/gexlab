@@ -157,9 +157,11 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
      1 h: 4 días; 4 h: 15 días; diario: 45 días; Memory la multiplica por 0,5 o 2).
   6. Rejilla de 600 tramos de precio logarítmicos; recurrencia por tramo (decae, se reduce, suma altas, resta tocadas).
      Con la opción `ancho`, cada nivel se reparte en la parte central del rango de su vela (no se usa en la web).
-- **Dibujo** (`lqPintar`): franjas de pantalla de 6 px (`LQ_BANDA`) con la suma de los tramos que caen en cada una, una
-  columna por vela visible y 1 px de separación; color sólido de azul apagado a verde, amarillo y rojo (colores del
-  tema) según el tamaño frente al percentil 99 de lo visible, y solo lo que pasa la intensidad mínima (40 %). Perfil
+- **Niveles sueltos** (`niveles` del modelo): inicio, fin (vela en que el precio lo toca o en que le queda menos de
+  `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
+- **Dibujo** (`lqDibujarNiveles`): cada nivel, una franja de color fijo en la fila de 6 px (`LQ_BANDA`) de su precio,
+  con 1 px de separación; los mayores encima. Color por posición entre los visibles, al cuadrado (azul apagado, verde,
+  amarillo, rojo: colores del tema); solo los que pasan la intensidad mínima (40 % del percentil 99 de lo visible). Perfil
   con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.
 - **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
   grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por

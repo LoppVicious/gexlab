@@ -605,7 +605,7 @@
     <div class="cx-read" id="cxRead"></div>
     <div class="facts" id="cxFacts"></div>
     <p class="cx-err" id="cxErr" hidden></p>
-    <p class="mnote"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p>
+    <p class="mnote"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. <b>Signals with history</b>: past cases on daily closes and what price did 30 and 90 days later, against any day of the same period; few cases and overlapping windows make them context, not proof. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p>
   </aside>
   <section class="cx-main">
     <div class="cx-panel cx-wide">
@@ -619,6 +619,13 @@
     <div class="cx-panel cx-wide">
       <div class="mchart-head"><span class="mtitle">Levels map</span><p class="chart-caption">Options levels and on-chain cost bases on one price line; the bar is the price.</p></div>
       <div class="cx-chart cx-levels" id="cxLevels" role="img" aria-label="Map of price levels"></div>
+    </div>
+    <div class="cx-panel cx-wide">
+      <div class="mchart-head"><span class="mtitle">Signals with history</span><p class="chart-caption">Each signal's past cases (30 days apart at least) and what price did next, against any day of the same period. Highlighted: active now or in the last 30 days.</p></div>
+      <div class="cx-tw"><table class="scan cx-table cx-sig">
+        <thead><tr><th class="l">Signal</th><th class="l" title="Active now, or the date of the last case">Last case</th><th title="Past cases, since the first day with data for the signal">Cases</th><th title="Median return 30 days after each case">30 d</th><th title="Share of cases with price higher 30 days later">Up</th><th title="Median return 90 days after each case">90 d</th><th title="Share of cases with price higher 90 days later">Up</th><th title="Any day of the same period, 90 days later: median return and share up">Any day</th></tr></thead>
+        <tbody id="cxSigBody"></tbody>
+      </table></div>
     </div>
     <div class="cx-panel">
       <div class="mchart-head"><span class="mtitle">Price against cost basis</span></div>
@@ -640,6 +647,29 @@
       <div class="cx-tw"><table class="scan cx-table">
         <thead><tr><th class="l">Expiry</th><th>Days</th><th title="Future over the index">Premium</th><th>Annualized</th><th title="Open interest, USD">OI</th></tr></thead>
         <tbody id="cxBasisBody"></tbody>
+      </table></div>
+    </div>
+    <div class="cx-panel cx-btc" id="cxMinPanel">
+      <div class="mchart-head"><span class="mtitle">Miners</span></div>
+      <p class="chart-caption cx-cap" id="cxMinCap"></p>
+      <div class="cx-chart" id="cxMin" role="img" aria-label="Hashrate 30-day and 60-day averages"></div>
+    </div>
+    <div class="cx-panel cx-btc" id="cxSoprPanel">
+      <div class="mchart-head"><span class="mtitle">Profit and loss of sellers</span></div>
+      <p class="chart-caption cx-cap" id="cxSoprCap"></p>
+      <div class="cx-chart" id="cxSopr" role="img" aria-label="SOPR and short-term holder SOPR"></div>
+    </div>
+    <div class="cx-panel">
+      <div class="mchart-head"><span class="mtitle">Network activity</span></div>
+      <p class="chart-caption cx-cap" id="cxActCap"></p>
+      <div class="cx-chart" id="cxAct" role="img" aria-label="Active addresses"></div>
+    </div>
+    <div class="cx-panel">
+      <div class="mchart-head"><span class="mtitle">Stablecoins</span></div>
+      <p class="chart-caption cx-cap" id="cxStbCap"></p>
+      <div class="cx-tw"><table class="scan cx-table">
+        <thead><tr><th class="l">Coin</th><th>Supply</th><th>Share</th><th>7d</th><th>30d</th></tr></thead>
+        <tbody id="cxStbBody"></tbody>
       </table></div>
     </div>
     <div class="cx-panel cx-wide">

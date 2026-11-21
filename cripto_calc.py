@@ -37,6 +37,9 @@ UMBRALES = {
     "vrp_cara": 10.0, "vrp_barata": 0.0,               # DVOL - RV30, puntos
     "tendencia_30d": 10.0,                             # % de cambio a 30 dias
     "flujo_ex_pct": 0.5,                               # flujo neto 7 d frente al saldo en exchanges, %
+    "actividad_pct": 10.0,                             # direcciones activas (30 d) frente a su media de 365 d, %
+    "puell_bajo": 0.5, "puell_alto": 3.0,
+    "stables_pct": 3.0,                                # cambio de la oferta de stablecoins en 30 dias, %
 }
 
 
@@ -297,6 +300,251 @@ def onchain(filas: list[dict], spot: float | None, sth=None, lth=None) -> dict |
     return out
 
 
+# ---------------------------------------------------------------- fase 2: mineros, beneficio, actividad, liquidez
+def _sma(xs: list, n: int) -> list:
+    """Media movil simple; None hasta tener n valores."""
+    out, acc = [], 0.0
+    for i, x in enumerate(xs):
+        acc += x
+        if i >= n:
+            acc -= xs[i - n]
+        out.append(acc / n if i >= n - 1 else None)
+    return out
+
+
+def _cm(filas: list[dict], campo: str) -> tuple[list[str], list[float]]:
+    d, v = [], []
+    for r in filas:
+        x = _f(r.get(campo))
+        if x is not None:
+            d.append(str(r["time"])[:10]); v.append(x)
+    return d, v
+
+
+def _racha(xs: list[bool]) -> int:
+    """Dias seguidos al final de la lista con el mismo valor que el ultimo."""
+    n = 0
+    for x in reversed(xs):
+        if x != xs[-1]:
+            break
+        n += 1
+    return n
+
+
+def mineros(filas: list[dict]) -> dict | None:
+    """Hash ribbons (media de 30 dias del hashrate frente a la de 60) y multiplo de Puell (emision diaria en USD
+    frente a su media de 365 dias). CoinMetrics: HashRate en TH/s, IssTotUSD."""
+    d, h = _cm(filas, "HashRate")
+    di, iss = _cm(filas, "IssTotUSD")
+    if len(h) < 400 or len(iss) < 400:
+        return None
+    s30, s60 = _sma(h, 30), _sma(h, 60)
+    ok = [i for i in range(len(h)) if s60[i] is not None]
+    bajo = [s30[i] < s60[i] for i in ok]
+    compra = None   # ultimo cruce al alza tras al menos 10 dias por debajo
+    for j in range(len(ok) - 1, 10, -1):
+        if not bajo[j] and all(bajo[j - 10:j]):
+            compra = d[ok[j]]
+            break
+    m365 = _sma(iss, 365)
+    puell = [(di[i], iss[i] / m365[i]) for i in range(len(iss)) if m365[i]]
+    estado = "capitulation" if bajo[-1] else (
+        "recovery" if compra and (datetime.fromisoformat(d[-1]) - datetime.fromisoformat(compra)).days <= 30 else "healthy")
+    ph = {x: v for x, v in puell}
+    return {
+        "fecha": d[-1], "hash": round(h[-1] / 1e6, 1), "hash30": round(s30[-1] / 1e6, 1), "hash60": round(s60[-1] / 1e6, 1),
+        "estado": estado, "dias": _racha(bajo), "ultima_compra": compra,
+        "puell": round(puell[-1][1], 3), "puell_pct": percentil([v for _, v in puell], puell[-1][1]),
+        # hashrate en EH/s (CoinMetrics da TH/s)
+        "serie": [[d[i], round(s30[i] / 1e6, 1), round(s60[i] / 1e6, 1),
+                   round(ph[d[i]], 3) if d[i] in ph else None] for i in ok[-730:]],
+    }
+
+
+def beneficio(sopr=None, sth_sopr=None) -> dict | None:
+    """SOPR (todas las monedas) y STH-SOPR (menos de 155 dias) de bitcoin-data, media de 7 dias. > 1: se vende con
+    beneficio; < 1: con perdida."""
+    out = {}
+    for nombre, s in (("sopr", sopr), ("sth_sopr", sth_sopr)):
+        if not s or len(s) < 30:
+            continue
+        v = [x for _, x in s]
+        m7 = _sma(v, 7)
+        out[nombre] = {"fecha": s[-1][0], "valor": round(v[-1], 4), "m7": round(m7[-1], 4),
+                       "pct": percentil(v, v[-1]), "dias": _racha([x is not None and x < 1 for x in m7]),
+                       "bajo": m7[-1] < 1}
+        out[nombre + "_serie"] = [[s[i][0], round(m7[i], 4)] for i in range(len(s)) if m7[i] is not None][-365:]
+    return out or None
+
+
+def actividad(filas: list[dict]) -> dict | None:
+    """Direcciones activas y transacciones: media de 30 dias frente a la de 365, percentil desde 2015."""
+    d, a = _cm(filas, "AdrActCnt")
+    if len(a) < 400:
+        return None
+    a30, a365 = _sma(a, 30), _sma(a, 365)
+    out = {"fecha": d[-1], "dir30": round(a30[-1]), "dir_chg": round((a30[-1] / a365[-1] - 1) * 100, 2),
+           "dir_pct": percentil([x for x, f in zip(a30, d) if x and f >= "2015-01-01"], a30[-1]),
+           "serie": [[d[i], round(a30[i]), round(a365[i]) if a365[i] else None] for i in range(len(d)) if a30[i]][-730:]}
+    dt, t = _cm(filas, "TxCnt")
+    if len(t) >= 400:
+        t30, t365 = _sma(t, 30), _sma(t, 365)
+        out.update(tx30=round(t30[-1]), tx_chg=round((t30[-1] / t365[-1] - 1) * 100, 2))
+    return out
+
+
+def liquidez(pegged: list[dict], chart: list | None) -> dict | None:
+    """Stablecoins de DefiLlama: total y cambios a 7 y 30 dias; las 5 mayores."""
+    filas = []
+    for p in pegged or []:
+        c = _f((p.get("circulating") or {}).get("peggedUSD"))
+        if not c:
+            continue
+        w = _f((p.get("circulatingPrevWeek") or {}).get("peggedUSD"))
+        m = _f((p.get("circulatingPrevMonth") or {}).get("peggedUSD"))
+        filas.append({"sym": p.get("symbol"), "nombre": p.get("name"), "total": c,
+                      "c7": round((c / w - 1) * 100, 2) if w else None, "c30": round((c / m - 1) * 100, 2) if m else None,
+                      "_w": w or c, "_m": m or c})
+    if not filas:
+        return None
+    tot = sum(f["total"] for f in filas)
+    tw, tm = sum(f["_w"] for f in filas), sum(f["_m"] for f in filas)
+    top = sorted(filas, key=lambda f: -f["total"])[:5]
+    for f in top:
+        f.pop("_w"); f.pop("_m")
+        f["cuota"] = round(f["total"] / tot * 100, 1)
+    out = {"total": round(tot), "c7": round((tot / tw - 1) * 100, 2), "c30": round((tot / tm - 1) * 100, 2), "top": top}
+    if chart:
+        out["serie"] = [x for x in chart if x[1]][-365:]
+    return out
+
+
+# ---------------------------------------------------------------- fase 3: senales con su historia
+HORIZONTES = (30, 90)
+ENFRIAMIENTO = 30   # dias minimos entre dos casos de la misma senal
+
+
+def backtest(fechas: list[str], precios: list[float], activa: list, previo: int = 0) -> dict:
+    """Casos: primer dia en que `activa` es cierta, tras al menos `previo` dias sin serlo (y `ENFRIAMIENTO` desde el
+    caso anterior). Para cada horizonte, rendimiento del precio desde el cierre del caso, y la referencia: todos los dias
+    del mismo periodo (desde el primer dia con dato de la senal)."""
+    n = len(fechas)
+    ini = next((i for i, x in enumerate(activa) if x is not None), n)
+    casos, ultimo = [], -10 ** 9
+    for i in range(ini + 1, n):
+        if not activa[i] or activa[i - 1]:
+            continue
+        atras = activa[max(ini, i - previo):i]
+        if previo and (len(atras) < previo or any(atras)):
+            continue
+        if i - ultimo < ENFRIAMIENTO:
+            continue
+        casos.append(i)
+        ultimo = i
+    # hoy: solo en las senales de estado (sin `previo`); en las de cruce cuenta la fecha del ultimo caso
+    out = {"desde": fechas[ini] if ini < n else None, "casos": [fechas[i] for i in casos],
+           "tipo": "cruce" if previo else "estado",
+           "hoy": bool(activa[-1]) if n and not previo and activa[-1] is not None else None,
+           "ultima": fechas[casos[-1]] if casos else None, "h": {}}
+    for h in HORIZONTES:
+        r = [precios[i + h] / precios[i] - 1 for i in casos if i + h < n]
+        base = [precios[i + h] / precios[i] - 1 for i in range(ini, n - h)]
+        e = {"n": len(r)}
+        if r:
+            e.update(mediana=round(float(np.median(r)) * 100, 1), media=round(float(np.mean(r)) * 100, 1),
+                     pos=round(100 * sum(1 for x in r if x > 0) / len(r)), peor=round(min(r) * 100, 1),
+                     mejor=round(max(r) * 100, 1))
+        if base:
+            e.update(base_mediana=round(float(np.median(base)) * 100, 1),
+                     base_pos=round(100 * sum(1 for x in base if x > 0) / len(base)))
+        out["h"][str(h)] = e
+    return out
+
+
+def _alinear(fechas: list[str], serie) -> list:
+    """Serie [[fecha, valor]] en el calendario `fechas` (None donde falta)."""
+    m = {d: v for d, v in serie or []}
+    return [m.get(d) for d in fechas]
+
+
+def senales(filas: list[dict], sth=None, sth_sopr=None, fng=None, dvol=None, mineria: bool = True) -> list[dict]:
+    """Senales de BTC o ETH con su historia en el precio diario de CoinMetrics. Cada una: id, nombre, que espera la
+    lectura habitual (sentido +1 alcista, -1 bajista) y su backtest. `mineria`: solo con prueba de trabajo (BTC; el
+    hashrate de ETH es de antes del Merge)."""
+    fechas, precios = _cm(filas, "PriceUSD")
+    if len(precios) < 400:
+        return []
+    out = []
+
+    def add(id_, nombre, que, sentido, activa, previo=0):
+        if not any(x for x in activa if x):
+            return
+        out.append({"id": id_, "nombre": nombre, "que": que, "sentido": sentido,
+                    **backtest(fechas, precios, activa, previo)})
+
+    mv = _alinear(fechas, [[str(r["time"])[:10], _f(r.get("CapMVRVCur"))] for r in filas])
+    add("mvrv_bajo", "MVRV under 1", "Price falls under the average cost of all coins (realized price).", 1,
+        [None if x is None else x < 1 for x in mv])
+    add("mvrv_alto", "MVRV over 3", "Holders sit on three times their cost on average.", -1,
+        [None if x is None else x > 3 for x in mv])
+    if sth:
+        s = _alinear(fechas, sth)
+        sobre = [None if b is None else p > b for p, b in zip(precios, s)]
+        add("sth_recupera", "Price reclaims short-term holder cost", "First close above the short-term holder cost after 14 days or more below.", 1, sobre, 14)
+        add("sth_pierde", "Price loses short-term holder cost", "First close below the short-term holder cost after 14 days or more above.", -1,
+            [None if x is None else not x for x in sobre], 14)
+    d, h = _cm(filas, "HashRate") if mineria else ([], [])
+    if len(h) >= 400:
+        s30, s60 = _sma(h, 30), _sma(h, 60)
+        arriba = {d[i]: s30[i] > s60[i] for i in range(len(h)) if s60[i] is not None}
+        add("hash_compra", "Hash ribbon buy", "The 30-day hashrate average crosses back over the 60-day after 10 days or more of miner capitulation.", 1,
+            [arriba.get(x) for x in fechas], 10)
+    di, iss = _cm(filas, "IssTotUSD") if mineria else ([], [])
+    if len(iss) >= 400:
+        m365 = _sma(iss, 365)
+        pu ={di[i]: iss[i] / m365[i] < 0.5 for i in range(len(iss)) if m365[i]}
+        add("puell_bajo", "Puell multiple under 0.5", "Miner revenue falls to half its yearly average: miners under stress.", 1,
+            [pu.get(x) for x in fechas])
+    if sth_sopr:
+        v = [x for _, x in sth_sopr]
+        m7 = dict(zip([x for x, _ in sth_sopr], _sma(v, 7)))
+        add("sth_sopr_recupera", "Short-term SOPR back over 1", "The 7-day average of short-term holder SOPR goes back over 1 after 14 days or more of selling at a loss.", 1,
+            [None if m7.get(x) is None else m7[x] > 1 for x in fechas], 14)
+    if fng:
+        f = _alinear(fechas, fng)
+        add("miedo", "Extreme fear (15 or less)", "Fear & Greed at 15 or less.", 1, [None if x is None else x <= 15 for x in f])
+        add("codicia", "Extreme greed (85 or more)", "Fear & Greed at 85 or more.", -1, [None if x is None else x >= 85 for x in f])
+    if dvol and len(dvol) > 400:
+        dv = [x for _, x in dvol]
+        alto = {}
+        for i in range(365, len(dv)):
+            alto[dvol[i][0]] = dv[i] >= float(np.percentile(dv[i - 365:i], 90))
+        add("dvol_alto", "Implied volatility spike", "DVOL at the 90th percentile of its last year or higher.", 1,
+            [alto.get(x) for x in fechas])
+    return out
+
+
+# ---------------------------------------------------------------- historial propio (una foto diaria)
+CAMPOS_FOTO = ("spot", "gex", "flip", "atm30", "rr25_30", "bf25_30", "dvol", "rv30", "funding_7d", "oi_usd", "lsr", "pcr")
+
+
+def foto(a: dict) -> dict:
+    g, v, f = a["gex"]["all"], a["vol"], a["futuros"]
+    return {"spot": a["spot"], "gex": g["total"], "flip": g["flip"], "atm30": v.get("atm30"), "rr25_30": v.get("rr25_30"),
+            "bf25_30": v.get("bf25_30"), "dvol": v.get("dvol"), "rv30": v.get("rv30"), "funding_7d": f.get("funding_7d"),
+            "oi_usd": f.get("oi_usd"), "lsr": f.get("lsr"), "pcr": a["oi"]["pcr"]}
+
+
+def percentiles_propios(hist: dict, sym: str, actual: dict, minimo: int = 30) -> dict:
+    """Percentil de cada campo de la foto de hoy frente a las fotos diarias guardadas (con `minimo` dias o mas)."""
+    out = {}
+    for c in CAMPOS_FOTO:
+        serie = [h[sym][c] for h in hist.values() if (h.get(sym) or {}).get(c) is not None]
+        if len(serie) >= minimo and actual.get(c) is not None:
+            out[c] = percentil(serie, actual[c])
+    return out
+
+
 # ---------------------------------------------------------------- niveles y lectura
 def niveles(spot: float, g: dict, oc: dict | None, venc: list[dict]) -> list[dict]:
     """Mapa de niveles on-chain y de opciones, de mayor a menor precio, con su distancia al spot."""
@@ -403,6 +651,48 @@ def lectura(a: dict, mercado: dict) -> dict:
                 pts.append(_p("On-chain", f"Net outflow from exchanges of {_usd(-oc['flujo7'])} over 7 days: coins moving to self-custody, a sign of accumulation.", 1, "posicion"))
             else:
                 pts.append(_p("On-chain", f"Net inflow to exchanges of {_usd(oc['flujo7'])} over 7 days: coins moving to where they can be sold.", -1, "posicion"))
+
+    # --- fase 2: beneficio de los holders recientes, actividad, mineros y liquidez
+    be = a.get("beneficio") or {}
+    ss = be.get("sth_sopr")
+    if ss:
+        if ss["m7"] >= 1:
+            pts.append(_p("On-chain", f"Short-term holders sell at a profit (SOPR {ss['m7']:.3f}, 7-day average): demand absorbs their coins.", 1, "tendencia"))
+        else:
+            pts.append(_p("On-chain", f"Short-term holders sell at a loss (SOPR {ss['m7']:.3f}, 7-day average, {ss['dias']} days in a row): weak hands are leaving.", -1, "tendencia"))
+    ac = a.get("actividad")
+    if ac and abs(ac["dir_chg"]) >= U["actividad_pct"]:
+        sube = ac["dir_chg"] > 0
+        pts.append(_p("Network", f"Active addresses {ac['dir_chg']:+.0f}% over their yearly average (30-day average): network use {'growing' if sube else 'shrinking'}.", 1 if sube else -1, "tendencia"))
+    mi = a.get("mineros")
+    if mi:
+        if mi["estado"] == "capitulation":
+            pts.append(_p("Miners", f"Hash ribbons in capitulation for {mi['dias']} days: miners are switching off machines and selling. Past bottoms came as this ended.", 0, "posicion"))
+        elif mi["estado"] == "recovery":
+            pts.append(_p("Miners", f"Hash ribbon buy on {mi['ultima_compra']}: miner capitulation just ended.", 1, "posicion"))
+        if mi["puell"] <= U["puell_bajo"]:
+            pts.append(_p("Miners", f"Puell multiple at {mi['puell']:.2f}: miner revenue at a fraction of its yearly average, historically a value zone.", 1, "posicion"))
+        elif mi["puell"] >= U["puell_alto"]:
+            pts.append(_p("Miners", f"Puell multiple at {mi['puell']:.2f}: miners earn far above their yearly average, a zone of past tops.", -1, "posicion"))
+    lq = mercado.get("liquidez")
+    if lq and abs(lq["c30"]) >= U["stables_pct"]:
+        sube = lq["c30"] > 0
+        pts.append(_p("Liquidity", f"Stablecoin supply {lq['c30']:+.1f}% in 30 days: {'new money is coming in to buy' if sube else 'money is leaving the crypto market'}.", 1 if sube else -1, "posicion"))
+
+    # --- senales con historia: las de los ultimos 30 dias o las que siguen activas hoy
+    for s in a.get("senales") or []:
+        if not (s.get("hoy") or (s.get("ultima") and s["ultima"] >= a.get("hace30", ""))):
+            continue
+        e = s["h"].get("90") or {}
+        if e.get("n", 0) >= 3:
+            txt = (f"{s['nombre']} ({'active' if s.get('hoy') else 'on ' + s['ultima']}). In {e['n']} past cases since "
+                   f"{s['desde'][:4]}, price was higher 90 days later {e['pos']}% of the time (median {e['mediana']:+.0f}%, "
+                   f"against {e['base_pos']}% and {e['base_mediana']:+.0f}% for any day).")
+            tono = 1 if e["mediana"] > e["base_mediana"] and e["pos"] > e["base_pos"] else -1 if e["mediana"] < e["base_mediana"] and e["pos"] < e["base_pos"] else 0
+        else:
+            txt = f"{s['nombre']} ({'active' if s.get('hoy') else 'on ' + s['ultima']}): too few past cases to judge ({e.get('n', 0)})."
+            tono = 0
+        pts.append(_p("Signal", txt, tono, "senal"))
 
     tend = sum(p["tono"] for p in pts if p["eje"] == "tendencia")
     pos = sum(p["tono"] for p in pts if p["eje"] == "posicion")

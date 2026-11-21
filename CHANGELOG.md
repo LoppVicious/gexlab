@@ -3,7 +3,20 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Régimen de volatilidad sin mezclar sesiones
+## 2026-11-21 — Crypto: señales con su historia, mineros y on-chain; régimen de volatilidad sin mezclar sesiones
+
+**Añadido**
+- **Crypto, señales con su historia:** diez señales de BTC y ETH (MVRV por debajo de 1 o por encima de 3, precio que
+  recupera o pierde el coste de los holders recientes, compra de hash ribbons, Puell bajo 0,5, SOPR de corto plazo que
+  vuelve a 1, miedo y codicia extremos, pico de volatilidad implícita) con sus casos desde 2012, 2015, 2018 o 2022 y qué
+  hizo el precio 30 y 90 días después frente a cualquier día del mismo periodo. Las activas o de los últimos 30 días
+  entran en la lectura con su historia, aunque contradigan la lectura habitual.
+- **Crypto, mineros:** hashrate (medias de 30 y 60 días, estado de los hash ribbons) y múltiplo de Puell, solo BTC.
+- **Crypto, beneficio de los vendedores:** SOPR y SOPR de los holders de corto plazo (media de 7 días), solo BTC.
+- **Crypto, actividad de la red y stablecoins:** direcciones activas frente a su media anual (BTC y ETH) y oferta de
+  stablecoins con las cinco mayores y sus cambios a 7 y 30 días.
+- **Crypto, percentiles:** MVRV, Puell, direcciones, SOPR, DVOL y Fear & Greed frente a su historia. Desde hoy se guarda
+  una foto diaria de los derivados (GEX, risk reversal, funding, long/short...); sus percentiles salen a partir de 30 días.
 
 **Corregido**
 - **Régimen de volatilidad** (curva del VIX y Summary): con el mercado cerrado, los cuatro indicadores salen siempre

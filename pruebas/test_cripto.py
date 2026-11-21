@@ -78,6 +78,45 @@ def test_onchain_y_lectura():
     assert nv[-1]["dist"] == -5.0
 
 
+def _fechas(n):
+    from datetime import date, timedelta
+    return [(date(2020, 1, 1) + timedelta(days=i)).isoformat() for i in range(n)]
+
+
+def test_backtest():
+    f = _fechas(300)
+    p = [100.0 * 1.001 ** i for i in range(300)]                 # sube siempre
+    act = [None] * 10 + [False] * 40 + [True] * 5 + [False] * 245
+    b = cc.backtest(f, p, act)
+    assert b["casos"] == [f[50]] and b["desde"] == f[10] and b["hoy"] is False and b["tipo"] == "estado"
+    e = b["h"]["30"]
+    assert e["n"] == 1 and e["pos"] == 100 and abs(e["mediana"] - (1.001 ** 30 - 1) * 100) < 0.1
+    # cruce: hace falta `previo` dias sin la condicion y 30 de enfriamiento entre casos
+    act2 = [False] * 20 + [True] * 2 + [False] * 3 + [True] * 2 + [False] * 273
+    b2 = cc.backtest(f, p, act2, previo=14)
+    assert b2["casos"] == [f[20]] and b2["hoy"] is None and b2["tipo"] == "cruce"
+
+
+def test_mineros_y_senales():
+    f = _fechas(800)
+    filas = [{"time": d, "PriceUSD": 100 + i, "HashRate": 1e8 * (0.5 if 500 <= i < 560 else 1.0),
+              "IssTotUSD": 1e7, "CapMVRVCur": 1.5} for i, d in enumerate(f)]
+    m = cc.mineros(filas)
+    assert m["estado"] == "healthy" and m["ultima_compra"] is not None and abs(m["puell"] - 1) < 1e-9
+    ids = [s["id"] for s in cc.senales(filas)]
+    assert "hash_compra" in ids
+    assert "hash_compra" not in [s["id"] for s in cc.senales(filas, mineria=False)]
+
+
+def test_liquidez():
+    peg = [{"symbol": "USDT", "name": "Tether", "circulating": {"peggedUSD": 110}, "circulatingPrevWeek": {"peggedUSD": 100},
+            "circulatingPrevMonth": {"peggedUSD": 100}},
+           {"symbol": "USDC", "name": "USD Coin", "circulating": {"peggedUSD": 90}, "circulatingPrevWeek": {"peggedUSD": 100},
+            "circulatingPrevMonth": {"peggedUSD": 100}}]
+    lq = cc.liquidez(peg, None)
+    assert lq["total"] == 200 and lq["c30"] == 0.0 and lq["top"][0]["sym"] == "USDT" and lq["top"][0]["c7"] == 10.0
+
+
 if __name__ == "__main__":
     n = 0
     for nombre, f in list(globals().items()):

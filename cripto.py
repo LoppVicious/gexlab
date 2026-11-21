@@ -25,7 +25,15 @@ DIARIO = "cripto/diario.json"
 CADUCA_H = 6        # datos diarios: se renuevan si tienen mas de 6 h
 CADUCA_BD_H = 20    # bitcoin-data: 15 peticiones al dia; dos por dia como mucho
 REINTENTO_H = 2     # tras un fallo de una fuente diaria
-CM_METRICAS = "PriceUSD,CapMrktCurUSD,CapMVRVCur,SplyCur,FlowInExUSD,FlowOutExUSD,SplyExNtv"
+DIARIO_V = 2        # forma de cripto/diario.json; al cambiarla se renuevan CoinMetrics, DVOL y Fear & Greed
+HIST = "cripto/hist.json"   # una foto diaria de los derivados (fecha UTC): percentiles propios y backtests futuros
+CM_METRICAS = ("PriceUSD,CapMrktCurUSD,CapMVRVCur,SplyCur,FlowInExUSD,FlowOutExUSD,SplyExNtv,"
+               "HashRate,IssTotUSD,AdrActCnt,TxCnt")
+CM_DESDE = "2012-01-01"
+DVOL_DESDE = datetime(2021, 3, 24, tzinfo=timezone.utc)   # primer dia del DVOL
+# bitcoin-data.com: 4 peticiones al dia como mucho (cupo de 15)
+BD_SERIES = (("bd_sth", "sth-realized-price", "sthRealizedPrice"), ("bd_lth", "lth-realized-price", "lthRealizedPrice"),
+             ("bd_sopr", "sopr", "sopr"), ("bd_sth_sopr", "sth-sopr", "sthSopr"))
 DERIBIT = "https://www.deribit.com/api/v2/public/"
 OKX = "https://www.okx.com/api/v5/"
 
@@ -63,6 +71,20 @@ def _dia(ms) -> str:
     return datetime.fromtimestamp(int(ms) / 1000, timezone.utc).strftime("%Y-%m-%d")
 
 
+def dvol_historia(a: str, ahora: datetime) -> list:
+    """DVOL diario desde su primer dia; Deribit devuelve por tramos (`continuation`)."""
+    filas, fin = {}, _ms(ahora)
+    for _ in range(10):
+        r = deribit("get_volatility_index_data", currency=a, resolution="1D", start_timestamp=_ms(DVOL_DESDE),
+                    end_timestamp=fin)
+        for x in r["data"]:
+            filas[_dia(x[0])] = x[4]
+        if not r.get("continuation"):
+            break
+        fin = int(r["continuation"])
+    return sorted([d, v] for d, v in filas.items())
+
+
 # ---------------------------------------------------------------- datos diarios
 def _caducado(bloque: dict | None, horas: float, ahora: datetime) -> bool:
     if not bloque or not bloque.get("at"):
@@ -92,31 +114,40 @@ def diario(st, ahora: datetime, errores: dict) -> dict:
             d[clave] = {**b, "fallo": ahora.isoformat()}
         cambio = True
 
+    if d.get("_v") != DIARIO_V:   # cambio de forma de los datos: se renuevan los que cambiaron
+        for k in [k for k in d if k.startswith(("cm_", "dvol_", "fng"))]:
+            d.pop(k)
+        d["_v"] = DIARIO_V
+        cambio = True
+
     for a in ACTIVOS:
         def cm(a=a):
             url = ("https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?" + urllib.parse.urlencode(
-                {"assets": a.lower(), "metrics": CM_METRICAS, "start_time": "2015-01-01", "page_size": 10000}))
+                {"assets": a.lower(), "metrics": CM_METRICAS, "start_time": CM_DESDE, "page_size": 10000}))
             filas = http_json(url)["data"]
             if len(filas) < 1000:
                 raise ValueError(f"CoinMetrics {a}: {len(filas)} filas")
-            return filas
+            # sin los campos de estado (flash/reviewed): la mitad de tamano
+            return [{k: v for k, v in r.items() if not k.endswith(("-status", "-status-time"))} for r in filas]
         renovar(f"cm_{a}", CADUCA_H, cm)
-        renovar(f"dvol_{a}", CADUCA_H, lambda a=a: [[_dia(x[0]), x[4]] for x in deribit(
-            "get_volatility_index_data", currency=a, resolution="1D", start_timestamp=_ms(hace_1a),
-            end_timestamp=_ms(ahora))["data"]])
+        renovar(f"dvol_{a}", CADUCA_H, lambda a=a: dvol_historia(a, ahora))
         renovar(f"velas_{a}", CADUCA_H, lambda a=a: (lambda r: [[_dia(t), c] for t, c in zip(r["ticks"], r["close"])])(
             deribit("get_tradingview_chart_data", instrument_name=f"{a}-PERPETUAL", resolution="1D",
                     start_timestamp=_ms(hace_1a), end_timestamp=_ms(ahora))))
-    for serie in ("sth-realized-price", "lth-realized-price"):
-        campo = "sthRealizedPrice" if serie.startswith("sth") else "lthRealizedPrice"
-        renovar(f"bd_{serie[:3]}", CADUCA_BD_H, lambda serie=serie, campo=campo: [
+    for clave, serie, campo in BD_SERIES:
+        renovar(clave, CADUCA_BD_H, lambda serie=serie, campo=campo: [
             [x["d"], float(x[campo])] for x in http_json(f"https://bitcoin-data.com/v1/{serie}") if x.get(campo)])
-    renovar("fng", CADUCA_H, lambda: http_json("https://api.alternative.me/fng/?limit=30")["data"])
+    # Fear & Greed completo (desde 2018): para su backtest
+    renovar("fng", CADUCA_H, lambda: [[_dia(int(x["timestamp"]) * 1000), int(x["value"]), x["value_classification"]]
+                                      for x in reversed(http_json("https://api.alternative.me/fng/?limit=0")["data"])])
     renovar("stables", CADUCA_H, lambda: [[_dia(int(x["date"]) * 1000), x["totalCirculatingUSD"].get("peggedUSD")]
-                                          for x in http_json("https://stablecoins.llama.fi/stablecoincharts/all")[-60:]])
+                                          for x in http_json("https://stablecoins.llama.fi/stablecoincharts/all")[-400:]])
+    renovar("stables_det", CADUCA_H, lambda: [
+        {k: p.get(k) for k in ("symbol", "name", "circulating", "circulatingPrevWeek", "circulatingPrevMonth")}
+        for p in http_json("https://stablecoins.llama.fi/stablecoins?includePrices=false")["peggedAssets"]])
     if cambio:
         almacen.put_json(st, DIARIO, d)
-    return {k: v.get("v") for k, v in d.items()}
+    return {k: v.get("v") for k, v in d.items() if isinstance(v, dict)}
 
 
 # ---------------------------------------------------------------- en directo
@@ -140,14 +171,16 @@ def mercado(dia: dict, errores: dict) -> dict:
         out["dom"] = {k.upper(): v for k, v in gl["market_cap_percentage"].items() if k in ("btc", "eth")}
     except Exception as e:  # noqa: BLE001
         errores["coingecko_global"] = str(e)[:200]
-    if dia.get("fng"):
-        f = dia["fng"]
-        out["fng"] = {"valor": int(f[0]["value"]), "clase": f[0]["value_classification"],
-                      "semana": int(f[7]["value"]) if len(f) > 7 else None,
-                      "serie": [[_dia(int(x["timestamp"]) * 1000), int(x["value"])] for x in reversed(f)]}
+    f = dia.get("fng") or []
+    if f:   # [[fecha, valor, clase]], de mas antiguo a mas reciente
+        out["fng"] = {"valor": f[-1][1], "clase": f[-1][2], "semana": f[-8][1] if len(f) > 7 else None,
+                      "pct": cc.percentil([x[1] for x in f], f[-1][1]), "serie": [x[:2] for x in f[-365:]]}
     s = [x for x in dia.get("stables") or [] if x[1]]
     if len(s) > 30:
         out["stables"] = {"total": s[-1][1], "chg30": round((s[-1][1] / s[-31][1] - 1) * 100, 2)}
+    lq = cc.liquidez(dia.get("stables_det") or [], s)
+    if lq:
+        out["liquidez"] = lq
     return out
 
 
@@ -224,9 +257,17 @@ def activo(a: str, ahora: datetime, dia: dict, merc: dict, errores: dict) -> dic
     out["vol"] = vol
     out["futuros"] = futuros(a, spot, ahora, errores)
 
-    sth = dia.get("bd_sth") if a == "BTC" else None
-    lth = dia.get("bd_lth") if a == "BTC" else None
-    out["onchain"] = cc.onchain(dia.get(f"cm_{a}") or [], spot, sth, lth)
+    btc = a == "BTC"   # bitcoin-data y mineros (prueba de trabajo): solo BTC
+    sth, lth = (dia.get("bd_sth"), dia.get("bd_lth")) if btc else (None, None)
+    cm = dia.get(f"cm_{a}") or []
+    out["onchain"] = cc.onchain(cm, spot, sth, lth)
+    out["mineros"] = cc.mineros(cm) if btc else None
+    out["beneficio"] = cc.beneficio(dia.get("bd_sopr"), dia.get("bd_sth_sopr")) if btc else None
+    out["actividad"] = cc.actividad(cm)
+    fng = [x[:2] for x in dia.get("fng") or []]
+    out["senales"] = cc.senales(cm, sth=sth, sth_sopr=dia.get("bd_sth_sopr") if btc else None, fng=fng,
+                                dvol=dia.get(f"dvol_{a}"), mineria=btc)
+    out["hace30"] = (ahora - timedelta(days=30)).strftime("%Y-%m-%d")
     out["niveles"] = cc.niveles(spot, out["gex"]["all"], out["onchain"], out["venc"])
     out["lectura"] = cc.lectura(out, merc)
     return out
@@ -250,6 +291,16 @@ def main() -> int:
     if not activos:
         print("cripto: sin datos", json.dumps(errores), file=sys.stderr)
         return 1
+    # historial propio: una foto por dia UTC (la primera pasada del dia); percentiles con 30 dias o mas
+    hist = almacen.get_json(st, HIST, {}) or {}
+    hoy = ahora.strftime("%Y-%m-%d")
+    frescos = {a: x for a, x in activos.items() if not x.get("viejo")}
+    if hoy not in hist and frescos:
+        hist[hoy] = {a: cc.foto(x) for a, x in frescos.items()}
+        almacen.put_json(st, HIST, hist)
+    for a, x in frescos.items():
+        x["pct_propio"] = cc.percentiles_propios(hist, a, cc.foto(x))
+        x["dias_propios"] = sum(1 for h in hist.values() if a in h)
     out = {"generado": ahora.isoformat(), "activos": activos, "mercado": merc, "errores": errores,
            "umbrales": cc.UMBRALES}
     n = almacen.put_json(st, PUB, out)

@@ -184,9 +184,12 @@ Cada bloque trae `motivos` y `destacado`. Gráficos en `social_graficos.py` (160
 
 **Crypto (BTC y ETH, `docs/CRIPTO.md`):** `cripto.yml` cada 15 min, todos los días (cron del Worker `tocaCripto`, a
 los 5 min de cada cuarto), ejecuta `cripto.py`: Deribit (opciones, futuros, DVOL, velas), OKX (funding, OI, long/short),
-CoinGecko, CoinMetrics Community, bitcoin-data.com (STH y LTH realized price, 15 peticiones al día: se renueva cada
-20 h y espera 2 h tras un fallo), DefiLlama y alternative.me. Sin claves. Bybit y Binance bloquean las IP de Actions.
-- R2: `pub/cripto.json` (la web, `/api/crypto`) y `cripto/diario.json` (fuentes diarias, renovadas cada 6 h).
+CoinGecko, CoinMetrics Community (desde 2012), bitcoin-data.com (STH y LTH realized price, SOPR y STH-SOPR: 4 de las
+15 peticiones al día; se renueva cada 20 h y espera 2 h tras un fallo), DefiLlama y alternative.me (Fear & Greed desde
+2018). Sin claves. Bybit y Binance bloquean las IP de Actions.
+- R2: `pub/cripto.json` (la web, `/api/crypto`), `cripto/diario.json` (fuentes diarias, renovadas cada 6 h; `DIARIO_V`
+  fuerza a renovarlas si cambia su forma) y `cripto/hist.json` (una foto diaria de los derivados, no se borra).
+- Señales con su historia y backtest (`cripto_calc.senales`), mineros, SOPR, actividad y stablecoins: `docs/CRIPTO.md`.
 - GEX con la metodología del motor Perfil en `cripto_calc.py`, no con `gex_engine.compute` (atado al horario de NYSE).
 - Pruebas: `python pruebas/test_cripto.py` (sin red); con red, `pruebas/cripto_fuentes.py` y `pruebas/cripto_actions.py`
   (todo `cripto.py` con almacén local) en `comparar.yml`.

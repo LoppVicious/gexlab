@@ -60,26 +60,31 @@ function renderCrypto() {
   st.className = "mstate " + (lec.especial === "Capitulation zone" ? "mixed" : lec.tend > 0 ? "contango" : lec.tend < 0 ? "backwardation" : "mixed");
   $("cxSub").innerHTML = `${cxPct(a.chg24, 2)} in 24 h, ${cxPct(a.chg7)} in 7 days, ${cxPct(a.chg30)} in 30 days${a.viejo ? `. <b class="neg">Data from ${esc(new Date(a.viejo).toLocaleString("en-US"))}: the last update failed</b>` : ""}`;
   $("cxAxes").innerHTML = `<span><b>Trend</b> ${esc(lec.tendencia || "—")}</span><span><b>Positioning</b> ${esc(lec.posicion || "—")}</span>`;
-  const grupos = [["tendencia", "Trend"], ["posicion", "Positioning and value"]];
+  const grupos = [["tendencia", "Trend"], ["posicion", "Positioning and value"], ["senal", "Signals with history"]];
   $("cxRead").innerHTML = grupos.map(([k, t]) => {
     const p = (lec.puntos || []).filter((x) => x.eje === k);
     return p.length ? `<div class="cx-rg">${t}</div>` + p.map((x) => `<div class="cx-pt"><i class="${cxTone(x.tono)}"></i><div><span class="cx-bl">${esc(x.bloque)}</span> ${esc(x.texto)}</div></div>`).join("") : "";
   }).join("");
 
   const g = a.gex.all, fact = (l, val, s, warn) => `<div class="fact"><span class="fl">${l}</span><strong>${val}</strong><span class="fs${warn ? " warn" : ""}">${s}</span></div>`;
-  const fng = m.fng;
+  const fng = m.fng, pp = a.pct_propio || {}, mi = a.mineros, be = a.beneficio || {}, ac = a.actividad, lq = m.liquidez;
+  // percentil frente a nuestras fotos diarias (desde 30 dias de historia)
+  const own = (k) => (pp[k] != null ? `. ${ordinal(pp[k])} percentile of our ${a.dias_propios} days` : "");
   $("cxFacts").innerHTML = [
-    fact("Net GEX (Deribit)", fmtBig(g.total, true), `per 1% move, all expirations. Open interest ${fmtBig(a.oi.nocional, true)}, put/call ${fmtNum(a.oi.pcr, 2)}`),
+    fact("Net GEX (Deribit)", fmtBig(g.total, true), `per 1% move, all expirations${own("gex")}. Open interest ${fmtBig(a.oi.nocional, true)}, put/call ${fmtNum(a.oi.pcr, 2)}`),
     oc ? fact("MVRV", fmtNum(oc.mvrv, 2), `${ordinal(oc.mvrv_pct)} percentile since 2015. Realized price ${cxPx(oc.rp)}`) : "",
     oc && oc.sth ? fact("Short-term holder cost", cxPx(oc.sth.valor), `${cxPct((a.spot / oc.sth.valor - 1) * 100)} from price. Data of ${ddmm(oc.sth.fecha)} (free source, a week behind)`, true) : "",
+    be.sth_sopr ? fact("Short-term SOPR (7 d)", fmtNum(be.sth_sopr.m7, 3), `${be.sth_sopr.bajo ? "selling at a loss" : "selling at a profit"} for ${be.sth_sopr.dias} days. ${ordinal(be.sth_sopr.pct)} percentile since 2022`) : "",
+    mi ? fact("Puell multiple", fmtNum(mi.puell, 2), `${ordinal(mi.puell_pct)} percentile since 2012. Hash ribbons: ${mi.estado}`) : "",
+    ac ? fact("Active addresses (30 d)", fmtBig(ac.dir30), `${cxPct(ac.dir_chg)} against the yearly average. ${ordinal(ac.dir_pct)} percentile since 2015`) : "",
     v.dvol != null ? fact("DVOL", fmtNum(v.dvol, 1), `${v.dvol_pct != null ? ordinal(v.dvol_pct) + " percentile of the last year. " : ""}30-day realized ${fmtNum(v.rv30, 1)}`) : "",
-    v.rr25_30 != null ? fact("25-delta risk reversal (30 d)", cxPct(v.rr25_30, 1).replace("%", ""), v.rr25_30 < 0 ? "puts over calls, vol points" : "calls over puts, vol points") : "",
-    f.funding_7d != null ? fact("Funding, 7-day average", cxPct(f.funding_7d), `a year (OKX). Now ${cxPct(f.funding)}${f.funding_deribit != null ? `, Deribit ${cxPct(f.funding_deribit)}` : ""}`) : "",
-    f.oi_usd != null ? fact("Futures open interest (OKX)", fmtBig(f.oi_usd, true), `${cxPct(f.oi_chg7)} in 7 days. Long/short accounts ${fmtNum(f.lsr, 2)}`) : "",
-    fng ? fact("Fear & Greed", String(fng.valor), `${esc(fng.clase)}${fng.semana != null ? `, ${fng.semana} a week ago` : ""}`) : "",
-    m.stables ? fact("Stablecoin supply", fmtBig(m.stables.total, true), `${cxPct(m.stables.chg30)} in 30 days: dry powder to buy`) : "",
+    v.rr25_30 != null ? fact("25-delta risk reversal (30 d)", cxPct(v.rr25_30, 1).replace("%", ""), (v.rr25_30 < 0 ? "puts over calls, vol points" : "calls over puts, vol points") + own("rr25_30")) : "",
+    f.funding_7d != null ? fact("Funding, 7-day average", cxPct(f.funding_7d), `a year (OKX). Now ${cxPct(f.funding)}${f.funding_deribit != null ? `, Deribit ${cxPct(f.funding_deribit)}` : ""}${own("funding_7d")}`) : "",
+    f.oi_usd != null ? fact("Futures open interest (OKX)", fmtBig(f.oi_usd, true), `${cxPct(f.oi_chg7)} in 7 days. Long/short accounts ${fmtNum(f.lsr, 2)}${own("lsr")}`) : "",
+    fng ? fact("Fear & Greed", String(fng.valor), `${esc(fng.clase)}${fng.semana != null ? `, ${fng.semana} a week ago` : ""}${fng.pct != null ? `. ${ordinal(fng.pct)} percentile since 2018` : ""}`) : "",
+    lq ? fact("Stablecoin supply", fmtBig(lq.total, true), `${cxPct(lq.c7)} in 7 days, ${cxPct(lq.c30)} in 30: dry powder to buy`) : "",
     m.dom ? fact("Bitcoin dominance", fmtNum(m.dom.BTC, 1) + "%", `ether ${fmtNum(m.dom.ETH, 1)}%. Total market ${fmtBig(m.cap_total, true)}`) : "",
-  ].join("");
+  ].join("") + (a.dias_propios != null && a.dias_propios < 30 ? `<p class="cx-err" style="color:var(--faint)">Our own daily history of the derivatives has ${a.dias_propios} day${a.dias_propios === 1 ? "" : "s"}: their percentiles show from 30.</p>` : "");
   const errs = Object.keys(d.errores || {});
   $("cxErr").textContent = errs.length ? `Sources that failed this time: ${errs.join(", ")}. The rest is current.` : "";
   $("cxErr").hidden = !errs.length;
@@ -95,6 +100,72 @@ function renderCrypto() {
   cxTermChart(a);
   cxDvolChart(a);
   cxTables(a, m);
+  cxSignals(a);
+  document.querySelectorAll("#cryptoView .cx-btc").forEach((p) => { p.hidden = cx.sym !== "BTC"; });
+  if (cx.sym === "BTC") { cxMinChart(a); cxSoprChart(a); }
+  cxActChart(a);
+  cxStables(m);
+}
+
+/* ---------- senales con su historia */
+function cxSignals(a) {
+  const s = a.senales || [], hace30 = a.hace30 || "";
+  const num = (v, suf = "%") => (v == null ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 0) + suf);
+  const col = (v, base) => (v == null || base == null ? "" : v > base ? "cx-up" : v < base ? "cx-dn" : "");
+  $("cxSigBody").innerHTML = s.map((x) => {
+    const e30 = x.h["30"] || {}, e90 = x.h["90"] || {};
+    const reciente = x.ultima && x.ultima >= hace30, on = x.hoy || reciente;
+    const ahora = x.hoy ? "Active now" : x.ultima ? `${ddmm(x.ultima)}, ${x.ultima.slice(0, 4)}` : "Never";
+    const pocos = (e90.n || 0) < 5 ? `, few` : "";
+    return `<tr${on ? ` class="cx-on"` : ""}><td class="l"><b>${esc(x.nombre)}</b><span class="cx-q">${esc(x.que)} Usual reading: ${x.sentido > 0 ? "bullish" : "bearish"}.</span></td>
+      <td class="l">${ahora}</td><td>${x.casos.length}<span class="cx-q">since ${x.desde ? x.desde.slice(0, 4) : "—"}${pocos}</span></td>
+      <td class="${col(e30.mediana, e30.base_mediana)}">${num(e30.mediana)}</td><td class="${col(e30.pos, e30.base_pos)}">${e30.n ? e30.pos + "%" : "—"}</td>
+      <td class="${col(e90.mediana, e90.base_mediana)}">${num(e90.mediana)}</td><td class="${col(e90.pos, e90.base_pos)}">${e90.n ? e90.pos + "%" : "—"}</td>
+      <td class="cx-vs">${num(e90.base_mediana)}, ${e90.base_pos ?? "—"}%</td></tr>`;
+  }).join("") || `<tr><td class="l" colspan="8">No signals</td></tr>`;
+}
+
+/* ---------- mineros, beneficio, actividad y stablecoins */
+function cxMinChart(a) {
+  const mi = a.mineros;
+  if (!mi) { $("cxMin").innerHTML = `<div class="empty">No data</div>`; $("cxMinCap").textContent = ""; return; }
+  const rows = mi.serie;
+  cx.geo.minRows = rows;
+  cx.geo.cxMin = cxLines("cxMin", [{ name: "30-day average", col: C.accent, w: 1.8, pts: rows.map((r) => [r[0], r[1]]) },
+    { name: "60-day average", col: C.purple, w: 1.5, da: "4 3", pts: rows.map((r) => [r[0], r[2]]) }], { dates: true, legend: true, fmtY: (v) => fmtNum(v, 0) });
+  const est = { capitulation: `in capitulation for ${mi.dias} days (30-day under 60-day: miners switching off)`, recovery: `just recovered (buy signal on ${ddmm(mi.ultima_compra)})`, healthy: "healthy (30-day over 60-day)" }[mi.estado];
+  $("cxMinCap").textContent = `Hashrate in EH/s, last two years. Hash ribbons ${est}. Puell multiple ${fmtNum(mi.puell, 2)} (miner revenue against its yearly average; under 0.5 has marked stress, over 3 past tops).`;
+}
+
+function cxSoprChart(a) {
+  const be = a.beneficio || {};
+  if (!be.sth_sopr_serie && !be.sopr_serie) { $("cxSopr").innerHTML = `<div class="empty">No data</div>`; $("cxSoprCap").textContent = ""; return; }
+  const sr = [];
+  if (be.sth_sopr_serie) sr.push({ name: "Short-term holders", col: C.purple, w: 1.8, pts: be.sth_sopr_serie });
+  if (be.sopr_serie) sr.push({ name: "All coins", col: C.muted, w: 1.3, pts: be.sopr_serie });
+  const todos = new Map(be.sopr_serie || []);
+  cx.geo.soprRows = (be.sth_sopr_serie || be.sopr_serie).map((r) => [r[0], be.sth_sopr_serie ? r[1] : null, todos.get(r[0]) ?? null]);
+  cx.geo.cxSopr = cxLines("cxSopr", sr, { dates: true, legend: true, ref: 1, fmtY: (v) => fmtNum(v, 2) });
+  const s = be.sth_sopr;
+  $("cxSoprCap").textContent = `SOPR, 7-day average, last year: price at which coins sell against the price they were bought at. Over 1, sellers take profits; under 1, they sell at a loss.${s ? ` Data of ${ddmm(s.fecha)} (a week behind).` : ""}`;
+}
+
+function cxActChart(a) {
+  const ac = a.actividad;
+  if (!ac) { $("cxAct").innerHTML = `<div class="empty">No data</div>`; $("cxActCap").textContent = ""; return; }
+  cx.geo.actRows = ac.serie;
+  cx.geo.cxAct = cxLines("cxAct", [{ name: "30-day average", col: C.accent, w: 1.8, pts: ac.serie.map((r) => [r[0], r[1]]) },
+    { name: "365-day average", col: C.muted, w: 1.4, da: "4 3", pts: ac.serie.map((r) => [r[0], r[2]]) }], { dates: true, legend: true, fmtY: (v) => fmtAxis(v) });
+  $("cxActCap").textContent = `Daily active addresses (CoinMetrics), last two years: ${cxPct(ac.dir_chg)} against the yearly average${ac.tx_chg != null ? `; transactions ${cxPct(ac.tx_chg)}` : ""}.`;
+}
+
+function cxStables(m) {
+  const lq = m.liquidez;
+  if (!lq) { $("cxStbBody").innerHTML = `<tr><td class="l" colspan="5">No data</td></tr>`; $("cxStbCap").textContent = ""; return; }
+  const cell = (v) => `<td class="${v > 0 ? "cx-up" : v < 0 ? "cx-dn" : ""}">${cxPct(v)}</td>`;
+  $("cxStbCap").textContent = `Dollar stablecoins (DefiLlama): money parked inside crypto, ready to buy. Growing supply has gone with rising prices; shrinking, with money leaving.`;
+  $("cxStbBody").innerHTML = `<tr><td class="l"><b>All</b></td><td>${fmtBig(lq.total, true)}</td><td>100%</td>${cell(lq.c7)}${cell(lq.c30)}</tr>` +
+    lq.top.map((x) => `<tr><td class="l"><b>${esc(x.sym)}</b> <span class="cx-nm">${esc(x.nombre)}</span></td><td>${fmtBig(x.total, true)}</td><td>${fmtNum(x.cuota, 1)}%</td>${cell(x.c7)}${cell(x.c30)}</tr>`).join("");
 }
 
 /* ---------- GEX por strike y perfil */
@@ -185,15 +256,18 @@ function cxLevelsChart(a) {
 /* ---------- grafico de lineas generico (fechas o numeros en el eje x) */
 function cxLines(id, series, o = {}) {
   const el = $(id), W = Math.max(300, el.clientWidth), H = Math.max(170, el.clientHeight);
-  const L = 56, R = W - 16, T = 12, B = H - (o.legend ? 44 : 28);
+  // la leyenda salta a una segunda fila en pantallas estrechas
+  const filasLey = o.legend && W < 520 ? 2 : 1;
+  const L = 56, R = W - 16, T = 12, B = H - (o.legend ? 44 + (filasLey - 1) * 20 : 28);
   const fx = o.dates ? (d) => Date.parse(d) : (x) => (o.sqrt ? Math.sqrt(Math.max(x, 0)) : x);
   const all = series.flatMap((sr) => sr.pts.filter((p) => p[1] != null));
   if (all.length < 2) { el.innerHTML = `<div class="empty">No data</div>`; return null; }
   const xs = all.map((p) => fx(p[0])), x0 = Math.min(...xs), x1 = Math.max(...xs);
-  const ys = all.map((p) => p[1]);
+  const ys = all.map((p) => p[1]).concat(o.ref != null ? [o.ref] : []);
   const yt = niceTicks(Math.min(...ys), Math.max(...ys), Math.max(3, Math.round((B - T) / 40)));
   const xOf = (x) => L + ((fx(x) - x0) / (x1 - x0 || 1)) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
   let s = yt.ticks.map((v) => `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${C.grid}"/>` + txt(L - 8, yOf(v) + 4, o.fmtY ? o.fmtY(v) : fmtNum(v), { a: "end", fs: 11 })).join("");
+  if (o.ref != null) s += `<line x1="${L}" x2="${R}" y1="${yOf(o.ref)}" y2="${yOf(o.ref)}" stroke="${C.amber}" stroke-width="1.2" stroke-dasharray="5 4"/>`;
   for (const sr of series) {
     let dd = "", pen = false;
     sr.pts.forEach((p) => { if (p[1] == null) { pen = false; return; } dd += `${pen ? "L" : "M"}${xOf(p[0]).toFixed(1)},${yOf(p[1]).toFixed(1)}`; pen = true; });
@@ -215,7 +289,7 @@ function cxLines(id, series, o = {}) {
     let last = -1e9;
     for (const [x, lab] of o.xlabels) { const X = xOf(x); if (X - last >= 46) { s += txt(X, B + 18, lab, { a: "middle", fs: 11 }); last = X; } }
   }
-  if (o.legend) s += legendRows(series.filter((sr) => sr.name).map((sr) => [sr.name, sr.col, sr.da]), L, R, H - 10, 12);
+  if (o.legend) s += legendRows(series.filter((sr) => sr.name).map((sr) => [sr.name, sr.col, sr.da]), L, R, H - 10 - (filasLey - 1) * 20, 12);
   s += `<line class="cx-hl" x1="0" x2="0" y1="${T}" y2="${B}" stroke="${C.spotline}" stroke-opacity=".6" visibility="hidden"/>`;
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
   return { L, R, xOf };
@@ -291,6 +365,14 @@ $("cxTerm").addEventListener("mousemove", (e) => cxSeriesTip("cxTerm", e, cx.geo
   <div class="r">25-delta butterfly <b>${r.bf25 == null ? "—" : fmtNum(r.bf25, 1)}</b></div>
   <div class="r">Forward <b>${cxPx(r.fwd)}</b></div>`));
 $("cxDvol").addEventListener("mousemove", (e) => cxSeriesTip("cxDvol", e, cx.geo.dvolRows || [], (r) => `<div class="t">${longDate(r[0])}</div><div class="r">DVOL <b style="color:${C.purple}">${fmtNum(r[1], 1)}</b></div>`));
-for (const id of ["cxGex", "cxCost", "cxTerm", "cxDvol"]) {
+$("cxMin").addEventListener("mousemove", (e) => cxSeriesTip("cxMin", e, cx.geo.minRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
+  <div class="r">Hashrate, 30-day <b style="color:${C.accent}">${fmtNum(r[1], 0)} EH/s</b></div><div class="r">60-day <b style="color:${C.purple}">${fmtNum(r[2], 0)} EH/s</b></div>
+  ${r[3] != null ? `<div class="r">Puell multiple <b>${fmtNum(r[3], 2)}</b></div>` : ""}`));
+$("cxSopr").addEventListener("mousemove", (e) => cxSeriesTip("cxSopr", e, cx.geo.soprRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
+  ${r[1] != null ? `<div class="r">Short-term holders <b style="color:${C.purple}">${fmtNum(r[1], 3)}</b></div>` : ""}
+  ${r[2] != null ? `<div class="r">All coins <b>${fmtNum(r[2], 3)}</b></div>` : ""}`));
+$("cxAct").addEventListener("mousemove", (e) => cxSeriesTip("cxAct", e, cx.geo.actRows || [], (r) => `<div class="t">${longDate(r[0])}</div>
+  <div class="r">30-day average <b style="color:${C.accent}">${fmtNum(r[1])}</b></div><div class="r">365-day average <b>${fmtNum(r[2])}</b></div>`));
+for (const id of ["cxGex", "cxCost", "cxTerm", "cxDvol", "cxMin", "cxSopr", "cxAct"]) {
   $(id).addEventListener("mouseleave", () => { $("cxTip").hidden = true; const hl = $(id).querySelector(".cx-hl"); if (hl) hl.setAttribute("visibility", "hidden"); });
 }

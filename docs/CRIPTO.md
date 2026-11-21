@@ -10,7 +10,7 @@ por reglas con umbrales fijos. Todo gratis y sin claves.
 | Deribit | cadena de opciones (OI, `mark_iv`, forward por vencimiento), futuros, perpetuo, DVOL, velas diarias | sin límite práctico |
 | OKX | funding (actual e histórico), OI agregado y ratio de cuentas long/short | |
 | CoinMetrics Community | precio, capitalización, MVRV, oferta, flujos de exchanges, saldo en exchanges, direcciones activas | diario; SOPR, NUPL, NVT y cohortes no son gratis |
-| bitcoin-data.com | STH y LTH realized price (solo BTC) | 15 peticiones al día, 10 por hora, datos con 7 días de retraso |
+| bitcoin-data.com | STH y LTH realized price, SOPR y STH-SOPR (solo BTC, desde 2022) | 15 peticiones al día, 10 por hora, datos con 7 días de retraso; usamos 4 al día |
 | CoinGecko | top por capitalización, dominancia | |
 | DefiLlama | oferta total de stablecoins | |
 | alternative.me | Fear & Greed | |
@@ -66,9 +66,42 @@ con Fear & Greed > 80). Umbrales en `cripto_calc.UMBRALES`.
   `cripto/diario.json`; se renuevan si tienen más de 6 h (bitcoin-data, más de 20 h: 2 peticiones al día).
 - Web: `/api/crypto` → `pub/cripto.json` (`nube.js`); en el PC, `server.py` lo lee del almacén.
 
-## Fases
+## Fase 2: mineros, beneficio, actividad y liquidez
 
-1. Hecha: derivados, mapa de niveles, MVRV, realized price, STH y LTH, flujos de exchanges y lectura.
-2. SOPR y STH-SOPR, hash ribbons y Puell (CoinMetrics: hashrate y emisión), direcciones activas, stablecoins en
-   detalle, percentiles de todo.
-3. Historial diario propio en R2 y señales con su backtest (rentabilidad a 30 y 90 días de cada señal).
+- **Mineros** (`mineros`, solo BTC): hash ribbons (media de 30 días del hashrate frente a la de 60; capitulación si
+  queda por debajo, "recovery" en los 30 días tras volver a cruzar por encima con al menos 10 días por debajo) y
+  múltiplo de Puell (emisión diaria en USD / su media de 365 días). CoinMetrics `HashRate` (TH/s) e `IssTotUSD`.
+- **Beneficio** (`beneficio`, solo BTC): SOPR y STH-SOPR de bitcoin-data, media de 7 días y días seguidos por debajo de 1.
+- **Actividad** (`actividad`): direcciones activas y transacciones, media de 30 días frente a la de 365.
+- **Liquidez** (`liquidez`): stablecoins de DefiLlama, total y las 5 mayores con cambio a 7 y 30 días.
+- Percentiles frente a su historia: MVRV (desde 2015), Puell (2012), direcciones (2015), SOPR (2022), DVOL (último año),
+  Fear & Greed (2018).
+
+## Fase 3: señales con su historia
+
+`senales` + `backtest`: un caso es el primer día en que se cumple la condición (en las de cruce, tras al menos 10 o 14
+días sin cumplirse), con 30 días como mínimo desde el caso anterior. Para 30 y 90 días: mediana, media, % al alza, peor
+y mejor; y la referencia, cualquier día del mismo periodo (desde el primer dato de la señal). Precio: cierre diario
+de CoinMetrics. Las ventanas de 90 días se solapan y hay pocos casos: es contexto, no prueba.
+
+| Señal | Condición | Desde |
+|---|---|---|
+| `mvrv_bajo` / `mvrv_alto` | MVRV < 1 / > 3 | 2012 (ETH 2015) |
+| `sth_recupera` / `sth_pierde` | cierre por encima / debajo del STH realized price tras 14 días al otro lado | 2022 (BTC) |
+| `hash_compra` | media 30 d del hashrate cruza sobre la de 60 d tras 10 días por debajo | 2012 (BTC) |
+| `puell_bajo` | Puell < 0,5 | 2012 (BTC) |
+| `sth_sopr_recupera` | media 7 d del STH-SOPR > 1 tras 14 días por debajo | 2022 (BTC) |
+| `miedo` / `codicia` | Fear & Greed ≤ 15 / ≥ 85 | 2018 |
+| `dvol_alto` | DVOL en el percentil 90 de su último año o más | 2022 |
+
+En la lectura entran las activas hoy (señales de estado) o con un caso en los últimos 30 días, con tono según su
+historia frente a la referencia (no según la lectura habitual).
+
+**Historial propio:** `cripto/hist.json`, una foto por día UTC (`foto`: spot, GEX, flip, IV ATM, risk reversal,
+butterfly, DVOL, realizada, funding, OI, long/short, put/call) en la primera pasada del día. Con 30 días o más, la
+web muestra su percentil (`percentiles_propios`). Servirá para backtestear las señales de derivados.
+
+## Pendiente
+
+- Señales de derivados (funding, risk reversal, GEX) con el historial propio cuando tenga meses.
+- Flujos de los ETF spot (no hay fuente gratuita estable).

@@ -127,9 +127,9 @@ def guardar_indices_vol(st, sesion: str) -> int:
             q = (g.fetch_quote(s, ttl=0) or {}).get("data") or {}
             dia["indices"][s] = {k: q.get(k) for k in ("open", "high", "low", "close", "prev_day_close", "current_price",
                                                         "last_trade_time")}
-            h = g.fetch_aux("historical", s, ttl=0) or {}
-            serie[s] = [[r.get("date"), r.get("open"), r.get("high"), r.get("low"), r.get("close")]
-                        for r in h.get("data") or [] if r.get("date")]
+            filas = g.daily_csv(s, ttl=0)   # CSV de CBOE (la API delayed_quotes da 403)
+            if filas:
+                serie[s] = [[r["date"], r["open"], r["high"], r["low"], r["close"]] for r in filas]
         except Exception as e:  # noqa: BLE001
             log(f"ERROR {s}: {type(e).__name__}: {str(e)[:100]}")
     try:  # curva de futuros del VIX (cierres oficiales) y estructura de los indices

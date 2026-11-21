@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Crypto: señales con su historia, mineros y on-chain; régimen de volatilidad sin mezclar sesiones
+## 2026-11-21 — Crypto: señales con su historia, mineros y on-chain; régimen de volatilidad sin mezclar sesiones; datos sin la API de cotizaciones de CBOE
 
 **Añadido**
 - **Crypto, señales con su historia:** diez señales de BTC y ETH (MVRV por debajo de 1 o por encima de 3, precio que
@@ -19,6 +19,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   una foto diaria de los derivados (GEX, risk reversal, funding, long/short...); sus percentiles salen a partir de 30 días.
 
 **Corregido**
+- **Datos que venían de las cotizaciones de CBOE** (dan 403 desde el 2026-11-20, también los históricos y los gráficos
+  intradía): el tipo libre de riesgo del Summary vuelve a ser el de la letra a 13 semanas (IRX) y no el 4 % fijo; el IV
+  rank del Compass y de la ficha, la volatilidad realizada, la correlación implícita, el pre-market por ETF de los
+  índices, la IV a 30 días de la ficha, las velas intradía de las acciones y el paquete de X (curva del VIX y el 10 años)
+  vuelven a tener datos. Salen de Tradier y, para los índices de CBOE (VIX y familia, IRX, TNX, COR...), de sus cierres
+  oficiales diarios. La IV a 30 días pasa a ser la IV ATM del vencimiento más cercano a 30 días.
 - **Régimen de volatilidad** (curva del VIX y Summary): con el mercado cerrado, los cuatro indicadores salen siempre
   del mismo cierre. CBOE no publica los cierres a la vez y la tarjeta podía mostrar el VVIX del día con el VIX, el
   VIX3M/VIX y el SKEW/VIX de la sesión anterior.

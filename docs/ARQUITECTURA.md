@@ -159,10 +159,10 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 `TOOLS`; el botón y el modo solo existen con `ME.admin` en la nube). Cada cierre, la conclusión del día y el playbook
 de la sesión siguiente. `social.yml` ejecuta `social_diario.py` en dos pasadas:
 - **Cierre** (16:20 ET, cron del Worker `tocaSocial`): SPX, NDX y RUT con la cadena de CBOE al cierre (motor Perfil,
-  todos los vencimientos, posición estándar; no están en `hist500`), familia VIX de las cotizaciones de CBOE y su serie
-  histórica, mercados cruzados (`MERCADOS`, `SECTORES`, `AMPLITUD`: una petición a Tradier con
+  todos los vencimientos, posición estándar; no están en `hist500`), familia VIX de `fetch_quote` y su serie
+  histórica (CSV de CBOE), mercados cruzados (`MERCADOS`, `SECTORES`, `AMPLITUD`: una petición a Tradier con
   `fuente_tradier.cotizaciones`; el workflow pone `GEX_FUENTE=cboe` para que las cadenas no gasten cupo de Tradier; sin
-  token, CBOE símbolo a símbolo; el 10 años, TNX, siempre de CBOE porque Tradier no lo tiene), bitcoin y ether al contado (CoinGecko, sin clave) y eventos de la sesión siguiente
+  token, `fetch_quote` símbolo a símbolo; el 10 años, TNX, siempre del CSV de CBOE porque Tradier no lo tiene), bitcoin y ether al contado (CoinGecko, sin clave) y eventos de la sesión siguiente
   (`pub/eventos.json`). Movimiento implícito de hoy: el del paquete anterior o, el primer día, `m1_pct` de SPY, QQQ e
   IWM en `hist500/_niveles/`. R2 `social/{F}/paquete.json` y `social/ultimo.json`.
 - **Acciones** (al acabar el historial diario, `workflow_run` de "Historial diario" si acabó bien y
@@ -209,7 +209,7 @@ aplica la misma regla a las vistas. Escáner, Compass y Validación usan siempre
 
 Común a los dos:
 - GEX = signo · Γ · posición · 100 · S² · 1 %.
-- Tipo libre de riesgo: letra a 13 semanas (IRX de CBOE).
+- Tipo libre de riesgo: letra a 13 semanas (IRX de CBOE, último cierre del CSV de `daily_prices`).
 - Posición de los dealers: estándar (largos de calls, cortos de puts) o "flujo" (OI + 0,5 · volumen del día clasificado por bid/ask).
 
 **gexbot**
@@ -312,13 +312,22 @@ Los dos:
   el Summary): zona de hoy de VIX, VVIX, VIX3M/VIX y SKEW/VIX (cortes en `VOLREG`), en directo con la sesión abierta
   (`_volreg_seguro`) y si no al último cierre, y qué hizo el SPX desde 2010 tras los días de
   cada zona (60 y 120 sesiones, % al alza, mediana de la caída adicional en 60). VVIX y SKEW dan 403 en el histórico
-  JSON de CBOE: se leen los CSV de `daily_prices` (`_csv_cierres`), caché de 1 h. Cortes elegidos con el estudio de
+  JSON de CBOE: se leen los CSV de `daily_prices` (`gex_engine.daily_csv`), caché de 1 h. Cortes elegidos con el estudio de
   episodios `pruebas/niveles_vol.py` (VIX ≥ 35 y VVIX ≥ 140 como zona de compra; VIX3M/VIX ≥ 1,25 y SKEW/VIX ≥ 12,
   complacencia).
-- **Índices de volatilidad en directo** (`macro.indices_vol`, `term` de `vix_curve`): las cotizaciones de CBOE dan 403
-  (desde noviembre de 2026, también fuera de Actions); con la sesión abierta se completa con Tradier, solo si la última
-  operación es de hoy (VIX3M, VVIX o SKEW sin cálculo darían el cierre de ayer). Con la sesión cerrada, cierres de los
-  CSV de CBOE, todos de la misma fecha: el VIX cotiza en horario extendido y los demás no.
+- **Sin la API `delayed_quotes` de CBOE** (403 desde el 2026-11-20 en cotizaciones, gráficos e históricos, desde Actions
+  y desde el PC; los CSV de `us_indices/daily_prices` siguen abiertos):
+  - `fetch_quote` devuelve el mismo formato (`data.current_price`, `close`, `prev_day_close`, OHLC, `timestamp` UTC) más
+    `source` (`tradier` o `csv`) y `today`. Tradier (solo con token) si la última operación es de hoy o no es un índice;
+    si no, el último cierre oficial del CSV (`daily_csv`, fechado a las 16:15 ET): fuera de la sesión Tradier ya pasa los
+    índices al día siguiente (previo = último, sin OHLC) y no tiene IRX, TNX, VXN, RVX, VXAPL ni COR. Sin `iv30`:
+    `iv30_atm` la saca de la cadena (IV ATM del vencimiento más cercano a 30 días).
+  - `fetch_aux` (`_aux_alt`): histórico de los índices de CBOE del CSV (si trae OHLC) y del resto (SPX, NDX, acciones,
+    ETF) de `fuente_tradier.historico` desde 2010; intradía con `fuente_tradier.velas` (no hay de NDX ni RUT). Sin token
+    (PC, `historial500.yml`) solo quedan los CSV y la caché del disco.
+- **Índices de volatilidad en directo** (`macro.indices_vol`, `term` de `vix_curve`): con la sesión abierta, la
+  cotización de `fetch_quote` solo si es de hoy (VIX3M, VVIX o SKEW sin cálculo darían el cierre de ayer). Con la sesión
+  cerrada, cierres de los CSV de CBOE, todos de la misma fecha: el VIX cotiza en horario extendido y los demás no.
 - **Posicionamiento en `compute`:** `scenarios` (GEX por 1 % y flujo de cobertura en la rejilla `SCEN_SPOT` ×
   `SCEN_IV`; la IV se desplaza reescalando la varianza total de cada contrato), `buckets` (`EXP_BUCKETS`),
   `totals.net_per_pct_after` (sin el próximo vencimiento) y `liquidity` (ADV$ de 20 sesiones de CBOE, flujos en % del

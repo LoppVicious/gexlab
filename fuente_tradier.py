@@ -109,8 +109,9 @@ def _lista(x) -> list:
 
 def cotizaciones(simbolos: list[str]) -> dict:
     """Ultimo precio, cierre anterior y cambio de varios simbolos en una sola peticion:
-    {SYM: {"ultimo", "previo", "cambio_pct", "nombre", "ts"}} (los que Tradier no conoce no aparecen; ts: hora de la
-    última operación en ms UTC)."""
+    {SYM: {"ultimo", "previo", "cambio_pct", "nombre", "ts", "tipo", "apertura", "maximo", "minimo", "cierre"}} (los
+    que Tradier no conoce no aparecen; ts: hora de la última operación en ms UTC; tipo: stock, etf, index...).
+    Ojo con los índices: fuera de la sesión Tradier ya los ha pasado al día siguiente (previo = último y sin OHLC)."""
     d = _get(f"/markets/quotes?symbols={','.join(simbolos)}&greeks=false") or {}
     out = {}
     for x in _lista((d.get("quotes") or {}).get("quote")):
@@ -122,7 +123,9 @@ def cotizaciones(simbolos: list[str]) -> dict:
             cambio = (float(ult) / float(prev) - 1) * 100
         out[x["symbol"]] = {"ultimo": float(ult), "previo": float(prev) if prev else None,
                             "cambio_pct": float(cambio) if cambio is not None else None, "nombre": x.get("description"),
-                            "ts": x.get("trade_date")}
+                            "ts": x.get("trade_date"), "tipo": x.get("type"),
+                            **{k: float(x[c]) if x.get(c) else None
+                               for k, c in (("apertura", "open"), ("maximo", "high"), ("minimo", "low"), ("cierre", "close"))}}
     return out
 
 
@@ -194,6 +197,25 @@ def cadena(symbol: str) -> dict:
 
 
 # ---------------------------------------------------------------- velas de 1 minuto (indices en tiempo real)
+def historico(symbol: str, desde: str = "2010-01-01") -> dict:
+    """Velas diarias en el formato del historico de CBOE: {"data": [{"date", "open", "high", "low", "close",
+    "volume"}]}, de la mas antigua a la mas reciente."""
+    sym = symbol.upper()
+    d = _get(f"/markets/history?symbol={sym}&interval=daily&start={desde}")
+    out = []
+    for x in _lista(((d or {}).get("history") or {}).get("day")):
+        try:
+            c = float(x["close"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if c > 0:
+            out.append({"date": x.get("date"), **{k: float(x.get(k) or c) for k in ("open", "high", "low")},
+                        "close": c, "volume": x.get("volume")})
+    if not out:
+        raise TradierError(f"Tradier no tiene historico de {sym}")
+    return {"symbol": sym, "source": "tradier", "data": out}
+
+
 VELA_MIN = 1  # minutos de cada vela de Tradier (la web las agrupa en 1, 5 o 15)
 
 

@@ -564,7 +564,11 @@ _method = {"name": None}  # recuerda el metodo que funciono
 
 
 def _fetch_json(path: str, retries: int = 4) -> dict:
-    """Prueba Python y, si falla la conexion, el curl del sistema. Devuelve el JSON.
+    return json.loads(_fetch_bytes(path, retries).decode("utf-8"))
+
+
+def _fetch_bytes(path: str, retries: int = 4) -> bytes:
+    """Prueba Python y, si falla la conexion, el curl del sistema. Devuelve el contenido.
     Si CBOE limita las peticiones (429), espera y reintenta con espera creciente (3, 6, 12, 24 s)."""
     methods = [("python", _fetch_python), ("sistema", _fetch_system)]
     if _method["name"] == "sistema":
@@ -576,7 +580,7 @@ def _fetch_json(path: str, retries: int = 4) -> dict:
             for host in CBOE_HOSTS:
                 try:
                     _throttle()
-                    data = json.loads(fn(host + path).decode("utf-8"))
+                    data = fn(host + path)
                     _method["name"] = name
                     return data
                 except NotFound:
@@ -732,8 +736,34 @@ def _cboe_symbol(symbol: str) -> str:
 _aux_cache: dict[str, tuple[float, dict]] = {}
 
 
+def _aux_alt(kind: str, symbol: str) -> dict | None:
+    """Sustituto de los graficos de delayed_quotes (403 desde el 2026-11-20) en el mismo formato. Historico: CSV
+    oficial de CBOE para sus indices (VIX y familia, IRX...) y velas diarias de Tradier para el resto y para los indices
+    cuyo CSV solo trae el cierre (SPX: la volatilidad Yang-Zhang necesita apertura, maximo y minimo). Intradia: velas
+    de 1 min de Tradier (no tiene las de NDX ni RUT). Tradier solo con token (Actions)."""
+    csv_ = None
+    if kind == "historical" and (symbol in INDEX_SYMBOLS or symbol in CBOE_VOL_INDICES or symbol in ("SKEW", "VVIX")):
+        rows = daily_csv(symbol, ttl=0)
+        csv_ = {"symbol": symbol, "source": "csv", "data": rows} if rows else None
+        if rows and rows[-1]["open"] is not None:
+            return csv_
+    try:
+        import fuente_tradier as ft
+        if not ft.token():
+            return csv_
+        if kind == "historical":
+            return ft.historico(symbol)
+        if kind == "intraday":
+            return ft.velas(symbol)
+    except Exception:  # noqa: BLE001  (navegador sin el modulo, o Tradier sin el simbolo)
+        pass
+    # un indice con ETF (RUT) sin OHLC: mejor el ETF (history_ohlc), que si lo tiene
+    return None if symbol in INDEX_PROXY else csv_
+
+
 def fetch_aux(kind: str, symbol: str, ttl: float = 120) -> dict | None:
-    """Endpoints auxiliares de CBOE: 'intraday' (velas de 1 min) o 'historical' (cierres diarios)."""
+    """Endpoints auxiliares de CBOE: 'intraday' (velas de 1 min) o 'historical' (cierres diarios); si dan 403, los
+    mismos datos de _aux_alt."""
     symbol = normalize(symbol)
     key = f"{kind}:{symbol}"
     hit = _aux_cache.get(key)
@@ -748,7 +778,10 @@ def fetch_aux(kind: str, symbol: str, ttl: float = 120) -> dict | None:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
         else:
-            data = _fetch_json(f"/api/global/delayed_quotes/charts/{kind}/{_cboe_symbol(symbol)}.json")
+            try:
+                data = _fetch_json(f"/api/global/delayed_quotes/charts/{kind}/{_cboe_symbol(symbol)}.json")
+            except NotFound:  # 403 desde el 2026-11-20
+                data = _aux_alt(kind, symbol)
         if kind == "historical" and not (data or {}).get("data"):
             raise ValueError("historico vacio")
     except Exception:  # noqa: BLE001
@@ -768,7 +801,91 @@ def fetch_aux(kind: str, symbol: str, ttl: float = 120) -> dict | None:
     return data
 
 
+DAILY_CSV_PATH = "/api/global/us_indices/daily_prices/{s}_History.csv"
+
+
+def daily_csv(symbol: str, ttl: float = 3600) -> list[dict]:
+    """Serie diaria oficial de un indice de CBOE (VIX y familia, IRX, TNX, SKEW, COR...) del CSV de us_indices, que
+    sigue abierto aunque la API delayed_quotes de 403: [{"date", "open", "high", "low", "close"}], de la mas antigua a la
+    mas reciente. Los indices que solo publican el cierre llevan open/high/low = None. Vacia si no hay CSV."""
+    key = f"csv:{symbol}"
+    hit = _aux_cache.get(key)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    if os.environ.get("GEX_FIXTURE_DIR"):
+        return []
+    rows = []
+    try:
+        lines = _fetch_bytes(DAILY_CSV_PATH.format(s=symbol)).decode("utf-8", "replace").splitlines()
+    except NotFound:
+        lines = []
+    for ln in lines[1:]:
+        c = ln.strip().split(",")
+        try:
+            d = datetime.strptime(c[0], "%m/%d/%Y").strftime("%Y-%m-%d")
+            v = [float(x) for x in c[1:]]
+        except (ValueError, IndexError):
+            continue
+        if v and v[-1] > 0:
+            o, h, lo = (v[0], v[1], v[2]) if len(v) >= 4 else (None, None, None)
+            rows.append({"date": d, "open": o, "high": h, "low": lo, "close": v[-1]})
+    rows.sort(key=lambda r: r["date"])
+    _aux_cache[key] = (time.time(), rows)
+    return rows
+
+
+def _utc_str(t: datetime) -> str:
+    return t.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _quote_tradier(symbol: str) -> dict | None:
+    """Cotizacion de Tradier en el formato de la de CBOE ({"timestamp" UTC, "data": {...}}), o None (sin token o sin
+    el simbolo). "today": si la ultima operacion es de la sesion de hoy."""
+    try:
+        import fuente_tradier as ft
+    except ImportError:  # navegador (Pyodide)
+        return None
+    if not ft.token():
+        return None
+    try:
+        x = ft.cotizaciones([symbol]).get(symbol)
+    except Exception:  # noqa: BLE001
+        return None
+    if not x:
+        return None
+    t = datetime.fromtimestamp(x["ts"] / 1000, tz=timezone.utc) if x.get("ts") else None
+    local = (t + _ny_offset(t)).replace(tzinfo=None) if t else None
+    return {"timestamp": _utc_str(t) if t else None, "source": "tradier", "tipo": x.get("tipo"),
+            "today": bool(local) and local.strftime("%Y-%m-%d") == now_ny().strftime("%Y-%m-%d"),
+            "data": {"symbol": symbol, "current_price": x["ultimo"], "close": x.get("cierre") or x["ultimo"],
+                     "prev_day_close": x.get("previo"), "open": x.get("apertura"), "high": x.get("maximo"),
+                     "low": x.get("minimo"), "price_change_percent": x.get("cambio_pct"),
+                     "last_trade_time": local.strftime("%Y-%m-%dT%H:%M:%S") if local else None}}
+
+
+def _quote_csv(symbol: str) -> dict | None:
+    """Ultimo cierre oficial de un indice de CBOE (daily_csv) en el formato de la cotizacion, fechado a las 16:15 ET."""
+    rows = daily_csv(symbol)
+    if not rows:
+        return None
+    r, p = rows[-1], rows[-2] if len(rows) > 1 else None
+    local = datetime.strptime(r["date"], "%Y-%m-%d").replace(hour=16, minute=15)
+    t = local - _ny_offset(local.replace(tzinfo=timezone.utc))
+    prev = p["close"] if p else None
+    return {"timestamp": _utc_str(t), "source": "csv", "today": False,
+            "data": {"symbol": symbol, "current_price": r["close"], "close": r["close"], "prev_day_close": prev,
+                     "open": r["open"], "high": r["high"], "low": r["low"],
+                     "price_change_percent": (r["close"] / prev - 1) * 100 if prev else None,
+                     "last_trade_time": local.strftime("%Y-%m-%dT%H:%M:%S")}}
+
+
 def fetch_quote(symbol: str, ttl: float = 60) -> dict | None:
+    """Cotizacion de un simbolo con los campos de la antigua de CBOE (delayed_quotes/quotes, que da 403 desde el
+    2026-11-20): {"timestamp" (UTC), "source": "tradier"|"csv", "today", "data": {"current_price", "close",
+    "prev_day_close", "open", "high", "low", "price_change_percent", "last_trade_time" (ET)}}.
+    Tradier (solo con token: Actions) si la ultima operacion es de hoy o no es un indice; si no, el ultimo cierre
+    oficial del CSV de CBOE (indices: fuera de la sesion Tradier ya los ha pasado al dia siguiente y no tiene IRX ni
+    TNX). Sin ninguno de los dos, la de Tradier aunque sea antigua, o None. No incluye iv30 (ver iv30_atm)."""
     key = f"quote:{symbol}"
     hit = _aux_cache.get(key)
     if hit and time.time() - hit[0] < ttl:
@@ -777,10 +894,12 @@ def fetch_quote(symbol: str, ttl: float = 60) -> dict | None:
         path = os.path.join(os.environ["GEX_FIXTURE_DIR"], f"quote_{symbol}.json")
         data = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else None
     else:
-        try:
-            data = _fetch_json(f"/api/global/delayed_quotes/quotes/{_cboe_symbol(symbol)}.json")
-        except Exception:  # noqa: BLE001
-            data = None
+        data = _quote_tradier(symbol)
+        if not data or (not data["today"] and data.get("tipo") == "index"):
+            try:
+                data = _quote_csv(symbol) or data
+            except Exception:  # noqa: BLE001
+                pass
     _aux_cache[key] = (time.time(), data)
     return data
 
@@ -911,10 +1030,6 @@ def _fetch_tradier(symbol: str) -> dict | None:
     except Exception as e:  # noqa: BLE001
         print(f"[{symbol}] Tradier no disponible ({type(e).__name__}: {str(e)[:80]}); se usa CBOE", flush=True)
         return None
-    try:  # IV a 30 dias de CBOE (Tradier no la publica)
-        raw["data"]["iv30"] = ((fetch_quote(symbol) or {}).get("data") or {}).get("iv30")
-    except Exception:  # noqa: BLE001
-        pass
     return raw
 
 
@@ -1701,7 +1816,7 @@ def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.
         g_by, d_by = np.bincount(inv, gm, eu.size), np.bincount(inv, dl, eu.size)
         out["top_gamma_exp"] = str(eu[int(np.argmax(g_by))])
         out["top_delta_exp"] = str(eu[int(np.argmax(d_by))]) if d_by.any() else None
-    out["iv30"] = ch.get("iv30") or None
+    out["iv30"] = iv30_atm(ch, now)
     try:
         out["rv20"] = _realized_vol(symbol)
     except Exception:  # noqa: BLE001
@@ -2514,6 +2629,21 @@ def _realized_vol(symbol: str, n: int = 20) -> float | None:
     return float(r.std(ddof=1) * math.sqrt(252))
 
 
+def iv30_atm(ch: dict, now: np.datetime64) -> float | None:
+    """IV a 30 dias: la publicada en la cadena (iv30 de CBOE) o, sin ella (Tradier no la da y la cotizacion de CBOE
+    ya no responde), la IV ATM del vencimiento mas cercano a 30 dias."""
+    if ch.get("iv30"):
+        return float(ch["iv30"])
+    alive = (ch["exp"] > now) & (ch["iv"] > 0.01)
+    exps = np.unique(ch["exp"][alive])
+    if exps.size == 0:
+        return None
+    dtes = (exps - now).astype("timedelta64[m]").astype(float) / (24 * 60)
+    sel = alive & (ch["exp"] == exps[np.argmin(np.abs(dtes - 30))])
+    k = sel & (np.abs(ch["K"] - ch["spot"]) == np.abs(ch["K"][sel] - ch["spot"]).min())
+    return float(ch["iv"][k].mean()) if k.any() else None
+
+
 def vol_metrics(symbol: str) -> dict:
     """IV a 30 dias, risk reversal 25 delta (~30 dias) y volatilidad realizada a 20 dias."""
     ch = parse_chain(fetch_chain(symbol))
@@ -2532,10 +2662,7 @@ def vol_metrics(symbol: str) -> dict:
         ci = np.where(c)[0][np.argmin(np.abs(ch["delta"][c] - 0.25))]
         pi = np.where(p)[0][np.argmin(np.abs(ch["delta"][p] + 0.25))]
         rr = float(ch["iv"][ci] - ch["iv"][pi])
-    iv30 = ch["iv30"]
-    if not iv30:  # sin IV30 publicada: IV ATM del vencimiento ~30d
-        k = sel & (np.abs(ch["K"] - ch["spot"]) == np.abs(ch["K"][sel] - ch["spot"]).min())
-        iv30 = float(ch["iv"][k].mean()) if k.any() else None
+    iv30 = iv30_atm(ch, now)
     rv = _realized_vol(symbol)
     return {"iv30": iv30, "rr25": rr, "rv20": rv, "rr_dte": float(dtes[np.argmin(np.abs(dtes - 30))])}
 

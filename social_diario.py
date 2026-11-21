@@ -143,7 +143,7 @@ def bloque_acciones(idx: dict, F: str, excluir=()) -> dict:
 
 
 def bloque_vix(cot: dict, serie: list) -> dict:
-    """Familia VIX con las cotizaciones de CBOE tras el cierre ({SYM: {close, current_price, prev_day_close}}) y el
+    """Familia VIX con las cotizaciones tras el cierre (gex_engine.fetch_quote) ({SYM: {close, current_price, prev_day_close}}) y el
     percentil del cierre en el ultimo ano (serie diaria de cierres anteriores)."""
     hoy = lambda s: (cot.get(s) or {}).get("close") or (cot.get(s) or {}).get("current_price")
     ayer = lambda s: (cot.get(s) or {}).get("prev_day_close")
@@ -277,7 +277,7 @@ def _bloque(nombre, fn) -> dict:
 
 def cotizaciones_cierre() -> dict:
     """Mercados cruzados con Tradier (una peticion; necesita TRADIER_TOKEN) y lo que falte (el 10 anos, TNX, que
-    Tradier no tiene; o todo, sin token) de CBOE simbolo a simbolo."""
+    Tradier no tiene; o todo, sin token) con gex_engine.fetch_quote simbolo a simbolo (CSV de CBOE)."""
     simbolos = [s for lista in MERCADOS.values() for s, _, _ in lista] + list(SECTORES) + AMPLITUD
     out = {}
     try:
@@ -363,10 +363,9 @@ def armar(st, previo: dict | None, dibujar=True) -> tuple:
         indices[sym] = _bloque(sym, uno)
     acciones = leer_acciones(st, F)
 
-    def vix():   # directo de CBOE: no espera al historial diario
+    def vix():   # cotizaciones del cierre (Tradier o CSV de CBOE) y serie diaria del CSV: no espera al historial diario
         cot = {x: ((g.fetch_quote(x, ttl=0) or {}).get("data") or {}) for x in VIX_FAMILIA}
-        hist = (g.fetch_aux("historical", "VIX", ttl=0) or {}).get("data") or []
-        serie = sorted((h["date"], float(h["close"])) for h in hist if h.get("date") and h.get("close") and h["date"] < F)
+        serie = [(h["date"], h["close"]) for h in g.daily_csv("VIX", ttl=0) if h["date"] < F]
         return bloque_vix(cot, serie)
     vixb = _bloque("vix", vix)
     mercados = _bloque("mercados", lambda: bloque_mercados(cotizaciones_cierre(), cripto_contado()))

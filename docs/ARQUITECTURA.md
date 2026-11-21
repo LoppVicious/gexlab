@@ -308,6 +308,12 @@ Los dos:
   con los índices en directo. Estudio con las dos mitades y la t de cada tramo: `pruebas/regimen_vix.py` (cuanto más
   plana o invertida la curva, mejor el SPX a 20 sesiones, t de 1,4 a 1,9; con VIX9D/VIX > 1,05 la prima de
   volatilidad cobrada cae a la mitad, y desde 2018 casi a cero).
+- **Nubes del VIX** (`macro.nubes_vix`, campo `scatter` de `vix_curve`, `renderVixScatter`): CSV de CBOE (SPX desde
+  1975, VIX desde 1990, VIX3M desde 2009). `move`: cambio del SPX (%) y del VIX (puntos) de cada sesión; `term`: VIX y
+  VIX3M/VIX con el ajuste `a + b·ln(VIX)` y `sd` de los residuos (el logarítmico deja menos residuo que el lineal o
+  1/VIX). Fechas como saltos en días naturales (`d`) para no inflar `vix.json` (~150 KB sin comprimir). El punto de
+  hoy (`today`) va aparte: en directo con la sesión abierta (`indices_vol`, también el SPX), si no el último cierre.
+  La web calcula la recta del SPX, el titular (días que superan al de hoy en la dirección de su residuo) y el tooltip.
 - **Régimen de volatilidad** (`macro.regimen_vol`, campo `volreg` de `vix_curve`, `volRegParts` en la curva del VIX y
   el Summary): zona de hoy de VIX, VVIX, VIX3M/VIX y SKEW/VIX (cortes en `VOLREG`), en directo con la sesión abierta
   (`_volreg_seguro`) y si no al último cierre, y qué hizo el SPX desde 2010 tras los días de

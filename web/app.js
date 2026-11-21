@@ -2907,6 +2907,7 @@ function renderVix() {
   $("vxCap").textContent = `Official CBOE settlements. VIX9D to VIX1Y indices ${idx}. Hollow points: expirations with fewer than 1,000 open contracts.${lvNote}`;
   renderVixCurve();
   renderVixHist();
+  renderVixScatter();
 }
 
 // Que hizo el SPX tras cada tramo de VIX/VIX3M desde 2009 (macro.curva_tramos), con el de hoy resaltado, y el
@@ -3109,6 +3110,133 @@ function renderVixHist() {
   });
   vx.histGeo = { L, R, bw, n, h };
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
+}
+
+// Nubes del VIX (macro.nubes_vix): cada sesion como un punto y la de hoy resaltada. `move`: cambio del VIX en
+// puntos frente al del SPX en %, desde 1990; `term`: VIX3M / VIX frente al VIX (eje logaritmico, donde el ajuste
+// a + b ln(VIX) es una recta), desde 2009, con la banda de ±1σ de los residuos.
+const sgnNum = (v, d) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), d);
+function scatDates(s) {   // fechas a partir de los saltos en dias naturales (s.d), una vez por carga
+  if (s.dates) return s.dates;
+  let t = Date.parse(s.since + "T00:00:00Z");
+  return (s.dates = s.d.map((k) => new Date((t += k * 864e5)).toISOString().slice(0, 10)));
+}
+function renderVixScatter() {
+  const sc = vx.data.scatter, el = $("vxScat");
+  el.hidden = !sc || !sc.move || !sc.term;
+  if (el.hidden) return;
+  vx.scGeo = {};
+  renderVixMove(sc.move);
+  renderVixTerm(sc.term);
+}
+// puntos como un solo trazo (miles de circulos en el SVG pesan); devuelve las coordenadas para el tooltip
+function scatDots(xs, ys, xOf, yOf, ok) {
+  let p = "";
+  const px = new Float32Array(xs.length), py = new Float32Array(xs.length);
+  for (let k = 0; k < xs.length; k++) {
+    if (!ok(xs[k], ys[k])) { px[k] = NaN; continue; }
+    px[k] = xOf(xs[k]); py[k] = yOf(ys[k]);
+    p += `M${px[k].toFixed(1)} ${py[k].toFixed(1)}h0`;
+  }
+  return { p, px, py };
+}
+function scatToday(x, y, lines, L, R, T) {
+  const left = x > (L + R) / 2;
+  const tx = left ? x - 14 : x + 14, ty = Math.max(T + 14, y - 34);
+  let s = `<line x1="${x}" y1="${y}" x2="${tx}" y2="${ty + 4}" stroke="${C.amber}" stroke-width="1.4"/>`;
+  s += `<circle cx="${x}" cy="${y}" r="6.5" fill="${C.amber}" stroke="${C.surface}" stroke-width="2"/>`;
+  // con halo del color de fondo: la etiqueta cae a menudo sobre la nube
+  lines.forEach((l, k) => { s += txt(tx + (left ? -4 : 4), ty - (lines.length - 1 - k) * 16, l, { a: left ? "end" : "start", fs: k ? 12.5 : 13, w: 600, c: C.amber }).replace("<text ", `<text stroke="${C.surface}" stroke-width="4" stroke-linejoin="round" paint-order="stroke" `); });
+  return s;
+}
+function renderVixMove(m) {
+  const el = $("vxMove"), t = m.today, n = m.x.length;
+  // recta de minimos cuadrados: el cambio del VIX que suele acompanar a cada movimiento del SPX
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let k = 0; k < n; k++) { sx += m.x[k]; sy += m.y[k]; sxx += m.x[k] * m.x[k]; sxy += m.x[k] * m.y[k]; }
+  const b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a = (sy - b * sx) / n;
+  const res = t.y - (a + b * t.x), up = res >= 0;
+  // dias que superan al de hoy en su direccion: mas VIX con mejor SPX (o menos VIX con peor SPX)
+  let cnt = 0;
+  for (let k = 0; k < n; k++) if (up ? m.x[k] >= t.x && m.y[k] >= t.y : m.x[k] <= t.x && m.y[k] <= t.y) cnt++;
+  const vixPart = up ? (t.y >= 0 ? "a bigger VIX jump" : "a smaller VIX drop") : (t.y <= 0 ? "a bigger VIX drop" : "a smaller VIX rise");
+  const yr = m.since.slice(0, 4), when = t.live ? "Today" : `On ${fullDate(t.date)}`;
+  $("vxMoveH").innerHTML = `${cnt < n * 0.01 ? "Only " : ""}<b>${fmtNum(cnt)} ${cnt === 1 ? "day" : "days"}</b> since ${yr} had ${vixPart} with the SPX doing ${up ? "better" : "worse"} than ${t.live ? "today" : "on that day"}.
+    <span>${when} the VIX moved ${sgnNum(t.y, 2)} points with the SPX ${sgnNum(t.x, 2)}%: ${fmtNum(Math.abs(res), 2)} points ${up ? "more" : "less"} than that SPX move usually brings.</span>`;
+  const W = Math.max(300, el.clientWidth), H = Math.max(240, el.clientHeight);
+  const pad = { l: 46, r: 16, t: 12, b: 38 };
+  const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
+  // escala simetrica sin los dias extremos (1987 no entra; 2008 y 2020 si, salvo un punado)
+  const q = (arr, p) => { const s = [...arr].sort((u, v) => u - v); return s[Math.floor(p * (s.length - 1))]; };
+  const xm = Math.max(4, Math.ceil(Math.max(-q(m.x, 0.0007), q(m.x, 0.9993), Math.abs(t.x) + 0.5)));
+  const ylo = Math.min(q(m.y, 0.0007), t.y - 1), yhi = Math.max(q(m.y, 0.9993), t.y + 1);
+  const xt = niceTicks(-xm, xm, Math.max(4, Math.round((R - L) / 70))), yt = niceTicks(ylo, yhi, Math.max(4, Math.round((B - T) / 50)));
+  const xOf = (v) => L + ((v - xt.lo) / (xt.hi - xt.lo)) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
+  let s = "";
+  for (const v of yt.ticks) s += `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${v === 0 ? C.axis : C.grid}"/>` + txt(L - 8, yOf(v) + 4, sgnNum(v, v % 1 ? 1 : 0), { a: "end", mono: true, fs: 11 });
+  for (const v of xt.ticks) s += `<line x1="${xOf(v)}" x2="${xOf(v)}" y1="${T}" y2="${B}" stroke="${v === 0 ? C.axis : C.grid}"/>` + txt(xOf(v), B + 16, sgnNum(v, v % 1 ? 1 : 0) + "%", { a: "middle", mono: true, fs: 11 });
+  s += txt((L + R) / 2, B + 32, "SPX daily change", { a: "middle", fs: 11.5 });
+  s += txt(L + 6, T + 12, "VIX daily change (points)", { fs: 11.5 });
+  const inside = (x, y) => x >= xt.lo && x <= xt.hi && y >= yt.lo && y <= yt.hi;
+  const dots = scatDots(m.x, m.y, xOf, yOf, inside);
+  s += `<path d="${dots.p}" stroke="${C.accent}" stroke-opacity="0.32" stroke-width="2.6" stroke-linecap="round"/>`;
+  s += `<line x1="${xOf(xt.lo)}" y1="${yOf(a + b * xt.lo)}" x2="${xOf(xt.hi)}" y2="${yOf(a + b * xt.hi)}" stroke="${C.muted}" stroke-width="1.3" stroke-dasharray="5 4"/>`;
+  s += scatToday(xOf(t.x), yOf(t.y), [t.live ? "Today" : ddmm(t.date), `VIX ${sgnNum(t.y, 2)} pts`, `SPX ${sgnNum(t.x, 2)}%`], L, R, T);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
+  let off = 0;
+  for (let k = 0; k < n; k++) if (Number.isNaN(dots.px[k])) off++;
+  $("vxMoveCap").textContent = `${fmtNum(n)} sessions, ${yr} to ${fullDate(m.last)}${off ? `; ${off} extreme ${off === 1 ? "day" : "days"} off-scale` : ""}. Dashed line: the VIX change that usually comes with each SPX move (least squares). ${t.live ? "Today live, against the previous close." : "Highlighted: the last close."} Daily CBOE closes.`;
+  vx.scGeo.move = { ...dots, s: m };
+}
+function renderVixTerm(m) {
+  const el = $("vxTerm"), t = m.today, n = m.x.length;
+  const fit = (v) => m.a + m.b * Math.log(v);
+  const yr = m.since.slice(0, 4);
+  if (t) {
+    const z = t.z, res = t.y - fit(t.x);
+    const head = z <= -1 ? "Front end <b>richer than usual</b> for this VIX level" : z >= 1 ? "Front end <b>calmer than usual</b> for this VIX level" : "VIX3M / VIX <b>within its usual range</b> for this VIX level";
+    const read = z <= -1 ? "Near-term protection is bid beyond what this VIX level usually brings." : z >= 1 ? "Near-term protection is cheaper than this VIX level usually brings." : "";
+    $("vxTermH").innerHTML = `${head}. <span>${t.live ? "Now" : fullDate(t.date)}: VIX ${fmtNum(t.x, 2)}, VIX3M / VIX ${fmtNum(t.y, 3)}; residual against the fit ${sgnNum(res, 3)} (${sgnNum(z, 1)}σ).${read ? " " + read : ""}</span>`;
+  } else $("vxTermH").textContent = "";
+  const W = Math.max(300, el.clientWidth), H = Math.max(240, el.clientHeight);
+  const pad = { l: 46, r: 16, t: 12, b: 38 };
+  const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
+  const xs = t ? [...m.x, t.x] : m.x, ys = t ? [...m.y, t.y] : m.y;
+  const lx0 = Math.log(Math.min(...xs) * 0.95), lx1 = Math.log(Math.max(...xs) * 1.05);
+  const yt = niceTicks(Math.min(...ys) - 0.02, Math.max(...ys) + 0.02, Math.max(4, Math.round((B - T) / 50)));
+  const xOf = (v) => L + ((Math.log(v) - lx0) / (lx1 - lx0)) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
+  let s = "";
+  for (const v of yt.ticks) s += `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${v === 1 ? C.axis : C.grid}"/>` + txt(L - 8, yOf(v) + 4, fmtNum(v, 2), { a: "end", mono: true, fs: 11 });
+  for (const v of [10, 12, 15, 20, 25, 30, 40, 50, 60, 80]) {
+    const x = xOf(v);
+    if (x < L || x > R) continue;
+    s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${C.grid}"/>` + txt(x, B + 16, String(v), { a: "middle", mono: true, fs: 11 });
+  }
+  s += txt((L + R) / 2, B + 32, "VIX (log scale)", { a: "middle", fs: 11.5 });
+  s += txt(R - 6, T + 12, "VIX3M / VIX", { a: "end", fs: 11.5 });
+  // banda de ±1σ y recta del ajuste (rectas en el eje logaritmico)
+  const v0 = Math.exp(lx0), v1 = Math.exp(lx1), sd = m.sd;
+  s += `<polygon points="${xOf(v0)},${yOf(fit(v0) + sd)} ${xOf(v1)},${yOf(fit(v1) + sd)} ${xOf(v1)},${yOf(fit(v1) - sd)} ${xOf(v0)},${yOf(fit(v0) - sd)}" fill="${C.accent}" fill-opacity="0.08"/>`;
+  const dots = scatDots(m.x, m.y, xOf, yOf, () => true);
+  s += `<path d="${dots.p}" stroke="${C.muted}" stroke-opacity="0.38" stroke-width="2.8" stroke-linecap="round"/>`;
+  s += `<line x1="${xOf(v0)}" y1="${yOf(fit(v0))}" x2="${xOf(v1)}" y2="${yOf(fit(v1))}" stroke="${C.accent}" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  if (t) s += scatToday(xOf(t.x), yOf(t.y), [t.live ? "Now" : ddmm(t.date), `${sgnNum(t.z, 1)}σ`], L, R, T);
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
+  $("vxTermCap").textContent = `${fmtNum(n)} daily CBOE closes, ${yr} to ${fullDate(m.last)}. Dashed line: VIX3M / VIX fitted on the log of the VIX; band, ±1σ of the residuals. The ratio always falls as the VIX rises; below the band, the front end prices more stress than that alone explains. A term-structure gauge, not a direct skew measure.`;
+  vx.scGeo.term = { ...dots, s: m };
+}
+function vixScatTip(e, key) {
+  const g = vx.scGeo && vx.scGeo[key];
+  if (!g) return;
+  const rect = $(key === "move" ? "vxMove" : "vxTerm").getBoundingClientRect();
+  const x = e.clientX - rect.left, y = e.clientY - rect.top;
+  let best = -1, bd = 10;
+  for (let k = 0; k < g.px.length; k++) { const dd = Math.hypot(g.px[k] - x, g.py[k] - y); if (dd < bd) { bd = dd; best = k; } }
+  if (best < 0) return macroTip("vxScTip", null, e, "");
+  const m = g.s, day = scatDates(m)[best];
+  macroTip("vxScTip", null, e, key === "move"
+    ? `<div class="t">${fullDate(day)}</div><div class="r">SPX <b>${sgnNum(m.x[best], 2)}%</b></div><div class="r">VIX <b>${sgnNum(m.y[best], 2)} pts</b></div>`
+    : `<div class="t">${fullDate(day)}</div><div class="r">VIX <b>${fmtNum(m.x[best], 2)}</b></div><div class="r">VIX3M / VIX <b>${fmtNum(m.y[best], 3)}</b></div><div class="r">Against the fit <b>${sgnNum((m.y[best] - m.a - m.b * Math.log(m.x[best])) / m.sd, 1)}σ</b></div>`);
 }
 
 function vixCurveTip(e) {
@@ -3344,6 +3472,10 @@ function bindMacro() {
   $("vxCurve").addEventListener("mousemove", vixCurveTip);
   $("vxHist").addEventListener("mousemove", vixHistTip);
   for (const id of ["vxCurve", "vxHist"]) $(id).addEventListener("mouseleave", () => { $("vxTip").hidden = true; });
+  for (const [id, k] of [["vxMove", "move"], ["vxTerm", "term"]]) {
+    $(id).addEventListener("mousemove", (e) => vixScatTip(e, k));
+    $(id).addEventListener("mouseleave", () => { $("vxScTip").hidden = true; });
+  }
   $("cotChart").addEventListener("mousemove", cotTip);
   $("cotChart").addEventListener("mouseleave", () => { toolTip($("cotChart"), null); const p = $("cotChart").querySelector("#cotProbe"); if (p) p.setAttribute("visibility", "hidden"); });
   $("cotBody").addEventListener("click", (e) => { const r = e.target.closest(".cot-row[data-k]"); if (r) loadCotHist(r.dataset.k); });

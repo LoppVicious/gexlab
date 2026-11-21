@@ -405,6 +405,7 @@ def _vix_curve() -> dict:
         "term": term, "vix_vix3m": ratio,
         "regime": _regimen_curva(ratio, tmap["VIX9D"] / vix_live if vix_live and tmap.get("VIX9D") else None),
         "volreg": _volreg_seguro({s: v["value"] for s, v in vals.items()} if live else None),
+        "scatter": _nubes_seguro({**vals, **_spx_vivo()} if live else None),
         "term_time": term_time if live else None,  # sin hora: son cierres
         "term_live": live,
         "computed_at": now.strftime("%Y-%m-%d %H:%M"),
@@ -842,6 +843,66 @@ def curva_tramos(desde: str | None = None, hasta: str | None = None) -> dict:
 
 def _r(x, d: int = 5):
     return None if x is None or not np.isfinite(x) else round(float(x), d)
+
+
+# ---------------------------------------------------------------- nubes del VIX (gráficos de dispersión)
+def nubes_vix(vivo: dict[str, dict] | None = None) -> dict:
+    """Puntos diarios de los dos gráficos de dispersión de la página del VIX, con los CSV de CBOE (SPX desde 1975,
+    VIX desde 1990, VIX3M desde 2009), y el punto de hoy aparte (no entra en la nube):
+    - `move`: cambio del SPX (%) y del VIX (puntos) de cada sesión frente a la anterior.
+    - `term`: VIX y VIX3M/VIX de cada cierre, con la recta VIX3M/VIX = a + b·ln(VIX) por mínimos cuadrados y la
+      desviación de sus residuos (`sd`); el ajuste logarítmico deja menos residuo que el lineal o 1/VIX.
+    `vivo` ({SYM: {"value", "prev"}} de indices_vol con la sesión abierta): hoy en directo; si no, el último cierre."""
+    spx, vix, v3 = (_csv_cierres(s) for s in ("SPX", "VIX", "VIX3M"))
+    hoy = None
+    if vivo and all(s in vivo and vivo[s].get("value") and vivo[s].get("prev") for s in ("SPX", "VIX")):
+        hoy = g.now_ny().strftime("%Y-%m-%d")
+    f1 = [f for f in sorted(set(spx) & set(vix)) if f != hoy]
+    f3 = [f for f in sorted(set(vix) & set(v3)) if f != hoy]
+    # sin sesión en directo, hoy es el último cierre (el de VIX3M/VIX, solo si es del mismo día)
+    ult1 = ult3 = None
+    if not hoy:
+        ult1 = f1.pop()
+        if f3 and f3[-1] == ult1:
+            ult3 = f3.pop()
+    dx = [round(spx[b] / spx[a] * 100 - 100, 2) for a, b in zip(f1, f1[1:])]
+    dy = [round(vix[b] - vix[a], 2) for a, b in zip(f1, f1[1:])]
+    X = np.array([vix[f] for f in f3])
+    Y = np.array([v3[f] / vix[f] for f in f3])
+    b, a = np.polyfit(np.log(X), Y, 1)
+    sd = float((Y - (a + b * np.log(X))).std(ddof=2))
+    if hoy:
+        sx, vx = vivo["SPX"], vivo["VIX"]
+        h1 = {"date": hoy, "live": True, "x": sx["value"] / sx["prev"] * 100 - 100, "y": vx["value"] - vx["prev"]}
+        h3 = ({"date": hoy, "live": True, "x": vx["value"], "y": vivo["VIX3M"]["value"] / vx["value"]}
+              if vivo.get("VIX3M", {}).get("value") else None)
+    else:
+        h1 = {"date": ult1, "live": False, "x": spx[ult1] / spx[f1[-1]] * 100 - 100, "y": vix[ult1] - vix[f1[-1]]}
+        h3 = {"date": ult3, "live": False, "x": vix[ult3], "y": v3[ult3] / vix[ult3]} if ult3 else None
+    if h3:
+        h3["z"] = round(float((h3["y"] - (a + b * np.log(h3["x"]))) / sd), 2)
+
+    def saltos(fechas):  # días naturales desde la fecha anterior (la web rehace las fechas; el primero, 0)
+        d = [datetime.strptime(f, "%Y-%m-%d") for f in fechas]
+        return [0] + [(q - p).days for p, q in zip(d, d[1:])]
+    return {"move": {"since": f1[1], "last": f1[-1], "d": saltos(f1[1:]), "x": dx, "y": dy, "today": h1},
+            "term": {"since": f3[0], "last": f3[-1], "d": saltos(f3), "x": [round(float(v), 2) for v in X],
+                     "y": [round(float(v), 3) for v in Y], "a": round(float(a), 5), "b": round(float(b), 5),
+                     "sd": round(sd, 5), "today": h3}}
+
+
+def _spx_vivo() -> dict[str, dict]:
+    try:
+        return indices_vol(["SPX"], True)[0]
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _nubes_seguro(vivo: dict | None) -> dict | None:
+    try:
+        return nubes_vix(vivo)
+    except Exception:  # noqa: BLE001  (sin los CSV de CBOE la página sigue sin los gráficos)
+        return None
 
 
 def _regimen_curva(r3: float | None, r9: float | None) -> dict | None:

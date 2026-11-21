@@ -691,6 +691,11 @@ body.macro-mode .foot { display: none; }
 .vx-chart { display: flex; flex-direction: column; padding: 14px 16px 12px; min-width: 0; }
 .vx-chart .mchart { flex: none; height: 340px; min-height: 0; }
 .vx-chart .chart-caption { margin: 6px 4px 0; color: var(--faint); font-size: 12px; }
+/* nubes del VIX (renderVixScatter): titular calculado y subtitulo */
+.vx-scat { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.vx-scat-h { margin: 2px 4px 8px; color: var(--text); font-size: 13.5px; line-height: 1.45; }
+.vx-scat-h b { color: var(--amber); font-weight: 600; }
+.vx-scat-h span { display: block; color: var(--muted); font-size: 12.5px; }
 .vx-more { padding: 14px 22px; }
 .vx-more > summary { font-size: 13.5px; font-weight: 500; color: var(--text); }
 .vx-more > summary span { font-weight: 400; color: var(--faint); font-size: 12.5px; margin-left: 6px; }

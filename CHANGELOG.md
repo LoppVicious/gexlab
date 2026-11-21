@@ -23,8 +23,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   liquidó (desde que hay open interest). Los tamaños se escalan para que lo pendiente sume el open interest de cada vela. Sin stablecoins en la lista. Se ve como franjas nítidas,
   al estilo de Bitunix o tradingdifferent: en filas de 8 píxeles, cada precio muestra lo que suman los niveles vivos (a su
   tamaño al abrirse, sin apagarse por el camino), así que una banda mantiene el color hasta que el precio la toca, la
-  memoria la da por cerrada o se le suman otros. Color sólido frente a lo que se ve: azul apagado lo flojo y verde,
-  amarillo y rojo los grupos; solo lo que pasa la intensidad mínima (40 % por defecto). El perfil usa las mismas franjas y colores, con las curvas de lo acumulado hacia
+  memoria la da por cerrada o se le suman otros. Color frente al máximo de lo que se ve, como mapaliquidaciones.com: lo
+  flojo en azul marino casi transparente, que se funde con el fondo, y verde, amarillo y rojo solo para los grupos;
+  intensidad mínima del 15 % y, por defecto, solo 25x, 50x y 100x (5x y 10x quedan lejos, casi nunca se tocan y
+  llenaban el historial; se pueden activar). El perfil usa las mismas franjas y colores, con las curvas de lo acumulado hacia
   arriba y hacia abajo, y los dos grupos más cargados quedan marcados con su importe en el eje.
   Datos de Coinalyze (clave gratuita guardada en el servidor).
 - **Curva del VIX, tres gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por

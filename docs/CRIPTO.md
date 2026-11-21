@@ -162,8 +162,9 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
 - **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer (diferencias
   por tramo y suma acumulada). No decae por el camino: cada banda mantiene el color hasta que cambia lo que contiene.
 - **Dibujo** (`lqPintar`), como Bitunix: filas de 8 px (`LQ_BANDA`) con la suma de los tramos que caen en cada una y
-  1 px de separación, una columna por vela visible. Color sólido frente al percentil 99 de lo visible (azul apagado,
-  verde, amarillo, rojo: colores del tema); solo lo que pasa la intensidad mínima (40 %). Perfil
+  1 px de separación, una columna por vela visible. Color frente al máximo de lo visible (`lqPaleta`: azul marino casi
+  transparente lo flojo, verde, amarillo y rojo sólidos, colores del tema); solo lo que pasa la intensidad mínima
+  (15 %). Por defecto sin 5x ni 10x (`lqLevOff2`): sus niveles casi nunca se tocan y llenaban el historial. Perfil
   con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.
 - **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
   grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por

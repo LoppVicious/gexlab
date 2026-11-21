@@ -21,8 +21,9 @@ const LQ_VIDA = { "0.5": "short", 1: "normal", 2: "long" };
 const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
-  levOff: new Set(String(store.get("lqLevOff", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin2", 40), vida: String(store.get("lqVida", "1")), extra: 0,
+  // por defecto sin 5x ni 10x: sus niveles quedan lejos, casi nunca se tocan y llenan el historial
+  levOff: new Set(String(store.get("lqLevOff2", "5,10")).split(",").filter(Boolean)),
+  min: +store.get("lqMin3", 15), vida: String(store.get("lqVida", "1")), extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -85,8 +86,8 @@ function lqControles() {
 
 function lqSet(cambio) {
   Object.assign(lq, cambio);
-  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin2", lq.min); store.set("lqVida", lq.vida);
-  store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff", [...lq.levOff].join(","));
+  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin3", lq.min); store.set("lqVida", lq.vida);
+  store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff2", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
 }
@@ -209,13 +210,18 @@ function lqSeries(nuevos) {
 // paleta de los niveles con los colores del tema, solida: de lo flojo (azul apagado hacia el fondo) a lo fuerte (rojo)
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function lqPaleta() {
-  const azul = lqHex(C.prevClose), fondo = lqHex(C.surface), apagado = azul.map((x, i) => x * 0.55 + fondo[i] * 0.45);
-  const paradas = [apagado, lqHex(C.put), lqHex(C.amber), lqHex(C.call)], lut = new Uint8ClampedArray(256 * 4);
+  // [posicion, color, opacidad]: lo flojo, azul marino casi transparente (se funde con el fondo); los grupos, verde,
+  // amarillo y rojo solidos. Asi el mapa se lee de un vistazo, como mapaliquidaciones.com
+  const fondo = lqHex(C.surface), azul = lqHex(C.prevClose), mez = (a, f) => a.map((x, i) => x * f + fondo[i] * (1 - f));
+  const paradas = [[0, mez(azul, 0.3), 0.18], [0.3, mez(azul, 0.6), 0.5], [0.5, lqHex(C.put), 0.95], [0.72, lqHex(C.amber), 1], [1, lqHex(C.call), 1]];
+  const lut = new Uint8ClampedArray(256 * 4);
   for (let k = 0; k < 256; k++) {
-    const u = k / 255, x = u * (paradas.length - 1), i0 = Math.min(paradas.length - 2, Math.floor(x)), f = x - i0;
-    const a = paradas[i0], c = paradas[i0 + 1];
-    lut[k * 4] = a[0] + (c[0] - a[0]) * f; lut[k * 4 + 1] = a[1] + (c[1] - a[1]) * f; lut[k * 4 + 2] = a[2] + (c[2] - a[2]) * f;
-    lut[k * 4 + 3] = 235;
+    const u = k / 255;
+    let j = 0;
+    while (j < paradas.length - 2 && u > paradas[j + 1][0]) j++;
+    const [u0, c0, a0] = paradas[j], [u1, c1, a1] = paradas[j + 1], f = Math.min(1, Math.max(0, (u - u0) / (u1 - u0)));
+    for (let q = 0; q < 3; q++) lut[k * 4 + q] = c0[q] + (c1[q] - c0[q]) * f;
+    lut[k * 4 + 3] = 255 * (a0 + (a1 - a0) * f);
   }
   return lut;
 }
@@ -244,7 +250,7 @@ function lqTramosEntre(serie, yArriba, yAbajo) {
 
 // mapa de la vista, como Bitunix: filas de LQ_BANDA pixeles con la suma de los niveles vivos de sus tramos de precio
 // (a su tamano al nacer, r.gV) y una columna por vela visible (o por pixel si hay mas velas que pixeles), con 1 px de
-// separacion entre filas. Color frente a lo que se ve (percentil 99): azul apagado lo flojo, verde, amarillo y rojo
+// separacion entre filas. Color frente al maximo de lo que se ve: azul tenue lo flojo, verde, amarillo y rojo
 // los grupos; lo que no pasa la intensidad minima no se pinta
 function lqPintar(serie, ancho, alto, c0, c1) {
   const r = lq.res, n = r.n, cols = c1 - c0 + 1;
@@ -255,7 +261,8 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   const nb = Math.ceil(outH / LQ_BANDA), g = r.gV, lut = lq.lut;
   const colDe = new Int32Array(outW);
   for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
-  const val = new Float64Array(nb * outW), muestra = [];
+  const val = new Float64Array(nb * outW);
+  let tope = 0;
   for (let f = 0; f < nb; f++) {
     const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
     if (!tr) continue;
@@ -264,11 +271,12 @@ function lqPintar(serie, ancho, alto, c0, c1) {
       let v = 0;
       for (let b = tr[0]; b <= tr[1]; b++) v += g[b * n + t];
       val[f * outW + k] = v;
-      if (v > 0 && (k & 3) === 0) muestra.push(v);
+      if (v > tope) tope = v;
     }
   }
-  muestra.sort((x, y) => x - y);
-  const tope = muestra.length ? muestra[Math.floor(muestra.length * 0.99)] : 1, umbral = (lq.min / 100) * tope;
+  // escala frente al maximo de lo visible: lo normal queda bajo (azul tenue) y solo destacan los grupos
+  if (!(tope > 0)) tope = 1;
+  const umbral = (lq.min / 100) * tope;
   const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
@@ -277,7 +285,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     for (let k = 0; k < outW; k++) {
       const v = val[f * outW + k];
       if (!(v > umbral)) continue;
-      const u = Math.min(1, (v - umbral) / Math.max(1e-9, tope - umbral)), i = Math.floor(u * 255) * 4;
+      const i = Math.floor(Math.min(1, v / tope) * 255) * 4;
       for (let y = y0; y < y1; y++) {
         const o = (y * outW + k) * 4;
         px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
@@ -470,10 +478,10 @@ $("lqEx").addEventListener("click", (e) => {
 $("lqLev").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const s = new Set(lq.levOff); if (s.has(b.dataset.v)) s.delete(b.dataset.v); else s.add(b.dataset.v);
-  Object.assign(lq, { levOff: s }); store.set("lqLevOff", [...s].join(",")); lqControles(); lqCalcular();
+  Object.assign(lq, { levOff: s }); store.set("lqLevOff2", [...s].join(",")); lqControles(); lqCalcular();
 });
 $("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
-$("lqMin").addEventListener("change", () => store.set("lqMin2", lq.min));
+$("lqMin").addEventListener("change", () => store.set("lqMin3", lq.min));
 $("lqVida").addEventListener("change", (e) => { lq.vida = e.target.value; store.set("lqVida", lq.vida); lqCalcular(); });
 $("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });
 $("lqFull").addEventListener("click", () => {

@@ -177,6 +177,9 @@ body.cx-noscroll { overflow: hidden; }
 .lq-g { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .lq-g .lq-d { color: var(--faint); } .lq-g b { font-size: 12.5px; }
 .lq-panel:fullscreen { overflow-y: auto; border-radius: 0; padding: 16px 20px; }
+.lq-panel.lq-grande { position: fixed; inset: 20px; z-index: 60; overflow-y: auto; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55); }
+.lq-panel.lq-grande .lq-chart { height: calc(100vh - 290px); }
+@media (max-width: 900px) { .lq-panel.lq-grande { inset: 0; border-radius: 0; } }
 .lq-panel:fullscreen .lq-chart { height: calc(100vh - 260px); }
 
 @media (max-width: 600px) { .lq-read { grid-template-columns: 1fr; } .lq-chart { min-height: 380px; } .lq-leg { right: 90px; } }

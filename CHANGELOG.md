@@ -3,6 +3,16 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-22 — Mapa de liquidaciones: Expand y pantalla completa
+
+**Añadido**
+- **Crypto, mapa de liquidaciones, Expand:** agranda el mapa dentro de la página, con el resto oscurecido; se cierra
+  con el mismo botón o con Esc. Full screen sigue llevándolo a pantalla completa.
+
+**Corregido**
+- **Crypto, mapa de liquidaciones:** Full screen y Older abrían además una ventana de gráfico ampliado vacía, que
+  quedaba a la vista al salir de la pantalla completa.
+
 ## 2026-11-21 — Crypto: mapa de liquidaciones, señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; distribución implícita y probabilidades de los niveles; datos sin la API de cotizaciones de CBOE
 
 **Añadido**

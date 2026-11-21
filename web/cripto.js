@@ -639,7 +639,8 @@ $("cxTabs").addEventListener("keydown", (e) => {
   const b = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length];
   cx.tab = b.dataset.v; store.set("cxTab", cx.tab); renderCrypto(); b.focus();
 });
-document.querySelectorAll("#cryptoView .cx-exp").forEach((b) => b.addEventListener("click", () => cxOpenModal(b.dataset.chart)));
+// solo los botones con data-chart: Older, Expand y Full screen del mapa de liquidaciones comparten el estilo pero no esto
+document.querySelectorAll("#cryptoView .cx-exp[data-chart]").forEach((b) => b.addEventListener("click", () => cxOpenModal(b.dataset.chart)));
 $("cxModalClose").addEventListener("click", cxCloseModal);
 $("cxModal").addEventListener("click", (e) => { if (e.target.id === "cxModal") cxCloseModal(); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && cx.modal) cxCloseModal(); });

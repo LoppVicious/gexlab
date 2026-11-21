@@ -486,5 +486,17 @@ $("lqVida").addEventListener("change", (e) => { lq.vida = e.target.value; store.
 $("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });
 $("lqFull").addEventListener("click", () => {
   const el = $("lqPanel");
-  if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen();
+  lqGrande(false);
+  // el navegador solo deja entrar en pantalla completa desde un clic real: si lo rechaza, no pasa nada
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
 });
+// Expand: el panel ocupa la ventana dentro de la pagina, con el resto oscurecido (sin pantalla completa del sistema)
+function lqGrande(on) {
+  const el = $("lqPanel"), b = $("lqGrande");
+  el.classList.toggle("lq-grande", on);
+  document.body.classList.toggle("cx-noscroll", on);
+  b.setAttribute("aria-pressed", String(on));
+  b.textContent = on ? "Close" : "Expand";
+}
+$("lqGrande").addEventListener("click", () => lqGrande(!$("lqPanel").classList.contains("lq-grande")));
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("lqPanel").classList.contains("lq-grande")) lqGrande(false); });

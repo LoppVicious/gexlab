@@ -3,14 +3,15 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-21 — Crypto: señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y dos gráficos de dispersión; datos sin la API de cotizaciones de CBOE
+## 2026-11-21 — Crypto: señales on-chain y de derivados con su historia, gráficos ampliables y pestañas; curva del VIX rediseñada con días parecidos y tres gráficos de dispersión; datos sin la API de cotizaciones de CBOE
 
 **Añadido**
-- **Curva del VIX, dos gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por
+- **Curva del VIX, tres gráficos de dispersión:** el cambio del VIX en puntos frente al del SPX en %, una sesión por
   punto desde 1990, con el día de hoy resaltado y un titular calculado ("only N days had a bigger VIX jump with the
   SPX doing better") y cuánto se aparta el VIX de lo habitual para ese movimiento del SPX. Al lado, VIX3M/VIX frente al
-  VIX desde 2009, con su ajuste, una banda de ±1σ y a cuántas σ está hoy. En directo con la sesión abierta, y con la
-  fecha y los valores de cada punto al pasar el ratón.
+  VIX desde 2009, con su ajuste, una banda de ±1σ y a cuántas σ está hoy. Y el SKEW de CBOE (precio de las puts muy
+  fuera de dinero del S&P 500) frente al VIX desde 1990, con el ajuste de los últimos 5 años porque el SKEW ha subido de
+  fondo. En directo con la sesión abierta, y con la fecha y los valores de cada punto al pasar el ratón.
 - **Curva del VIX, días parecidos:** episodios desde 2010 en los que VIX, VVIX, VIX3M/VIX y SKEW/VIX estuvieron a la
   vez cerca de los de hoy (cada indicador en su percentil, los días seguidos de una misma crisis cuentan una vez) y qué
   hizo el SPX después: mediana y veces al alza a 20, 60 y 120 sesiones y caída adicional en 60, frente a cualquier día.

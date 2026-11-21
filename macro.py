@@ -846,49 +846,76 @@ def _r(x, d: int = 5):
 
 
 # ---------------------------------------------------------------- nubes del VIX (gráficos de dispersión)
+SKEW_AJUSTE_ANOS = 5   # el SKEW sube de fondo (115 en los 90, 145 hoy): su recta frente al VIX, solo con los últimos años
+
+
+def _saltos(fechas: list[str]) -> list[int]:
+    """Días naturales desde la fecha anterior (la web rehace las fechas; el primero, 0)."""
+    d = [datetime.strptime(f, "%Y-%m-%d") for f in fechas]
+    return [0] + [(q - p).days for p, q in zip(d, d[1:])]
+
+
+def _nube_ajuste(vix: dict, y_de, fechas: list[str], hoy_xy: tuple | None, hoy: dict | None, desde: str | None = None,
+                 dec: int = 3) -> dict:
+    """Nube del VIX (eje x) frente a y_de(fecha) con la recta y = a + b·ln(VIX) por mínimos cuadrados (solo con las
+    fechas >= `desde` si se da) y la desviación de sus residuos (`sd`); `today` con su residuo en σ (`z`)."""
+    X = np.array([vix[f] for f in fechas])
+    Y = np.array([y_de(f) for f in fechas])
+    m = np.ones(len(fechas), bool) if desde is None else np.array([f >= desde for f in fechas])
+    b, a = np.polyfit(np.log(X[m]), Y[m], 1)
+    sd = float((Y[m] - (a + b * np.log(X[m]))).std(ddof=2))
+    if hoy and hoy_xy:
+        hoy = {**hoy, "x": hoy_xy[0], "y": hoy_xy[1], "z": round(float((hoy_xy[1] - (a + b * np.log(hoy_xy[0]))) / sd), 2)}
+    else:
+        hoy = None
+    return {"since": fechas[0], "last": fechas[-1], "fit_since": desde or fechas[0], "d": _saltos(fechas),
+            "x": [round(float(v), 2) for v in X], "y": [round(float(v), dec) for v in Y],
+            "a": round(float(a), 5), "b": round(float(b), 5), "sd": round(sd, 5), "today": hoy}
+
+
 def nubes_vix(vivo: dict[str, dict] | None = None) -> dict:
-    """Puntos diarios de los dos gráficos de dispersión de la página del VIX, con los CSV de CBOE (SPX desde 1975,
-    VIX desde 1990, VIX3M desde 2009), y el punto de hoy aparte (no entra en la nube):
+    """Puntos diarios de los gráficos de dispersión de la página del VIX, con los CSV de CBOE (SPX desde 1975,
+    VIX y SKEW desde 1990, VIX3M desde 2009), y el punto de hoy aparte (no entra en la nube):
     - `move`: cambio del SPX (%) y del VIX (puntos) de cada sesión frente a la anterior.
-    - `term`: VIX y VIX3M/VIX de cada cierre, con la recta VIX3M/VIX = a + b·ln(VIX) por mínimos cuadrados y la
-      desviación de sus residuos (`sd`); el ajuste logarítmico deja menos residuo que el lineal o 1/VIX.
+    - `term`: VIX3M/VIX frente al VIX, recta a + b·ln(VIX) con toda la historia (el ajuste logarítmico deja menos
+      residuo que el lineal o 1/VIX).
+    - `skew`: SKEW frente al VIX; recta con los últimos SKEW_AJUSTE_ANOS años, porque el SKEW ha subido de fondo y con
+      toda la historia cualquier día reciente saldría caro (correlación con ln(VIX) de −0,5 en 5 años, −0,18 en 36).
     `vivo` ({SYM: {"value", "prev"}} de indices_vol con la sesión abierta): hoy en directo; si no, el último cierre."""
-    spx, vix, v3 = (_csv_cierres(s) for s in ("SPX", "VIX", "VIX3M"))
+    spx, vix, v3, sk = (_csv_cierres(s) for s in ("SPX", "VIX", "VIX3M", "SKEW"))
     hoy = None
     if vivo and all(s in vivo and vivo[s].get("value") and vivo[s].get("prev") for s in ("SPX", "VIX")):
         hoy = g.now_ny().strftime("%Y-%m-%d")
     f1 = [f for f in sorted(set(spx) & set(vix)) if f != hoy]
     f3 = [f for f in sorted(set(vix) & set(v3)) if f != hoy]
-    # sin sesión en directo, hoy es el último cierre (el de VIX3M/VIX, solo si es del mismo día)
-    ult1 = ult3 = None
-    if not hoy:
-        ult1 = f1.pop()
-        if f3 and f3[-1] == ult1:
-            ult3 = f3.pop()
-    dx = [round(spx[b] / spx[a] * 100 - 100, 2) for a, b in zip(f1, f1[1:])]
-    dy = [round(vix[b] - vix[a], 2) for a, b in zip(f1, f1[1:])]
-    X = np.array([vix[f] for f in f3])
-    Y = np.array([v3[f] / vix[f] for f in f3])
-    b, a = np.polyfit(np.log(X), Y, 1)
-    sd = float((Y - (a + b * np.log(X))).std(ddof=2))
+    fk = [f for f in sorted(set(vix) & set(sk)) if f != hoy]
+    # sin sesión en directo, hoy es el último cierre (el de VIX3M/VIX y el del SKEW, solo si son del mismo día)
+    ult1 = None
+    h3 = hk = None
     if hoy:
         sx, vx = vivo["SPX"], vivo["VIX"]
         h1 = {"date": hoy, "live": True, "x": sx["value"] / sx["prev"] * 100 - 100, "y": vx["value"] - vx["prev"]}
-        h3 = ({"date": hoy, "live": True, "x": vx["value"], "y": vivo["VIX3M"]["value"] / vx["value"]}
-              if vivo.get("VIX3M", {}).get("value") else None)
+        h = {"date": hoy, "live": True}
+        if (vivo.get("VIX3M") or {}).get("value"):
+            h3 = (vx["value"], vivo["VIX3M"]["value"] / vx["value"])
+        if (vivo.get("SKEW") or {}).get("value"):
+            hk = (vx["value"], vivo["SKEW"]["value"])
     else:
+        ult1 = f1.pop()
         h1 = {"date": ult1, "live": False, "x": spx[ult1] / spx[f1[-1]] * 100 - 100, "y": vix[ult1] - vix[f1[-1]]}
-        h3 = {"date": ult3, "live": False, "x": vix[ult3], "y": v3[ult3] / vix[ult3]} if ult3 else None
-    if h3:
-        h3["z"] = round(float((h3["y"] - (a + b * np.log(h3["x"]))) / sd), 2)
-
-    def saltos(fechas):  # días naturales desde la fecha anterior (la web rehace las fechas; el primero, 0)
-        d = [datetime.strptime(f, "%Y-%m-%d") for f in fechas]
-        return [0] + [(q - p).days for p, q in zip(d, d[1:])]
-    return {"move": {"since": f1[1], "last": f1[-1], "d": saltos(f1[1:]), "x": dx, "y": dy, "today": h1},
-            "term": {"since": f3[0], "last": f3[-1], "d": saltos(f3), "x": [round(float(v), 2) for v in X],
-                     "y": [round(float(v), 3) for v in Y], "a": round(float(a), 5), "b": round(float(b), 5),
-                     "sd": round(sd, 5), "today": h3}}
+        h = {"date": ult1, "live": False}
+        if f3 and f3[-1] == ult1:
+            f3.pop()
+            h3 = (vix[ult1], v3[ult1] / vix[ult1])
+        if fk and fk[-1] == ult1:
+            fk.pop()
+            hk = (vix[ult1], sk[ult1])
+    dx = [round(spx[b] / spx[a] * 100 - 100, 2) for a, b in zip(f1, f1[1:])]
+    dy = [round(vix[b] - vix[a], 2) for a, b in zip(f1, f1[1:])]
+    desde = (datetime.strptime(fk[-1], "%Y-%m-%d") - timedelta(days=round(365.25 * SKEW_AJUSTE_ANOS))).strftime("%Y-%m-%d")
+    return {"move": {"since": f1[1], "last": f1[-1], "d": _saltos(f1[1:]), "x": dx, "y": dy, "today": h1},
+            "term": _nube_ajuste(vix, lambda f: v3[f] / vix[f], f3, h3, h),
+            "skew": _nube_ajuste(vix, lambda f: sk[f], fk, hk, h, desde, dec=1)}
 
 
 def _spx_vivo() -> dict[str, dict]:

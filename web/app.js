@@ -3127,14 +3127,16 @@ function renderVixScatter() {
   if (el.hidden) return;
   vx.scGeo = {};
   renderVixMove(sc.move);
-  renderVixTerm(sc.term);
+  renderVixFit("term", sc.term);
+  $("vxSkew").parentElement.hidden = !sc.skew;   // antes de dibujar: oculto no tiene ancho
+  if (sc.skew) renderVixFit("skew", sc.skew);
 }
 // puntos como un solo trazo (miles de circulos en el SVG pesan); devuelve las coordenadas para el tooltip
 function scatDots(xs, ys, xOf, yOf, ok) {
   let p = "";
   const px = new Float32Array(xs.length), py = new Float32Array(xs.length);
   for (let k = 0; k < xs.length; k++) {
-    if (!ok(xs[k], ys[k])) { px[k] = NaN; continue; }
+    if (!ok(xs[k], ys[k], k)) { px[k] = NaN; continue; }
     px[k] = xOf(xs[k]); py[k] = yOf(ys[k]);
     p += `M${px[k].toFixed(1)} ${py[k].toFixed(1)}h0`;
   }
@@ -3188,55 +3190,74 @@ function renderVixMove(m) {
   $("vxMoveCap").textContent = `${fmtNum(n)} sessions, ${yr} to ${fullDate(m.last)}${off ? `; ${off} extreme ${off === 1 ? "day" : "days"} off-scale` : ""}. Dashed line: the VIX change that usually comes with each SPX move (least squares). ${t.live ? "Today live, against the previous close." : "Highlighted: the last close."} Daily CBOE closes.`;
   vx.scGeo.move = { ...dots, s: m };
 }
-function renderVixTerm(m) {
-  const el = $("vxTerm"), t = m.today, n = m.x.length;
+// nubes del VIX con ajuste y = a + b ln(VIX) (macro._nube_ajuste): VIX3M / VIX y SKEW. Los puntos anteriores a
+// fit_since (solo el SKEW, que ha subido de fondo) van atenuados: la recta y la banda son de los recientes
+const SCAT_FIT = {
+  term: {
+    el: "vxTerm", ylab: "VIX3M / VIX", dec: 3, tdec: 2, ref: 1, name: "VIX3M / VIX",
+    head: (z) => (z <= -1 ? "Front end <b>richer than usual</b> for this VIX level" : z >= 1 ? "Front end <b>calmer than usual</b> for this VIX level" : "VIX3M / VIX <b>within its usual range</b> for this VIX level"),
+    read: (z) => (z <= -1 ? "Near-term protection is bid beyond what this VIX level usually brings." : z >= 1 ? "Near-term protection is cheaper than this VIX level usually brings." : ""),
+    cap: (m, n, yr) => `${fmtNum(n)} daily CBOE closes, ${yr} to ${fullDate(m.last)}. Dashed line: VIX3M / VIX fitted on the log of the VIX; band, ±1σ of the residuals. The ratio always falls as the VIX rises; below the band, the front end prices more stress than that alone explains. A term-structure gauge, not a direct skew measure.`,
+  },
+  skew: {
+    el: "vxSkew", ylab: "CBOE SKEW", dec: 1, tdec: 0, ref: null, name: "SKEW",
+    head: (z) => (z >= 1 ? "Tail protection <b>richer than usual</b> for this VIX level" : z <= -1 ? "Tail protection <b>cheaper than usual</b> for this VIX level" : "SKEW <b>within its usual range</b> for this VIX level"),
+    read: (z) => (z >= 1 ? "Far out-of-the-money SPX puts are bid beyond what this VIX level usually brings." : z <= -1 ? "Far out-of-the-money puts are cheap for this VIX level: little demand for crash protection." : ""),
+    cap: (m, n, yr) => `${fmtNum(n)} daily CBOE closes, ${yr} to ${fullDate(m.last)}. The SKEW has drifted up for decades (about 115 in the 1990s, 140 lately), so the fit uses only the brighter points, since ${fullDate(m.fit_since)}: dashed line, SKEW on the log of the VIX; band, ±1σ. The CBOE SKEW prices far out-of-the-money S&P 500 puts at 30 days: tail risk, not the 25-delta skew.`,
+  },
+};
+function renderVixFit(key, m) {
+  const cf = SCAT_FIT[key], el = $(cf.el), t = m.today, n = m.x.length;
   const fit = (v) => m.a + m.b * Math.log(v);
   const yr = m.since.slice(0, 4);
   if (t) {
-    const z = t.z, res = t.y - fit(t.x);
-    const head = z <= -1 ? "Front end <b>richer than usual</b> for this VIX level" : z >= 1 ? "Front end <b>calmer than usual</b> for this VIX level" : "VIX3M / VIX <b>within its usual range</b> for this VIX level";
-    const read = z <= -1 ? "Near-term protection is bid beyond what this VIX level usually brings." : z >= 1 ? "Near-term protection is cheaper than this VIX level usually brings." : "";
-    $("vxTermH").innerHTML = `${head}. <span>${t.live ? "Now" : fullDate(t.date)}: VIX ${fmtNum(t.x, 2)}, VIX3M / VIX ${fmtNum(t.y, 3)}; residual against the fit ${sgnNum(res, 3)} (${sgnNum(z, 1)}σ).${read ? " " + read : ""}</span>`;
-  } else $("vxTermH").textContent = "";
+    const z = t.z, res = t.y - fit(t.x), read = cf.read(z);
+    $(cf.el + "H").innerHTML = `${cf.head(z)}. <span>${t.live ? "Now" : fullDate(t.date)}: VIX ${fmtNum(t.x, 2)}, ${cf.name} ${fmtNum(t.y, cf.dec)}; residual against the fit ${sgnNum(res, cf.dec)} (${sgnNum(z, 1)}σ).${read ? " " + read : ""}</span>`;
+  } else $(cf.el + "H").textContent = "";
   const W = Math.max(300, el.clientWidth), H = Math.max(240, el.clientHeight);
   const pad = { l: 46, r: 16, t: 12, b: 38 };
   const L = pad.l, R = W - pad.r, T = pad.t, B = H - pad.b;
   const xs = t ? [...m.x, t.x] : m.x, ys = t ? [...m.y, t.y] : m.y;
   const lx0 = Math.log(Math.min(...xs) * 0.95), lx1 = Math.log(Math.max(...xs) * 1.05);
-  const yt = niceTicks(Math.min(...ys) - 0.02, Math.max(...ys) + 0.02, Math.max(4, Math.round((B - T) / 50)));
+  const y0 = Math.min(...ys), y1 = Math.max(...ys), yp = (y1 - y0) * 0.03;
+  const yt = niceTicks(y0 - yp, y1 + yp, Math.max(4, Math.round((B - T) / 50)));
   const xOf = (v) => L + ((Math.log(v) - lx0) / (lx1 - lx0)) * (R - L), yOf = (v) => B - ((v - yt.lo) / (yt.hi - yt.lo)) * (B - T);
   let s = "";
-  for (const v of yt.ticks) s += `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${v === 1 ? C.axis : C.grid}"/>` + txt(L - 8, yOf(v) + 4, fmtNum(v, 2), { a: "end", mono: true, fs: 11 });
+  for (const v of yt.ticks) s += `<line x1="${L}" x2="${R}" y1="${yOf(v)}" y2="${yOf(v)}" stroke="${v === cf.ref ? C.axis : C.grid}"/>` + txt(L - 8, yOf(v) + 4, fmtNum(v, cf.tdec), { a: "end", mono: true, fs: 11 });
   for (const v of [10, 12, 15, 20, 25, 30, 40, 50, 60, 80]) {
     const x = xOf(v);
     if (x < L || x > R) continue;
     s += `<line x1="${x}" x2="${x}" y1="${T}" y2="${B}" stroke="${C.grid}"/>` + txt(x, B + 16, String(v), { a: "middle", mono: true, fs: 11 });
   }
   s += txt((L + R) / 2, B + 32, "VIX (log scale)", { a: "middle", fs: 11.5 });
-  s += txt(R - 6, T + 12, "VIX3M / VIX", { a: "end", fs: 11.5 });
+  s += txt(R - 6, T + 12, cf.ylab, { a: "end", fs: 11.5 });
   // banda de ±1σ y recta del ajuste (rectas en el eje logaritmico)
   const v0 = Math.exp(lx0), v1 = Math.exp(lx1), sd = m.sd;
   s += `<polygon points="${xOf(v0)},${yOf(fit(v0) + sd)} ${xOf(v1)},${yOf(fit(v1) + sd)} ${xOf(v1)},${yOf(fit(v1) - sd)} ${xOf(v0)},${yOf(fit(v0) - sd)}" fill="${C.accent}" fill-opacity="0.08"/>`;
-  const dots = scatDots(m.x, m.y, xOf, yOf, () => true);
-  s += `<path d="${dots.p}" stroke="${C.muted}" stroke-opacity="0.38" stroke-width="2.8" stroke-linecap="round"/>`;
+  const old = m.fit_since && m.fit_since > m.since ? scatDates(m).map((d) => d < m.fit_since) : null;
+  if (old) s += `<path d="${scatDots(m.x, m.y, xOf, yOf, (_, __, k) => old[k]).p}" stroke="${C.faint}" stroke-opacity="0.16" stroke-width="2.6" stroke-linecap="round"/>`;
+  const dots = scatDots(m.x, m.y, xOf, yOf, old ? (_, __, k) => !old[k] : () => true), hi = old ? C.text : C.muted;
+  s += `<path d="${dots.p}" stroke="${hi}" stroke-opacity="0.42" stroke-width="2.8" stroke-linecap="round"/>`;
   s += `<line x1="${xOf(v0)}" y1="${yOf(fit(v0))}" x2="${xOf(v1)}" y2="${yOf(fit(v1))}" stroke="${C.accent}" stroke-width="1.4" stroke-dasharray="5 4"/>`;
   if (t) s += scatToday(xOf(t.x), yOf(t.y), [t.live ? "Now" : ddmm(t.date), `${sgnNum(t.z, 1)}σ`], L, R, T);
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${s}</svg>`;
-  $("vxTermCap").textContent = `${fmtNum(n)} daily CBOE closes, ${yr} to ${fullDate(m.last)}. Dashed line: VIX3M / VIX fitted on the log of the VIX; band, ±1σ of the residuals. The ratio always falls as the VIX rises; below the band, the front end prices more stress than that alone explains. A term-structure gauge, not a direct skew measure.`;
-  vx.scGeo.term = { ...dots, s: m };
+  $(cf.el + "Cap").textContent = cf.cap(m, n, yr);
+  // el tooltip busca en todos los puntos (tambien los atenuados)
+  const all = old ? scatDots(m.x, m.y, xOf, yOf, () => true) : dots;
+  vx.scGeo[key] = { px: all.px, py: all.py, s: m };
 }
 function vixScatTip(e, key) {
   const g = vx.scGeo && vx.scGeo[key];
   if (!g) return;
-  const rect = $(key === "move" ? "vxMove" : "vxTerm").getBoundingClientRect();
+  const rect = $(key === "move" ? "vxMove" : SCAT_FIT[key].el).getBoundingClientRect();
   const x = e.clientX - rect.left, y = e.clientY - rect.top;
   let best = -1, bd = 10;
   for (let k = 0; k < g.px.length; k++) { const dd = Math.hypot(g.px[k] - x, g.py[k] - y); if (dd < bd) { bd = dd; best = k; } }
   if (best < 0) return macroTip("vxScTip", null, e, "");
   const m = g.s, day = scatDates(m)[best];
-  macroTip("vxScTip", null, e, key === "move"
-    ? `<div class="t">${fullDate(day)}</div><div class="r">SPX <b>${sgnNum(m.x[best], 2)}%</b></div><div class="r">VIX <b>${sgnNum(m.y[best], 2)} pts</b></div>`
-    : `<div class="t">${fullDate(day)}</div><div class="r">VIX <b>${fmtNum(m.x[best], 2)}</b></div><div class="r">VIX3M / VIX <b>${fmtNum(m.y[best], 3)}</b></div><div class="r">Against the fit <b>${sgnNum((m.y[best] - m.a - m.b * Math.log(m.x[best])) / m.sd, 1)}σ</b></div>`);
+  if (key === "move") return macroTip("vxScTip", null, e, `<div class="t">${fullDate(day)}</div><div class="r">SPX <b>${sgnNum(m.x[best], 2)}%</b></div><div class="r">VIX <b>${sgnNum(m.y[best], 2)} pts</b></div>`);
+  const cf = SCAT_FIT[key];
+  macroTip("vxScTip", null, e, `<div class="t">${fullDate(day)}</div><div class="r">VIX <b>${fmtNum(m.x[best], 2)}</b></div><div class="r">${cf.name} <b>${fmtNum(m.y[best], cf.dec)}</b></div><div class="r">Against the fit <b>${sgnNum((m.y[best] - m.a - m.b * Math.log(m.x[best])) / m.sd, 1)}σ</b></div>`);
 }
 
 function vixCurveTip(e) {
@@ -3472,7 +3493,7 @@ function bindMacro() {
   $("vxCurve").addEventListener("mousemove", vixCurveTip);
   $("vxHist").addEventListener("mousemove", vixHistTip);
   for (const id of ["vxCurve", "vxHist"]) $(id).addEventListener("mouseleave", () => { $("vxTip").hidden = true; });
-  for (const [id, k] of [["vxMove", "move"], ["vxTerm", "term"]]) {
+  for (const [id, k] of [["vxMove", "move"], ["vxTerm", "term"], ["vxSkew", "skew"]]) {
     $(id).addEventListener("mousemove", (e) => vixScatTip(e, k));
     $(id).addEventListener("mouseleave", () => { $("vxScTip").hidden = true; });
   }

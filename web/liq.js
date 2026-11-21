@@ -247,7 +247,8 @@ function lqCalcular(nuevos = false) {
   const ver = LQ_MODELO.APAL.map((x) => x.L).filter((L) => !lq.levOff.has(String(L)));
   const clave = [lq.clave, ver.join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel });
+    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel,
+      escalaDesde: d.velas.length - cfg.ver });   // colores frente a lo que se ve al abrir, no a toda la historia
     lq.resClave = clave; lq.imgClave = "";
   }
   if (!lq.res) { lqMensaje("Choose at least one leverage."); return; }

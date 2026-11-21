@@ -126,6 +126,26 @@ test("ocultar apalancamientos solo quita sus franjas: tamanos y escala de color 
   assert.equal(M.calcular(velas, oi, { ver: [] }), null);
 });
 
+test("en el mapa un nivel no vale mas que el OI que sigue abierto desde que nacio", () => {
+  const velas = Array.from({ length: 30 }, (_, i) => vela(i, 100));
+  const oi = velas.map((_, i) => (i >= 1 ? 1000 : 0));
+  const nivel = velas.map((_, i) => (i < 10 ? 4000 : i < 20 ? 1000 : 4000));   // el OI total cae a la cuarta parte y vuelve
+  nivel[5] = 100;   // una vela suelta (hueco de datos): no cuenta
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, mm: 0, nivel });
+  const col = (t) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t]; return s; };
+  assert.ok(Math.abs(col(8) / col(3) - 1) < 1e-6);      // el hueco de la vela 5 no lo recorta
+  assert.ok(Math.abs(col(12) / col(8) - 0.25) < 1e-6);   // un cuarto del OI: un cuarto del tamano
+  assert.ok(Math.abs(col(25) / col(12) - 1) < 1e-6);     // aunque el OI vuelva, esas posiciones no reaparecen
+});
+
+test("la escala de color sale de la ventana pedida, no de toda la historia", () => {
+  const velas = Array.from({ length: 60 }, (_, i) => vela(i, i < 30 ? 100 : 50));
+  const oi = velas.map((_, i) => (i < 30 ? i * 1000 : 30000 + (i - 30) * 10));
+  const todo = M.calcular(velas, oi, { vida: 30 });
+  const fin = M.calcular(velas, oi, { vida: 30, escalaDesde: 40 });
+  assert.ok(fin.topeV > 0 && fin.topeV <= todo.topeV);
+});
+
 test("en el mapa un nivel solo desaparece cuando el precio lo toca, no por la memoria", () => {
   const velas = Array.from({ length: 60 }, (_, i) => vela(i, 100));
   const oi = velas.map((_, i) => (i >= 1 ? 1000 : 0));

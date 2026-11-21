@@ -178,31 +178,33 @@ const LQ_MODELO = (() => {
       while (lo < hi) { const mid = (lo + hi) >> 1; if (M[mid] < corte) hi = mid; else lo = mid + 1; }
       nivI[k] = i; nivFin[k] = Math.min(fin, lo); nivP[k] = pr; nivLado[k] = lado; nivA[k] = a * (escala[i] || 1);
     });
-    // rejilla de dibujo: en cada tramo y vela, la suma de los niveles vivos a su tamano al nacer. En el mapa un nivel
-    // solo desaparece cuando el precio lo toca (la memoria cuenta para el perfil y la lectura, no aqui): cada banda
-    // mantiene el color hasta que la tocan o se le suman otros
-    const cada = Math.max(1, Math.floor((B * n) / 60000));
+    // rejilla de dibujo: en cada tramo y vela, la suma de los niveles vivos. En el mapa un nivel solo desaparece
+    // cuando el precio lo toca (la memoria cuenta para el perfil y la lectura, no aqui), con su tamano al nacer
+    // limitado por el OI: si el OI total ha llegado a bajar a una fraccion del que habia al nacer, como mucho esa
+    // fraccion de sus posiciones sigue abierta (minimo desde que nacio; una vela suelta a la baja no cuenta, suele ser
+    // un hueco de datos). Sin ese tope, los niveles de una epoca de OI alto (que nunca se tocaron) dominaban la escala
+    const oiEf = o.nivel ? Float64Array.from({ length: n }, (_, t) => Math.max(o.nivel[t] || 0, o.nivel[t + 1] || 0)) : null;
+    const desdeE = Math.min(Math.max(0, o.escalaDesde || 0), n - 1);
+    const cada = Math.max(1, Math.floor((B * (n - desdeE)) / 60000));
     const rejilla = (niveles, muestra) => {
       const g = new Float32Array(B * n);
       for (const [i, toque, pr, , a] of niveles) {
-        const b = binDe(pr), aE = a * (escala[i] || 1);
-        if (b < 0 || toque <= i) continue;
-        g[b * n + i] += aE;
-        if (toque < n) g[b * n + toque] -= aE;
-      }
-      for (let b = 0; b < B; b++) {
-        let acc = 0;
-        for (let t = 0; t < n; t++) {
-          acc += g[b * n + t];
-          const v = acc > 1e-9 ? acc : 0;
-          g[b * n + t] = v;
-          if (muestra && v > 0 && (b * n + t) % cada === 0) muestra.push(v);
+        const b = binDe(pr), aE = a * (escala[i] || 1), base = oiEf && oiEf[i] > 0 ? oiEf[i] : 0;
+        if (b < 0) continue;
+        let f = 1;
+        for (let t = i; t < toque; t++) {
+          if (base && oiEf[t] > 0 && oiEf[t] < base * f) f = oiEf[t] / base;
+          g[b * n + t] += aE * f;
         }
+      }
+      if (muestra) for (let b = 0; b < B; b++) for (let t = desdeE; t < n; t++) {
+        const v = g[b * n + t];
+        if (v > 0 && (b * n + t) % cada === 0) muestra.push(v);
       }
       return g;
     };
-    // escala fija del mapa (percentil 99,9 de las casillas con algo, con todos los apalancamientos): no depende del
-    // zoom ni de los apalancamientos que se ven
+    // escala fija del mapa (percentil 99,9 de las casillas con algo, con todos los apalancamientos, desde
+    // o.escalaDesde: la ventana que se ve al abrir): no depende del zoom ni de los apalancamientos que se ven
     const muestra = [];
     const gTodo = rejilla(lista_, muestra);
     const gV = vis_.length === lista_.length ? gTodo : rejilla(vis_, null);

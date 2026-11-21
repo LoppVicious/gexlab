@@ -335,7 +335,7 @@ async function precio(env, sym) {
 // La web pide OI, velas y liquidaciones de los perpetuos elegidos; el Worker pone la clave (secreto
 // COINALYZE_API_KEY, nunca llega al navegador) y guarda cada respuesta en memoria un rato (la Cache API no funciona
 // en workers.dev). Coinalyze admite 40 peticiones por minuto por clave; la clave va como parametro (la cabecera
-// api_key la descartan algunos intermediarios).
+// api_key la descartan algunos intermediarios). Cuenta cada simbolo pedido como una llamada.
 const LIQ_RUTAS = { oi: "open-interest-history", ohlcv: "ohlcv-history", liq: "liquidation-history" };
 const LIQ_TTL = { "5min": 60, "15min": 120, "1hour": 300, "4hour": 900, daily: 1800 };   // segundos en memoria
 const _liq = new Map();
@@ -354,10 +354,17 @@ async function liq(env, q) {
   if (kind !== "ohlcv") p.set("convert_to_usd", "true");
   p.set("api_key", env.COINALYZE_API_KEY);
   const r = await fetch(`https://api.coinalyze.net/v1/${ruta}?${p}`, { headers: { "User-Agent": "gexlab" } });
-  if (r.status === 429) return json(429, { error: "The data source is busy. Try again in a minute." });
+  // al limite (cada simbolo cuenta como una llamada): la copia anterior si la hay; si no, cuanto esperar
+  if (r.status === 429 && hit) return res(hit.txt);
+  if (r.status === 429) {
+    const espera = Math.min(Math.max(parseInt(r.headers.get("Retry-After"), 10) || 20, 1), 65);
+    return new Response(JSON.stringify({ error: "The data source is busy. Retrying shortly.", retry: espera }),
+      { status: 429, headers: { "Content-Type": "application/json; charset=utf-8", "Retry-After": String(espera) } });
+  }
   if (!r.ok) return json(502, { error: `The data source answered ${r.status}` });
   const txt = await r.text();
-  if (_liq.size > 80) _liq.clear();
+  _liq.delete(clave);
+  while (_liq.size >= 80) _liq.delete(_liq.keys().next().value);   // fuera las mas antiguas
   _liq.set(clave, { t: ahora, txt });
   return res(txt);
 }

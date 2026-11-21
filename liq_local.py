@@ -11,7 +11,9 @@ import json
 import os
 import re
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 
 import gex_engine as g
 
@@ -92,6 +94,27 @@ def _oi(bsym: str, iv: str, desde: int, hasta: int) -> list:
     return [out[k] for k in sorted(out)]
 
 
+def _coinalyze(url: str) -> tuple[int, object]:
+    """Como el Worker: cache de 60 s; al limite (429) la copia anterior o cuanto esperar (Retry-After)."""
+    hit = _cache.get(url)
+    if hit and time.time() - hit[0] < 60:
+        return 200, hit[1]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "gexlab"}), timeout=30) as r:
+            d = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        if e.code != 429:
+            return 502, {"error": f"The data source answered {e.code}"}
+        if hit:
+            return 200, hit[1]
+        espera = min(max(int(float(e.headers.get("Retry-After") or 20)), 1), 65)
+        return 429, {"error": "The data source is busy. Retrying shortly.", "retry": espera}
+    if len(_cache) > 200:
+        _cache.clear()
+    _cache[url] = (time.time(), d)
+    return 200, d
+
+
 def responder(q: dict) -> tuple[int, object]:
     v = _valido(q)
     if not v:
@@ -102,7 +125,7 @@ def responder(q: dict) -> tuple[int, object]:
         p = {"symbols": ",".join(syms), "interval": iv, "from": desde, "to": hasta, "api_key": clave}
         if kind != "ohlcv":
             p["convert_to_usd"] = "true"
-        return 200, _get(f"https://api.coinalyze.net/v1/{RUTAS[kind]}?{urllib.parse.urlencode(p)}")
+        return _coinalyze(f"https://api.coinalyze.net/v1/{RUTAS[kind]}?{urllib.parse.urlencode(p)}")
     out = []
     for s in syms:
         b = _binance(s)

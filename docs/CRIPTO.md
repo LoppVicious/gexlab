@@ -145,7 +145,11 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
 - **Intermediario:** `/api/liq?kind=ohlcv|oi|liq&interval=&symbols=&from=&to=` en el Worker: lista cerrada de
   parámetros, pone la clave (como parámetro: la cabecera `api_key` la descarta algún intermediario), guarda la
   respuesta en memoria de 1 a 30 min según el intervalo (la Cache API no funciona en workers.dev). La clave nunca llega
-  al navegador. Coinalyze: 40 peticiones por minuto; cada mapa son 3.
+  al navegador. Coinalyze: 40 llamadas por minuto, y **cada símbolo cuenta como una llamada**: cada mapa pide las velas
+  (1) y el OI y las liquidaciones de los perpetuos principales de cada exchange (USDT e inverso en USD, `lqSimbolos`:
+  BTC son 1 + 7 + 7). Al límite (429), el Worker devuelve la copia anterior si la tiene o `retry` con los segundos
+  de `Retry-After`, y la web espera y reintenta con cuenta atrás. La web guarda en memoria lo ya cargado por activo,
+  marco y exchanges (24 entradas, frescas lo mismo que en el Worker) y pide las liquidaciones reales después del mapa.
 - **Modelo** (`web/liq-modelo.js`, pruebas en `pruebas/test_liq.mjs`):
   1. Posiciones nuevas de cada vela: subida del OI sumando el cambio de cada perpetuo (no el nivel, para que un
      exchange que empieza tarde no cree un salto). Antes del primer OI, volumen × factor calibrado con el tramo con OI.

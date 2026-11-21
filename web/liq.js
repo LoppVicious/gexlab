@@ -92,81 +92,147 @@ function lqSet(cambio) {
   lqCargar();
 }
 
-/* ---------- datos */
-async function lqPedir(kind, symbols, cfg, desde, hasta) {
-  const q = new URLSearchParams({ kind, interval: cfg.iv, symbols: symbols.join(","), from: desde, to: hasta });
-  const r = await fetch(`/api/liq?${q}`, { signal: lq.ctrl.signal });
-  const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.error || `The data source answered ${r.status}`);
-  return d;
+/* ---------- datos
+   Coinalyze cuenta cada simbolo como una llamada y admite 40 por minuto por clave. Por eso: solo los perpetuos
+   principales de cada exchange, cache en el navegador por activo y marco (volver a uno visto es inmediato), y ante el
+   limite (429) se espera lo que pide la fuente y se reintenta, sin error. */
+const LQ_CACHE = new Map();   // clave -> { at, ohlcv, oi, liq }
+const LQ_CACHE_MAX = 24;
+const LQ_TTL = { "5m": 60, "15m": 120, "1h": 300, "4h": 900, "1D": 1800 };   // segundos: los del Worker
+
+// por exchange, el perpetuo en USDT y el inverso en USD (los de mas OI); USDC, USD1 y similares apenas suman
+function lqSimbolos(a, e) {
+  const xs = a.ex[e] || [];
+  const ok = xs.filter((s) => /(USDT|USD)(_PERP)?\.[A-Z0-9]$/.test(s)).slice(0, 2);
+  return ok.length ? ok : xs.slice(0, 1);
 }
 
-async function lqCargar(forzar = false) {
+function lqEstado(t) {
+  $("lqCarga").textContent = t || "";
+  $("lqCarga").hidden = !t;
+}
+
+// espera abortable; con aviso, cuenta atras en la capa de carga
+function lqEsperar(s, signal, aviso) {
+  const fin = Date.now() + s * 1000;
+  return new Promise((ok, ko) => {
+    const tick = () => {
+      if (signal.aborted) { clearInterval(iv); ko(new DOMException("Aborted", "AbortError")); return; }
+      const q = Math.ceil((fin - Date.now()) / 1000);
+      if (aviso) lqEstado(`Data source limit reached, retrying in ${Math.max(q, 0)} s…`);
+      if (q <= 0) { clearInterval(iv); ok(); }
+    };
+    const iv = setInterval(tick, 500);
+    tick();
+  });
+}
+
+async function lqPedir(kind, symbols, cfg, desde, hasta, signal, aviso = true) {
+  const q = new URLSearchParams({ kind, interval: cfg.iv, symbols: symbols.join(","), from: desde, to: hasta });
+  for (let intento = 0; ; intento++) {
+    const r = await fetch(`/api/liq?${q}`, { signal });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) return d;
+    if (r.status !== 429 || intento >= 3) throw new Error(d.error || `The data source answered ${r.status}`);
+    await lqEsperar(Math.min(+d.retry || +r.headers.get("Retry-After") || 20, 65) + 1, signal, aviso);
+    if (aviso) lqEstado("Loading…");
+  }
+}
+
+function lqClave() {
   const a = lqActivo(), cfg = LQ_TF[lq.tf];
-  if (!a || !lq.chart) return;
-  const exs = Object.keys(a.ex).filter((e) => !lq.exOff.has(e));
-  const syms = exs.flatMap((e) => a.ex[e]);
+  const syms = Object.keys(a.ex).filter((e) => !lq.exOff.has(e)).flatMap((e) => lqSimbolos(a, e));
   const hasta = Math.ceil(Date.now() / 1000 / cfg.s) * cfg.s;
   const desde = cfg.desde || hasta - cfg.dias * 86400 * (1 + lq.extra);
-  const clave = [a.sym, lq.tf, syms.join(","), desde].join("|");
-  if (!forzar && clave === lq.clave && lq.datos && Date.now() - lq.at < 60000) { lqCalcular(); return; }
-  // la misma carga ya en curso: no se cancela ni se repite (cada peticion gasta del cupo de Coinalyze, 40 por minuto,
-  // aunque el navegador la cancele)
-  if (!forzar && clave === lq.enCurso) return;
+  return { a, cfg, syms, desde, hasta, clave: [a.sym, lq.tf, syms.join(","), desde].join("|") };
+}
+
+// pinta al momento lo que haya en cache y, si no esta al dia, lo pide (con una pausa corta: los clics seguidos no
+// gastan cupo)
+function lqCargar() {
+  if (!lqActivo() || !lq.chart) return;
+  const k = lqClave(), hit = LQ_CACHE.get(k.clave);
+  lqMensaje("");
+  if (hit && k.clave !== lq.clave) {
+    try { lqMontar(hit, k); } catch (e) { lqMensaje(e.message); }
+  } else if (k.clave === lq.clave && lq.datos) lqCalcular();
+  clearTimeout(lq.tCarga);
+  if (k.clave === lq.enCurso) return;   // ya en camino: no se repite
+  if (lq.ctrl && lq.enCurso) { lq.ctrl.abort(); lq.enCurso = ""; }
+  if (hit && Date.now() - hit.at < LQ_TTL[lq.tf] * 1000) { lqEstado(""); return; }
+  lqEstado(hit ? "" : "Loading…");
+  lq.tCarga = setTimeout(() => lqTraer(k, hit), hit ? 0 : 200);
+}
+
+async function lqTraer(k, hit) {
+  const { a, cfg, syms, desde, hasta, clave } = k;
   if (lq.ctrl) lq.ctrl.abort();
   lq.enCurso = clave;
-  lq.ctrl = new AbortController();
-  $("lqCarga").hidden = false;
-  lqMensaje("");
+  const ctrl = (lq.ctrl = new AbortController());
   try {
-    const [ohlcv, oi, liq] = await Promise.all([
-      lqPedir("ohlcv", [a.velas], cfg, desde, hasta),
-      syms.length ? lqPedir("oi", syms, cfg, desde, hasta) : [],
-      syms.length ? lqPedir("liq", syms, cfg, desde, hasta).catch((e) => (e.name === "AbortError" ? Promise.reject(e) : { error: e.message })) : [],
+    const [ohlcv, oi] = await Promise.all([
+      lqPedir("ohlcv", [a.velas], cfg, desde, hasta, ctrl.signal, !hit),
+      syms.length ? lqPedir("oi", syms, cfg, desde, hasta, ctrl.signal, !hit) : [],
     ]);
-    const velas = ((ohlcv[0] || {}).history || []).filter((v) => v.h > 0 && v.l > 0).sort((p, q) => p.t - q.t);
-    if (velas.length < 20) throw new Error(`Not enough ${cfg.nombre} history for ${a.sym}`);
-    // OI: se suma el cambio de cada simbolo (no el nivel), para que un exchange que empieza tarde no cree un salto
-    const ts = velas.map((v) => v.t), dOI = new Array(ts.length).fill(null), nivel = new Array(ts.length).fill(0);
-    const conOI = [];
-    for (const s of oi) {
-      const m = new Map((s.history || []).map((p) => [p.t, p.c]));
-      if (m.size) conOI.push(s.symbol);
-      for (let i = 0; i < ts.length; i++) {
-        const x = m.get(ts[i]), y = i > 0 ? m.get(ts[i - 1]) : null;
-        if (x != null) nivel[i] += x;   // OI total de la vela: para la fraccion que se cierra
-        if (x != null && y != null) dOI[i] = (dOI[i] || 0) + (x - y);
-      }
-    }
-    const oiCum = new Array(ts.length).fill(null);
-    let acc = null;
-    for (let i = 0; i < ts.length; i++) {
-      if (dOI[i] != null) { acc = (acc ?? 0) + dOI[i]; if (oiCum[i - 1] == null && i > 0) oiCum[i - 1] = acc - dOI[i]; }
-      oiCum[i] = acc;
-    }
-    lq.datos = { velas, oi: oiCum, nivel, conOI, exs, sym: a.sym, tf: lq.tf };
-    lqReales(liq);
-    lq.clave = clave; lq.at = Date.now(); lq.resClave = "";
-    lqCalcular(true);
-    // liquidaciones reales que fallaron (casi siempre por el cupo de Coinalyze): se reintentan una vez a los 30 s
-    clearTimeout(lq.reintento);
-    if (liq && liq.error) lq.reintento = setTimeout(async () => {
-      if (lq.clave !== clave) return;
-      try { lqReales(await lqPedir("liq", syms, cfg, desde, hasta)); lqSeries(false); lqLectura(); } catch { /* sigue sin ellas */ }
-    }, 30000);
-  } catch (e) {
-    if (e.name !== "AbortError") lqMensaje(e.message === "Failed to fetch" ? "The server is not responding." : e.message);
+    const e = { at: Date.now(), ohlcv, oi, liq: hit && hit.liq && !hit.liq.error ? hit.liq : null };
+    LQ_CACHE.delete(clave); LQ_CACHE.set(clave, e);
+    while (LQ_CACHE.size > LQ_CACHE_MAX) LQ_CACHE.delete(LQ_CACHE.keys().next().value);
+    lqMontar(e, k);
+    lqEstado("");
+    if (lq.enCurso === clave) lq.enCurso = "";
+    // liquidaciones reales despues del mapa: no lo retrasan, si la fuente esta al limite se esperan en silencio y no
+    // se cancelan al cambiar de activo (el cupo ya esta gastado; quedan en la cache para cuando se vuelva)
+    if (!syms.length) return;
+    try { e.liq = await lqPedir("liq", syms, cfg, desde, hasta, new AbortController().signal, false); }
+    catch (x) { if (!e.liq) e.liq = { error: x.message }; }
+    if (lq.clave === clave && LQ_CACHE.get(clave) === e) { lqReales(e.liq); lqSeries(false); lqLectura(); }
+  } catch (x) {
+    if (x.name === "AbortError") return;
+    const m = x.message === "Failed to fetch" ? "The server is not responding." : x.message;
+    lqMensaje(hit ? `Could not refresh (${m}) Showing data from ${Math.round((Date.now() - hit.at) / 60000)} min ago.` : m);
+    lqEstado("");
   } finally {
     if (lq.enCurso === clave) lq.enCurso = "";
-    $("lqCarga").hidden = true;
   }
+}
+
+// de las respuestas (velas, OI y liquidaciones reales) a lq.datos, y dibujo
+function lqMontar(e, k) {
+  const { a, cfg, clave } = k, ohlcv = e.ohlcv, oi = e.oi;
+  const velas = ((ohlcv[0] || {}).history || []).filter((v) => v.h > 0 && v.l > 0).sort((p, q) => p.t - q.t);
+  if (velas.length < 20) throw new Error(`Not enough ${cfg.nombre} history for ${a.sym}`);
+  // OI: se suma el cambio de cada simbolo (no el nivel), para que un exchange que empieza tarde no cree un salto
+  const ts = velas.map((v) => v.t), dOI = new Array(ts.length).fill(null), nivel = new Array(ts.length).fill(0);
+  const conOI = [];
+  for (const s of oi) {
+    const m = new Map((s.history || []).map((p) => [p.t, p.c]));
+    if (m.size) conOI.push(s.symbol);
+    for (let i = 0; i < ts.length; i++) {
+      const x = m.get(ts[i]), y = i > 0 ? m.get(ts[i - 1]) : null;
+      if (x != null) nivel[i] += x;   // OI total de la vela: para la fraccion que se cierra
+      if (x != null && y != null) dOI[i] = (dOI[i] || 0) + (x - y);
+    }
+  }
+  const oiCum = new Array(ts.length).fill(null);
+  let acc = null;
+  for (let i = 0; i < ts.length; i++) {
+    if (dOI[i] != null) { acc = (acc ?? 0) + dOI[i]; if (oiCum[i - 1] == null && i > 0) oiCum[i - 1] = acc - dOI[i]; }
+    oiCum[i] = acc;
+  }
+  const exs = Object.keys(a.ex).filter((x) => !lq.exOff.has(x));
+  lq.datos = { velas, oi: oiCum, nivel, conOI, exs, sym: a.sym, tf: lq.tf };
+  lqReales(e.liq);
+  lq.clave = clave; lq.resClave = "";
+  lqCalcular(true);
 }
 
 // liquidaciones reales por vela (suma de los perpetuos elegidos); si la peticion fallo, quedan sin dato y se avisa
 function lqReales(liq) {
   const d = lq.datos, ts = d.velas.map((v) => v.t);
+  d.liqPend = !liq;   // aun en camino
   d.liqError = liq && liq.error ? liq.error : "";
-  const L = LQ_MODELO.sumar(d.liqError ? [] : liq, "l"), S = LQ_MODELO.sumar(d.liqError ? [] : liq, "s");
+  const lista = !liq || d.liqError ? [] : liq;
+  const L = LQ_MODELO.sumar(lista, "l"), S = LQ_MODELO.sumar(lista, "s");
   const t0 = Math.min(...[...L.keys(), ...S.keys(), Infinity]);
   d.realL = ts.map((t) => (t >= t0 ? L.get(t) || 0 : null)); d.realS = ts.map((t) => (t >= t0 ? S.get(t) || 0 : null));
 }
@@ -444,7 +510,7 @@ function lqLectura() {
   const i0 = Math.max(0, r.desdeOI);
   const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null || i < i0 ? 0 : r.predL[i] + r.predS[i])),
     d.realL.map((x, i) => (x == null || i < i0 ? null : x + d.realS[i])));
-  const calidad = d.liqError ? "real liquidations unavailable right now (the data source is busy); retrying in 30 seconds"
+  const calidad = d.liqPend ? "loading real liquidations…" : d.liqError ? `real liquidations unavailable right now (${d.liqError})`
     : !aj ? "not enough real liquidation data" : aj.r >= 0.5 ? "good" : aj.r >= 0.3 ? "fair" : "weak";
   const desde = r.desdeOI >= 0 ? new Date(d.velas[r.desdeOI].t * 1000).toISOString().slice(0, 10) : null;
   const ex = (lq.merc.exchanges || {});

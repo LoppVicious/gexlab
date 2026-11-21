@@ -1333,6 +1333,89 @@ def resolve_window(window_pct, ch: dict, spot: float, now: datetime, max_dte=0) 
     if isinstance(window_pct, str):
         return auto_window(implied_moves(ch, spot, now), full_session=max_dte != 0), True
     return float(window_pct), False
+# ---------------------------------------------------------------- Distribucion implicita (Breeden-Litzenberger)
+# Densidad neutral al riesgo del precio al vencimiento = segunda derivada del precio de la call respecto al strike.
+# Las calls se valoran con Black sobre el forward y la IV fuera de dinero de cada strike (la misma regla que el
+# smile de volatilidad.py), interpolada en log-strike y plana fuera de los strikes cotizados.
+DIST_N = 400            # puntos de la rejilla de precios
+DIST_SIGMAS = 5.0       # la rejilla cubre +-5 desviaciones (IV ATM) alrededor del forward
+DIST_NOISY = 0.05       # masa negativa recortada por encima de la cual la forma es aproximada
+DIST_MIN_MIN = 30.0     # minutos de mercado minimos hasta el vencimiento
+VIX_LIKE = {"VIX", "VIXW"}
+
+
+def _ncdf_exact(x: np.ndarray) -> np.ndarray:
+    # erf exacta: la segunda derivada numerica amplifica el error de _ncdf (1,5e-7) hasta el 10 % en el 0DTE
+    return 0.5 * (1.0 + np.vectorize(math.erf)(np.asarray(x, float) / math.sqrt(2.0)))
+
+
+def _trap(y: np.ndarray, x: np.ndarray) -> float:
+    return float(((y[1:] + y[:-1]) * np.diff(x)).sum() / 2.0)
+
+
+def implied_distribution(ch: dict, spot: float, now: datetime, exp, n: int = DIST_N) -> dict | None:
+    """Distribucion del precio al vencimiento `exp` (datetime64 de ch["exp"]). None sin datos suficientes."""
+    exp = np.datetime64(exp, "m")
+    q = quote_time(now)
+    if trading_minutes(q, exp.astype(datetime)) < DIST_MIN_MIN:
+        return None
+    sel = (ch["exp"] == exp) & (ch["iv"] > 0.01) & (ch["iv"] < 5)
+    if not sel.any():
+        return None
+    Fc = ch.get("fwd")
+    f0 = float(Fc[sel][0]) if Fc is not None else float("nan")
+    F = f0 if math.isfinite(f0) and f0 > 0 else float(spot)
+    now64 = np.datetime64(now.replace(second=0, microsecond=0))
+    T = max(float((exp - now64).astype("timedelta64[m]").astype(float)), 1.0) / YEAR_MIN
+    K, C, IV = ch["K"][sel], ch["call"][sel], ch["iv"][sel]
+    otm = np.where(C, K >= F, K < F)
+    K, C, IV = K[otm], C[otm], IV[otm]
+    sg = IV * math.sqrt(T)
+    d1 = (np.log(F / K) + 0.5 * sg * sg) / sg
+    dl = np.where(C, _ncdf_exact(d1), _ncdf_exact(d1) - 1) if K.size else d1
+    keep = np.abs(dl) >= 0.02                      # sin alas de |delta| < 0,02: ruido de horquilla
+    K, IV = K[keep], IV[keep]
+    if K.size:
+        K, inv = np.unique(K, return_inverse=True)
+        IV = np.bincount(inv, weights=IV) / np.bincount(inv)
+    if K.size < 5:
+        return None
+    lk = np.log(K)
+    atm = float(np.interp(math.log(F), lk, IV))
+    s = atm * math.sqrt(T)
+    x = F * np.exp(np.linspace(-DIST_SIGMAS * s, DIST_SIGMAS * s, n))
+    sx = np.interp(np.log(x), lk, IV) * math.sqrt(T)     # np.interp deja la IV plana fuera de los extremos
+    d1 = (np.log(F / x) + 0.5 * sx * sx) / sx
+    call = F * _ncdf_exact(d1) - x * _ncdf_exact(d1 - sx)
+    pdf = np.gradient(np.gradient(call, x), x)
+    clip = -_trap(np.minimum(pdf, 0.0), x)
+    pdf = np.maximum(pdf, 0.0)
+    mass = _trap(pdf, x)
+    if mass <= 0:
+        return None
+    pdf = pdf / mass
+    cdf = np.concatenate([[0.0], np.cumsum((pdf[1:] + pdf[:-1]) * np.diff(x) / 2.0)])
+    cdf = np.minimum(np.maximum.accumulate(cdf / cdf[-1]), 1.0)
+    z = (np.log(x / F) + 0.5 * s * s) / s
+    logn = np.exp(-0.5 * z * z) / (x * s * math.sqrt(2 * math.pi))
+    days = int((exp.astype("datetime64[D]") - now64.astype("datetime64[D]")).astype(int))
+    return {"exp": str(exp.astype("datetime64[D]")), "days": max(days, 0), "T": T, "fwd": F, "atm_iv": atm,
+            "x": x, "pdf": pdf, "logn": logn, "cdf": cdf,
+            "q": {str(p): float(np.interp(p / 100.0, cdf, x)) for p in (5, 25, 50, 75, 95)},
+            "clip": float(clip), "noisy": bool(clip > DIST_NOISY)}
+
+
+def prob_beyond(dist: dict, level: float, side: str) -> float:
+    """Probabilidad de cerrar por encima ("up") o por debajo ("down") de `level` al vencimiento."""
+    c = float(np.interp(level, dist["x"], dist["cdf"], left=0.0, right=1.0))
+    return 1.0 - c if side == "up" else c
+
+
+def prob_touch(p_close: float) -> float:
+    """Probabilidad de tocar el nivel antes del vencimiento: regla de reflexion (sin deriva), tope 1. Estimada."""
+    return min(1.0, 2.0 * p_close)
+
+
 INDEX_LIKE = INDEX_SYMBOLS | {"SPY", "QQQ", "IWM", "DIA"}  # productos de indice: Vol Trigger; acciones: Hedge Wall
 
 

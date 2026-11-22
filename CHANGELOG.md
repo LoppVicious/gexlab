@@ -29,7 +29,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 
 **Cambiado**
 - **Crypto, mapa de liquidaciones, más claro:** una sola rampa de color (del fondo a azul, verde y amarillo) en vez de
-  azul, verde, ámbar y rojo; el amarillo queda para los grupos más grandes y lo flojo se funde con el fondo. Franjas de
+  azul, verde, ámbar y rojo; con el reparto real (en ETH diario), amarillo el 1 % más cargado, verde el 5 % y verde
+  azulado el 10 %, y lo flojo casi se funde con el fondo. Franjas de
   4 px en vez de 8 (niveles más precisos, menos bloque) e intensidad mínima por defecto del 5 %.
 - **Crypto, mapa de liquidaciones, menos ruido:** la explicación larga pasa a una línea con «How to read» desplegable;
   fuera el selector Memory (queda la normal de cada marco) y las curvas del perfil; los exchanges van en un desplegable;
@@ -54,19 +55,22 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   ventana que se ve al abrir el mapa (sigue sin cambiar con el zoom).
 - **Crypto, mapa de liquidaciones, perfil de la derecha:** tenía su propia escala (su barra mayor salía siempre roja)
   y sumaba lo que la memoria daba por abierto, así que enseñaba rojo donde el mapa no lo tenía. Ahora las barras son
-  la última columna del mapa, con su misma escala de color y su intensidad mínima; las curvas de lo acumulado siguen
-  siendo lo que queda abierto, como la lectura.
+  la última columna del mapa, con su misma escala de color y su intensidad mínima.
+- **Crypto, mapa de liquidaciones, líneas Longs y Shorts sin franja:** las líneas de los grupos mayores, «Nearest
+  liquidity», la presión y las tarjetas de grupos sumaban lo que la memoria del modelo daba por abierto, incluidos
+  muchos niveles pequeños que el mapa no pinta. En BTC de 15 minutos marcaban «Longs $597M» en 58.780, donde no había
+  ninguna franja. Ahora salen de lo mismo que el mapa y el perfil (lo que se ve en la última vela, con la intensidad
+  mínima), así que siempre caen sobre una franja, y la intensidad mínima también las actualiza.
 - **Crypto, mapa de liquidaciones, 5x y 10x visibles por defecto:** salían ocultos, y son los de las posiciones que
   más aguantan abiertas, las que más pesan en marcos de swing. Ahora se ven todos los apalancamientos al abrir (también
   si antes se habían ocultado).
 - **Crypto, mapa de liquidaciones, ocultar un apalancamiento:** ahora solo quita sus franjas. Antes el open interest
   se repartía entre los que quedaban marcados y la escala de color se recalculaba, así que los demás niveles crecían en
-  dólares y cambiaban de color. Los grupos, la presión y el perfil cuentan solo lo visible; el acierto frente a las
+  dólares y cambiaban de color. Los grupos, la presión, las líneas y el perfil cuentan solo lo visible; el acierto frente a las
   liquidaciones reales sigue usando todos.
 - **Crypto, mapa de liquidaciones, colores estables:** el color ya no cambia al hacer zoom (la escala es fija para cada
   activo y marco, no la de lo que se ve, y cada fila muestra el precio más cargado que contiene en vez de sumarlos), y
-  una franja solo desaparece cuando el precio la toca. Antes la memoria las daba por cerradas a medio camino; ahora
-  la memoria solo cuenta para el perfil, la presión y los grupos de la lectura.
+  una franja solo desaparece cuando el precio la toca. Antes la memoria las daba por cerradas a medio camino.
 - **Crypto, mapa de liquidaciones:** Full screen y Older abrían además una ventana de gráfico ampliado vacía, que
   quedaba a la vista al salir de la pantalla completa.
 - **Historial diario, acciones de clase (BRK.B, BF.B):** con las cadenas de Tradier se quedaban sin guardar, porque

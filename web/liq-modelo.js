@@ -226,27 +226,41 @@ const LQ_MODELO = (() => {
     return nv.a[k] * f;
   }
 
+  // lo que el mapa pinta ahora: la ultima columna de gV por tramo (niveles vivos de los apalancamientos que se ven),
+  // sin lo que no pasa `umbral` (USD; la intensidad minima). Lectura, lineas y perfil salen de aqui, asi que nunca
+  // senalan un precio sin franja. Por encima del precio solo quedan cortos y por debajo largos: un nivel que el precio
+  // cruza ya esta tocado
+  function ahora(res, umbral = 0) {
+    const v = new Float64Array(res.B), t = res.n - 1;
+    for (let b = 0; b < res.B; b++) { const x = res.gV[b * res.n + t]; if (x > umbral) v[b] = x; }
+    return v;
+  }
+
   // liquidez pendiente cerca del precio: cortos por encima y largos por debajo dentro de +-pct
-  function presion(res, precio, pct) {
+  function presion(res, precio, pct, umbral = 0) {
+    const v = ahora(res, umbral);
     let arriba = 0, abajo = 0;
     for (let b = 0; b < res.B; b++) {
       const p = Math.sqrt(res.bordes[b] * res.bordes[b + 1]);
-      if (p > precio && p <= precio * (1 + pct)) arriba += res.finS[b] + res.finL[b];
-      else if (p < precio && p >= precio * (1 - pct)) abajo += res.finL[b] + res.finS[b];
+      if (p > precio && p <= precio * (1 + pct)) arriba += v[b];
+      else if (p < precio && p >= precio * (1 - pct)) abajo += v[b];
     }
     return { arriba, abajo, ratio: abajo > 0 ? arriba / abajo : null };
   }
 
-  // grupos mas cargados por encima y por debajo del precio (maximos locales del perfil suavizado)
-  // `lejos`: solo a menos de esa fraccion del precio; los picos de menos del 2 % del mayor no cuentan
-  function grupos(res, precio, cuantos = 3, lejos = Infinity) {
-    const v = Array.from({ length: res.B }, (_, b) => res.finL[b] + res.finS[b]);
+  // grupos mas cargados por encima y por debajo del precio (maximos locales del perfil suavizado, en el precio del tramo
+  // mas cargado del pico, que siempre tiene franja). `lejos`: solo a menos de esa fraccion del precio; los picos de
+  // menos del 2 % del mayor no cuentan
+  function grupos(res, precio, cuantos = 3, lejos = Infinity, umbral = 0) {
+    const v = ahora(res, umbral);
     const s = v.map((_, b) => (v[b - 1] || 0) * 0.25 + v[b] * 0.5 + (v[b + 1] || 0) * 0.25);
     let picos = [];
     for (let b = 1; b < res.B - 1; b++) {
-      const p = Math.sqrt(res.bordes[b] * res.bordes[b + 1]);
-      if (Math.abs(p / precio - 1) > lejos) continue;
-      if (s[b] > 0 && s[b] >= s[b - 1] && s[b] >= s[b + 1]) picos.push({ p, a: v[b - 1] + v[b] + v[b + 1] });
+      if (!(s[b] > 0 && s[b] >= s[b - 1] && s[b] >= s[b + 1])) continue;
+      const c = v[b] >= v[b - 1] && v[b] >= v[b + 1] ? b : v[b - 1] >= v[b + 1] ? b - 1 : b + 1;
+      const p = Math.sqrt(res.bordes[c] * res.bordes[c + 1]);
+      if (Math.abs(p / precio - 1) > lejos || picos.some((x) => x.c === c)) continue;
+      picos.push({ p, c, a: v[b - 1] + v[b] + v[b + 1] });
     }
     const mx = Math.max(0, ...picos.map((x) => x.a));
     picos = picos.filter((x) => x.a >= mx * 0.02);
@@ -270,7 +284,7 @@ const LQ_MODELO = (() => {
     return sxx > 0 && syy > 0 ? { r: sxy / Math.sqrt(sxx * syy), n } : null;
   }
 
-  return { APAL, MM, sumar, calcular, enMapa, presion, grupos, ajuste };
+  return { APAL, MM, sumar, calcular, enMapa, ahora, presion, grupos, ajuste };
 })();
 
 if (typeof module !== "undefined") module.exports = LQ_MODELO;

@@ -165,15 +165,16 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
 - **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer, topado por el
   OI que sigue abierto (mínimo del OI total desde que nació frente al de entonces; `enMapa` da lo mismo por nivel, para
-  el tooltip). En el mapa un nivel solo desaparece cuando el precio lo toca (la memoria cuenta para la presión y los
-  grupos, no aquí). Escala fija `topeV`: percentil 99,9 de las casillas con algo desde `escalaDesde` (la ventana que
+  el tooltip). Un nivel solo desaparece cuando el precio lo toca. La memoria (`finL`, `finS`) ya no se enseña: la
+  presión, los grupos y sus líneas salen de `ahora` (la última columna de `gV` sin lo que no pasa la intensidad
+  mínima), igual que el perfil, para que nunca señalen un precio sin franja. Escala fija `topeV`: percentil 99,9 de las casillas con algo desde `escalaDesde` (la ventana que
   se ve al abrir) y con todos los apalancamientos (`ver` solo filtra lo que se dibuja).
-- **Dibujo** (`lqPintar`): filas de 8 px (`LQ_BANDA`) con el tramo más cargado de los que caen en cada una (no la
+- **Dibujo** (`lqPintar`): filas de 4 px (`LQ_BANDA`) con el tramo más cargado de los que caen en cada una (no la
   suma: el zoom no enciende las filas) y 1 px de separación, una columna por vela visible. Color frente a `topeV`, fijo
-  para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: azul marino casi
-  transparente lo flojo, verde, amarillo y rojo sólidos, colores del tema); solo lo que pasa la intensidad mínima
-  (15 %). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
-  última columna del mapa, con su escala; los dos grupos mayores como líneas con etiqueta en el eje.
+  para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: una rampa del fondo a azul,
+  verde azulado, verde y amarillo con colores del tema; índice `lqIdx` = (v / topeV)^0,45, que en ETH diario deja
+  amarillo el 1 % más cargado); solo lo que pasa la intensidad mínima (5 %). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
+  última columna del mapa, con su escala; el grupo mayor a cada lado como línea con etiqueta en el eje (Longs, Shorts).
 - **Controles:** atajos Swing (diario, 5x a 25x) y Scalp (15 min, 25x a 100x), leyenda de color en dólares (de la
   intensidad mínima al tope), exchanges en un desplegable, una línea de explicación con «How to read» desplegable y
   tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de

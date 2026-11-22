@@ -569,7 +569,9 @@ function lqTip(prm) {
 function lqLectura() {
   const d = lq.datos, r = lq.res, cfg = LQ_TF[d.tf], n = d.velas.length;
   const precio = d.velas[n - 1].c, pct = d.tf === "1D" ? 0.15 : d.tf === "4h" ? 0.1 : 0.05;
-  const pr = LQ_MODELO.presion(r, precio, pct), g = LQ_MODELO.grupos(r, precio, 3, pct * 2);
+  // lo mismo que pinta el mapa ahora (con la intensidad minima): las lineas y los grupos siempre caen sobre una franja
+  const umbral = (lq.min / 100) * (r.topeV > 0 ? r.topeV : 1);
+  const pr = LQ_MODELO.presion(r, precio, pct, umbral), g = LQ_MODELO.grupos(r, precio, 3, pct * 2, umbral);
   lqNivelesClave(g);
   let veredicto, cls = "";
   if (pr.ratio == null || (pr.arriba + pr.abajo) === 0) veredicto = "No clear pull";
@@ -625,7 +627,11 @@ $("lqLev").addEventListener("click", (e) => {
   const s = new Set(lq.levOff); if (s.has(b.dataset.v)) s.delete(b.dataset.v); else s.add(b.dataset.v);
   Object.assign(lq, { levOff: s }); store.set("lqLevOff3", [...s].join(",")); lqControles(); lqCalcular();
 });
-$("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
+$("lqMin").addEventListener("input", (e) => {
+  lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen();
+  if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); }
+  if (lq.datos && lq.res) lqLectura();   // lineas y grupos: solo lo que se ve
+});
 $("lqMin").addEventListener("change", () => store.set("lqMin4", lq.min));
 $("lqPreset").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;

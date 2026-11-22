@@ -171,3 +171,17 @@ test("en el mapa un nivel solo desaparece cuando el precio lo toca, no por la me
   assert.ok(r.niveles.fin[0] < 59);       // pero la memoria los da por cerrados para la lectura
   assert.ok(r.topeV > 0);
 });
+
+test("grupos y presion salen de lo que pinta el mapa: siempre sobre una franja que pasa el umbral", () => {
+  const velas = Array.from({ length: 60 }, (_, i) => vela(i, 100 + Math.sin(i / 4) * 3));
+  const oi = velas.map((_, i) => i * 10 + (i % 7 === 0 ? 200 : 0));
+  const r = M.calcular(velas, oi, { vida: 1e9 });
+  const t = r.n - 1, precio = velas[t].c, umbral = r.topeV * 0.05;
+  const binDe = (p) => { for (let b = 0; b < r.B; b++) if (p >= r.bordes[b] && p < r.bordes[b + 1]) return b; return -1; };
+  const g = M.grupos(r, precio, 3, Infinity, umbral);
+  for (const x of [...g.arriba, ...g.abajo]) assert.ok(r.gV[binDe(x.p) * r.n + t] > umbral, `grupo en ${x.p}`);
+  // sin nada que pase el umbral no hay grupos ni presion
+  const nada = M.presion(r, precio, 1, Infinity);
+  assert.equal(nada.arriba + nada.abajo, 0);
+  assert.equal(M.grupos(r, precio, 3, Infinity, Infinity).arriba.length, 0);
+});

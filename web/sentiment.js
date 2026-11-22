@@ -150,7 +150,7 @@ function renderSentTicker(d) {
     if (i >= 0 && ser[i][1] != null) g += `<circle cx="${x(i).toFixed(1)}" cy="${yp(ser[i][1]).toFixed(1)}" r="5" fill="none" stroke="${row.div.type === "bear" ? C.neg : C.pos}" stroke-width="2"/>`;
   }
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${g}</svg>`;
-  const ex = (d.expiries[sen.sym] || []).slice(0, 12);
+  const ex = (d.expiries[sen.sym] || []).slice(0, 8);
   $("senExp").innerHTML = ex.length ? `<table class="scan sen-exp-t"><thead><tr><th class="l">Expiration</th><th>Days</th><th>P/C volume</th><th>P/C open interest</th></tr></thead><tbody>${ex.map((e) =>
     `<tr><td class="l">${ddmm(e.exp)}</td><td>${e.dte}</td><td>${e.pc_vol == null ? "—" : fmtNum(e.pc_vol, 2)}</td><td>${e.pc_oi == null ? "—" : fmtNum(e.pc_oi, 2)}</td></tr>`).join("")}</tbody></table>` : "";
   $("senCap").textContent = `Price (top) and combined score (bottom, 1 to 100; dashed lines at 20 and 80). Put/call by expiration on ${ddmm(d.date)}: out-of-the-money options weighted by delta.`;

@@ -177,7 +177,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
 - **Controles:** atajos Swing (diario, 5x a 25x) y Scalp (15 min, 25x a 100x), leyenda de color en dólares (de la
   intensidad mínima al tope), exchanges en un desplegable, una línea de explicación con «How to read» desplegable y
   tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de
-  apalancamientos y fechas en que se abrieron). La vista inicial deja sitio al perfil según el ancho.
+  apalancamientos y fechas en que se abrieron). La vista inicial deja sitio al perfil según el ancho. Copy image
+  (`lqPngBlob`: `takeScreenshot` de la librería con cabecera; si el portapapeles falla, descarga el PNG).
 - **Lectura:** línea «Nearest liquidity» (el más cercano de los grandes grupos a cada lado), presión (cortos por encima
   frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario) con el veredicto en grande, los tres grupos más
   cargados a cada lado y la fiabilidad del modelo (Good, Fair o Weak según la correlación, en log, entre liquidaciones

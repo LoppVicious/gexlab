@@ -629,6 +629,52 @@ $("lqPreset").addEventListener("click", (e) => {
 document.addEventListener("click", (e) => { const d = $("lqExDrop"); if (d.open && !d.contains(e.target)) d.open = false; });
 $("lqChart").addEventListener("mouseleave", () => { $("lqTip").hidden = true; });
 $("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });
+
+// imagen del mapa como en pantalla (velas, franjas, perfil, lineas y panel de liquidaciones reales) con una cabecera:
+// activo, marco, fecha de la ultima vela, precio y la linea de liquidez mas cercana
+function lqPngBlob() {
+  // la captura sale a la densidad de la pantalla: la cabecera, igual
+  const d = lq.datos, src = lq.chart.takeScreenshot(), k = Math.max(1, window.devicePixelRatio || 1), pad = 14, cab = 64;
+  const cv = document.createElement("canvas");
+  const W = src.width, H = src.height + Math.round(cab * k);
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d"), font = getComputedStyle(document.body).fontFamily;
+  ctx.fillStyle = C.surface; ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(src, 0, Math.round(cab * k));
+  ctx.scale(k, k);
+  const v = d.velas[d.velas.length - 1];
+  const fecha = new Date(v.t * 1000).toLocaleString("en-US", d.tf === "1D" ? { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" } : { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  ctx.textBaseline = "top";
+  ctx.fillStyle = C.text; ctx.font = `700 16px ${font}`;
+  ctx.fillText(`${d.sym} liquidation map, ${LQ_TF[d.tf].nombre} candles`, pad, 8);
+  ctx.fillStyle = C.muted; ctx.font = `12px ${font}`;
+  ctx.fillText(`${fecha}${d.tf === "1D" ? "" : " UTC"}, price ${lqPx(v.c)}`, pad, 28);
+  ctx.fillText($("lqIman").textContent, pad, 45);
+  ctx.textAlign = "right"; ctx.fillStyle = C.faint;
+  ctx.fillText("GEX Lab", W / k - pad, 10);
+  return new Promise((ok, ko) => cv.toBlob((b) => (b ? ok(b) : ko(new Error("Could not create the image"))), "image/png"));
+}
+
+// si el navegador no deja copiar, la imagen se descarga
+async function lqDescargar() {
+  const url = URL.createObjectURL(await lqPngBlob()), a = document.createElement("a");
+  a.href = url; a.download = `${lq.datos.sym}-liquidations-${lq.datos.tf}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  toast("Image downloaded", "This browser blocked copying to the clipboard, so it was saved as a file.");
+}
+
+// al portapapeles: la escritura se pide dentro del clic, con la imagen como promesa (lo exige el navegador)
+$("lqCopiar").addEventListener("click", () => {
+  if (!lq.datos || !lq.chart) return;
+  const b = $("lqCopiar");
+  b.disabled = true;
+  const copia = navigator.clipboard && window.ClipboardItem
+    ? navigator.clipboard.write([new ClipboardItem({ "image/png": lqPngBlob() })]).then(() => toast("Image copied", "Paste it with Ctrl+V."))
+    : Promise.reject(new Error("no clipboard"));
+  copia.catch(() => lqDescargar().catch((e) => toast("Could not copy", e.message)))
+    .finally(() => { b.disabled = false; });
+});
 $("lqFull").addEventListener("click", () => {
   const el = $("lqPanel");
   lqGrande(false);

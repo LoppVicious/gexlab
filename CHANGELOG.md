@@ -11,6 +11,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   y cuándo se abrieron. Leyenda de color en dólares junto a la intensidad mínima. Botones Swing (diario, 5x a 25x) y
   Scalp (15 minutos, 25x a 100x). Línea «Nearest liquidity» con el grupo grande más cercano por encima y por debajo, y
   el veredicto de presión en grande.
+- **Crypto, mapa de liquidaciones, Copy image:** copia el mapa como imagen (velas, franjas, perfil y panel de
+  liquidaciones reales) con una cabecera de activo, marco, fecha, precio y la liquidez más cercana; se pega con Ctrl+V.
+  Si el navegador no deja copiar, la descarga en PNG.
 - **Crypto, mapa de liquidaciones, Expand:** agranda el mapa dentro de la página, con el resto oscurecido; se cierra
   con el mismo botón o con Esc. Full screen sigue llevándolo a pantalla completa.
 

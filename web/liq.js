@@ -404,22 +404,25 @@ class LqPerfil {
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const H = mediaSize.height, W = Math.round(Math.min(170, Math.max(70, mediaSize.width * 0.14))), right = mediaSize.width - 2;
       const precio = d.velas[d.velas.length - 1].c, yP = p.series.priceToCoordinate(precio);
-      const paso = LQ_BANDA, filas = [];
+      // barras: la ultima columna del mapa (mismo valor por fila, el tramo mas cargado, y misma escala de color e
+      // intensidad minima), para que el color diga lo mismo que las franjas. Curvas: lo acumulado que sigue abierto
+      // segun la memoria (finL/finS), como la lectura de abajo
+      const paso = LQ_BANDA, filas = [], t = r.n - 1, tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope;
       let mx = 0;
       for (let y = 0; y < H; y += paso) {
         const tr = lqTramosEntre(p.series, y, y + paso);
-        let v = 0;
-        if (tr) for (let b = tr[0]; b <= tr[1]; b++) v += r.finL[b] + r.finS[b];
-        filas.push([y, v]); mx = Math.max(mx, v);
+        let v = 0, abierto = 0;
+        if (tr) for (let b = tr[0]; b <= tr[1]; b++) { v = Math.max(v, r.gV[b * r.n + t]); abierto += r.finL[b] + r.finS[b]; }
+        if (v <= umbral) v = 0;
+        filas.push([y, v, abierto]); mx = Math.max(mx, v);
       }
-      if (!mx) return;
       ctx.save();
       ctx.fillStyle = C.surface; ctx.globalAlpha = 0.6;
       ctx.fillRect(right - W, 0, W, H);
       ctx.globalAlpha = 1;
       for (const [y, v] of filas) {
         if (v <= 0) continue;
-        const i = Math.min(255, Math.floor((v / mx) * 255)) * 4, l = lq.lut;
+        const i = Math.min(255, Math.floor(Math.min(1, v / tope) * 255)) * 4, l = lq.lut;
         ctx.fillStyle = `rgba(${l[i]},${l[i + 1]},${l[i + 2]},${Math.max(0.35, l[i + 3] / 255)})`;
         const wv = (v / mx) * W * 0.92;
         ctx.fillRect(right - wv, y, wv, paso - 1);
@@ -427,7 +430,7 @@ class LqPerfil {
       // acumulados desde el precio: arriba (cortos, verde) y abajo (largos, rojo), escala propia
       if (yP != null) {
         const arriba = filas.filter(([y]) => y < yP).reverse(), abajo = filas.filter(([y]) => y >= yP);
-        const acum = (lista) => { let s = 0; return lista.map(([y, v]) => [y, (s += v)]); };
+        const acum = (lista) => { let s = 0; return lista.map(([y, , a]) => [y, (s += a)]); };
         const cA = acum(arriba), cB = acum(abajo), cm = Math.max(1, ...cA.map((x) => x[1]), ...cB.map((x) => x[1]));
         for (const [lista, col] of [[cA, C.put], [cB, C.call]]) {
           if (!lista.length) continue;

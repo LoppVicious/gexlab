@@ -293,6 +293,12 @@ class Handler(SimpleHTTPRequestHandler):
             if not d:
                 return self._json(503, {"error": "Skew signal: no data yet. The daily history computes it after each close."})
             return self._json(200, d)
+        if url.path == "/api/pcr":  # lo calcula el historial diario (pcr.py); aqui se lee del almacen
+            import almacen
+            d = almacen.get_json(almacen.abrir(), "pub/pcr.json")
+            if not d:
+                return self._json(503, {"error": "Sentiment: no data yet. The daily history computes it after each close."})
+            return self._json(200, d)
         if url.path in ("/api/crypto", "/api/crypto_series", "/api/crypto_net"):  # cripto.py; del almacen
             import almacen
             import re

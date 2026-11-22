@@ -222,6 +222,7 @@
       case "/api/corr": return pub("correlacion.json", s, "Correlation");
       case "/api/regimen": return pub("regimen.json", s, "Gamma regime");
       case "/api/skew": return pub("skew.json", s, "Skew signal");
+      case "/api/pcr": return pub("pcr.json", s, "Sentiment");
       case "/api/crypto": return pub("cripto.json", s, "Crypto");
       case "/api/crypto_series": return pub("cripto_series.json", s, "Crypto history");
       case "/api/liq_markets": return pub("liq_mercados.json", s, "Liquidation map");

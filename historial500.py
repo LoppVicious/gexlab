@@ -7,7 +7,7 @@ config/historial500.json; si aun no existe, se usa TICKERS (la lista inicial).
   python historial500.py                 sesion de hoy (solo si ya ha cerrado y no esta hecha)
   python historial500.py --forzar        rehace la ultima sesion cerrada (con el mercado cerrado)
   python historial500.py --forzar AAPL   solo esos tickers (pruebas)
-  python historial500.py --indice        reconstruye hist500/_niveles/ y hist500/_skew.json.gz con los dias ya guardados
+  python historial500.py --indice        reconstruye hist500/_niveles/, _skew.json.gz y _pcr.json.gz con los dias ya guardados
   python historial500.py --validacion    solo recalcula la Validacion de toda la lista (pub/validacion500/)
 
 Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
@@ -23,6 +23,7 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
   hist500/_flujo/{SYM}.json.gz: volumen del dia y lado de la ultima operacion por contrato de las ultimas
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
   hist500/_skew.json.gz y pub/skew.json: skew de puts y diferencia call-put a 30 dias de cada accion (skew.py).
+  hist500/_pcr.json.gz, hist500/_pcr_exp.json.gz y pub/pcr.json: sentimiento por put/call (pcr.py).
   pub/validacion500/{filtro}_{posicion}.json: Validacion de toda la lista con el indice de niveles (publicar_validacion).
 Al terminar escribe hist500/_dias/{fecha}.json (resumen) y borra lo que tenga mas de RETENCION_ANOS.
 Nunca toca el estado del motor (estado/estado.tar.gz). Los registros de Actions son publicos: solo se
@@ -45,6 +46,7 @@ import numpy as np  # noqa: E402
 
 import almacen  # noqa: E402
 import gex_engine as g  # noqa: E402
+import pcr  # noqa: E402
 import skew  # noqa: E402
 
 TICKERS = """
@@ -164,7 +166,7 @@ def cadena_compacta(ch: dict) -> dict:
     return g.chain_to_min(sub)
 
 
-def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None) -> int:
+def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None, pcrs: dict | None = None) -> int:
     g._cache.pop(sym, None)
     raw = g.fetch_chain(sym, force=True)
     ch = g.parse_chain(raw)
@@ -179,6 +181,12 @@ def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None) -> int
                 puntos[sym] = skew.fila(p, ch["spot"], ov, sv)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew {sym}: {type(e).__name__}: {str(e)[:120]}")
+    if pcrs is not None:  # sentimiento por put/call (pcr.py): sumas por tramo y P/C por vencimiento del dia
+        try:
+            spot = float(ch["spot"])
+            pcrs[sym] = (pcr.sumas(ch, spot, sesion), pcr.por_vencimiento(ch, spot, sesion))
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR pcr {sym}: {type(e).__name__}: {str(e)[:120]}")
     # flujo: el historico de las ultimas sesiones (R2) + la de hoy, antes de calcular con posicion "flow"
     fkey = f"{PREFIX}_flujo/{sym}.json.gz"
     fpath = os.path.join(g.HIST_DIR, f"flow_{sym.replace('.', '_')}.json.gz")
@@ -281,6 +289,17 @@ def publicar_skew(st, guardados: list[str] | None = None) -> None:
         log(f"skew: {e}")
 
 
+def publicar_pcr(st) -> None:
+    """pub/pcr.json; despues de publicar_skew, que trae la prueba de la señal pcr."""
+    try:
+        r = pcr.publicar(st)
+        if r:
+            log(f"pcr: {len(r['rows'])} tickers el {r['date']}, {r['sessions']} sesiones, "
+                f"{sum(1 for x in r['rows'] if x['score'] is not None)} con puntuacion")
+    except Exception as e:  # noqa: BLE001
+        log(f"ERROR pcr: {type(e).__name__}: {str(e)[:120]}")
+
+
 def publicar_validacion(st, syms: list[str]) -> None:
     """Validacion de toda la lista (motor Perfil, el que usa la web) con los niveles tras el cierre del indice
     hist500/_niveles/: pub/validacion500/{filtro}_{posicion}.json, uno por filtro de vencimientos y posicion. La web la
@@ -374,11 +393,16 @@ def main(args: list[str]) -> int:
                 log(f"ERROR indice {sym}: {type(e).__name__}: {str(e)[:120]}")
         if not pedidos:
             syms = _normalizados(lista_tickers(st)[0])
+            try:  # antes que skew: su señal pcr lee este indice
+                log(f"pcr: indice con {pcr.reconstruir(st, syms)} sesiones")
+            except Exception as e:  # noqa: BLE001
+                log(f"ERROR pcr: {type(e).__name__}: {str(e)[:120]}")
             try:
                 log(f"skew: indice con {skew.reconstruir(st, syms)} sesiones")
                 publicar_skew(st)
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
+            publicar_pcr(st)
             publicar_validacion(st, syms)
         return 0
     if "--validacion" in args:  # solo recalcula la Validacion de toda la lista con los indices guardados
@@ -411,6 +435,7 @@ def main(args: list[str]) -> int:
     log(f"sesion {sesion}: {len(syms)} tickers (lista: {origen})")
     ok, fallos, total = [], [], 0
     puntos: dict = {}
+    pcrs: dict = {}
     pendientes = list(syms)
     for ronda in range(2):  # segunda ronda: los que fallaron, tras una pausa
         if ronda:
@@ -422,7 +447,7 @@ def main(args: list[str]) -> int:
         for sym in pendientes:
             t = time.time()
             try:
-                n = guardar_ticker(st, sym, sesion, puntos)
+                n = guardar_ticker(st, sym, sesion, puntos, pcrs)
                 total += n
                 ok.append(sym)
                 log(f"{sym}: {n / 1024:.0f} KB en {time.time() - t:.1f} s")
@@ -442,12 +467,19 @@ def main(args: list[str]) -> int:
     if pedidos:  # prueba con unos tickers: ni poda ni marca de sesion hecha
         log(f"prueba terminada: {len(ok)}/{len(syms)} tickers, {total / 1e6:.2f} MB")
         return 0 if ok else 1
+    if pcrs:  # antes que skew: su señal pcr lee este indice
+        try:
+            n = pcr.actualizar(st, sesion, {s: v[0] for s, v in pcrs.items()}, {s: v[1] for s, v in pcrs.items()})
+            log(f"pcr: {len(pcrs)} tickers, indice con {n} sesiones")
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR pcr: {type(e).__name__}: {str(e)[:120]}")
     if puntos:
         try:
             log(f"skew: {len(puntos)} tickers, indice con {skew.actualizar(st, sesion, puntos)} sesiones")
             publicar_skew(st, ok)
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
+    publicar_pcr(st)
     publicar_validacion(st, syms)
     borrados = podar(st, sesion)
     almacen.put_json(st, marca, {

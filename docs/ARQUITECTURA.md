@@ -306,7 +306,9 @@ Los dos:
 - **Sentimiento por put/call** (`pcr.py`, `pub/pcr.json`, `/api/pcr`, `web/sentiment.js`, página Sentiment; diseño
   en `docs/SENTIMIENTO.md`): de la cadena del cierre, volumen y OI × |delta| de calls y puts fuera de dinero por
   tramo (`t0` 0-7 días, `t1` 8-45, `t2` más de 45, `all`). Puntuación 1-100 de cada ticker = 1 + 99 × Φ(−z), con z
-  robusta (mediana y MAD) de log(P/C de volumen) frente a sus 60 sesiones anteriores, mínimo 20: 100 = codicia. La
+  robusta (mediana y MAD) de log(P/C de volumen) frente a sus 60 sesiones anteriores, 20 sesiones con lectura contando
+  la de hoy y las dos patas de al menos `MIN_PATA` (25, volumen × |delta|; calibración con `pruebas/estudio_pcr.py`
+  en estudio.yml): 100 = codicia. `lead` (en el JSON): sesiones del ticker que más historia lleva. La
   combinada es la media de las z de `t0` y `t1`. Divergencias: cierre en máximo (mínimo) de 20 sesiones con la media
   de la puntuación de 5 sesiones 15 puntos por debajo (encima) de la de las 5 anteriores; estadística de los casos a
   10 y 40 sesiones. Mercado: SPX, SPY, QQQ e IWM, amplitud de las acciones y `_STOCKS` (suma de todas las acciones).

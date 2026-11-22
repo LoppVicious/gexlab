@@ -42,9 +42,11 @@ Alta diaria dentro de `historial500.guardar_ticker` (mismo patrón que `puntos` 
 
 ## Puntuación de cada ticker
 
-- x = log(vp / vc) del tramo.
-- z = (x − mediana) / (1,4826 × MAD) con las `VENTANA` = 60 sesiones anteriores (sin la de hoy), mínimo `MIN_SES` =
-  20. Con MAD = 0, sin lectura.
+- x = log(vp / vc) del tramo, solo si las dos patas llegan a `MIN_PATA` = 25 (volumen × |delta|; con OI, lo mismo):
+  con casi nada de calls fuera de dinero el ratio se dispara (TRMB 330, JKHY 168 el 2026-11-20). Se aplica al leer,
+  no al guardar; `pruebas/estudio_pcr.py` (estudio.yml) enseña la liquidez real para recalibrarlo.
+- z = (x − mediana) / (1,4826 × MAD) con las `VENTANA` = 60 sesiones anteriores (sin la de hoy); hacen falta
+  `MIN_SES` = 20 sesiones con lectura contando la de hoy. Con MAD = 0, sin lectura.
 - Puntuación = 1 + 99 × Φ(−z), redondeada a entero. z alta (más puts que lo normal) = miedo = cerca de 1.
 - Puntuación por tramo (`t0`, `t1`, `t2`, `all`) y **combinada** = 1 + 99 × Φ(−media(z_t0, z_t1)) (con uno solo, ese).
 - También z con OI (`zoi`) por tramo, publicada pero sin puntuación en pantalla.

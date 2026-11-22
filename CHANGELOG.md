@@ -12,7 +12,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   acciones en conjunto, amplitud (acciones en miedo y en codicia), SPY, QQQ, SPX e IWM, divergencias con el precio
   (máximo o mínimo de 20 sesiones con la puntuación yendo al revés) y, al pulsar un ticker, su precio con la
   puntuación debajo y el put/call de cada vencimiento. Las puntuaciones salen cuando cada ticker tiene 20 sesiones
-  de historia; hasta entonces la tabla enseña el put/call sin normalizar. Tarjeta en Summary.
+  de historia; hasta entonces la tabla enseña el put/call sin normalizar. Los días con muy poco volumen en calls o en
+  puts no cuentan (sin ese mínimo, opciones poco negociadas daban ratios de 100 o más por ruido). El aviso de
+  sesiones que faltan va por los tickers que más historia llevan; los añadidos después al historial tardan más.
+  Tarjeta en Summary.
 - **Crypto, mapa de liquidaciones, más fácil de leer:** al pasar el ratón por una franja, su rango de precio, los
   dólares que se liquidarían, la distancia al precio actual, si son largos o cortos, de qué apalancamientos se compone
   y cuándo se abrieron. Leyenda de color en dólares junto a la intensidad mínima. Botones Swing (diario, 5x a 25x) y

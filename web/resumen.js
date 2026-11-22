@@ -259,7 +259,7 @@ function suCot(c) {
 function suSent() {
   const P = su.pcr, m = P && P.market, s = m && m.stocks;
   const head = `<header><h3>Put/call sentiment</h3><span class="sub">${P ? `close of ${ddmm(P.date)}, 100 = greed` : "stocks against their own history"}</span></header>`;
-  if (!s || s.score == null) return `<section class="su-card su-sent" data-go="sentiment" title="Open Sentiment">${head}${suWait(P ? `Building history: ${fmtNum(P.sessions, 0)} of ${P.min_sessions} sessions.` : "Loading…")}</section>`;
+  if (!s || s.score == null) return `<section class="su-card su-sent" data-go="sentiment" title="Open Sentiment">${head}${suWait(P ? `Building history: ${fmtNum(P.lead ?? P.sessions, 0)} of ${P.min_sessions} sessions.` : "Loading…")}</section>`;
   const b = m.breadth, cls = s.score < 40 ? "dn" : s.score > 60 ? "up" : "";
   return `<section class="su-card su-sent" data-go="sentiment" title="Open Sentiment">${head}
     <div class="su-nd"><span>Stocks combined</span><b class="${cls}">${fmtNum(s.score, 0)}</b></div>

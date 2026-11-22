@@ -63,14 +63,15 @@ function renderSent() {
   const d = sen.data;
   if (!d) return;
   const m = d.market, stk = m.stocks || {}, b = m.breadth;
-  const falta = Math.max(0, d.min_sessions - d.sessions);
+  // los tickers que mas historia llevan (lead) son los primeros en puntuar; los añadidos despues tardan mas
+  const falta = Math.max(0, d.min_sessions - (d.lead ?? d.sessions));
   const st = $("senState");
   st.textContent = falta ? "Collecting data" : senValidated(d) ? "Tested" : "Not validated yet";
   st.className = "mstate " + (falta || !senValidated(d) ? "mixed" : "contango");
   $("senSub").textContent = `${d.rows.length} tickers, close of ${longDate(d.date)}. ${d.sessions} session${d.sessions === 1 ? "" : "s"} since ${ddmm(d.first)}`;
   $("senGauge").innerHTML = senGauge(stk.score);
   $("senRead").textContent = stk.score == null
-    ? `Each ticker needs ${d.min_sessions} sessions of its own history before it gets a score${falta ? `: ${falta} more to go` : ""}. Until then the table shows the raw put/call ratios.`
+    ? `Each ticker needs ${d.min_sessions} sessions of its own history before it gets a score.${falta ? ` The first ones get it in ${falta} session${falta === 1 ? "" : "s"}; tickers added to the daily history later, and thinly traded ones, take longer.` : ""} Until then the table shows the raw put/call ratios.`
     : `Stocks as a whole: ${senLabel(stk.score).toLowerCase()}.${b.n ? ` ${fmtNum(b.fear_pct, 0)}% of the stocks in fear (under 20) and ${fmtNum(b.greed_pct, 0)}% in greed (over 80).` : ""}`;
   const fact = (l, v, s) => `<div class="fact"><span class="fl">${l}</span><strong>${v}</strong><span class="fs">${s}</span></div>`;
   const ix = Object.entries(m.indices).map(([s, x]) => fact(s, senNum(x.score),
@@ -109,7 +110,7 @@ function renderSentTable(d) {
     th.classList.toggle("sorted", th.dataset.k === k);
     th.dataset.dir = th.dataset.k === k ? (dir > 0 ? "▲" : "▼") : "";
   });
-  $("senFoot").textContent = "Until a ticker has its own history the cells show its raw put/call ratio (delta-weighted, out of the money). The swing test of this signal is on the Skew signal page (Put/call).";
+  $("senFoot").textContent = `Until a ticker has its own history the cells show its raw put/call ratio (delta-weighted, out of the money). Days with less than ${fmtNum(d.min_leg ?? 25, 0)} delta-weighted contracts on either side give no reading, so thin options do not count. The swing test of this signal is on the Skew signal page (Put/call).`;
 }
 
 // precio arriba, puntuacion abajo (bandas 20 y 80), con el mismo eje de fechas

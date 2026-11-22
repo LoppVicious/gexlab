@@ -53,9 +53,11 @@ def test_por_vencimiento():
 
 # ---------------------------------------------------------------- z y puntuación
 def test_serie_z_minimo_y_mad():
+    base = [float(i % 5) for i in range(19)]      # 19 sesiones previas + hoy = 20: ya hay z
+    assert pcr.serie_z(base + [9.0])[19] is not None
+    assert pcr.serie_z(base[:18] + [9.0])[18] is None   # 19 contando hoy: aún no
     xs = [0.0, 1.0] * 10                          # 20 valores: mediana 0,5, MAD 0,5
     z = pcr.serie_z(xs + [2.0])
-    assert all(v is None for v in z[:20])         # sin 20 sesiones previas, sin z
     assert abs(z[20] - (2.0 - 0.5) / (1.4826 * 0.5)) < 1e-9
     assert pcr.serie_z([1.0] * 21)[20] is None    # MAD 0: sin lectura
     assert pcr.serie_z([None] * 5 + [0.0, 1.0] * 10 + [None])[-1] is None   # hoy sin dato
@@ -75,9 +77,18 @@ def test_puntuacion_escala():
 
 
 def test_log_pc():
-    assert pcr.log_pc([10.0, 20.0, 5.0, 5.0]) == math.log(2.0)
-    assert pcr.log_pc([10.0, 20.0, 5.0, 10.0], oi=True) == math.log(2.0)
+    assert pcr.log_pc([100.0, 200.0, 50.0, 50.0]) == math.log(2.0)
+    assert pcr.log_pc([100.0, 200.0, 50.0, 100.0], oi=True) == math.log(2.0)
     assert pcr.log_pc([0.0, 20.0, 5.0, 5.0]) is None and pcr.log_pc(None) is None
+
+
+def test_minimo_de_liquidez():
+    # 0,5 de calls frente a 160 de puts daría un ratio de 320: por debajo de MIN_PATA no hay lectura
+    assert pcr.log_pc([0.5, 160.0, 900.0, 900.0]) is None
+    assert pcr.log_pc([0.5, 160.0, 900.0, 900.0], oi=True) == 0.0
+    assert pcr.log_pc([pcr.MIN_PATA, pcr.MIN_PATA, 0, 0]) == 0.0
+    ch = cadena([(110, True, "2026-11-27", 2, 1000, 0.30), (90, False, "2026-11-27", 200, 500, -0.25)])
+    assert pcr.por_vencimiento(ch, 100.0, SES)[0]["pc_vol"] is None   # 0,6 de calls: sin lectura
 
 
 # ---------------------------------------------------------------- divergencias
@@ -130,7 +141,7 @@ def test_calcular():
     assert a["stock"] and not filas["SPY"]["stock"]
     assert a["score"] is not None and a["score"] <= 5          # salto de puts: miedo
     assert a["tranches"]["t0"]["score"] <= 5 and a["tranches"]["t2"]["score"] is None
-    assert a["n"] == 30 and r["sessions"] == 30
+    assert a["n"] == 30 and r["sessions"] == 30 and r["lead"] == 30
     assert r["market"]["indices"]["SPY"]["score"] is not None
     assert r["market"]["breadth"]["n"] == 1 and r["market"]["breadth"]["fear_pct"] == 100.0
     assert r["market"]["stocks"]["score"] == a["score"]         # una sola acción: el agregado es ella

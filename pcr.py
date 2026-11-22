@@ -32,7 +32,11 @@ VENCIMIENTOS = "hist500/_pcr_exp.json.gz"
 PUB = "pub/pcr.json"
 TRAMOS = {"t0": (0, 7), "t1": (8, 45), "t2": (46, 100_000), "all": (0, 100_000)}
 VENTANA = 60                    # sesiones de la referencia de cada ticker
-MIN_SES = 20                    # sesiones previas mínimas para dar z
+MIN_SES = 20                    # sesiones con dato (contando la de hoy) para dar z
+# volumen (u OI) × |delta| mínimo de cada pata para leer el ratio de un día: con casi nada de calls fuera de dinero
+# el ratio se dispara (TRMB 330, JKHY 168 el 2026-11-20) y es ruido. Se aplica al leer, no al guardar: las sumas del
+# índice quedan completas y el umbral se puede recalibrar sin reconstruir (pruebas/estudio_pcr.py)
+MIN_PATA = 25.0
 DIV_SES = 20                    # máximo o mínimo de cierre de estas sesiones
 DIV_MEDIA = 5                   # sesiones de cada media de la puntuación
 DIV_PUNTOS = 15                 # diferencia mínima entre las dos medias
@@ -45,7 +49,7 @@ SERIE_MAX = 250                 # sesiones publicadas por ticker para el gráfic
 
 # ---------------------------------------------------------------- sumas de la cadena
 def _r(p: float, c: float) -> float | None:
-    return round(p / c, 4) if p > 0 and c > 0 else None
+    return round(p / c, 4) if p >= MIN_PATA and c >= MIN_PATA else None
 
 
 def _base(ch: dict, spot: float, sesion: str):
@@ -85,20 +89,20 @@ def por_vencimiento(ch: dict, spot: float, sesion: str) -> list[dict]:
 
 # ---------------------------------------------------------------- z y puntuación
 def log_pc(s: list | None, oi: bool = False) -> float | None:
-    """log(puts / calls) de unas sumas [vc, vp, oc, op]; None sin las dos patas."""
+    """log(puts / calls) de unas sumas [vc, vp, oc, op]; None si alguna pata no llega a MIN_PATA."""
     if not s:
         return None
     c, p = (s[2], s[3]) if oi else (s[0], s[1])
-    return math.log(p / c) if p > 0 and c > 0 else None
+    return math.log(p / c) if p >= MIN_PATA and c >= MIN_PATA else None
 
 
 def serie_z(xs: list[float | None]) -> list[float | None]:
     """z robusta de cada valor frente a los VENTANA anteriores (posiciones de sesión; los None no cuentan):
-    (x − mediana) / (1,4826 × MAD). Sin MIN_SES valores previos o con MAD 0, None."""
+    (x − mediana) / (1,4826 × MAD). Sin MIN_SES sesiones con dato contando la de hoy, o con MAD 0, None."""
     out: list[float | None] = []
     for i, x in enumerate(xs):
         prev = np.array([v for v in xs[max(0, i - VENTANA):i] if v is not None])
-        if x is None or prev.size < MIN_SES:
+        if x is None or prev.size < MIN_SES - 1:
             out.append(None)
             continue
         med = float(np.median(prev))
@@ -252,7 +256,9 @@ def calcular(idx: dict, idx_skew: dict, nombres: dict, venc: dict | None = None,
                     "fear_pct": pct(lambda x: x < 20), "greed_pct": pct(lambda x: x > 80)},
         "stocks": {k: agg[k] for k in ("score", "z", "chg5", "n")} if agg else None,
     }
+    # lead: sesiones con dato del ticker que más lleva (los añadidos después al historial diario van por detrás)
     return {"date": hoy, "first": fechas[0], "sessions": len(fechas), "window": VENTANA, "min_sessions": MIN_SES,
+            "lead": max((r["n"] for r in rows), default=0), "min_leg": MIN_PATA,
             "market": market, "rows": rows, "expiries": venc or {}, "series": series,
             "divergences": {"bear": _resumen_div(casos_tipo["bear"], -1), "bull": _resumen_div(casos_tipo["bull"], 1),
                             "rule": {"sessions": DIV_SES, "mean": DIV_MEDIA, "points": DIV_PUNTOS}},

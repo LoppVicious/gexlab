@@ -17,13 +17,16 @@ const LQ_TF = {
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
 const LQ_BANDA = 8;   // alto en pixeles de cada franja del mapa y del perfil
-const LQ_VIDA = { "0.5": "short", 1: "normal", 2: "long" };
+// atajos: marco y apalancamientos de cada forma de operar
+const LQ_PRESET = {
+  swing: { tf: "1D", levOff: ["50", "100"] },   // posiciones que aguantan semanas: niveles lejos del precio
+  scalp: { tf: "15m", levOff: ["5", "10"] },    // alto apalancamiento: niveles pegados al precio
+};
 const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
-  // por defecto sin 5x ni 10x: sus niveles quedan lejos, casi nunca se tocan y llenan el historial
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin3", 15), vida: String(store.get("lqVida", "1")), extra: 0,
+  min: +store.get("lqMin3", 15), vida: "1", extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -77,16 +80,22 @@ function lqControles() {
   $("lqQuick").innerHTML = ms.slice(0, 10).map((a) => `<button role="radio" data-v="${esc(a.sym)}" aria-checked="${a.sym === lq.sym}">${esc(a.sym)}</button>`).join("");
   document.querySelectorAll("#lqTf button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === lq.tf)));
   const a = lqActivo(), ex = lq.merc.exchanges || {};
-  $("lqEx").innerHTML = Object.keys(ex).filter((e) => a && a.ex[e]).map((e) => `<button role="checkbox" data-v="${e}" aria-checked="${!lq.exOff.has(e)}">${esc(ex[e])}</button>`).join("");
+  const exs = Object.keys(ex).filter((e) => a && a.ex[e]), activos = exs.filter((e) => !lq.exOff.has(e)).length;
+  $("lqEx").innerHTML = exs.map((e) => `<button role="checkbox" data-v="${e}" aria-checked="${!lq.exOff.has(e)}">${esc(ex[e])}</button>`).join("");
+  $("lqExN").textContent = activos === exs.length ? "All" : `${activos} of ${exs.length}`;
+  const off = [...lq.levOff].sort().join(",");
+  document.querySelectorAll("#lqPreset button").forEach((b) => {
+    const x = LQ_PRESET[b.dataset.v];
+    b.setAttribute("aria-checked", String(x.tf === lq.tf && [...x.levOff].sort().join(",") === off));
+  });
   $("lqLev").innerHTML = LQ_MODELO.APAL.map((x) => `<button role="checkbox" data-v="${x.L}" aria-checked="${!lq.levOff.has(String(x.L))}" title="Weight ${Math.round(x.w * 100)}%">${x.L}x</button>`).join("");
   $("lqMin").value = lq.min; $("lqMinV").textContent = lq.min + "%";
-  $("lqVida").value = lq.vida;
   $("lqMas").hidden = !!LQ_TF[lq.tf].desde;
 }
 
 function lqSet(cambio) {
   Object.assign(lq, cambio);
-  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin3", lq.min); store.set("lqVida", lq.vida);
+  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin3", lq.min);
   store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff3", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
@@ -269,12 +278,25 @@ function lqSeries(nuevos) {
     return (s || 0) >= (l || 0) ? { time: v.t, value: s || 0, color: C.put } : { time: v.t, value: -(l || 0), color: C.call };
   }));
   lq.chart.applyOptions({ timeScale: { timeVisible: d.tf !== "1D", secondsVisible: false } });
-  if (nuevos) {
-    const n = d.velas.length, ver = LQ_TF[d.tf].ver;
-    // margen a la derecha: el perfil queda despues de la ultima vela, sin taparla
-    lq.chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, n - ver), to: n + Math.ceil(Math.min(n, ver) * 0.16) });
-  }
+  if (nuevos) lqVista();
 }
+
+// vista inicial: las ultimas velas del marco y, a la derecha, sitio para el perfil. Con el ancho ya maquetado (el
+// siguiente fotograma: al abrir la pestana el grafico aun no tiene su tamano)
+function lqVista() {
+  requestAnimationFrame(() => {
+    const d = lq.datos;
+    if (!d) return;
+    const n = d.velas.length, ancho = lq.chart.timeScale().width() || 800, W = lqAnchoPerfil(ancho) + 20;
+    // en pantallas estrechas, menos velas (la libreria no las junta a menos de medio pixel); margen en velas que deja
+    // el ancho del perfil (mas un respiro) despues de la ultima vela
+    const ver = Math.min(n, LQ_TF[d.tf].ver, Math.floor((ancho - W) / 0.6)), margen = Math.ceil((ver * W) / Math.max(1, ancho - W));
+    lq.chart.timeScale().setVisibleLogicalRange({ from: n - ver, to: n + margen });
+  });
+}
+
+// ancho en pixeles del perfil de la derecha (lo usa tambien el margen de la vista)
+const lqAnchoPerfil = (ancho) => Math.round(Math.min(170, Math.max(60, ancho * 0.14)));
 
 // paleta de los niveles con los colores del tema, solida: de lo flojo (azul apagado hacia el fondo) a lo fuerte (rojo)
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
@@ -306,6 +328,18 @@ function lqImagen() {
   lq.colores = Array.from({ length: 256 }, (_, k) => `rgba(${lq.lut[k * 4]},${lq.lut[k * 4 + 1]},${lq.lut[k * 4 + 2]},${(lq.lut[k * 4 + 3] / 255).toFixed(3)})`);
   lq.lLo = Math.log(r.bordes[0]); lq.paso = (Math.log(r.bordes[B]) - lq.lLo) / B;
   lq.imgClave = clave; lq.pintado = null;
+  lqEscala();
+}
+
+// barra de la escala de color: desde la intensidad minima (lo que se pinta) hasta el tope, en dolares
+function lqEscala() {
+  const r = lq.res;
+  if (!r || !lq.colores) return;
+  const k0 = Math.floor((lq.min / 100) * 255), pasos = [];
+  for (let k = k0; k <= 255; k += Math.max(1, Math.round((255 - k0) / 12))) pasos.push(lq.colores[k]);
+  pasos.push(lq.colores[255]);
+  $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${pasos.join(", ")})`;
+  $("lqEscalaTxt").textContent = lq.min > 0 ? `${lqUsd((lq.min / 100) * r.topeV)} to ${lqUsd(r.topeV)}+` : `up to ${lqUsd(r.topeV)}+`;
 }
 
 // tramos de precio (de menor a mayor) que caen entre dos filas de pantalla
@@ -390,8 +424,7 @@ class LqHeat {
   }
 }
 
-// perfil de lo pendiente ahora, por intensidad (la misma paleta), con lo acumulado desde el precio hacia arriba
-// (cortos que se liquidarian si sube) y hacia abajo (largos si baja)
+// perfil de lo pendiente ahora: la ultima columna del mapa, con su misma paleta
 class LqPerfil {
   constructor() { this.p = null; this.view = { zOrder: () => "top", renderer: () => ({ draw: (t) => this.draw(t) }) }; }
   attached(p) { this.p = p; }
@@ -402,19 +435,17 @@ class LqPerfil {
     const r = lq.res, p = this.p, d = lq.datos;
     if (!r || !p || !d || !lq.lut) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
-      const H = mediaSize.height, W = Math.round(Math.min(170, Math.max(70, mediaSize.width * 0.14))), right = mediaSize.width - 2;
-      const precio = d.velas[d.velas.length - 1].c, yP = p.series.priceToCoordinate(precio);
+      const H = mediaSize.height, W = lqAnchoPerfil(mediaSize.width), right = mediaSize.width - 2;
       // barras: la ultima columna del mapa (mismo valor por fila, el tramo mas cargado, y misma escala de color e
-      // intensidad minima), para que el color diga lo mismo que las franjas. Curvas: lo acumulado que sigue abierto
-      // segun la memoria (finL/finS), como la lectura de abajo
+      // intensidad minima), para que el color diga lo mismo que las franjas
       const paso = LQ_BANDA, filas = [], t = r.n - 1, tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope;
       let mx = 0;
       for (let y = 0; y < H; y += paso) {
         const tr = lqTramosEntre(p.series, y, y + paso);
-        let v = 0, abierto = 0;
-        if (tr) for (let b = tr[0]; b <= tr[1]; b++) { v = Math.max(v, r.gV[b * r.n + t]); abierto += r.finL[b] + r.finS[b]; }
+        let v = 0;
+        if (tr) for (let b = tr[0]; b <= tr[1]; b++) v = Math.max(v, r.gV[b * r.n + t]);
         if (v <= umbral) v = 0;
-        filas.push([y, v, abierto]); mx = Math.max(mx, v);
+        filas.push([y, v]); mx = Math.max(mx, v);
       }
       ctx.save();
       ctx.fillStyle = C.surface; ctx.globalAlpha = 0.6;
@@ -426,20 +457,6 @@ class LqPerfil {
         ctx.fillStyle = `rgba(${l[i]},${l[i + 1]},${l[i + 2]},${Math.max(0.35, l[i + 3] / 255)})`;
         const wv = (v / mx) * W * 0.92;
         ctx.fillRect(right - wv, y, wv, paso - 1);
-      }
-      // acumulados desde el precio: arriba (cortos, verde) y abajo (largos, rojo), escala propia
-      if (yP != null) {
-        const arriba = filas.filter(([y]) => y < yP).reverse(), abajo = filas.filter(([y]) => y >= yP);
-        const acum = (lista) => { let s = 0; return lista.map(([y, , a]) => [y, (s += a)]); };
-        const cA = acum(arriba), cB = acum(abajo), cm = Math.max(1, ...cA.map((x) => x[1]), ...cB.map((x) => x[1]));
-        for (const [lista, col] of [[cA, C.put], [cB, C.call]]) {
-          if (!lista.length) continue;
-          ctx.beginPath(); ctx.moveTo(right - W, yP);
-          for (const [y, s] of lista) ctx.lineTo(right - W + (s / cm) * W, y);
-          ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.9; ctx.stroke();
-          ctx.lineTo(right - W, lista[lista.length - 1][0]); ctx.closePath();
-          ctx.fillStyle = col; ctx.globalAlpha = 0.12; ctx.fill();
-        }
       }
       ctx.restore();
     });
@@ -471,7 +488,7 @@ function lqChart() {
   lq.hist = lq.chart.addSeries(L.HistogramSeries, { priceLineVisible: false, lastValueVisible: false,
     priceFormat: { type: "custom", formatter: (v) => lqUsd(Math.abs(v)) } }, 1);
   try { lq.chart.panes()[1].setHeight(110); } catch { /* version sin paneles redimensionables */ }
-  lq.chart.subscribeCrosshairMove(lqLeyenda);
+  lq.chart.subscribeCrosshairMove((prm) => { lqLeyenda(prm); lqTip(prm); });
 }
 
 function lqTema() {
@@ -500,6 +517,43 @@ function lqLeyenda(prm) {
   el.innerHTML = `<b>${esc(d.sym)}</b> ${fecha} UTC. O ${lqPx(v.o)} H ${lqPx(v.h)} L ${lqPx(v.l)} C ${lqPx(v.c)}.${real}${prev}`;
 }
 
+// al pasar por una franja: precio, dinero que se liquidaria en esa fila, distancia y de que apalancamientos se compone
+function lqTip(prm) {
+  const el = $("lqTip"), r = lq.res, d = lq.datos;
+  const fuera = () => { el.hidden = true; };
+  if (!r || !d || !prm || !prm.point || prm.logical == null || prm.paneIndex) return fuera();
+  const t = Math.round(prm.logical);
+  if (t < 0 || t >= r.n) return fuera();
+  const fila = Math.floor(prm.point.y / LQ_BANDA), tr = lqTramosEntre(lq.serie, fila * LQ_BANDA, (fila + 1) * LQ_BANDA);
+  if (!tr) return fuera();
+  let mx = 0;
+  for (let b = tr[0]; b <= tr[1]; b++) mx = Math.max(mx, r.gV[b * r.n + t]);
+  if (!(mx > (lq.min / 100) * r.topeV)) return fuera();   // solo sobre lo que se ve pintado
+  const lo = r.bordes[tr[0]], hi = r.bordes[tr[1] + 1], nv = r.niveles, porL = new Map();
+  let suma = 0, nace0 = Infinity, nace1 = -Infinity, cortos = 0;
+  for (let k = 0; k < nv.N; k++) {
+    if (nv.p[k] < lo || nv.p[k] >= hi || t < nv.i[k] || t >= nv.toque[k]) continue;
+    const a = LQ_MODELO.enMapa(r, k, t);
+    if (!(a > 0)) continue;
+    suma += a; porL.set(nv.L[k], (porL.get(nv.L[k]) || 0) + a);
+    if (nv.lado[k]) cortos += a;
+    nace0 = Math.min(nace0, nv.i[k]); nace1 = Math.max(nace1, nv.i[k]);
+  }
+  if (!(suma > 0)) return fuera();
+  const precio = d.velas[d.velas.length - 1].c, medio = Math.sqrt(lo * hi);   // distancia desde el precio actual
+  const lado = cortos >= suma / 2 ? "Short liquidations: hit if price rises here" : "Long liquidations: hit if price falls here";
+  const comp = [...porL].sort((p, q) => p[0] - q[0]).map(([L, a]) => `${L}x ${Math.round((a / suma) * 100)}%`).join(", ");
+  const dia = (i) => new Date(d.velas[i].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.tf === "1D" ? "numeric" : undefined, timeZone: "UTC" });
+  el.innerHTML = `<b>${lqPx(lo)} to ${lqPx(hi)}</b> <span class="lq-d">${cxPct((medio / precio - 1) * 100)} from now</span>
+    <div><b>${lqUsd(suma)}</b> would be liquidated</div><div class="ks">${lado}</div>
+    <div class="ks">Leverage: ${comp}</div><div class="ks">Opened ${nace0 === nace1 ? dia(nace0) : `${dia(nace0)} to ${dia(nace1)}`}</div>`;
+  el.hidden = false;
+  const caja = $("lqChart").getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight;
+  const x = prm.point.x + 16 + w > caja.width - 10 ? prm.point.x - w - 16 : prm.point.x + 16;
+  el.style.left = Math.max(4, x) + "px";
+  el.style.top = Math.max(4, Math.min(prm.point.y + 14, caja.height - h - 4)) + "px";
+}
+
 /* ---------- lectura debajo del grafico */
 function lqLectura() {
   const d = lq.datos, r = lq.res, cfg = LQ_TF[d.tf], n = d.velas.length;
@@ -508,29 +562,39 @@ function lqLectura() {
   lqNivelesClave(g);
   let veredicto, cls = "";
   if (pr.ratio == null || (pr.arriba + pr.abajo) === 0) veredicto = "No clear pull";
-  else if (pr.ratio >= 1.5) { veredicto = "Pull up: more short liquidations above"; cls = "pos"; }
-  else if (pr.ratio <= 1 / 1.5) { veredicto = "Pull down: more long liquidations below"; cls = "neg"; }
-  else veredicto = "No clear pull: liquidity on both sides";
+  else if (pr.ratio >= 1.5) { veredicto = "Pull up"; cls = "pos"; }
+  else if (pr.ratio <= 1 / 1.5) { veredicto = "Pull down"; cls = "neg"; }
+  else veredicto = "No clear pull";
+  const detalle = cls === "pos" ? "More short liquidations above than long ones below."
+    : cls === "neg" ? "More long liquidations below than short ones above." : "Similar liquidity above and below.";
   const fila = (x) => `<div class="lq-g"><span>${lqPx(x.p)}</span><span class="lq-d">${cxPct((x.p / precio - 1) * 100)}</span><b>${lqUsd(x.a)}</b></div>`;
+  // imanes: el mas cercano de los grandes grupos por encima y por debajo
+  const iman = (x, lado) => (x ? `<b>${lqPx(x.p)}</b> ${lado} (${cxPct((x.p / precio - 1) * 100)}, ${lqUsd(x.a)})` : `nothing big ${lado}`);
+  $("lqIman").innerHTML = `Nearest liquidity: ${iman(g.arriba[0], "above")}, ${iman(g.abajo[0], "below")}.`;
   // acierto solo donde hay OI: antes, el mapa sale del volumen y no es el modelo que se juzga
   const i0 = Math.max(0, r.desdeOI);
   const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null || i < i0 ? 0 : r.predL[i] + r.predS[i])),
     d.realL.map((x, i) => (x == null || i < i0 ? null : x + d.realS[i])));
-  const calidad = d.liqPend ? "loading real liquidations…" : d.liqError ? `real liquidations unavailable right now (${d.liqError})`
-    : !aj ? "not enough real liquidation data" : aj.r >= 0.5 ? "good" : aj.r >= 0.3 ? "fair" : "weak";
+  const nota = d.liqPend ? "Loading" : d.liqError ? "Unavailable" : !aj ? "Not enough data" : aj.r >= 0.5 ? "Good" : aj.r >= 0.3 ? "Fair" : "Weak";
+  const porQue = d.liqPend ? "Waiting for the real liquidations." : d.liqError ? `Real liquidations unavailable right now (${d.liqError}).`
+    : !aj ? "Too few candles with real liquidations to judge." :
+    `How well the liquidations the model expected each candle match the real ones (correlation r = ${fmtNum(aj.r, 2)} over ${fmtNum(aj.n)} candles). Use the map for zones, not exact amounts.`;
   const desde = r.desdeOI >= 0 ? new Date(d.velas[r.desdeOI].t * 1000).toISOString().slice(0, 10) : null;
   const ex = (lq.merc.exchanges || {});
   $("lqRead").innerHTML = `
-    <div class="lq-card"><span class="kl">Within ${Math.round(pct * 100)}% of the price</span><b class="${cls}">${veredicto}</b>
-      <span class="ks">Shorts above ${lqUsd(pr.arriba)}, longs below ${lqUsd(pr.abajo)}. Price tends to travel toward the heavier side: those forced orders feed the move.</span></div>
-    <div class="lq-card"><span class="kl">Biggest clusters above (short liquidations)</span>${g.arriba.map(fila).join("") || "<span class='ks'>None</span>"}</div>
-    <div class="lq-card"><span class="kl">Biggest clusters below (long liquidations)</span>${g.abajo.map(fila).join("") || "<span class='ks'>None</span>"}</div>
-    <div class="lq-card"><span class="kl">Model against real liquidations</span><b>${aj ? "r = " + fmtNum(aj.r, 2) : "—"}</b>
-      <span class="ks">${aj ? `Correlation between the liquidations the model expected in each candle and the real ones (${fmtNum(aj.n)} candles with open interest): ${calidad}.` : calidad}</span></div>`;
-  $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Estimated liquidation levels of open leveraged positions: brighter means more size. ` +
-    (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, volume-based" : ""}.` : "No open interest for this choice: volume-based estimate.") +
-    (r.escalado ? " Sizes scaled so the live levels add up to the open interest of each candle." : "") +
-    ` Each level stays on the map until price reaches it; position memory (half-life of ${fmtNum(cfg.vida * +lq.vida)} candles) sets how much is still open in the profile and the reading. Bottom panel: real liquidations (longs down, shorts up).`;
+    <div class="lq-card"><span class="kl">Within ${Math.round(pct * 100)}% of the price</span><b class="lq-big ${cls}">${veredicto}</b>
+      <span class="ks">${detalle} Shorts above ${lqUsd(pr.arriba)}, longs below ${lqUsd(pr.abajo)}.</span></div>
+    <div class="lq-card"><span class="kl">Biggest clusters above (shorts)</span>${g.arriba.map(fila).join("") || "<span class='ks'>None</span>"}</div>
+    <div class="lq-card"><span class="kl">Biggest clusters below (longs)</span>${g.abajo.map(fila).join("") || "<span class='ks'>None</span>"}</div>
+    <div class="lq-card"><span class="kl">Model reliability</span><b>${nota}</b><span class="ks">${esc(porQue)}</span></div>`;
+  $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Where leveraged positions would be liquidated: brighter means more money.`;
+  $("lqHow").textContent = "Each band is a price where open leveraged positions would be force-closed, estimated from new open interest, " +
+    "the buy/sell split of volume and typical leverage (5x to 100x). Bands above the price are shorts, below are longs. " +
+    "A band stays until price reaches it, and shrinks if open interest falls (those positions were closed). Price tends to travel " +
+    "toward big bands: the forced orders feed the move. Hover a band to see its size, distance and leverage mix. The right profile is " +
+    "what is still pending now; the bottom panel shows real liquidations (longs down, shorts up). " +
+    (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
+      : "No open interest for this choice: estimated from volume.");
 }
 
 /* ---------- eventos */
@@ -552,7 +616,14 @@ $("lqLev").addEventListener("click", (e) => {
 });
 $("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
 $("lqMin").addEventListener("change", () => store.set("lqMin3", lq.min));
-$("lqVida").addEventListener("change", (e) => { lq.vida = e.target.value; store.set("lqVida", lq.vida); lqCalcular(); });
+$("lqPreset").addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  const x = LQ_PRESET[b.dataset.v];
+  lq.extra = 0; lqSet({ tf: x.tf, levOff: new Set(x.levOff) });
+});
+// el desplegable de exchanges se cierra al pulsar fuera
+document.addEventListener("click", (e) => { const d = $("lqExDrop"); if (d.open && !d.contains(e.target)) d.open = false; });
+$("lqChart").addEventListener("mouseleave", () => { $("lqTip").hidden = true; });
 $("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });
 $("lqFull").addEventListener("click", () => {
   const el = $("lqPanel");

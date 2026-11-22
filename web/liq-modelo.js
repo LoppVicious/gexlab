@@ -86,8 +86,8 @@ const LQ_MODELO = (() => {
       for (const x of levs) {
         const w = x.w / pw;
         const fL = 1 - 1 / x.L + mm, fS = 1 + 1 / x.L - mm;
-        largos.push({ p: tip[i] * fL, a: nuevo[i] * fc * w, f: fL, vis: visible(x.L) });
-        cortos.push({ p: tip[i] * fS, a: nuevo[i] * (1 - fc) * w, f: fS, vis: visible(x.L) });
+        largos.push({ p: tip[i] * fL, a: nuevo[i] * fc * w, f: fL, vis: visible(x.L), L: x.L });
+        cortos.push({ p: tip[i] * fS, a: nuevo[i] * (1 - fc) * w, f: fS, vis: visible(x.L), L: x.L });
       }
       // largos: el mas alto cae antes; se recorre hacia delante una vez con el minimo acumulado
       largos.sort((p, q) => q.p - p.p);
@@ -116,7 +116,7 @@ const LQ_MODELO = (() => {
         if (b1 < 0) b1 = bc >= 0 ? bc : B - 1;
         altas[i].push([lado, b0, b1, x.a, x.vis]);
         if (x.fin != null) bajas[x.fin].push([lado, b0, b1, x.a, i, x.vis]);
-        lista_.push([i, x.fin ?? n, x.p, lado, x.a, x.vis]);
+        lista_.push([i, x.fin ?? n, x.p, lado, x.a, x.vis, x.L]);
       }
     }
 
@@ -171,8 +171,9 @@ const LQ_MODELO = (() => {
     // con la escala del OI). M solo baja: el fin por memoria sale de una busqueda binaria
     const vis_ = lista_.filter((x) => x[5]);
     const N = vis_.length, nivI = new Int32Array(N), nivFin = new Int32Array(N), nivP = new Float64Array(N),
-      nivLado = new Uint8Array(N), nivA = new Float64Array(N);
-    vis_.forEach(([i, fin, pr, lado, a], k) => {
+      nivLado = new Uint8Array(N), nivA = new Float64Array(N), nivToque = new Int32Array(N), nivL = new Uint8Array(N);
+    vis_.forEach(([i, fin, pr, lado, a, , L], k) => {
+      nivToque[k] = fin; nivL[k] = L;
       const corte = M[i] * VIVO_MIN;
       let lo = i + 1, hi = n;   // primera vela con M < corte
       while (lo < hi) { const mid = (lo + hi) >> 1; if (M[mid] < corte) hi = mid; else lo = mid + 1; }
@@ -211,8 +212,18 @@ const LQ_MODELO = (() => {
     muestra.sort((x, y) => x - y);
     const topeV = muestra.length ? muestra[Math.min(muestra.length - 1, Math.floor(muestra.length * 0.999))] : 1;
     return { n, B, bordes, gL, gS, gV, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
-      niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA },
+      niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA, toque: nivToque, L: nivL }, oiEf,
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
+  }
+
+  // tamano en el mapa del nivel k en la vela t (el de la rejilla gV): al nacer, por el tope del OI que sigue abierto
+  function enMapa(res, k, t) {
+    const nv = res.niveles, i = nv.i[k];
+    if (t < i || t >= nv.toque[k]) return 0;
+    const o = res.oiEf, base = o && o[i] > 0 ? o[i] : 0;
+    let f = 1;
+    if (base) for (let s = i; s <= t; s++) if (o[s] > 0 && o[s] < base * f) f = o[s] / base;
+    return nv.a[k] * f;
   }
 
   // liquidez pendiente cerca del precio: cortos por encima y largos por debajo dentro de +-pct
@@ -259,7 +270,7 @@ const LQ_MODELO = (() => {
     return sxx > 0 && syy > 0 ? { r: sxy / Math.sqrt(sxx * syy), n } : null;
   }
 
-  return { APAL, MM, sumar, calcular, presion, grupos, ajuste };
+  return { APAL, MM, sumar, calcular, enMapa, presion, grupos, ajuste };
 })();
 
 if (typeof module !== "undefined") module.exports = LQ_MODELO;

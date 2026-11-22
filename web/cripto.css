@@ -159,8 +159,28 @@ body.cx-noscroll { overflow: hidden; }
 .lq-ctl { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
 .lq-ctl input[type="range"] { width: 90px; accent-color: var(--accent); }
 .lq-ctl b { font-weight: 600; color: var(--text); min-width: 30px; }
-.lq-ctl select { font: inherit; font-size: 12px; color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px; }
-.lq-ctl select option { background: var(--panel, var(--surface)); }
+.lq-escala { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lq-escala i { display: inline-block; width: 72px; height: 8px; border-radius: 4px; }
+.lq-drop { position: relative; font-size: 12px; color: var(--muted); }
+.lq-drop summary { list-style: none; cursor: pointer; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; user-select: none; }
+.lq-drop summary::-webkit-details-marker { display: none; }
+.lq-drop summary::after { content: ""; display: inline-block; margin-left: 6px; border: 4px solid transparent; border-top-color: currentColor; transform: translateY(2px); }
+.lq-drop summary b { color: var(--text); font-weight: 600; }
+.lq-drop[open] > .cx-chips { position: absolute; top: calc(100% + 6px); left: 0; z-index: 8; padding: 8px; border-radius: 12px;
+  background: var(--panel, var(--surface)); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, .25); flex-wrap: nowrap; }
+.lq-acc { display: inline-flex; gap: 6px; margin-left: auto; }
+.lq-cap { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.lq-how summary { cursor: pointer; color: var(--accent); list-style: none; display: inline; }
+.lq-how summary::-webkit-details-marker { display: none; }
+.lq-how[open] { flex-basis: 100%; }
+.lq-how p { margin: 6px 0 2px; max-width: 900px; line-height: 1.5; }
+.lq-tip { position: absolute; z-index: 5; pointer-events: none; min-width: 190px; max-width: 280px; padding: 9px 11px; border-radius: 10px;
+  font-size: 12px; line-height: 1.45; color: var(--text); background: var(--panel, var(--surface)); border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3); font-variant-numeric: tabular-nums; }
+.lq-tip[hidden] { display: none; }
+.lq-tip .lq-d { color: var(--faint); } .lq-tip .ks { color: var(--muted); }
+.lq-iman { margin: 10px 2px 0; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.lq-iman b { color: var(--text); font-weight: 700; }
 .lq-wrap { position: relative; }
 .lq-chart { height: min(68vh, 680px); min-height: 420px; }
 .lq-leg { position: absolute; left: 8px; top: 6px; right: 170px; z-index: 3; font-size: 12px; color: var(--muted); pointer-events: none;
@@ -172,7 +192,7 @@ body.cx-noscroll { overflow: hidden; }
 .lq-read { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px; margin-top: 10px; }
 .lq-card { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--text) 4%, transparent); min-width: 0; }
 .lq-card .kl { font-size: 11.5px; color: var(--faint); }
-.lq-card b { font-size: 14.5px; font-weight: 700; } .lq-card b.pos { color: var(--put); } .lq-card b.neg { color: var(--call); }
+.lq-card b { font-size: 14.5px; font-weight: 700; } .lq-card b.lq-big { font-size: 20px; letter-spacing: -0.01em; } .lq-card b.pos { color: var(--put); } .lq-card b.neg { color: var(--call); }
 .lq-card .ks { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .lq-g { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .lq-g .lq-d { color: var(--faint); } .lq-g b { font-size: 12.5px; }
@@ -182,4 +202,5 @@ body.cx-noscroll { overflow: hidden; }
 @media (max-width: 900px) { .lq-panel.lq-grande { inset: 0; border-radius: 0; } }
 .lq-panel:fullscreen .lq-chart { height: calc(100vh - 260px); }
 
-@media (max-width: 600px) { .lq-read { grid-template-columns: 1fr; } .lq-chart { min-height: 380px; } .lq-leg { right: 90px; } }
+@media (max-width: 600px) { .lq-read { grid-template-columns: 1fr; } .lq-chart { min-height: 380px; } .lq-leg { right: 90px; }
+  .lq-acc { margin-left: 0; } .lq-asset { width: 90px; } .lq-escala i { width: 54px; } .lq-drop[open] > .cx-chips { flex-wrap: wrap; width: 220px; } }

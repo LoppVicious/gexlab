@@ -3,11 +3,22 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-22 — Mapa de liquidaciones: Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B
+## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B
 
 **Añadido**
+- **Crypto, mapa de liquidaciones, más fácil de leer:** al pasar el ratón por una franja, su rango de precio, los
+  dólares que se liquidarían, la distancia al precio actual, si son largos o cortos, de qué apalancamientos se compone
+  y cuándo se abrieron. Leyenda de color en dólares junto a la intensidad mínima. Botones Swing (diario, 5x a 25x) y
+  Scalp (15 minutos, 25x a 100x). Línea «Nearest liquidity» con el grupo grande más cercano por encima y por debajo, y
+  el veredicto de presión en grande.
 - **Crypto, mapa de liquidaciones, Expand:** agranda el mapa dentro de la página, con el resto oscurecido; se cierra
   con el mismo botón o con Esc. Full screen sigue llevándolo a pantalla completa.
+
+**Cambiado**
+- **Crypto, mapa de liquidaciones, menos ruido:** la explicación larga pasa a una línea con «How to read» desplegable;
+  fuera el selector Memory (queda la normal de cada marco) y las curvas del perfil; los exchanges van en un desplegable;
+  la tarjeta de la r pasa a «Model reliability» (Good, Fair o Weak, con la r en el texto). En pantallas estrechas el
+  mapa abre con menos velas y sitio para el perfil, que ya no tapa las últimas.
 
 **Corregido**
 - **Crypto, mapa de liquidaciones, «The data source is busy»:** salía a menudo al cambiar de activo o de marco, porque

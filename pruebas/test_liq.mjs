@@ -138,6 +138,22 @@ test("en el mapa un nivel no vale mas que el OI que sigue abierto desde que naci
   assert.ok(Math.abs(col(25) / col(12) - 1) < 1e-6);     // aunque el OI vuelva, esas posiciones no reaparecen
 });
 
+test("enMapa da por nivel lo mismo que la rejilla del mapa (para el tooltip)", () => {
+  const velas = [];
+  for (let i = 0; i < 60; i++) velas.push(vela(i, 100 + 4 * Math.sin(i / 5), { bv: 40 + (i % 5) * 5 }));
+  const oi = velas.map((_, i) => 1000 + i * 30);
+  const nivel = velas.map((_, i) => (i < 30 ? 5000 + i * 50 : 3000));
+  const r = M.calcular(velas, oi, { vida: 20, nivel });
+  const t = 50, porBin = new Map();
+  const lP = Math.log(r.bordes[0]), paso = Math.log(r.bordes[1]) - lP;
+  for (let k = 0; k < r.niveles.N; k++) {
+    const b = Math.floor((Math.log(r.niveles.p[k]) - lP) / paso);
+    porBin.set(b, (porBin.get(b) || 0) + M.enMapa(r, k, t));
+  }
+  for (const [b, s] of porBin) assert.ok(Math.abs(s - r.gV[b * r.n + t]) < 1e-3 * Math.max(1, s), `tramo ${b}`);
+  assert.ok([...r.niveles.L].every((L) => M.APAL.some((x) => x.L === L)));
+});
+
 test("la escala de color sale de la ventana pedida, no de toda la historia", () => {
   const velas = Array.from({ length: 60 }, (_, i) => vela(i, i < 30 ? 100 : 50));
   const oi = velas.map((_, i) => (i < 30 ? i * 1000 : 30000 + (i - 30) * 10));

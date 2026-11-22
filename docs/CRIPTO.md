@@ -158,23 +158,30 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
      precio × (1 − 1/L + 0,5 %), de un corto precio × (1 + 1/L − 0,5 %); precio de entrada (máx + mín + cierre) / 3.
   4. Un nivel vive hasta que el precio lo toca; entonces cuenta como liquidación prevista de esa vela.
   5. Si baja el OI, lo vivo se reduce en proporción; y todo decae con una vida media (5 min: 12 h; 15 min: 1 día;
-     1 h: 4 días; 4 h: 15 días; diario: 45 días; Memory la multiplica por 0,5 o 2).
+     1 h: 4 días; 4 h: 15 días; diario: 45 días; fija, sin selector en la web).
   6. Rejilla de 600 tramos de precio logarítmicos; recurrencia por tramo (decae, se reduce, suma altas, resta tocadas).
      Con la opción `ancho`, cada nivel se reparte en la parte central del rango de su vela (no se usa en la web).
 - **Niveles sueltos** (`niveles` del modelo): inicio, fin (vela en que el precio lo toca o en que le queda menos de
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
-- **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer (diferencias
-  por tramo y suma acumulada). En el mapa un nivel solo desaparece cuando el precio lo toca (la memoria cuenta para el
-  perfil, la presión y los grupos, no aquí). Escala fija `topeV`: percentil 99,9 de las casillas con algo.
+- **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer, topado por el
+  OI que sigue abierto (mínimo del OI total desde que nació frente al de entonces; `enMapa` da lo mismo por nivel, para
+  el tooltip). En el mapa un nivel solo desaparece cuando el precio lo toca (la memoria cuenta para la presión y los
+  grupos, no aquí). Escala fija `topeV`: percentil 99,9 de las casillas con algo desde `escalaDesde` (la ventana que
+  se ve al abrir) y con todos los apalancamientos (`ver` solo filtra lo que se dibuja).
 - **Dibujo** (`lqPintar`): filas de 8 px (`LQ_BANDA`) con el tramo más cargado de los que caen en cada una (no la
   suma: el zoom no enciende las filas) y 1 px de separación, una columna por vela visible. Color frente a `topeV`, fijo
   para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: azul marino casi
   transparente lo flojo, verde, amarillo y rojo sólidos, colores del tema); solo lo que pasa la intensidad mínima
-  (15 %). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil
-  con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.
-- **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
-  grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por
-  vela.
+  (15 %). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
+  última columna del mapa, con su escala; los dos grupos mayores como líneas con etiqueta en el eje.
+- **Controles:** atajos Swing (diario, 5x a 25x) y Scalp (15 min, 25x a 100x), leyenda de color en dólares (de la
+  intensidad mínima al tope), exchanges en un desplegable, una línea de explicación con «How to read» desplegable y
+  tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de
+  apalancamientos y fechas en que se abrieron). La vista inicial deja sitio al perfil según el ancho.
+- **Lectura:** línea «Nearest liquidity» (el más cercano de los grandes grupos a cada lado), presión (cortos por encima
+  frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario) con el veredicto en grande, los tres grupos más
+  cargados a cada lado y la fiabilidad del modelo (Good, Fair o Weak según la correlación, en log, entre liquidaciones
+  previstas y reales por vela; la r va en el texto).
 - **Modo PC** (`liq_local.py`): con `COINALYZE_API_KEY` en el entorno, igual que el Worker; sin ella, datos públicos
   de Binance (velas con volumen comprador y 30 días de OI), sin liquidaciones reales.
 

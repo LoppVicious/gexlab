@@ -27,17 +27,18 @@ ticker de días pasados, así que no se puede ir más atrás.
 ```
 
 - Tramos por días naturales al vencimiento: `t0` 0-7, `t1` 8-45, `t2` más de 45, `all` todos.
-- `vc`/`vp`: suma de volumen × |delta| de calls/puts; `oc`/`op`: lo mismo con OI. Delta de Black-Scholes con la IV del
-  motor para cada contrato.
+- `vc`/`vp`: suma de volumen × |delta| de calls/puts; `oc`/`op`: lo mismo con OI. Delta de cada contrato: la del motor,
+  que ya guarda la cadena compacta (`ch["delta"]`).
 - Solo contratos fuera de dinero (calls con K > spot, puts con K < spot): fuera las calls dentro del dinero del
   arbitraje de dividendo y el peso de delta deja las alas baratas en su sitio. El spot se cancela en el ratio, por eso
   no se multiplica.
 - Se guardan sumas, no ratios, para poder probar otras definiciones sin reconstruir.
-- Todos los tickers del historial, índices y ETF incluidos. Un tramo sin contratos o con alguna suma en 0 queda `None`.
+- Todos los tickers del historial, índices y ETF incluidos. Un tramo sin contratos fuera de dinero queda
+  `None`; si solo falta una pata, las sumas guardan el 0 y el ratio de ese día queda sin lectura.
 - El OI de CBOE es el del día anterior: la serie de OI va desfasada una sesión; solo la usa la prueba.
 
 Alta diaria dentro de `historial500.guardar_ticker` (mismo patrón que `puntos` de skew). Reconstrucción con
-`pcr.py --reconstruir` desde los días guardados (como `skew.reconstruir`).
+`historial500.py --indice` (llama a `pcr.reconstruir`, como a `skew.reconstruir`), con los días guardados.
 
 ## Puntuación de cada ticker
 
@@ -89,7 +90,8 @@ Por ticker, con la puntuación combinada y los cierres del índice de skew (`his
  divergences: {bear: {n, ret10, ret40, hit10, hit40}, bull: {...}}}
 ```
 
-Lo publica `historial500.py` tras el día (junto a `publicar_skew`) y `pcr.py --publicar`.
+Lo publica `historial500.py` tras el día y en `--indice`, siempre después de `publicar_skew` (lee de
+`pub/skew.json` la prueba de la señal `pcr`).
 
 ## Web (en inglés)
 

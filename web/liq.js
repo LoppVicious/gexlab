@@ -22,7 +22,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   // por defecto sin 5x ni 10x: sus niveles quedan lejos, casi nunca se tocan y llenan el historial
-  levOff: new Set(String(store.get("lqLevOff2", "5,10")).split(",").filter(Boolean)),
+  levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
   min: +store.get("lqMin3", 15), vida: String(store.get("lqVida", "1")), extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
@@ -87,7 +87,7 @@ function lqControles() {
 function lqSet(cambio) {
   Object.assign(lq, cambio);
   store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin3", lq.min); store.set("lqVida", lq.vida);
-  store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff2", [...lq.levOff].join(","));
+  store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff3", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
 }
@@ -545,7 +545,7 @@ $("lqEx").addEventListener("click", (e) => {
 $("lqLev").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const s = new Set(lq.levOff); if (s.has(b.dataset.v)) s.delete(b.dataset.v); else s.add(b.dataset.v);
-  Object.assign(lq, { levOff: s }); store.set("lqLevOff2", [...s].join(",")); lqControles(); lqCalcular();
+  Object.assign(lq, { levOff: s }); store.set("lqLevOff3", [...s].join(",")); lqControles(); lqCalcular();
 });
 $("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
 $("lqMin").addEventListener("change", () => store.set("lqMin3", lq.min));

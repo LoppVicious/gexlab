@@ -21,6 +21,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   nacidos con el open interest en $19.500M y que el mapa mantenía a ese tamaño aunque hoy sea de $7.300M. Ahora un
   nivel no vale más que la parte del open interest que sigue abierta desde que nació, y los colores se miden frente a la
   ventana que se ve al abrir el mapa (sigue sin cambiar con el zoom).
+- **Crypto, mapa de liquidaciones, 5x y 10x visibles por defecto:** salían ocultos, y son los de las posiciones que
+  más aguantan abiertas, las que más pesan en marcos de swing. Ahora se ven todos los apalancamientos al abrir (también
+  si antes se habían ocultado).
 - **Crypto, mapa de liquidaciones, ocultar un apalancamiento:** ahora solo quita sus franjas. Antes el open interest
   se repartía entre los que quedaban marcados y la escala de color se recalculaba, así que los demás niveles crecían en
   dólares y cambiaban de color. Los grupos, la presión y el perfil cuentan solo lo visible; el acierto frente a las

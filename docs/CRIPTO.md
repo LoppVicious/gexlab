@@ -170,7 +170,7 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   suma: el zoom no enciende las filas) y 1 px de separación, una columna por vela visible. Color frente a `topeV`, fijo
   para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: azul marino casi
   transparente lo flojo, verde, amarillo y rojo sólidos, colores del tema); solo lo que pasa la intensidad mínima
-  (15 %). Por defecto sin 5x ni 10x (`lqLevOff2`): sus niveles casi nunca se tocan y llenaban el historial. Perfil
+  (15 %). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil
   con las mismas franjas, curvas de lo acumulado y los dos grupos mayores como líneas con etiqueta en el eje.
 - **Lectura:** presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario), los tres
   grupos más cargados a cada lado y el acierto del modelo: correlación (log) entre liquidaciones previstas y reales por

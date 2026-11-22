@@ -116,6 +116,10 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
     `--indice` lo reconstruye (volumen de días pasados, del histórico diario de CBOE). De él sale `pub/skew.json`.
     La reconstrucción añade además `PREHIST` (45) sesiones previas al primer día guardado solo con el cierre de CBOE,
     para la volatilidad realizada de Vol premium; las demás señales las ignoran.
+  - `hist500/_pcr.json.gz`: `{fecha: {SYM: {t0|t1|t2|all: [vol call, vol put, OI call, OI put] o None}}}`, sumas
+    × |delta| de contratos fuera de dinero (`pcr.sumas`); `hist500/_pcr_exp.json.gz`: P/C por vencimiento del último
+    día (`pcr.por_vencimiento`). Los escribe `historial500.py` con cada sesión y `--indice` los reconstruye con las
+    cadenas guardadas. De ellos sale `pub/pcr.json`.
   - VIX siempre (`SIEMPRE`), aunque no esté en la lista de la web, y sin límite de años (`NUNCA_BORRAR`).
   - `hist500/_indices_vol/{fecha}.json`: OHLC de VIX, VIX9D, VIX3M, VIX6M y VIX1Y y curva de futuros del VIX;
     `_indices_vol/historico.json.gz`: su serie diaria completa de CBOE (VIX desde 1990). No se borran nunca.
@@ -296,6 +300,18 @@ Los dos:
   unos resultados antes del vencimiento, y esas acciones salen caras. No es direccional: no vota en el consenso y
   su prueba en adelante (`evaluar(..., objetivo="rv")`, `target: "rv"`) mide la prima cobrada, IV de la sesión −
   volatilidad realizada de las h sesiones siguientes; se espera IC positivo.
+  Put/call (señal `pcr`, Pan y Poteshman, 2006; se espera IC negativo): la z combinada de `pcr.py` (`pcr.zetas`, en
+  v[7] por `_con_pcr`); `skew.publicar` la lee de `hist500/_pcr.json.gz`. Sin dato hasta 20 sesiones por acción. Vota
+  en el consenso como las demás.
+- **Sentimiento por put/call** (`pcr.py`, `pub/pcr.json`, `/api/pcr`, `web/sentiment.js`, página Sentiment; diseño
+  en `docs/SENTIMIENTO.md`): de la cadena del cierre, volumen y OI × |delta| de calls y puts fuera de dinero por
+  tramo (`t0` 0-7 días, `t1` 8-45, `t2` más de 45, `all`). Puntuación 1-100 de cada ticker = 1 + 99 × Φ(−z), con z
+  robusta (mediana y MAD) de log(P/C de volumen) frente a sus 60 sesiones anteriores, mínimo 20: 100 = codicia. La
+  combinada es la media de las z de `t0` y `t1`. Divergencias: cierre en máximo (mínimo) de 20 sesiones con la media
+  de la puntuación de 5 sesiones 15 puntos por debajo (encima) de la de las 5 anteriores; estadística de los casos a
+  10 y 40 sesiones. Mercado: SPX, SPY, QQQ e IWM, amplitud de las acciones y `_STOCKS` (suma de todas las acciones).
+  Orden en `historial500.py`: `pcr.actualizar` → skew → `publicar_skew` → `publicar_pcr` (lee la prueba de la señal
+  `pcr` de `pub/skew.json`). Prueba: `python pruebas/test_pcr.py`.
 - **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de
   SqueezeMetrics (CSV público desde 2011), percentil frente a las 252 sesiones previas y quintil. Para cada quintil,
   con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del

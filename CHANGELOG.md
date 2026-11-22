@@ -3,9 +3,16 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B
+## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 
 **Añadido**
+- **Sentiment, página nueva (Signals):** sentimiento por put/call de cada ticker del historial diario frente a su
+  propia historia, de 1 (miedo, muchas más puts que lo normal) a 100 (codicia), por tramos de vencimiento (0-7 días,
+  8-45 y más de 45) y combinado. Solo cuentan las opciones fuera de dinero, ponderadas por delta. Medidor de las
+  acciones en conjunto, amplitud (acciones en miedo y en codicia), SPY, QQQ, SPX e IWM, divergencias con el precio
+  (máximo o mínimo de 20 sesiones con la puntuación yendo al revés) y, al pulsar un ticker, su precio con la
+  puntuación debajo y el put/call de cada vencimiento. Las puntuaciones salen cuando cada ticker tiene 20 sesiones
+  de historia; hasta entonces la tabla enseña el put/call sin normalizar. Tarjeta en Summary.
 - **Crypto, mapa de liquidaciones, más fácil de leer:** al pasar el ratón por una franja, su rango de precio, los
   dólares que se liquidarían, la distancia al precio actual, si son largos o cortos, de qué apalancamientos se compone
   y cuándo se abrieron. Leyenda de color en dólares junto a la intensidad mínima. Botones Swing (diario, 5x a 25x) y
@@ -22,6 +29,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   fuera el selector Memory (queda la normal de cada marco) y las curvas del perfil; los exchanges van en un desplegable;
   la tarjeta de la r pasa a «Model reliability» (Good, Fair o Weak, con la r en el texto). En pantallas estrechas el
   mapa abre con menos velas y sitio para el perfil, que ya no tapa las últimas.
+- **Skew signal, señal Put/call:** el put/call de cada acción frente a su historia entra como cuarta señal de swing,
+  con su prueba en adelante a 10 y 40 sesiones, y vota en el consenso (columna nueva). Sin dato hasta 20 sesiones.
 
 **Corregido**
 - **Crypto, mapa de liquidaciones, eje de precios al cambiar de activo:** si se había arrastrado o ampliado el eje,

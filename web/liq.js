@@ -292,6 +292,10 @@ function lqVista() {
     // el ancho del perfil (mas un respiro) despues de la ultima vela
     const ver = Math.min(n, LQ_TF[d.tf].ver, Math.floor((ancho - W) / 0.6)), margen = Math.ceil((ver * W) / Math.max(1, ancho - W));
     lq.chart.timeScale().setVisibleLogicalRange({ from: n - ver, to: n + margen });
+    // si se habia arrastrado o ampliado el eje de precios, la libreria apaga el ajuste automatico y el eje se quedaba
+    // en los precios del activo anterior: con datos nuevos vuelve a ajustarse
+    lq.serie.priceScale().applyOptions({ autoScale: true });
+    lq.hist.priceScale().applyOptions({ autoScale: true });
   });
 }
 

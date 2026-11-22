@@ -21,6 +21,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   mapa abre con menos velas y sitio para el perfil, que ya no tapa las últimas.
 
 **Corregido**
+- **Crypto, mapa de liquidaciones, eje de precios al cambiar de activo:** si se había arrastrado o ampliado el eje,
+  al pasar de ETH a BTC se quedaba en los precios de ETH; ahora se reajusta con cada activo o marco.
 - **Crypto, mapa de liquidaciones, «The data source is busy»:** salía a menudo al cambiar de activo o de marco, porque
   Coinalyze cuenta cada perpetuo pedido como una llamada (40 por minuto) y BTC gastaba 23 en cada carga. Ahora se
   piden solo el perpetuo principal de cada exchange (el de USDT, o el inverso en USD si no hay: 9 llamadas para BTC); volver a un

@@ -17,6 +17,9 @@ Son señales transversales: ordenan las acciones del historial diario entre sí 
   volumen de opciones frente a acciones, O/S (Johnson y So, 2012): log(contratos negociados × 100 / acciones
     negociadas) del día. Quien tiene información negativa la opera en opciones (vender acciones en corto cuesta más),
     así que un O/S alto anticipa que la acción irá peor. Hipótesis: IC negativo. Todas las series y vencimientos.
+  put/call (pcr.py): z de log(P/C de volumen fuera de dinero ponderado por delta, vencimientos de 0 a 45 días)
+    frente a la historia de cada acción. Más puts que lo normal, peor rendimiento (Pan y Poteshman, 2006, con
+    volumen de apertura comprador; aquí es el total). Hipótesis: IC negativo. Sin dato hasta pcr.MIN_SES sesiones.
   prima de volatilidad, Vol premium (Goyal y Saretto, 2009): IV ATM a 30 días − volatilidad realizada de RV_DIAS
     sesiones (cierre a cierre, anualizada, con los cierres del índice). No es direccional: su prueba en adelante no
     mira el rendimiento sino la prima cobrada, IV de hoy − volatilidad realizada de las sesiones siguientes. Hipótesis:
@@ -68,6 +71,8 @@ SENALES = {
     "skew": (lambda v: v[1] - v[0] if v[0] is not None and v[1] is not None else None, -1),
     "cp": (lambda v: v[3] if len(v) > 3 else None, 1),
     "os": (lambda v: float(np.log(v[4] * 100 / v[5])) if len(v) > 5 and v[4] and v[5] else None, -1),
+    # z combinada de put/call de pcr.py (más puts que lo normal del ticker = alto), en v[7] por _con_pcr
+    "pcr": (lambda v: v[7] if len(v) > 7 else None, -1),
 }
 # señales de volatilidad (no direccionales, no votan en el consenso): nivel con la RV que añade _con_rv en v[6], signo
 # esperado del IC y objetivo de la prueba en adelante ("rv": IV de hoy − volatilidad realizada siguiente)
@@ -412,8 +417,15 @@ def combinar(punts: dict[str, dict]) -> dict[str, dict[str, dict]]:
     return out
 
 
-def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | None = None) -> dict:
-    idx = _con_rv(idx)
+def _con_pcr(idx: dict[str, dict], pcrz: dict) -> dict[str, dict]:
+    """Añade en v[7] la z combinada de put/call (pcr.zetas). Las filas de _con_rv tienen 7 campos."""
+    return {f: {s: list(v) + [None] * (7 - len(v)) + [(pcrz.get(f) or {}).get(s)] for s, v in d.items()}
+            for f, d in idx.items()}
+
+
+def calcular(idx: dict[str, dict], nombres: dict[str, str], lista: list[str] | None = None,
+             pcrz: dict | None = None) -> dict:
+    idx = _con_pcr(_con_rv(idx), pcrz or {})
     syms = {s for d in idx.values() for s in d} | set(lista or [])
     acciones = {s for s in syms if es_accion(s, nombres)}
     # la última sesión con IV (las filas previas que añade la reconstrucción solo tienen el cierre)
@@ -463,6 +475,7 @@ def publicar(st, guardados: list[str] | None = None) -> dict | None:
         return None
     if guardados is None:
         guardados = (almacen.get_json(st, f"hist500/_dias/{max(idx)}.json") or {}).get("ok")
-    res = calcular(idx, dict(g.load_symbols()), guardados)
+    import pcr  # aquí y no arriba: pcr importa skew
+    res = calcular(idx, dict(g.load_symbols()), guardados, pcr.zetas(almacen.get_json(st, pcr.INDICE) or {}))
     almacen.put_json(st, "pub/skew.json", res)
     return res

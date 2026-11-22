@@ -2235,6 +2235,7 @@ const TOOLS = {
   calendar: { view: "calView", ticker: false, show: () => showCal(), render: () => renderCal(), load: (r) => loadCal(r) },
   corr: { view: "corrView", ticker: false, show: () => showCorr(), render: () => renderCorr(), load: (r) => loadCorr(r) },
   skewsig: { view: "skewSigView", ticker: false, show: () => showSigSkew(), render: () => renderSigSkew(), load: () => loadSigSkew() },
+  sentiment: { view: "sentView", ticker: false, show: () => showSent(), render: () => renderSent(), load: () => loadSent() },
   crypto: { view: "cryptoView", ticker: false, show: () => showCrypto(), render: () => renderCrypto(),
     load: () => { loadCrypto(); if (cx.tab === "liquidations" && typeof lqCargar === "function") lqCargar(); } },
   takes: { view: "takesView", ticker: false, show: () => showTakes(), render: () => renderTakes(), load: (r) => loadTakes(r) },
@@ -3700,6 +3701,7 @@ const NAV = {
   navCal: { t: "Calendar", go: () => setMode("calendar") },
   navTrace: { t: "TRACE", go: () => { setMode("analysis"); if (state.view !== "map") setView("map"); } },
   navSkew: { t: "Skew signal", go: () => setMode("skewsig") },
+  navSent: { t: "Sentiment", go: () => setMode("sentiment") },
   navHub: { t: "Equity Hub", go: () => { setMode("analysis"); if (state.view === "map") setView(state.hubView || "impact"); } },
   navVol: { t: "Volatility dashboard", go: () => setMode("vol") },
   navVix: { t: "VIX curve", go: () => setMode("vix") },
@@ -3724,6 +3726,7 @@ function currentNav() {
   if (m === "vix") return "navVix";
   if (m === "corr") return "navCorr";
   if (m === "skewsig") return "navSkew";
+  if (m === "sentiment") return "navSent";
   if (m === "crypto") return "navCrypto";
   if (m === "takes") return "navTakes";
   if (m === "social") return "navSocial";

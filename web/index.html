@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="social.css">
 <link rel="stylesheet" href="trading.css">
 <link rel="stylesheet" href="cripto.css">
+<link rel="stylesheet" href="sentiment.css">
 <link rel="stylesheet" href="tema.css">
 <script>try{var t=localStorage.getItem("gexlab.theme");document.documentElement.dataset.theme=t==="light"?"light":"dark"}catch(e){document.documentElement.dataset.theme="dark"}if(document.documentElement.dataset.theme==="light")document.querySelector('meta[name="theme-color"]').content="#f2f3f8"</script>
 </head>
@@ -37,6 +38,7 @@
       <button class="item" id="navTrace" data-title="TRACE" title="TRACE"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3.5" width="14" height="13" rx="2"/><path d="M3 8h14M3 12.5h14" opacity=".55"/><path d="M6 14l2.5-3 2 1.5L14 7"/></svg><span class="lbl">TRACE</span></button>
       <button class="item" id="navHub" data-title="Equity Hub" title="Equity Hub"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16V9M8 16V5M12 16v-6M16 16V7"/></svg><span class="lbl">Equity Hub</span></button>
       <button class="item" id="navSkew" data-title="Skew signal" title="Put skew and call−put IV rankings of the stocks in the daily history"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5c3 0 4 9 7 9s4-5 7-5"/><path d="M3 16.5h14" opacity=".55"/></svg><span class="lbl">Skew signal</span></button>
+      <button class="item" id="navSent" data-title="Sentiment" title="Put/call sentiment of each ticker against its own history"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14a7 7 0 0 1 14 0"/><path d="M10 14l3.5-4.5"/></svg><span class="lbl">Sentiment</span></button>
     <div class="sec">Volatility</div>
       <button class="item" id="navVol" data-title="Volatility dashboard" title="Volatility dashboard"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 13c2-6 3.5-6 5 0s3 6 5 0 3.2-6 5 0"/></svg><span class="lbl">Volatility dashboard</span></button>
       <button class="item" id="navVix" data-title="VIX curve" title="VIX curve"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 15.5c3-1 4-6 7-7.5s4 0 7-4"/><circle cx="3" cy="15.5" r="1"/><circle cx="17" cy="4" r="1"/></svg><span class="lbl">VIX curve</span></button>
@@ -623,6 +625,39 @@
   </section>
 </main>
 
+<main class="macro mview" id="sentView" hidden>
+  <aside class="mside" aria-label="Market sentiment">
+    <div class="mhead">
+      <div class="sym">Put/call sentiment</div>
+      <div class="mstate" id="senState">—</div>
+      <div class="msub" id="senSub"></div>
+    </div>
+    <div class="sen-gauge" id="senGauge"></div>
+    <p class="regime" id="senRead"></p>
+    <div class="facts" id="senFacts"></div>
+    <p class="mnote">Each score compares a ticker's put/call ratio with its own last 60 sessions: <b>100</b> means far fewer puts than usual (greed), <b>1</b> far more (fear). Only out-of-the-money options count, weighted by delta, so dividend trades in deep in-the-money calls and cheap far puts do not move it. Combined: expirations up to 45 days. On indices the put/call ratio is mostly hedging, and its extremes have tended to mark turns the other way.</p>
+  </aside>
+  <section class="mcharts">
+    <div class="mchart-head"><span class="mtitle" id="senChartTitle">Click a ticker</span></div>
+    <div class="mchart" id="senChart" role="img" aria-label="Price and sentiment score"></div>
+    <div class="sen-exp" id="senExp"></div>
+    <p class="chart-caption" id="senCap"></p>
+    <div class="tablewrap"><table class="scan sen-table" id="senTable">
+      <thead><tr>
+        <th data-k="sym" class="l">Ticker</th>
+        <th data-k="score" title="Combined score, expirations up to 45 days (100 = greed)">Score</th>
+        <th data-k="t0" title="Expirations within 7 days">0-7d</th>
+        <th data-k="t1" title="Expirations of 8 to 45 days">8-45d</th>
+        <th data-k="t2" title="Expirations beyond 45 days">45d+</th>
+        <th data-k="chg5" title="Change of the combined score over 5 sessions">5d change</th>
+        <th data-k="div" class="l" title="Price at a 20-session high or low while the score moves 15 points the other way">Divergence</th>
+      </tr></thead>
+      <tbody id="senBody"></tbody>
+    </table></div>
+    <p class="chart-caption" id="senFoot"></p>
+  </section>
+</main>
+
 <main class="macro cx-view" id="cryptoView" hidden>
   <aside class="cx-side" aria-label="Crypto reading">
     <div class="cx-top">
@@ -875,6 +910,7 @@
 <script src="vol.js"></script>
 <script src="corr.js"></script>
 <script src="skewsig.js"></script>
+<script src="sentiment.js"></script>
 <script src="cripto.js"></script>
 <script src="liq-modelo.js"></script>
 <script src="liq.js"></script>

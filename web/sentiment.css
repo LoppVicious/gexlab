@@ -1,0 +1,10 @@
+/* Sentiment (sentiment.js): medidor, tabla por vencimiento y fila elegida. Colores de tema.css */
+.sen-gauge { display: flex; flex-direction: column; align-items: center; margin: 8px 0 4px; }
+.sen-gauge svg { max-width: 100%; height: auto; }
+.sen-gval { display: flex; flex-direction: column; align-items: center; margin-top: -34px; }
+.sen-gval b { font-size: 30px; font-weight: 800; color: var(--text); }
+.sen-exp { margin: 6px 0 2px; overflow-x: auto; }
+.sen-exp-t td, .sen-exp-t th { font-size: 12.5px; }
+.sen-table tbody tr { cursor: pointer; }
+.sen-table tr.on td { background: var(--accent-soft); }
+#senChart svg { display: block; max-width: 100%; }

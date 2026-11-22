@@ -17,7 +17,9 @@ const LQ_TF = {
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
 const LQ_BANDA = 4;   // alto en pixeles de cada franja del mapa y del perfil (3 de color y 1 de separacion)
-const LQ_CURVA = 1.35;   // curva del color: los valores medios se quedan en azul y verde, el amarillo para lo mas alto
+// curva del color: con el reparto real (en ETH diario la mediana de las casillas es un 2 % del tope y el percentil 99 un
+// 72 %), 0,45 deja amarillo el 1 % mas cargado, verde el 5 % y verde azulado el 10 %; lo demas, azul que se apaga
+const LQ_CURVA = 0.45;
 // indice en la paleta (0-255) de un valor frente al tope de la escala
 const lqIdx = (v, tope) => Math.min(255, Math.floor(Math.pow(Math.min(1, Math.max(0, v / tope)), LQ_CURVA) * 255));
 // atajos: marco y apalancamientos de cada forma de operar
@@ -313,8 +315,8 @@ function lqPaleta() {
   const fondo = lqHex(C.surface), azul = lqHex(C.prevClose), verde = lqHex(C.put), amarillo = lqHex(C.amber);
   const mez = (a, b, f) => a.map((x, i) => x * f + b[i] * (1 - f));
   // [posicion, color, opacidad]
-  const paradas = [[0, mez(azul, fondo, 0.35), 0.22], [0.3, mez(azul, fondo, 0.75), 0.6], [0.55, mez(verde, azul, 0.5), 0.9],
-    [0.8, verde, 1], [1, amarillo, 1]];
+  const paradas = [[0, mez(azul, fondo, 0.25), 0.06], [0.35, mez(azul, fondo, 0.6), 0.35], [0.55, mez(verde, azul, 0.45), 0.85],
+    [0.78, verde, 1], [1, amarillo, 1]];
   const lut = new Uint8ClampedArray(256 * 4);
   for (let k = 0; k < 256; k++) {
     const u = k / 255;

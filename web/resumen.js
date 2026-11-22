@@ -8,7 +8,7 @@
    Datos: /api/summary (app.js, sm), y aqui /api/eventos, /api/vix, /api/vol, /api/corr, /api/flow, /api/gex (vista
    por defecto, precalculada) y el escaner de la watchlist (hub.js). Cada bloque se pinta en cuanto llegan sus datos. */
 
-const su = { at: 0, busy: false, ev: null, vix: null, vol: null, corr: null, flow: null, prof: {}, timer: null };
+const su = { at: 0, busy: false, ev: null, vix: null, vol: null, corr: null, flow: null, pcr: null, prof: {}, timer: null };
 const SU_DIA = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const SU_MES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const suDate = (iso) => new Date(iso + "T12:00:00");
@@ -30,6 +30,7 @@ function suLoad(force) {
     get("/api/vol?symbol=SPX").then((d) => { su.vol = d || su.vol; }),
     get("/api/corr").then((d) => { su.corr = d || su.corr; }),
     get("/api/flow?symbol=SPX").then((d) => { su.flow = d || su.flow; }),
+    get("/api/pcr").then((d) => { su.pcr = d || su.pcr; }),
     ...SUMMARY_SYMS.map((s) => get("/api/gex?" + new URLSearchParams({ symbol: s, dte: "45", range: "auto", model: "spotgamma" }))
       .then((d) => { if (d && d.profile) su.prof[s] = d.profile; })),
   ].map((p) => p.then(paint));
@@ -254,6 +255,17 @@ function suCot(c) {
     <div class="t"><b>${esc(e.name)}</b><span>${esc(e.group)}</span></div><div class="b"><i style="left:${e.index}%" class="${e.index >= 90 ? "hi" : e.index <= 10 ? "lo" : ""}"></i></div><em>${fmtNum(e.index, 0)}</em></div>`).join("")}</section>`;
 }
 
+// sentimiento por put/call de las acciones (pcr.py): puntuacion del agregado y amplitud
+function suSent() {
+  const P = su.pcr, m = P && P.market, s = m && m.stocks;
+  const head = `<header><h3>Put/call sentiment</h3><span class="sub">${P ? `close of ${ddmm(P.date)}, 100 = greed` : "stocks against their own history"}</span></header>`;
+  if (!s || s.score == null) return `<section class="su-card su-sent" data-go="sentiment" title="Open Sentiment">${head}${suWait(P ? `Building history: ${fmtNum(P.sessions, 0)} of ${P.min_sessions} sessions.` : "Loading…")}</section>`;
+  const b = m.breadth, cls = s.score < 40 ? "dn" : s.score > 60 ? "up" : "";
+  return `<section class="su-card su-sent" data-go="sentiment" title="Open Sentiment">${head}
+    <div class="su-nd"><span>Stocks combined</span><b class="${cls}">${fmtNum(s.score, 0)}</b></div>
+    <div class="su-nd"><span>In fear (under 20) / in greed (over 80)</span><b>${fmtNum(b.fear_pct, 0)}% / ${fmtNum(b.greed_pct, 0)}%</b></div></section>`;
+}
+
 // ------------------------------------------------------------ pintar y eventos
 function renderSummary() {
   const d = sm.data;
@@ -262,7 +274,7 @@ function renderSummary() {
   $("sumSub").textContent = q0 ? `Options data from ${nyHHMM(q0.quote_time)} on ${longDate(q0.quote_time.slice(0, 10))}, risk-free rate ${fmtNum(d.rate.r * 100, 2)}%` : "";
   $("sumSess").innerHTML = s.open ? `Market open, closes at <b>${localTime(s.close_utc)}</b>` : `Market closed, opens <b>${localTime(s.next_open_utc, true)}</b>`;
   $("sumBody").innerHTML = suHero(d) + `<div class="su-idx">${d.indices.map(suIndex).join("")}</div>`
-    + `<div class="su-g2">${suVol(d)}${suCorr()}</div>${suVolReg()}<div class="su-g3">${suRadar()}${suFlow()}${suCot(d.cot)}</div>`;
+    + `<div class="su-g2">${suVol(d)}${suCorr()}</div>${suVolReg()}${suSent()}<div class="su-g3">${suRadar()}${suFlow()}${suCot(d.cot)}</div>`;
   suLoad();
   if (!su.timer) su.timer = setInterval(() => { if (state.mode === "summary" && sm.data && $("suClock")) $("suClock").innerHTML = suClock(sm.data.session); }, 30000);
 }

@@ -31,6 +31,12 @@ const SSK_SIG = {
     fmtChg: (v) => (v == null ? "—" : sskSigned((Math.exp(v) - 1) * 100, 0) + "%"),
     works: "Stocks with heavy option trading against their share volume have been lagging the rest, as the research says. The ranking can tilt a swing book: avoid longs at the top, favour them at the bottom.",
     tilt: SSK_BEAR },
+  // z de log(P/C) frente a la historia de la accion (pcr.py): positiva, mas puts que lo normal
+  pcr: { name: "Put/call", level: "P/C z", levelTip: "Robust z-score of the delta-weighted out-of-the-money put/call volume ratio (expirations up to 45 days) against the stock's own last 60 sessions",
+    caption: "P/C z: how unusual today's put/call ratio is for the stock (positive, more puts than usual).",
+    fmt: (v) => (v == null ? "—" : sskSigned(v, 2)), fmtChg: (v) => (v == null ? "—" : sskSigned(v, 2)),
+    works: "Stocks with more puts than usual have been lagging the rest, as the research says. The ranking can tilt a swing book: avoid longs at the top, favour them at the bottom.",
+    tilt: SSK_BEAR },
   // prima de volatilidad (skew.SENALES_VOL): no es direccional; su prueba mira la prima cobrada, no el rendimiento
   vrp: { name: "Vol premium", level: "IV − RV", levelTip: "ATM implied volatility, about 30 days, minus realized volatility of the last 20 sessions (volatility points)",
     caption: "IV − RV: implied minus realized volatility (20 sessions, without the single largest move), in volatility points. Earnings before the monthly expiration lift the IV: check the calendar before reading “rich” as a sale.", fmt: sskPts, fmtChg: sskPts,
@@ -152,7 +158,7 @@ function sskHead(cols, sortable = true) {
 // primero las alcistas, de mas a menos, y despues las bajistas
 function renderSskConsensus(d) {
   sskHead([["sym", "Ticker", "l"], ["skew", "Put skew", "", "Vote of the put skew signal"], ["cp", "Call−put IV", "", "Vote of the call−put signal"],
-    ["os", "Options volume", "", "Vote of the O/S signal"], ["v", "Combined", "", "Average direction of the signals with a reading: +100 all as bullish as possible, −100 all as bearish"],
+    ["os", "Options volume", "", "Vote of the O/S signal"], ["pcr", "Put/call", "", "Vote of the put/call signal"], ["v", "Combined", "", "Average direction of the signals with a reading: +100 all as bullish as possible, −100 all as bearish"],
     ["m", "Reading", "l"]], false);
   const vote = (r, k) => {
     const v = ((r.combo || {}).votes || {})[k];
@@ -165,16 +171,16 @@ function renderSskConsensus(d) {
   const row = (r) => {
     const c = r.combo, n = Object.values(c.votes).filter((v) => (c.match === "bull" ? v > 0 : v < 0)).length;
     return `<tr data-s="${esc(r.sym)}" title="${esc(r.name || r.sym)}: open its volatility dashboard">
-      <td class="l"><b>${esc(r.sym)}</b></td><td>${vote(r, "skew")}</td><td>${vote(r, "cp")}</td><td>${vote(r, "os")}</td>
+      <td class="l"><b>${esc(r.sym)}</b></td><td>${vote(r, "skew")}</td><td>${vote(r, "cp")}</td><td>${vote(r, "os")}</td><td>${vote(r, "pcr")}</td>
       <td>${sskSigned(c.v * 100, 0)}</td>
       <td class="l"><span class="ssk-tilt ${c.match === "bull" ? "pos" : "neg"}"><b>${c.match === "bull" ? "Bullish" : "Bearish"}</b>, ${n} of ${c.n} agree</span></td></tr>`;
   };
-  const group = (t, list) => `<tr class="ssk-group"><td class="l" colspan="6">${t} (${list.length})</td></tr>` +
-    (list.length ? list.map(row).join("") : `<tr><td class="l" colspan="6"><span class="ssk-tilt">None today.</span></td></tr>`);
+  const group = (t, list) => `<tr class="ssk-group"><td class="l" colspan="7">${t} (${list.length})</td></tr>` +
+    (list.length ? list.map(row).join("") : `<tr><td class="l" colspan="7"><span class="ssk-tilt">None today.</span></td></tr>`);
   $("sskBody").innerHTML = group("Bullish matches", bull) + group("Bearish matches", bear);
   const both = d.rows.filter((r) => r.combo).length;
   $("sskSub").textContent = `${m.length} matches among ${both} stocks with at least two signals, close of ${longDate(d.date)}. ${d.signals.combo.sessions} sessions scored`;
-  $("sskFoot").textContent = "A match needs at least two signals in the outer two fifths of their own ranking pointing the same way, and none against. Put skew and options volume vote bearish when high; call−put votes bullish when high." +
+  $("sskFoot").textContent = "A match needs at least two signals in the outer two fifths of their own ranking pointing the same way, and none against. Put skew, options volume and put/call vote bearish when high; call−put votes bullish when high." +
     (d.excluded.length ? ` Left out (indices, ETFs and the VIX): ${d.excluded.join(", ")}.` : "");
 }
 

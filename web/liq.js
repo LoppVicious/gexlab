@@ -16,7 +16,10 @@ const LQ_TF = {
   "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 540, nombre: "4 hours" },
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
-const LQ_BANDA = 8;   // alto en pixeles de cada franja del mapa y del perfil
+const LQ_BANDA = 4;   // alto en pixeles de cada franja del mapa y del perfil (3 de color y 1 de separacion)
+const LQ_CURVA = 1.35;   // curva del color: los valores medios se quedan en azul y verde, el amarillo para lo mas alto
+// indice en la paleta (0-255) de un valor frente al tope de la escala
+const lqIdx = (v, tope) => Math.min(255, Math.floor(Math.pow(Math.min(1, Math.max(0, v / tope)), LQ_CURVA) * 255));
 // atajos: marco y apalancamientos de cada forma de operar
 const LQ_PRESET = {
   swing: { tf: "1D", levOff: ["50", "100"] },   // posiciones que aguantan semanas: niveles lejos del precio
@@ -26,7 +29,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin3", 15), vida: "1", extra: 0,
+  min: +store.get("lqMin4", 5), vida: "1", extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -95,7 +98,7 @@ function lqControles() {
 
 function lqSet(cambio) {
   Object.assign(lq, cambio);
-  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin3", lq.min);
+  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin4", lq.min);
   store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff3", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
@@ -302,13 +305,16 @@ function lqVista() {
 // ancho en pixeles del perfil de la derecha (lo usa tambien el margen de la vista)
 const lqAnchoPerfil = (ancho) => Math.round(Math.min(170, Math.max(60, ancho * 0.14)));
 
-// paleta de los niveles con los colores del tema, solida: de lo flojo (azul apagado hacia el fondo) a lo fuerte (rojo)
+// paleta de los niveles: una sola rampa con los colores del tema, del fondo a azul, verde azulado, verde y amarillo
+// (como un viridis). Lo flojo casi se funde con el fondo, asi que lo fuerte resalta solo; sin rojo ni ambar por medio,
+// que hacian competir muchas franjas a la vez
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function lqPaleta() {
-  // [posicion, color, opacidad]: lo flojo, azul marino casi transparente (se funde con el fondo); los grupos, verde,
-  // amarillo y rojo solidos. Asi el mapa se lee de un vistazo, como mapaliquidaciones.com
-  const fondo = lqHex(C.surface), azul = lqHex(C.prevClose), mez = (a, f) => a.map((x, i) => x * f + fondo[i] * (1 - f));
-  const paradas = [[0, mez(azul, 0.3), 0.18], [0.3, mez(azul, 0.6), 0.5], [0.5, lqHex(C.put), 0.95], [0.72, lqHex(C.amber), 1], [1, lqHex(C.call), 1]];
+  const fondo = lqHex(C.surface), azul = lqHex(C.prevClose), verde = lqHex(C.put), amarillo = lqHex(C.amber);
+  const mez = (a, b, f) => a.map((x, i) => x * f + b[i] * (1 - f));
+  // [posicion, color, opacidad]
+  const paradas = [[0, mez(azul, fondo, 0.35), 0.22], [0.3, mez(azul, fondo, 0.75), 0.6], [0.55, mez(verde, azul, 0.5), 0.9],
+    [0.8, verde, 1], [1, amarillo, 1]];
   const lut = new Uint8ClampedArray(256 * 4);
   for (let k = 0; k < 256; k++) {
     const u = k / 255;
@@ -339,9 +345,8 @@ function lqImagen() {
 function lqEscala() {
   const r = lq.res;
   if (!r || !lq.colores) return;
-  const k0 = Math.floor((lq.min / 100) * 255), pasos = [];
-  for (let k = k0; k <= 255; k += Math.max(1, Math.round((255 - k0) / 12))) pasos.push(lq.colores[k]);
-  pasos.push(lq.colores[255]);
+  const pasos = [];
+  for (let s = 0; s <= 12; s++) pasos.push(lq.colores[lqIdx(lq.min / 100 + (1 - lq.min / 100) * (s / 12), 1)]);
   $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${pasos.join(", ")})`;
   $("lqEscalaTxt").textContent = lq.min > 0 ? `${lqUsd((lq.min / 100) * r.topeV)} to ${lqUsd(r.topeV)}+` : `up to ${lqUsd(r.topeV)}+`;
 }
@@ -390,7 +395,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     for (let k = 0; k < outW; k++) {
       const v = val[f * outW + k];
       if (!(v > umbral)) continue;
-      const i = Math.floor(Math.min(1, v / tope) * 255) * 4;
+      const i = lqIdx(v, tope) * 4;
       for (let y = y0; y < y1; y++) {
         const o = (y * outW + k) * 4;
         px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
@@ -457,7 +462,7 @@ class LqPerfil {
       ctx.globalAlpha = 1;
       for (const [y, v] of filas) {
         if (v <= 0) continue;
-        const i = Math.min(255, Math.floor(Math.min(1, v / tope) * 255)) * 4, l = lq.lut;
+        const i = lqIdx(v, tope) * 4, l = lq.lut;
         ctx.fillStyle = `rgba(${l[i]},${l[i + 1]},${l[i + 2]},${Math.max(0.35, l[i + 3] / 255)})`;
         const wv = (v / mx) * W * 0.92;
         ctx.fillRect(right - wv, y, wv, paso - 1);
@@ -619,7 +624,7 @@ $("lqLev").addEventListener("click", (e) => {
   Object.assign(lq, { levOff: s }); store.set("lqLevOff3", [...s].join(",")); lqControles(); lqCalcular();
 });
 $("lqMin").addEventListener("input", (e) => { lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen(); if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); } });
-$("lqMin").addEventListener("change", () => store.set("lqMin3", lq.min));
+$("lqMin").addEventListener("change", () => store.set("lqMin4", lq.min));
 $("lqPreset").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const x = LQ_PRESET[b.dataset.v];

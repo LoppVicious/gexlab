@@ -25,6 +25,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   con el mismo botón o con Esc. Full screen sigue llevándolo a pantalla completa.
 
 **Cambiado**
+- **Crypto, mapa de liquidaciones, más claro:** una sola rampa de color (del fondo a azul, verde y amarillo) en vez de
+  azul, verde, ámbar y rojo; el amarillo queda para los grupos más grandes y lo flojo se funde con el fondo. Franjas de
+  4 px en vez de 8 (niveles más precisos, menos bloque) e intensidad mínima por defecto del 5 %.
 - **Crypto, mapa de liquidaciones, menos ruido:** la explicación larga pasa a una línea con «How to read» desplegable;
   fuera el selector Memory (queda la normal de cada marco) y las curvas del perfil; los exchanges van en un desplegable;
   la tarjeta de la r pasa a «Model reliability» (Good, Fair o Weak, con la r en el texto). En pantallas estrechas el

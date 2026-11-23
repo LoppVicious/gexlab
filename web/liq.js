@@ -33,7 +33,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin5", 20), vida: "1",
+  min: +store.get("lqMin5", 30), vida: "1",
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -623,10 +623,11 @@ function lqLectura() {
     <div class="lq-card"><span class="kl">Biggest clusters below (longs)</span>${g.abajo.map(fila).join("") || "<span class='ks'>None</span>"}</div>
     <div class="lq-card"><span class="kl">Model reliability</span><b>${nota}</b><span class="ks">${esc(porQue)}</span></div>`;
   $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Where leveraged positions would be liquidated: brighter means more money.`;
-  $("lqHow").textContent = "Each band is a price where open leveraged positions would be force-closed, estimated from new open interest, " +
-    "the buy/sell split of volume and typical leverage (5x to 100x). Bands above the price are shorts, below are longs. " +
-    "A band stays until price reaches it, and shrinks if open interest falls (those positions were closed). Price tends to travel " +
-    "toward big bands: the forced orders feed the move. Hover a band to see its size, distance and leverage mix. The right profile is " +
+  $("lqHow").textContent = "Each zone adds up the open leveraged positions that would be force-closed within 0.4% of that price, " +
+    "estimated from new open interest, the buy/sell split of volume and typical leverage (5x to 100x). Zones above the price are " +
+    "shorts, below are longs. A zone stays until price reaches it, and shrinks if open interest falls (those positions were " +
+    `closed); levels that price hit within ${LQ_VIDA_MIN} candles are left out. Min. intensity in Settings hides the weaker zones. ` +
+    "Price tends to travel toward big zones: the forced orders feed the move. Hover a zone to see its size, distance and leverage mix. The right profile is " +
     "what is still pending now; the bottom panel shows real liquidations (longs down, shorts up). " +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
       : "No open interest for this choice: estimated from volume.");

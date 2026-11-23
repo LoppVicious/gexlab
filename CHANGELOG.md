@@ -44,6 +44,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   mapaliquidaciones.com). Ahora manda la dirección de la vela: si sube con el open interest subiendo, son sobre todo
   largos. En ETH diario, a menos de un 30 % del precio, quedan unos $2.500M de largos debajo frente a $90M de cortos
   encima.
+- **VIX futures, Volatility regime con el cierre de la sesión anterior:** tras el cierre, la curva ya usaba el VIX de
+  hoy, pero el régimen, la tarjeta VIX («close, now») y la estructura VIX9D a VIX1Y seguían en el CSV de CBOE, que se
+  publica horas después (el 23 de noviembre enseñaba VIX 35,9 del día 20 con el cierre en 26,6). Ahora, desde las
+  16:15 ET y hasta que llega el CSV, el cierre de hoy de cada índice sale de Tradier; antes de la apertura sigue el
+  último cierre oficial.
 
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 

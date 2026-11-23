@@ -302,7 +302,8 @@ def _vix_curve() -> dict:
 
     vix_hist, _ = g.history_ohlc("VIX")
     vix_close = {d: v[3] for d, v in vix_hist.items()}
-    # el CSV oficial de CBOE suele traer el cierre del día antes que el histórico diario
+    # el CSV oficial de CBOE suele traer el cierre del día antes que el histórico diario (y _csv_cierres, el de hoy
+    # con la sesión cerrada antes que el CSV)
     try:
         for d, v in _csv_cierres("VIX").items():
             vix_close.setdefault(d, v)
@@ -311,13 +312,6 @@ def _vix_curve() -> dict:
 
     # todas las sesiones con cierre de futuros
     dates = sorted({d for rows in contracts.values() for d in rows})
-    # el historico diario del VIX puede no traer aun el cierre de hoy: se completa con la cotizacion
-    if dates and dates[-1] not in vix_close:
-        qv = g.fetch_quote("VIX") or {}
-        qd = qv.get("data") or {}
-        now_q = g.now_ny()
-        if not g.market_open(now_q) and g.session_date(qv.get("timestamp")) == dates[-1] and float(qd.get("current_price") or 0) > 0:
-            vix_close[dates[-1]] = float(qd["current_price"])
 
     def curve_on(day: str) -> list[dict]:
         out = []
@@ -966,10 +960,19 @@ _volreg_cache: dict[str, tuple[float, dict]] = {}
 
 
 def _csv_cierres(sym: str, ttl: float = 3600) -> dict[str, float]:
-    """Cierres diarios {aaaa-mm-dd: valor} del CSV de CBOE (gex_engine.daily_csv)."""
+    """Cierres diarios {aaaa-mm-dd: valor} del CSV de CBOE (gex_engine.daily_csv). CBOE sube el CSV horas después
+    del cierre: con la sesión ya cerrada, el de hoy sale de la cotización de Tradier mientras el CSV no lo traiga."""
     out = {r["date"]: r["close"] for r in g.daily_csv(sym, ttl)}
     if not out:
         raise ConnectionError(f"No {sym} history from CBOE")
+    ahora = g.now_ny()
+    hoy = ahora.strftime("%Y-%m-%d")
+    # el VIX cotiza también antes de la apertura: solo a partir de su cierre (16:15 ET), no un precio de pre-market
+    if hoy not in out and g.is_trading_day(ahora) and ahora >= g.close_time(ahora) + timedelta(minutes=15):
+        q = g.fetch_quote(sym) or {}
+        v = float((q.get("data") or {}).get("close") or 0)
+        if q.get("source") == "tradier" and q.get("today") and v > 0:
+            out[hoy] = v
     return out
 
 

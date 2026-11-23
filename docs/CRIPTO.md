@@ -189,7 +189,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   1 h, un mes en 4 h y ocho meses en diario. Leyenda: los cinco escalones y desde cuántos dólares es rojo en la vista.
   Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la última columna
   con su propia escala (su barra mayor es roja); el grupo mayor a cada lado como línea con etiqueta en el eje (Longs,
-  Shorts), con la intensidad mínima frente al más cargado de la última vela.
+  Shorts), con la intensidad mínima frente al más cargado de la última vela. El ajuste automático del eje de precios incluye esos
+  dos grupos (`lq.extremos`, `autoscaleInfoProvider` de la serie de velas).
 - **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario
   5x a 25x, y Scalp, 15 min 25x a 100x, apalancamientos, intensidad mínima y exchanges; se cierra al pulsar fuera o con
   Esc), Copy image y Full screen. Debajo del mapa, la leyenda de color en dólares (de la intensidad mínima al tope) y

@@ -82,7 +82,7 @@ function lqVaciar() {
   if (!lq.chart) return;
   lq.serie.setData([]); lq.hist.setData([]);
   for (const l of lq.lineas || []) lq.serie.removePriceLine(l);
-  lq.lineas = [];
+  lq.lineas = []; lq.extremos = null;
   $("lqIman").textContent = ""; $("lqRead").innerHTML = "";
   lq.heat.redraw(); lq.prof.redraw();
 }
@@ -487,6 +487,11 @@ function lqNivelesClave(g) {
   const arriba = g.arriba.slice().sort((p, q) => q.a - p.a)[0], abajo = g.abajo.slice().sort((p, q) => q.a - p.a)[0];
   if (arriba) linea(arriba, C.put, "Shorts");
   if (abajo) linea(abajo, C.call, "Longs");
+  // el eje de precios llega hasta esos dos grupos (como en mapaliquidaciones.com): si no, el mayor de cada lado
+  // quedaba fuera del grafico cuando estaba lejos de las velas (BTC diario: los largos de 54.679, a un 11 %)
+  const antes = lq.extremos;
+  lq.extremos = { lo: abajo ? abajo.p * 0.99 : null, hi: arriba ? arriba.p * 1.01 : null };
+  if (!antes || antes.lo !== lq.extremos.lo || antes.hi !== lq.extremos.hi) lq.serie.priceScale().applyOptions({ autoScale: true });
 }
 
 function lqChart() {
@@ -497,7 +502,15 @@ function lqChart() {
     crosshair: { mode: L.CrosshairMode.Normal },
     rightPriceScale: { scaleMargins: { top: 0.05, bottom: 0.05 } },
   });
-  lq.serie = lq.chart.addSeries(L.CandlestickSeries, { priceLineVisible: true, lastValueVisible: true });
+  lq.serie = lq.chart.addSeries(L.CandlestickSeries, { priceLineVisible: true, lastValueVisible: true,
+    // ajuste automatico: las velas y los dos grupos mayores (lq.extremos, de lqNivelesClave)
+    autoscaleInfoProvider: (base) => {
+      const r = base(), x = lq.extremos;
+      if (!r || !r.priceRange || !x) return r;
+      if (x.lo != null) r.priceRange.minValue = Math.min(r.priceRange.minValue, x.lo);
+      if (x.hi != null) r.priceRange.maxValue = Math.max(r.priceRange.maxValue, x.hi);
+      return r;
+    } });
   lq.heat = new LqHeat(); lq.serie.attachPrimitive(lq.heat);
   lq.prof = new LqPerfil(); lq.serie.attachPrimitive(lq.prof);
   lq.hist = lq.chart.addSeries(L.HistogramSeries, { priceLineVisible: false, lastValueVisible: false,

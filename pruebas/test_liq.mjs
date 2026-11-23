@@ -179,9 +179,37 @@ test("grupos y presion salen de lo que pinta el mapa: siempre sobre una franja q
   const t = r.n - 1, precio = velas[t].c, umbral = r.topeV * 0.05;
   const binDe = (p) => { for (let b = 0; b < r.B; b++) if (p >= r.bordes[b] && p < r.bordes[b + 1]) return b; return -1; };
   const g = M.grupos(r, precio, 3, Infinity, umbral);
-  for (const x of [...g.arriba, ...g.abajo]) assert.ok(r.gV[binDe(x.p) * r.n + t] > umbral, `grupo en ${x.p}`);
+  for (const x of [...g.arriba, ...g.abajo]) assert.ok(r.gZ[binDe(x.p) * r.n + t] > umbral, `grupo en ${x.p}`);
   // sin nada que pase el umbral no hay grupos ni presion
   const nada = M.presion(r, precio, 1, Infinity);
   assert.equal(nada.arriba + nada.abajo, 0);
   assert.equal(M.grupos(r, precio, 3, Infinity, Infinity).arriba.length, 0);
+});
+
+test("zonas: cada tramo de gZ suma los de gV a menos de la zona", () => {
+  const velas = Array.from({ length: 60 }, (_, i) => vela(i, 100 + Math.sin(i / 4) * 3));
+  const oi = velas.map((_, i) => i * 10 + (i % 7 === 0 ? 200 : 0));
+  const r = M.calcular(velas, oi, { vida: 1e9, bins: 600, zona: 0.01 });
+  assert.ok(r.rZ > 0);
+  for (const t of [20, 59]) for (let b = 0; b < r.B; b += 37) {
+    let s = 0;
+    for (let c = Math.max(0, b - r.rZ); c <= Math.min(r.B - 1, b + r.rZ); c++) s += r.gV[c * r.n + t];
+    assert.ok(Math.abs(s - r.gZ[b * r.n + t]) < 1e-3 * Math.max(1, s), `tramo ${b}, vela ${t}`);
+  }
+  const sinZona = M.calcular(velas, oi, { vida: 1e9, bins: 600 });
+  assert.equal(sinZona.rZ, 0);
+  assert.ok(r.topeV >= sinZona.topeV);   // la escala sale de las sumas
+});
+
+test("vidaMin: un nivel que el precio toca enseguida no se pinta; uno vivo al final si", () => {
+  const velas = Array.from({ length: 12 }, (_, i) => vela(i, 100, i === 2 ? { l: 85 } : {}));
+  const oi = [0, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000];
+  const col = (r, t) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t]; return s; };
+  const base = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9 });
+  const corta = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, vidaMin: 3 });
+  // en la vela 1 viven el largo (lo toca la vela 2) y el corto (nunca se toca)
+  assert.ok(col(corta, 1) > 0 && col(corta, 1) < col(base, 1));
+  assert.ok(Math.abs(col(corta, 11) - col(base, 11)) < 1e-6);   // el corto sigue igual
+  const k = [...corta.niveles.lado].findIndex((x) => x === 0);   // el largo
+  assert.equal(M.enMapa(corta, k, 1), 0);
 });

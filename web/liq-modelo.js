@@ -17,6 +17,8 @@
    Opcion `ver` (lista de apalancamientos): el reparto, la escala al OI y la escala de color se calculan siempre con
    todos los de `levs`; los que no estan en `ver` solo se quitan de lo que se dibuja y de la lectura (rejillas, perfil,
    niveles), asi ocultar uno no cambia el tamano ni el color de los demas. Las liquidaciones previstas cuentan todos.
+   Opciones `zona` y `vidaMin`: rejilla de zonas `gZ` (suma de los tramos a +-zona; lo que se pinta y se lee) y
+   niveles que el precio toca antes de vidaMin velas fuera del dibujo.
    Lo dibuja web/liq.js; lo prueba pruebas/test_liq.mjs con node (module.exports). */
 
 const LQ_MODELO = (() => {
@@ -187,9 +189,14 @@ const LQ_MODELO = (() => {
     const oiEf = o.nivel ? Float64Array.from({ length: n }, (_, t) => Math.max(o.nivel[t] || 0, o.nivel[t + 1] || 0)) : null;
     const desdeE = Math.min(Math.max(0, o.escalaDesde || 0), n - 1);
     const cada = Math.max(1, Math.floor((B * (n - desdeE)) / 60000));
-    const rejilla = (niveles, muestra) => {
+    // o.vidaMin: un nivel que el precio toca antes de esas velas no se pinta (ruido de pocas velas); si sigue vivo al
+    // final, si
+    const vidaMin = Math.max(0, o.vidaMin || 0);
+    const corto = (i, toque) => toque < n && toque - i < vidaMin;
+    const rejilla = (niveles) => {
       const g = new Float32Array(B * n);
       for (const [i, toque, pr, , a] of niveles) {
+        if (corto(i, toque)) continue;
         const b = binDe(pr), aE = a * (escala[i] || 1), base = oiEf && oiEf[i] > 0 ? oiEf[i] : 0;
         if (b < 0) continue;
         let f = 1;
@@ -198,20 +205,37 @@ const LQ_MODELO = (() => {
           g[b * n + t] += aE * f;
         }
       }
-      if (muestra) for (let b = 0; b < B; b++) for (let t = desdeE; t < n; t++) {
-        const v = g[b * n + t];
-        if (v > 0 && (b * n + t) % cada === 0) muestra.push(v);
-      }
       return g;
     };
-    // escala fija del mapa (percentil 99,9 de las casillas con algo, con todos los apalancamientos, desde
-    // o.escalaDesde: la ventana que se ve al abrir): no depende del zoom ni de los apalancamientos que se ven
+    // zonas (o.zona, fraccion del precio): cada tramo suma los de alrededor a menos de esa distancia en log, asi los
+    // niveles cercanos forman una zona continua (como el «±0.45% zone» de Coinfuty). Sumas por prefijos por vela
+    const rZ = Math.max(0, Math.round(Math.log(1 + (o.zona || 0)) / paso));
+    const zonas = (g) => {
+      if (!rZ) return g;
+      const z = new Float32Array(B * n), ac = new Float64Array(B + 1);
+      for (let t = 0; t < n; t++) {
+        for (let b = 0; b < B; b++) ac[b + 1] = ac[b] + g[b * n + t];
+        const eps = ac[B] * 1e-9;   // restos de redondeo de las restas
+        for (let b = 0; b < B; b++) {
+          const s = ac[Math.min(B, b + rZ + 1)] - ac[Math.max(0, b - rZ)];
+          z[b * n + t] = s > eps ? s : 0;
+        }
+      }
+      return z;
+    };
+    // escala fija (percentil 99,9 de las casillas con algo de las zonas, con todos los apalancamientos, desde
+    // o.escalaDesde): no depende del zoom ni de los apalancamientos que se ven
+    const todos = vis_.length === lista_.length;
+    const gTodo = rejilla(lista_), zTodo = zonas(gTodo);
+    const gV = todos ? gTodo : rejilla(vis_), gZ = todos ? zTodo : zonas(gV);
     const muestra = [];
-    const gTodo = rejilla(lista_, muestra);
-    const gV = vis_.length === lista_.length ? gTodo : rejilla(vis_, null);
+    for (let b = 0; b < B; b++) for (let t = desdeE; t < n; t++) {
+      const v = zTodo[b * n + t];
+      if (v > 0 && (b * n + t) % cada === 0) muestra.push(v);
+    }
     muestra.sort((x, y) => x - y);
     const topeV = muestra.length ? muestra[Math.min(muestra.length - 1, Math.floor(muestra.length * 0.999))] : 1;
-    return { n, B, bordes, gL, gS, gV, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+    return { n, B, bordes, gL, gS, gV, gZ, rZ, vidaMin, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
       niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA, toque: nivToque, L: nivL }, oiEf,
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }
@@ -220,19 +244,20 @@ const LQ_MODELO = (() => {
   function enMapa(res, k, t) {
     const nv = res.niveles, i = nv.i[k];
     if (t < i || t >= nv.toque[k]) return 0;
+    if (nv.toque[k] < res.n && nv.toque[k] - i < (res.vidaMin || 0)) return 0;   // vida corta: no se pinta
     const o = res.oiEf, base = o && o[i] > 0 ? o[i] : 0;
     let f = 1;
     if (base) for (let s = i; s <= t; s++) if (o[s] > 0 && o[s] < base * f) f = o[s] / base;
     return nv.a[k] * f;
   }
 
-  // lo que el mapa pinta ahora: la ultima columna de gV por tramo (niveles vivos de los apalancamientos que se ven),
+  // lo que el mapa pinta ahora: la ultima columna de gZ (zonas) por tramo (niveles vivos de los apalancamientos que se ven),
   // sin lo que no pasa `umbral` (USD; la intensidad minima). Lectura, lineas y perfil salen de aqui, asi que nunca
   // senalan un precio sin franja. Por encima del precio solo quedan cortos y por debajo largos: un nivel que el precio
   // cruza ya esta tocado
   function ahora(res, umbral = 0) {
     const v = new Float64Array(res.B), t = res.n - 1;
-    for (let b = 0; b < res.B; b++) { const x = res.gV[b * res.n + t]; if (x > umbral) v[b] = x; }
+    for (let b = 0; b < res.B; b++) { const x = res.gZ[b * res.n + t]; if (x > umbral) v[b] = x; }
     return v;
   }
 

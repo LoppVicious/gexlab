@@ -172,8 +172,9 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
 - **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos, topados por el OI que sigue
   abierto (mínimo del OI total desde que nació frente al de entonces). Con el OI total (`nivel`), cada vela reparte
-  ese OI entre lo vivo de todos los apalancamientos (`F[t]`, sin OI la mediana), así que lo pintado suma lo que hay
-  abierto en cualquier marco; antes cada nivel se escalaba al nacer con la memoria, que en 15 min se vacía en un día,
+  ese OI entre lo vivo de todos los apalancamientos, pesado por la memoria (`M[t] / M[i]`: lo de hace semanas pesa
+  menos; `F[t]`, sin OI la mediana), así que lo pintado suma lo que hay abierto en cualquier marco y los niveles
+  viejos lejos del precio no se quedan con todo; antes cada nivel se escalaba al nacer con la memoria, que en 15 min se vacía en un día,
   y ETH de 15 min sumaba $69B con $7,7B de OI. Sin OI total, tamaño al nacer con esa escala. `enMapa` da lo mismo
   por nivel, para el tooltip. Un nivel solo desaparece cuando el precio lo toca, y los que el precio toca antes de `vidaMin` velas
   (`LQ_VIDA_MIN`, 6) no entran: eran fragmentos de pocas velas. La memoria (`finL`, `finS`) ya no se enseña.

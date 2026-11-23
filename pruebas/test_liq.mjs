@@ -225,3 +225,14 @@ test("con el OI total, lo que pinta el mapa en cada vela suma ese OI (mismo tama
     }
   }
 });
+
+test("con OI, los niveles viejos pesan menos en el reparto (memoria): lo reciente cerca del precio destaca", () => {
+  // 40 velas a 200 (abren cortos lejos, por encima) y 40 a 100 (abren lo reciente); el precio nunca toca los viejos
+  const velas = Array.from({ length: 80 }, (_, i) => vela(i, i < 40 ? 200 : 100));
+  const oi = velas.map((_, i) => 1000 + i * 20);
+  const nivel = oi.map((x) => x * 2);
+  const corta = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 5, nivel });
+  const larga = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, nivel });
+  const viejo = (r) => { const t = r.n - 1; let s = 0; for (let b = 0; b < r.B; b++) if (r.bordes[b] > 150) s += r.gV[b * r.n + t]; return s / nivel[t]; };
+  assert.ok(viejo(corta) < 0.05 && viejo(larga) > 0.3, `${viejo(corta)} ${viejo(larga)}`);
+});

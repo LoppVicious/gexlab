@@ -30,7 +30,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   memoria del modelo, que en los marcos cortos se vacía en un día, y luego se pintaba a ese tamaño. En ETH de 15
   minutos el mapa sumaba $69B vivos con $7,7B de open interest (la zona de 2.300, $8,75B; en 1 hora, $2,77B), así que
   15m salía lleno de zonas y 1h casi vacío. Ahora en cada vela lo pintado se reparte el open interest de ese momento,
-  y 15m, 1h y 4h están en la misma escala.
+  según lo que el modelo da por abierto (las posiciones de hace semanas pesan menos; antes, en 1 hora, niveles de hace
+  dos meses a más de un 10 % del precio se quedaban el 87 % y lo de cerca no se veía), y 15m, 1h y 4h están en la
+  misma escala. Un nivel sigue dibujado hasta que el precio lo toca, pero se apaga con la edad.
 
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 

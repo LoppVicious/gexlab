@@ -206,7 +206,10 @@ const LQ_MODELO = (() => {
         let f = 1;
         for (let t = i; t < toque; t++) {
           if (base && oiEf[t] > 0 && oiEf[t] < base * f) f = oiEf[t] / base;
-          g[b * n + t] += aE * f;
+          // con OI, el reparte pesa ademas lo que la memoria da por abierto (M[t] / M[i]): una posicion de hace
+          // semanas casi seguro que ya se cerro. Sin eso, en 1 h el 87 % del OI de ETH se lo quedaban niveles de hace
+          // dos meses a mas de un 10 % del precio y lo de cerca no se veia
+          g[b * n + t] += porOI ? aE * f * (M[t] / M[i]) : aE * f;
         }
       }
       return g;
@@ -254,13 +257,13 @@ const LQ_MODELO = (() => {
     }
     muestra.sort((x, y) => x - y);
     const topeV = muestra.length ? muestra[Math.min(muestra.length - 1, Math.floor(muestra.length * 0.999))] : 1;
-    return { n, B, bordes, gL, gS, gV, gZ, rZ, vidaMin, F, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+    return { n, B, bordes, gL, gS, gV, gZ, rZ, vidaMin, F, M, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
       niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA, a0: nivA0, toque: nivToque, L: nivL }, oiEf,
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }
 
-  // tamano en el mapa del nivel k en la vela t (el de la rejilla gV): su parte del OI de esa vela (F) o, sin OI, al
-  // nacer; en los dos casos, por el tope del OI que sigue abierto
+  // tamano en el mapa del nivel k en la vela t (el de la rejilla gV): su parte del OI de esa vela (F, por lo que la
+  // memoria da por abierto) o, sin OI, al nacer; en los dos casos, por el tope del OI que sigue abierto
   function enMapa(res, k, t) {
     const nv = res.niveles, i = nv.i[k];
     if (t < i || t >= nv.toque[k]) return 0;
@@ -268,7 +271,7 @@ const LQ_MODELO = (() => {
     const o = res.oiEf, base = o && o[i] > 0 ? o[i] : 0;
     let f = 1;
     if (base) for (let s = i; s <= t; s++) if (o[s] > 0 && o[s] < base * f) f = o[s] / base;
-    return (res.F ? nv.a0[k] * res.F[t] : nv.a[k]) * f;
+    return (res.F ? nv.a0[k] * res.F[t] * (res.M[t] / res.M[i]) : nv.a[k]) * f;
   }
 
   // lo que el mapa pinta ahora: la ultima columna de gZ (zonas) por tramo (niveles vivos de los apalancamientos que se ven),

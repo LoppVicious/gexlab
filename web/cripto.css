@@ -1,20 +1,26 @@
-/* Crypto (web/cripto.js): lectura a la izquierda, paneles a la derecha. Colores de los tokens del tema. */
-#cryptoView { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; padding-bottom: 24px; }
+/* Crypto (web/cripto.js): tira de resumen arriba, paneles debajo. Colores de los tokens del tema. */
+#cryptoView { display: flex; flex-direction: column; gap: 14px; padding-bottom: 24px; }
 #cryptoView[hidden] { display: none; }
-.cx-side, .cx-panel { background: var(--panel, var(--surface)); border-radius: var(--panel-r, 14px); }
-:root[data-theme="light"] :is(.cx-side, .cx-panel) { box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
-.cx-side { position: sticky; top: 62px; max-height: calc(100vh - 74px); overflow-y: auto; padding: 18px 22px 18px; display: flex; flex-direction: column; }
-.cx-side > * { flex-shrink: 0; }
-.cx-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.cx-strip, .cx-panel { background: var(--panel, var(--surface)); border-radius: var(--panel-r, 14px); }
+:root[data-theme="light"] :is(.cx-strip, .cx-panel) { box-shadow: 0 1px 2px rgba(17, 20, 43, .04), 0 10px 30px rgba(17, 20, 43, .06); }
+.cx-strip { position: sticky; top: 62px; z-index: 6; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; padding: 10px 18px; }
+.cx-strip .cx-pval { font-size: 20px; }
+.cx-strip .cx-chg { margin: 0; font-size: 12.5px; cursor: help; }
+.cx-strip .cx-state { font-size: 14px; line-height: 1.3; margin: 0; }
+.cx-skpis { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--faint); }
+.cx-sk b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.cx-sk b.pos { color: var(--put); } .cx-sk b.neg { color: var(--call); }
+.cx-strip .cx-upd { margin-left: auto; }
+.cx-strip .cx-err { margin: 0; flex-basis: 100%; }
+.cx-rgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 18px; align-items: start; }
+.cx-reading .cx-kpis { margin-top: 14px; }
 .cx-upd { font-size: 12px; color: var(--faint); }
-.cx-price { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .cx-pname { font-size: 14px; font-weight: 600; color: var(--muted); }
 .cx-pval { font-size: 22px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .cx-chg { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12px; color: var(--faint); }
 .cx-chg b { font-weight: 600; color: var(--muted); }
 .cx-chg b.pos, .cx-kpi b.pos { color: var(--put); } .cx-chg b.neg, .cx-kpi b.neg { color: var(--call); }
 .cx-old { color: var(--call); }
-.cx-side .mstate { font-size: 24px; line-height: 1.2; margin-top: 16px; }
 .cx-axes { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 2px; }
 .cx-pill { display: inline-flex; gap: 5px; align-items: baseline; font-size: 12px; color: var(--faint); padding: 3px 10px; border-radius: 999px;
   background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -143,8 +149,9 @@ body.cx-noscroll { overflow: hidden; }
   .cx-detw { grid-template-columns: 1fr; }
   .cx-modal { padding: 0; }
   .cx-mbox { border-radius: 0; height: 100%; }
-  #cryptoView { grid-template-columns: 1fr; }
-  .cx-side { position: static; max-height: none; }
+  .cx-strip { position: static; }
+  .cx-strip .cx-upd { margin-left: 0; }
+  .cx-rgrid { grid-template-columns: 1fr; }
 }
 .cx-more .cx-q { font-size: 11.5px; color: var(--faint); margin: 8px 0 0; }
 

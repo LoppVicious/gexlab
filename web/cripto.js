@@ -85,7 +85,7 @@ function renderCrypto() {
   document.querySelectorAll("#cryptoView .cx-panel").forEach((p) => {
     p.hidden = !(p.dataset.tabs || "").split(" ").includes(cx.tab) || (p.classList.contains("cx-btc") && cx.sym !== "BTC");
   });
-  cxSide(a, m, d);
+  cxResumen(a, m, d);
 
   const vis = (id) => cxVisible($(id));
   if (vis("cxGex")) {
@@ -106,8 +106,8 @@ function renderCrypto() {
   if (cx.tab === "liquidations" && typeof lqShow === "function") lqShow();   // web/liq.js
 }
 
-/* ---------- lectura y cifras (columna izquierda) */
-function cxSide(a, m, d) {
+/* ---------- tira de resumen (todas las pestanas) y lectura completa (Overview) */
+function cxResumen(a, m, d) {
   const lec = a.lectura || {}, oc = a.onchain, v = a.vol || {}, f = a.futuros || {};
   const up = (x) => (x > 0 ? "pos" : x < 0 ? "neg" : "");
   $("cxTitle").textContent = CX_NAME[cx.sym] || cx.sym;
@@ -115,12 +115,12 @@ function cxSide(a, m, d) {
   $("cxPrice").title = "Deribit index";
   $("cxUpd").textContent = new Date(d.generado).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   $("cxUpd").title = "Updated every 15 minutes";
-  $("cxSub").innerHTML = [[a.chg24, "24h", 2], [a.chg7, "7d", 1], [a.chg30, "30d", 1]]
-    .map(([x, l, dec]) => `<span><b class="${up(x)}">${cxPct(x, dec)}</b> ${l}</span>`).join("") +
+  $("cxSub").innerHTML = `<span><b class="${up(a.chg24)}">${cxPct(a.chg24, 2)}</b> 24h</span>` +
     (a.viejo ? `<span class="cx-old">Data from ${esc(new Date(a.viejo).toLocaleString("en-US"))}: the last update failed</span>` : "");
+  $("cxSub").title = `${cxPct(a.chg7, 1)} in 7 days, ${cxPct(a.chg30, 1)} in 30 days`;
   const st = $("cxState");
   st.textContent = lec.resumen || "—";
-  st.className = "mstate " + (lec.especial === "Capitulation zone" ? "mixed" : lec.tend > 0 ? "contango" : lec.tend < 0 ? "backwardation" : "mixed");
+  st.className = "mstate cx-state " + (lec.especial === "Capitulation zone" ? "mixed" : lec.tend > 0 ? "contango" : lec.tend < 0 ? "backwardation" : "mixed");
   const tonoT = lec.tend > 0 ? "pos" : lec.tend < 0 ? "neg" : "", tonoP = lec.pos > 0 ? "pos" : lec.pos < 0 ? "neg" : "";
   $("cxAxes").innerHTML = `<span class="cx-pill ${tonoT}" title="Price against the short-term holder cost and the gamma flip, and the 30-day change">Trend <b>${esc(lec.tendencia || "—")}</b></span>` +
     `<span class="cx-pill ${tonoP}" title="Crowding read as a contrarian: fear, funding, retail long/short, puts and exchange flows">Positioning <b>${esc(lec.posicion || "—")}</b></span>`;
@@ -136,6 +136,14 @@ function cxSide(a, m, d) {
   // cifras clave: seis, con una linea de contexto
   const kpi = (l, val, s, cls = "") => `<div class="cx-kpi"><span class="kl">${l}</span><b class="${cls}">${val}</b><span class="ks">${s}</span></div>`;
   const fng = m.fng, g = a.gex.all;
+  // tira: cuatro cifras que se ven en todas las pestanas
+  const sk = (l, val, cls = "") => `<span class="cx-sk">${l} <b class="${cls}">${val}</b></span>`;
+  $("cxStripKpis").innerHTML = [
+    sk("Net GEX", fmtBig(g.total, true), up(g.total)),
+    oc ? sk("MVRV", fmtNum(oc.mvrv, 2)) : "",
+    v.dvol != null ? sk("DVOL", fmtNum(v.dvol, 1)) : "",
+    fng ? sk("Fear & Greed", String(fng.valor), fng.valor <= 25 ? "neg" : fng.valor >= 75 ? "pos" : "") : "",
+  ].join("");
   const coste = oc && oc.sth ? ["Short-term cost", oc.sth.valor] : oc ? ["Realized price", oc.rp] : null;
   $("cxKpis").innerHTML = [
     kpi("Net GEX", fmtBig(g.total, true), g.total < 0 ? "dealers short gamma" : "dealers long gamma", up(g.total)),

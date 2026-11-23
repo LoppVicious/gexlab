@@ -659,25 +659,27 @@
 </main>
 
 <main class="macro cx-view" id="cryptoView" hidden>
-  <aside class="cx-side" aria-label="Crypto reading">
-    <div class="cx-top">
-      <div class="seg boxed" role="radiogroup" aria-label="Asset" id="cxSym"><button role="radio" data-v="BTC" aria-checked="true">BTC</button><button role="radio" data-v="ETH" aria-checked="false">ETH</button></div>
-      <span class="cx-upd" id="cxUpd"></span>
-    </div>
-    <div class="cx-price"><span class="cx-pname" id="cxTitle">—</span><span class="cx-pval" id="cxPrice">—</span></div>
-    <div class="cx-chg" id="cxSub"></div>
-    <div class="mstate" id="cxState">—</div>
-    <div class="cx-axes" id="cxAxes"></div>
-    <div class="cx-read" id="cxRead"></div>
-    <div class="cx-kpis" id="cxKpis"></div>
-    <button class="cx-siglink" id="cxSigLink" hidden></button>
-    <p class="cx-err" id="cxErr" hidden></p>
-    <details class="cx-more"><summary>All numbers</summary><div class="facts" id="cxFacts"></div></details>
-    <details class="cx-more"><summary>How to read this page</summary><p class="mnote cx-note"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. <b>Signals with history</b>: past cases on daily closes and what price did 30 and 90 days later, against any day of the same period; few cases and overlapping windows make them context, not proof. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p></details>
-  </aside>
+  <div class="cx-strip" id="cxStrip" aria-label="Crypto summary">
+    <div class="seg boxed" role="radiogroup" aria-label="Asset" id="cxSym"><button role="radio" data-v="BTC" aria-checked="true">BTC</button><button role="radio" data-v="ETH" aria-checked="false">ETH</button></div>
+    <span class="cx-pname" id="cxTitle">—</span><span class="cx-pval" id="cxPrice">—</span>
+    <span class="cx-chg" id="cxSub"></span>
+    <span class="mstate cx-state" id="cxState">—</span>
+    <span class="cx-skpis" id="cxStripKpis"></span>
+    <span class="cx-upd" id="cxUpd"></span>
+    <span class="cx-err" id="cxErr" hidden></span>
+  </div>
   <section class="cx-main">
     <div class="cx-tabs" role="tablist" aria-label="Crypto sections" id="cxTabs">
       <button role="tab" data-v="overview" aria-selected="true">Overview</button><button role="tab" data-v="derivatives" aria-selected="false">Derivatives</button><button role="tab" data-v="liquidations" aria-selected="false">Liquidations</button><button role="tab" data-v="onchain" aria-selected="false">On-chain</button><button role="tab" data-v="signals" aria-selected="false">Signals</button><button role="tab" data-v="market" aria-selected="false">Market</button>
+    </div>
+    <div class="cx-panel cx-wide cx-reading" data-tabs="overview">
+      <div class="cx-axes" id="cxAxes"></div>
+      <div class="cx-rgrid">
+        <div class="cx-read" id="cxRead"></div>
+        <div><div class="cx-kpis" id="cxKpis"></div><button class="cx-siglink" id="cxSigLink" hidden></button></div>
+      </div>
+      <details class="cx-more"><summary>All numbers</summary><div class="facts" id="cxFacts"></div></details>
+      <details class="cx-more"><summary>How to read this page</summary><p class="mnote cx-note"><b>Trend</b> reads the structure: price against the cost of short-term holders, against the gamma flip, and the 30-day change. <b>Positioning</b> reads crowding as a contrarian: extreme fear, negative funding, expensive puts and coins leaving exchanges point up; greed, rich funding and retail leaning long point down. <b>GEX</b>: Deribit options only (most of the listed crypto options market; not CME or the ETF options), assuming dealers are long calls and short puts, per 1% move. <b>Realized price</b>: the average price at which every coin last moved (market cap / MVRV); short- and long-term holders split coins younger and older than 155 days. <b>Signals with history</b>: past cases on daily closes and what price did 30 and 90 days later, against any day of the same period; few cases and overlapping windows make them context, not proof. Sources: Deribit, OKX, CoinMetrics, bitcoin-data.com, CoinGecko, DefiLlama, alternative.me. Not investment advice.</p></details>
     </div>
     <div class="cx-panel cx-wide" data-tabs="overview derivatives">
       <div class="mchart-head cx-head">

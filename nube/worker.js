@@ -363,6 +363,8 @@ async function liq(env, q) {
   }
   if (!r.ok) return json(502, { error: `The data source answered ${r.status}` });
   const txt = await r.text();
+  // Coinalyze responde una lista; cualquier otra cosa (un aviso, un objeto de error) no se guarda ni se sirve
+  if (!txt.trimStart().startsWith("[")) return json(502, { error: "The data source sent an unexpected answer" });
   _liq.delete(clave);
   while (_liq.size >= 80) _liq.delete(_liq.keys().next().value);   // fuera las mas antiguas
   _liq.set(clave, { t: ahora, txt });

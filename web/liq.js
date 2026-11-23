@@ -33,7 +33,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin5", 20), vida: "1", extra: 0,
+  min: +store.get("lqMin5", 20), vida: "1",
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -73,10 +73,23 @@ async function lqShow() {
   }
 }
 
-function lqMensaje(t) {
+// aviso encima del mapa; con `reintentar`, boton Retry (carga fallida sin copia que ensenar)
+function lqMensaje(t, reintentar = false) {
   lq.error = t || "";
   $("lqMsg").textContent = lq.error;
-  $("lqMsg").hidden = !lq.error;
+  $("lqMsgW").hidden = !lq.error;
+  $("lqRetry").hidden = !reintentar;
+}
+
+// sin datos del activo o marco pedido: fuera el mapa anterior, para que no pase por el pedido
+function lqVaciar() {
+  Object.assign(lq, { datos: null, res: null, clave: "", resClave: "" });
+  if (!lq.chart) return;
+  lq.serie.setData([]); lq.hist.setData([]);
+  for (const l of lq.lineas || []) lq.serie.removePriceLine(l);
+  lq.lineas = [];
+  $("lqIman").textContent = ""; $("lqRead").innerHTML = "";
+  lq.heat.redraw(); lq.prof.redraw();
 }
 
 /* ---------- controles */
@@ -84,12 +97,11 @@ function lqControles() {
   const ms = lq.merc.activos;
   $("lqList").innerHTML = ms.map((a) => `<option value="${esc(a.sym)}">${esc(a.nombre)}</option>`).join("");
   $("lqSym").value = lq.sym;
-  $("lqQuick").innerHTML = ms.slice(0, 10).map((a) => `<button role="radio" data-v="${esc(a.sym)}" aria-checked="${a.sym === lq.sym}">${esc(a.sym)}</button>`).join("");
   document.querySelectorAll("#lqTf button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === lq.tf)));
   const a = lqActivo(), ex = lq.merc.exchanges || {};
   const exs = Object.keys(ex).filter((e) => a && a.ex[e]), activos = exs.filter((e) => !lq.exOff.has(e)).length;
   $("lqEx").innerHTML = exs.map((e) => `<button role="checkbox" data-v="${e}" aria-checked="${!lq.exOff.has(e)}">${esc(ex[e])}</button>`).join("");
-  $("lqExN").textContent = activos === exs.length ? "All" : `${activos} of ${exs.length}`;
+  $("lqExN").textContent = activos === exs.length ? "(all)" : `(${activos} of ${exs.length})`;
   const off = [...lq.levOff].sort().join(",");
   document.querySelectorAll("#lqPreset button").forEach((b) => {
     const x = LQ_PRESET[b.dataset.v];
@@ -97,7 +109,6 @@ function lqControles() {
   });
   $("lqLev").innerHTML = LQ_MODELO.APAL.map((x) => `<button role="checkbox" data-v="${x.L}" aria-checked="${!lq.levOff.has(String(x.L))}" title="Weight ${Math.round(x.w * 100)}%">${x.L}x</button>`).join("");
   $("lqMin").value = lq.min; $("lqMinV").textContent = lq.min + "%";
-  $("lqMas").hidden = !!LQ_TF[lq.tf].desde;
 }
 
 function lqSet(cambio) {
@@ -149,7 +160,10 @@ async function lqPedir(kind, symbols, cfg, desde, hasta, signal, aviso = true) {
   for (let intento = 0; ; intento++) {
     const r = await fetch(`/api/liq?${q}`, { signal });
     const d = await r.json().catch(() => ({}));
-    if (r.ok) return d;
+    if (r.ok) {
+      if (!Array.isArray(d)) throw new Error("The data source sent an unexpected answer.");
+      return d;
+    }
     if (r.status !== 429 || intento >= 3) throw new Error(d.error || `The data source answered ${r.status}`);
     await lqEsperar(Math.min(+d.retry || +r.headers.get("Retry-After") || 20, 65) + 1, signal, aviso);
     if (aviso) lqEstado("Loading…");
@@ -160,7 +174,7 @@ function lqClave() {
   const a = lqActivo(), cfg = LQ_TF[lq.tf];
   const syms = Object.keys(a.ex).filter((e) => !lq.exOff.has(e)).flatMap((e) => lqSimbolos(a, e));
   const hasta = Math.ceil(Date.now() / 1000 / cfg.s) * cfg.s;
-  const desde = cfg.desde || hasta - cfg.dias * 86400 * (1 + lq.extra);
+  const desde = cfg.desde || hasta - cfg.dias * 86400;
   return { a, cfg, syms, desde, hasta, clave: [a.sym, lq.tf, syms.join(","), desde].join("|") };
 }
 
@@ -171,7 +185,7 @@ function lqCargar() {
   const k = lqClave(), hit = LQ_CACHE.get(k.clave);
   lqMensaje("");
   if (hit && k.clave !== lq.clave) {
-    try { lqMontar(hit, k); } catch (e) { lqMensaje(e.message); }
+    try { lqMontar(hit, k); } catch (e) { lqVaciar(); lqMensaje(e.message, true); }
   } else if (k.clave === lq.clave && lq.datos) lqCalcular();
   clearTimeout(lq.tCarga);
   if (k.clave === lq.enCurso) return;   // ya en camino: no se repite
@@ -194,7 +208,10 @@ async function lqTraer(k, hit) {
     const e = { at: Date.now(), ohlcv, oi, liq: hit && hit.liq && !hit.liq.error ? hit.liq : null };
     LQ_CACHE.delete(clave); LQ_CACHE.set(clave, e);
     while (LQ_CACHE.size > LQ_CACHE_MAX) LQ_CACHE.delete(LQ_CACHE.keys().next().value);
-    lqMontar(e, k);
+    try { lqMontar(e, k); } catch (x) {
+      LQ_CACHE.delete(clave); lqVaciar(); lqMensaje(x.message, true); lqEstado("");
+      return;
+    }
     lqEstado("");
     if (lq.enCurso === clave) lq.enCurso = "";
     // liquidaciones reales despues del mapa: no lo retrasan, si la fuente esta al limite se esperan en silencio y no
@@ -206,7 +223,8 @@ async function lqTraer(k, hit) {
   } catch (x) {
     if (x.name === "AbortError") return;
     const m = x.message === "Failed to fetch" ? "The server is not responding." : x.message;
-    lqMensaje(hit ? `Could not refresh (${m}) Showing data from ${Math.round((Date.now() - hit.at) / 60000)} min ago.` : m);
+    if (hit) lqMensaje(`Could not refresh (${m}) Showing data from ${Math.round((Date.now() - hit.at) / 60000)} min ago.`);
+    else { lqVaciar(); lqMensaje(m, true); }
     lqEstado("");
   } finally {
     if (lq.enCurso === clave) lq.enCurso = "";
@@ -587,7 +605,7 @@ function lqLectura() {
   const fila = (x) => `<div class="lq-g"><span>${lqPx(x.p)}</span><span class="lq-d">${cxPct((x.p / precio - 1) * 100)}</span><b>${lqUsd(x.a)}</b></div>`;
   // imanes: el mas cercano de los grandes grupos por encima y por debajo
   const iman = (x, lado) => (x ? `<b>${lqPx(x.p)}</b> ${lado} (${cxPct((x.p / precio - 1) * 100)}, ${lqUsd(x.a)})` : `nothing big ${lado}`);
-  $("lqIman").innerHTML = `Nearest liquidity: ${iman(g.arriba[0], "above")}, ${iman(g.abajo[0], "below")}.`;
+  $("lqIman").innerHTML = `<b class="${cls}">${veredicto}</b>. Nearest liquidity: ${iman(g.arriba[0], "above")}, ${iman(g.abajo[0], "below")}.`;
   // acierto solo donde hay OI: antes, el mapa sale del volumen y no es el modelo que se juzga
   const i0 = Math.max(0, r.desdeOI);
   const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null || i < i0 ? 0 : r.predL[i] + r.predS[i])),
@@ -617,10 +635,9 @@ function lqLectura() {
 /* ---------- eventos */
 $("lqSym").addEventListener("change", (e) => {
   const v = e.target.value.trim().toUpperCase();
-  if (lq.merc && lq.merc.activos.some((a) => a.sym === v)) { lq.extra = 0; lqSet({ sym: v }); } else e.target.value = lq.sym;
+  if (lq.merc && lq.merc.activos.some((a) => a.sym === v)) { lqSet({ sym: v }); } else e.target.value = lq.sym;
 });
-$("lqQuick").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { lq.extra = 0; lqSet({ sym: b.dataset.v }); } });
-$("lqTf").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { lq.extra = 0; lqSet({ tf: b.dataset.v }); } });
+$("lqTf").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { lqSet({ tf: b.dataset.v }); } });
 $("lqEx").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const s = new Set(lq.exOff); if (s.has(b.dataset.v)) s.delete(b.dataset.v); else s.add(b.dataset.v);
@@ -640,12 +657,15 @@ $("lqMin").addEventListener("change", () => store.set("lqMin5", lq.min));
 $("lqPreset").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const x = LQ_PRESET[b.dataset.v];
-  lq.extra = 0; lqSet({ tf: x.tf, levOff: new Set(x.levOff) });
+  lqSet({ tf: x.tf, levOff: new Set(x.levOff) });
 });
-// el desplegable de exchanges se cierra al pulsar fuera
-document.addEventListener("click", (e) => { const d = $("lqExDrop"); if (d.open && !d.contains(e.target)) d.open = false; });
+// Settings se cierra al pulsar fuera o con Esc
+// (por la ruta del evento: al marcar un apalancamiento su boton se redibuja y ya no esta dentro)
+document.addEventListener("click", (e) => { const d = $("lqAjustes"); if (d.open && !e.composedPath().includes(d)) d.open = false; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("lqAjustes").open = false; });
+$("lqSym").addEventListener("focus", (e) => e.target.select());   // escribir encima del activo actual
+$("lqRetry").addEventListener("click", () => { lqMensaje(""); lqCargar(); });
 $("lqChart").addEventListener("mouseleave", () => { $("lqTip").hidden = true; });
-$("lqMas").addEventListener("click", () => { lq.extra += 1; lqCargar(); });
 
 // imagen del mapa como en pantalla (velas, franjas, perfil, lineas y panel de liquidaciones reales) con una cabecera:
 // activo, marco, fecha de la ultima vela, precio y la linea de liquidez mas cercana
@@ -694,17 +714,6 @@ $("lqCopiar").addEventListener("click", () => {
 });
 $("lqFull").addEventListener("click", () => {
   const el = $("lqPanel");
-  lqGrande(false);
   // el navegador solo deja entrar en pantalla completa desde un clic real: si lo rechaza, no pasa nada
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
 });
-// Expand: el panel ocupa la ventana dentro de la pagina, con el resto oscurecido (sin pantalla completa del sistema)
-function lqGrande(on) {
-  const el = $("lqPanel"), b = $("lqGrande");
-  el.classList.toggle("lq-grande", on);
-  document.body.classList.toggle("cx-noscroll", on);
-  b.setAttribute("aria-pressed", String(on));
-  b.textContent = on ? "Close" : "Expand";
-}
-$("lqGrande").addEventListener("click", () => lqGrande(!$("lqPanel").classList.contains("lq-grande")));
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("lqPanel").classList.contains("lq-grande")) lqGrande(false); });

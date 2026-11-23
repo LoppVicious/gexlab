@@ -732,33 +732,37 @@
     </div>
     <div class="cx-panel cx-wide lq-panel" data-tabs="liquidations" id="lqPanel">
       <div class="lq-bar">
-        <input id="lqSym" class="lq-asset" list="lqList" autocomplete="off" spellcheck="false" aria-label="Asset" title="Type any coin with perpetual futures"><datalist id="lqList"></datalist>
-        <div class="cx-chips" role="radiogroup" aria-label="Quick assets" id="lqQuick"></div>
+        <span class="lq-asset-w"><input id="lqSym" class="lq-asset" list="lqList" autocomplete="off" spellcheck="false" aria-label="Asset" title="Type or pick any coin with perpetual futures"><datalist id="lqList"></datalist></span>
         <div class="seg boxed" role="radiogroup" aria-label="Candles" id="lqTf"><button role="radio" data-v="5m">5m</button><button role="radio" data-v="15m">15m</button><button role="radio" data-v="1h">1h</button><button role="radio" data-v="4h">4h</button><button role="radio" data-v="1D">1D</button></div>
-        <div class="seg boxed" role="radiogroup" aria-label="Presets" id="lqPreset"><button role="radio" data-v="swing" title="Daily candles, 5x to 25x: positions that stay open for weeks">Swing</button><button role="radio" data-v="scalp" title="15-minute candles, 25x to 100x: levels close to the price">Scalp</button></div>
-      </div>
-      <div class="lq-bar lq-bar2">
-        <span class="lq-lab">Leverage</span><div class="cx-chips" role="group" aria-label="Leverage" id="lqLev"></div>
-        <label class="lq-ctl" title="Hide the weakest levels">Min. intensity <input type="range" id="lqMin" min="0" max="80" step="5"> <b id="lqMinV"></b></label>
-        <span class="lq-escala" id="lqEscala" title="Color scale: money that would be liquidated at each level"><i id="lqEscalaBarra"></i><span id="lqEscalaTxt"></span></span>
-        <details class="lq-drop" id="lqExDrop"><summary>Exchanges <b id="lqExN"></b></summary><div class="cx-chips" role="group" aria-label="Exchanges" id="lqEx"></div></details>
         <span class="lq-acc">
-          <button class="cx-exp" id="lqMas" title="Request older candles">Older</button>
+          <details class="lq-drop" id="lqAjustes"><summary>Settings</summary>
+            <div class="lq-pop">
+              <div class="lq-row"><span class="lq-lab">Preset</span><div class="seg boxed" role="radiogroup" aria-label="Presets" id="lqPreset"><button role="radio" data-v="swing" title="Daily candles, 5x to 25x: positions that stay open for weeks">Swing</button><button role="radio" data-v="scalp" title="15-minute candles, 25x to 100x: levels close to the price">Scalp</button></div></div>
+              <div class="lq-row"><span class="lq-lab">Leverage</span><div class="cx-chips" role="group" aria-label="Leverage" id="lqLev"></div></div>
+              <label class="lq-row lq-ctl" title="Hide the weakest zones"><span class="lq-lab">Min. intensity</span><input type="range" id="lqMin" min="0" max="80" step="5"> <b id="lqMinV"></b></label>
+              <div class="lq-row"><span class="lq-lab">Exchanges <b id="lqExN"></b></span><div class="cx-chips" role="group" aria-label="Exchanges" id="lqEx"></div></div>
+            </div>
+          </details>
           <button class="cx-exp" id="lqCopiar" title="Copy the map as an image (paste it with Ctrl+V)">Copy image</button>
-          <button class="cx-exp" id="lqGrande" title="Enlarge the map inside the page (Esc to close)" aria-pressed="false">Expand</button>
           <button class="cx-exp" id="lqFull" title="Full screen">Full screen</button>
         </span>
       </div>
-      <div class="chart-caption cx-cap lq-cap"><span id="lqCap"></span> <details class="lq-how"><summary>How to read</summary><p id="lqHow"></p></details></div>
-      <p class="cx-err" id="lqMsg" hidden></p>
+      <div class="lq-msg" id="lqMsgW" hidden><span id="lqMsg"></span> <button class="cx-exp" id="lqRetry" hidden>Retry</button></div>
       <div class="lq-wrap">
         <div class="lq-leg" id="lqLeg"></div>
         <div class="lq-chart" id="lqChart" role="img" aria-label="Liquidation map"></div>
         <div class="lq-tip" id="lqTip" hidden></div>
         <div class="lq-carga" id="lqCarga" hidden>Loading…</div>
       </div>
-      <p class="lq-iman" id="lqIman"></p>
-      <div class="lq-read" id="lqRead"></div>
+      <div class="lq-pie">
+        <span class="lq-escala" id="lqEscala" title="Color scale: money that would be liquidated in each zone"><i id="lqEscalaBarra"></i><span id="lqEscalaTxt"></span></span>
+        <p class="lq-iman" id="lqIman"></p>
+      </div>
+      <details class="lq-det"><summary>Details</summary>
+        <p class="chart-caption" id="lqCap"></p>
+        <div class="lq-read" id="lqRead"></div>
+        <p class="lq-how" id="lqHow"></p>
+      </details>
     </div>
     <div class="cx-panel cx-btc" data-tabs="onchain">
       <div class="mchart-head cx-head"><span class="mtitle">Miners</span><button class="cx-exp" data-chart="min" title="Expand: history since 2012">Expand</button></div>

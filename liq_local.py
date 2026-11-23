@@ -109,6 +109,8 @@ def _coinalyze(url: str) -> tuple[int, object]:
             return 200, hit[1]
         espera = min(max(int(float(e.headers.get("Retry-After") or 20)), 1), 65)
         return 429, {"error": "The data source is busy. Retrying shortly.", "retry": espera}
+    if not isinstance(d, list):
+        return 502, {"error": "The data source sent an unexpected answer"}
     if len(_cache) > 200:
         _cache.clear()
     _cache[url] = (time.time(), d)

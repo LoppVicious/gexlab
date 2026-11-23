@@ -3,6 +3,28 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-23 — Crypto más limpio: tira de resumen arriba, mapa de liquidaciones por zonas y una fila de controles
+
+**Cambiado**
+- **Crypto, tira de resumen:** la columna de la izquierda pasa a una fila encima de las pestañas, en todas ellas:
+  BTC/ETH, precio, cambio en 24 h (7 y 30 días al pasar el ratón), estado y cuatro cifras (Net GEX, MVRV, DVOL, Fear &
+  Greed). La lectura completa (puntos, cifras con contexto, señales activas y todas las cifras) es el primer panel de
+  Overview. Las pestañas, sobre todo Liquidations, ocupan todo el ancho.
+- **Crypto, mapa de liquidaciones por zonas:** cada fila suma lo que hay a ±0,4 % del precio, sin hueco entre filas,
+  así que los niveles cercanos forman una zona en vez de muchas rayas finas; los niveles que el precio toca en menos de
+  6 velas ya no se pintan, y la intensidad mínima por defecto pasa al 30 %. Perfil, líneas Longs y Shorts, tooltip y
+  lectura salen de esas mismas zonas.
+- **Crypto, mapa de liquidaciones, una fila de controles:** activo (lista con buscador en lugar de diez botones),
+  marco, Settings (Swing y Scalp, apalancamientos, intensidad mínima y exchanges), Copy image y Full screen. Debajo del
+  mapa, la leyenda de color y el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details.
+  Fuera Older (cada marco ya pide toda la historia que da la fuente) y Expand (lo cubre Full screen).
+
+**Corregido**
+- **Crypto, mapa de liquidaciones, «oi is not iterable»:** si la fuente devolvía algo que no era la lista esperada, el
+  mapa se rompía y el Worker además guardaba esa respuesta. Ahora no se guarda, sale «The data source sent an unexpected
+  answer» con un botón Retry, y el mapa se vacía en vez de seguir enseñando el activo anterior (ETH marcado con el mapa
+  de BNB).
+
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 
 **Añadido**

@@ -120,6 +120,10 @@ días por delante.
 
 ## Web
 
+- Arriba, una tira de resumen en todas las pestañas (`cxResumen`): BTC/ETH, precio, cambio en 24 h (7 y 30 días al
+  pasar el ratón), estado y cuatro cifras (Net GEX, MVRV, DVOL, Fear & Greed). La lectura completa (ejes, puntos, seis
+  cifras con contexto, señales activas y todas las cifras) es el primer panel de Overview; los paneles ocupan todo el
+  ancho.
 - Pestañas: Overview (GEX, niveles, coste on-chain, volatilidad), Derivatives (GEX, estructura temporal, funding,
   basis, apalancamiento de OKX, vencimientos), On-chain (coste, mineros, SOPR, actividad de redes, stablecoins),
   Signals y Market. Se recuerda la última pestaña.
@@ -138,7 +142,7 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
 - **Datos:** Coinalyze (clave gratuita, secreto `COINALYZE_API_KEY`): velas con volumen comprador, OI y liquidaciones
   reales de cada perpetuo. Historia probada (BTCUSDT de Binance): velas diarias desde 2019, OI diario desde octubre de
   2022, liquidaciones diarias desde 2020; OI cada 4 h unos 11 meses, cada hora unos 3 meses, cada 5 min 7 días (unos
-  2.000 puntos por petición; el botón Older pide tramos anteriores).
+  2.000 puntos por petición: cada marco ya pide ese máximo).
 - **Lista de activos:** `cripto.py` (`liq_mercados`) una vez al día: `future-markets` de Coinalyze cruzado con el top
   250 de CoinGecko; para cada activo, sus perpetuos por exchange y el símbolo de las velas (Binance en USDT si existe).
   R2 `pub/liq_mercados.json`, ruta `/api/liq_markets`.
@@ -150,6 +154,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   `lqSimbolos`: BTC son 1 + 4 + 4). La clave es una sola para todos los usuarios. Al límite (429), el Worker devuelve la copia anterior si la tiene o `retry` con los segundos
   de `Retry-After`, y la web espera y reintenta con cuenta atrás. La web guarda en memoria lo ya cargado por activo,
   marco y exchanges (24 entradas, frescas lo mismo que en el Worker) y pide las liquidaciones reales después del mapa.
+  El Worker y `liq_local.py` solo guardan y sirven listas JSON (otra respuesta de Coinalyze es un 502); si una carga
+  falla sin copia que enseñar, el mapa se vacía y sale el error con Retry (`lqVaciar`), en vez de quedarse el anterior.
 - **Modelo** (`web/liq-modelo.js`, pruebas en `pruebas/test_liq.mjs`):
   1. Posiciones nuevas de cada vela: subida del OI sumando el cambio de cada perpetuo (no el nivel, para que un
      exchange que empieza tarde no cree un salto). Antes del primer OI, volumen × factor calibrado con el tramo con OI.
@@ -165,23 +171,29 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
 - **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer, topado por el
   OI que sigue abierto (mínimo del OI total desde que nació frente al de entonces; `enMapa` da lo mismo por nivel, para
-  el tooltip). Un nivel solo desaparece cuando el precio lo toca. La memoria (`finL`, `finS`) ya no se enseña: la
-  presión, los grupos y sus líneas salen de `ahora` (la última columna de `gV` sin lo que no pasa la intensidad
-  mínima), igual que el perfil, para que nunca señalen un precio sin franja. Escala fija `topeV`: percentil 99,9 de las casillas con algo desde `escalaDesde` (la ventana que
-  se ve al abrir) y con todos los apalancamientos (`ver` solo filtra lo que se dibuja).
-- **Dibujo** (`lqPintar`): filas de 4 px (`LQ_BANDA`) con el tramo más cargado de los que caen en cada una (no la
-  suma: el zoom no enciende las filas) y 1 px de separación, una columna por vela visible. Color frente a `topeV`, fijo
+  el tooltip). Un nivel solo desaparece cuando el precio lo toca, y los que el precio toca antes de `vidaMin` velas
+  (`LQ_VIDA_MIN`, 6) no entran: eran fragmentos de pocas velas. La memoria (`finL`, `finS`) ya no se enseña.
+- **Zonas** (`gZ`): cada tramo suma los de `gV` a menos de `zona` (`LQ_ZONA`, ±0,4 %, `rZ` tramos; sumas por
+  prefijos por vela), como la zona de ±0,45 % de Coinfuty: los niveles cercanos forman una zona continua. Es lo que se
+  pinta y se lee: mapa, perfil, tooltip (rango de la zona y su desglose) y `ahora` (la última columna sin lo que no
+  pasa la intensidad mínima), del que salen la presión, los grupos y sus líneas. Escala fija `topeV`: percentil 99,9
+  de las casillas de `gZ` con algo desde `escalaDesde` (la ventana que se ve al abrir) y con todos los
+  apalancamientos (`ver` solo filtra lo que se dibuja).
+- **Dibujo** (`lqPintar`): filas de 4 px (`LQ_BANDA`) con la zona más cargada de las que caen en cada una (no la
+  suma: el zoom no enciende las filas), sin hueco entre filas, una columna por vela visible. Color frente a `topeV`, fijo
   para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: una rampa del fondo a azul,
   verde azulado, verde y amarillo con colores del tema; índice `lqIdx` = (v / topeV)^0,45, que en ETH diario deja
-  amarillo el 1 % más cargado); solo lo que pasa la intensidad mínima (5 %). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
+  amarillo el 1 % más cargado); solo lo que pasa la intensidad mínima (30 % por defecto, `lqMin5`: con
+  datos de Binance quedan de 8 a 15 zonas vivas por activo y marco). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
   última columna del mapa, con su escala; el grupo mayor a cada lado como línea con etiqueta en el eje (Longs, Shorts).
-- **Controles:** atajos Swing (diario, 5x a 25x) y Scalp (15 min, 25x a 100x), leyenda de color en dólares (de la
-  intensidad mínima al tope), exchanges en un desplegable, una línea de explicación con «How to read» desplegable y
-  tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de
+- **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario
+  5x a 25x, y Scalp, 15 min 25x a 100x, apalancamientos, intensidad mínima y exchanges; se cierra al pulsar fuera o con
+  Esc), Copy image y Full screen. Debajo del mapa, la leyenda de color en dólares (de la intensidad mínima al tope) y
+  el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details. Tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de
   apalancamientos y fechas en que se abrieron). La vista inicial deja sitio al perfil según el ancho. Copy image
   (`lqPngBlob`: `takeScreenshot` de la librería con cabecera; si el portapapeles falla, descarga el PNG).
-- **Lectura:** línea «Nearest liquidity» (el más cercano de los grandes grupos a cada lado), presión (cortos por encima
-  frente a largos por debajo a ±5 %, ±10 % en 4 h y ±15 % en diario) con el veredicto en grande, los tres grupos más
+- **Lectura:** bajo el mapa, el veredicto de presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en
+  4 h y ±15 % en diario) y «Nearest liquidity» (el más cercano de los grandes grupos a cada lado); en Details, los tres grupos más
   cargados a cada lado y la fiabilidad del modelo (Good, Fair o Weak según la correlación, en log, entre liquidaciones
   previstas y reales por vela; la r va en el texto).
 - **Modo PC** (`liq_local.py`): con `COINALYZE_API_KEY` en el entorno, igual que el Worker; sin ella, datos públicos

@@ -16,8 +16,8 @@ Se busca que se lea de un vistazo, como Coinfuty, sin perder datos ni cambiar el
   (`a.viejo`) o fallan fuentes (`d.errores`), un aviso corto en la misma fila.
 - La lectura completa (píldoras Trend y Positioning, puntos con «Show N more», las seis cifras con contexto, el aviso
   de señales y «All numbers») pasa a un panel nuevo, primero de la pestaña Overview (`data-tabs="overview"`).
-- `cxSide` se divide en `cxStrip` (la fila) y `cxReading` (el panel de Overview); los ids internos (`cxRead`,
-  `cxKpis`, `cxFacts`, `cxSigLink`, `cxErr`) se conservan donde tenga sentido para no tocar el resto.
+- `cxSide` pasa a llamarse `cxResumen` y rellena las dos partes (la fila y el panel de Overview); los ids internos
+  (`cxRead`, `cxKpis`, `cxFacts`, `cxSigLink`, `cxErr`) se conservan para no tocar el resto.
 - `.cx-main` ocupa todo el ancho. En móvil la tira hace salto de línea (precio y estado arriba, cifras debajo).
 
 ## 2. Mapa de liquidaciones: zonas en vez de rayas

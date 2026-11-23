@@ -7,27 +7,18 @@
    liquidaciones reales en un panel debajo. Nombres con prefijo lq: los globales se comparten entre scripts. */
 
 const LQ_LIB = "https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js";
-// marcos: intervalo de Coinalyze, segundos por vela, historia que se pide, vida media de una posicion (velas) y
-// cuantas velas se ven al abrir
+// marcos: intervalo de Coinalyze, segundos por vela, historia que se pide, vida media de una posicion (velas), cuantas
+// velas se ven al abrir (como mapaliquidaciones.com: un dia en 5 min, una semana en 1 h, meses en diario) y que
+// fraccion del rango de cada vela reparte sus niveles (am: en diario, menos, que una vela abarca mucho)
 const LQ_TF = {
-  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, nombre: "5 minutes" },
-  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, nombre: "15 minutes" },
-  "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 500, nombre: "1 hour" },
-  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 540, nombre: "4 hours" },
-  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
+  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, am: 0.6, nombre: "5 minutes" },
+  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, am: 0.6, nombre: "15 minutes" },
+  "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 168, am: 0.6, nombre: "1 hour" },
+  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 180, am: 0.3, nombre: "4 hours" },
+  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 240, am: 0.15, nombre: "daily" },
 };
-const LQ_BANDA = 4;   // alto en pixeles de cada fila del mapa y del perfil, sin hueco: las filas seguidas forman zonas
-const LQ_ZONA = 0.004;   // cada fila suma lo que hay a +-0,4 % del precio
+const LQ_BANDA = 2;   // alto en pixeles de cada fila del mapa y del perfil
 const LQ_VIDA_MIN = 6;   // velas: un nivel que el precio toca antes no se pinta
-// intensidad minima con histeresis: una zona se enciende al pasar el umbral y solo se apaga al bajar de esta fraccion
-// de el; entre los dos se va desvaneciendo. Sin eso, las zonas que rondan el umbral (su parte del OI cambia un poco en
-// cada vela) salian a trozos
-const LQ_PISO = 0.5;
-// curva del color: con el reparto real (en ETH diario la mediana de las casillas es un 2 % del tope y el percentil 99 un
-// 72 %), 0,45 deja amarillo el 1 % mas cargado, verde el 5 % y verde azulado el 10 %; lo demas, azul que se apaga
-const LQ_CURVA = 0.45;
-// indice en la paleta (0-255) de un valor frente al tope de la escala
-const lqIdx = (v, tope) => Math.min(255, Math.floor(Math.pow(Math.min(1, Math.max(0, v / tope)), LQ_CURVA) * 255));
 // atajos: marco y apalancamientos de cada forma de operar
 const LQ_PRESET = {
   swing: { tf: "1D", levOff: ["50", "100"] },   // posiciones que aguantan semanas: niveles lejos del precio
@@ -37,7 +28,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin5", 30), vida: "1",
+  min: +store.get("lqMin6", 10), vida: "1",
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -118,7 +109,7 @@ function lqControles() {
 function lqSet(cambio) {
   Object.assign(lq, cambio);
   if (cambio.sym && typeof cxTiraLiq === "function") cxTiraLiq();   // la tira de Crypto sigue al activo
-  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin5", lq.min);
+  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin6", lq.min);
   store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff3", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
@@ -288,7 +279,7 @@ function lqCalcular(nuevos = false) {
   const clave = [lq.clave, ver.join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
     lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel,
-      zona: LQ_ZONA, vidaMin: LQ_VIDA_MIN,
+      anchoMapa: cfg.am, vidaMin: LQ_VIDA_MIN,
       escalaDesde: d.velas.length - cfg.ver });   // colores frente a lo que se ve al abrir, no a toda la historia
     lq.resClave = clave; lq.imgClave = "";
   }
@@ -334,27 +325,16 @@ function lqVista() {
 // ancho en pixeles del perfil de la derecha (lo usa tambien el margen de la vista)
 const lqAnchoPerfil = (ancho) => Math.round(Math.min(170, Math.max(60, ancho * 0.14)));
 
-// paleta de los niveles: una sola rampa con los colores del tema, del fondo a azul, verde azulado, verde y amarillo
-// (como un viridis). Lo flojo casi se funde con el fondo, asi que lo fuerte resalta solo; sin rojo ni ambar por medio,
-// que hacian competir muchas franjas a la vez
+// paleta por escalones, como mapaliquidaciones.com: azul (casi del color del fondo), cian, verde, amarillo y rojo, con
+// los colores del tema. La posicion es la fraccion del nivel mas cargado de la vista: el rojo solo para lo mas cargado
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function lqPaleta() {
-  const fondo = lqHex(C.surface), azul = lqHex(C.prevClose), verde = lqHex(C.put), amarillo = lqHex(C.amber);
-  const mez = (a, b, f) => a.map((x, i) => x * f + b[i] * (1 - f));
-  // [posicion, color, opacidad]
-  const paradas = [[0, mez(azul, fondo, 0.25), 0.06], [0.35, mez(azul, fondo, 0.6), 0.35], [0.55, mez(verde, azul, 0.45), 0.85],
-    [0.78, verde, 1], [1, amarillo, 1]];
-  const lut = new Uint8ClampedArray(256 * 4);
-  for (let k = 0; k < 256; k++) {
-    const u = k / 255;
-    let j = 0;
-    while (j < paradas.length - 2 && u > paradas[j + 1][0]) j++;
-    const [u0, c0, a0] = paradas[j], [u1, c1, a1] = paradas[j + 1], f = Math.min(1, Math.max(0, (u - u0) / (u1 - u0)));
-    for (let q = 0; q < 3; q++) lut[k * 4 + q] = c0[q] + (c1[q] - c0[q]) * f;
-    lut[k * 4 + 3] = 255 * (a0 + (a1 - a0) * f);
-  }
-  return lut;
+  const fondo = lqHex(C.surface), azul = lqHex(C.prevClose);
+  const mez = (a, f) => a.map((x, i) => Math.round(x * f + fondo[i] * (1 - f)));
+  return [[0, mez(azul, 0.16)], [0.3, mez(azul, 0.5)], [0.5, lqHex(C.put)], [0.72, lqHex(C.amber)], [0.92, lqHex(C.call)]];
 }
+// color del escalon de una fraccion (0-1) del mas cargado
+const lqColor = (x) => { const e = lq.escalones; let j = 0; while (j < e.length - 1 && x >= e[j + 1][0]) j++; return e[j][1]; };
 
 // paleta y rejilla de precios: se rehacen al cambiar el calculo, la intensidad minima o el tema. El dibujo (y la
 // escala de color, frente a lo que se ve) se hace en lqPintar, con la vista de cada momento
@@ -363,21 +343,19 @@ function lqImagen() {
   const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme].join("|");
   if (clave === lq.imgClave) return;
   const B = r.B;
-  lq.lut = lqPaleta();
-  lq.colores = Array.from({ length: 256 }, (_, k) => `rgba(${lq.lut[k * 4]},${lq.lut[k * 4 + 1]},${lq.lut[k * 4 + 2]},${(lq.lut[k * 4 + 3] / 255).toFixed(3)})`);
+  lq.escalones = lqPaleta();
   lq.lLo = Math.log(r.bordes[0]); lq.paso = (Math.log(r.bordes[B]) - lq.lLo) / B;
-  lq.imgClave = clave; lq.pintado = null;
+  lq.imgClave = clave; lq.pintado = null; lq.mxEscala = null;
   lqEscala();
 }
 
-// barra de la escala de color: desde la intensidad minima (lo que se pinta) hasta el tope, en dolares
+// leyenda: los cinco escalones y, en dolares, desde donde empieza el rojo en la vista
 function lqEscala() {
-  const r = lq.res;
-  if (!r || !lq.colores) return;
-  const pasos = [];
-  for (let s = 0; s <= 12; s++) pasos.push(lq.colores[lqIdx(lq.min / 100 + (1 - lq.min / 100) * (s / 12), 1)]);
-  $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${pasos.join(", ")})`;
-  $("lqEscalaTxt").textContent = lq.min > 0 ? `${lqUsd((lq.min / 100) * r.topeV)} to ${lqUsd(r.topeV)}+` : `up to ${lqUsd(r.topeV)}+`;
+  if (!lq.escalones) return;
+  const e = lq.escalones, rgb = (c) => `rgb(${c.join(",")})`;
+  $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${e.map((x, j) => `${rgb(x[1])} ${j * 20}% ${(j + 1) * 20}%`).join(", ")})`;
+  const mx = lq.mxVista || 0;
+  $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (red: ${lqUsd(mx * e[e.length - 1][0])}+)` : "Least to most loaded in view";
 }
 
 // tramos de precio (de menor a mayor) que caen entre dos filas de pantalla
@@ -389,47 +367,47 @@ function lqTramosEntre(serie, yArriba, yAbajo) {
   return [Math.max(0, Math.min(lo, hi)), Math.min(B - 1, Math.max(lo, hi))];
 }
 
-// mapa de la vista: filas de LQ_BANDA pixeles con la zona mas cargada de cada una (r.gZ: lo vivo a +-LQ_ZONA, cada
-// nivel a su tamano al nacer) y una columna por vela visible (o por pixel si hay mas velas que pixeles), sin hueco
-// entre filas: las seguidas forman una zona. Color frente a la escala fija del activo (r.topeV): azul tenue lo flojo, verde, amarillo y rojo
-// los grupos; lo que no pasa la intensidad minima no se pinta
+// mapa de la vista: filas de LQ_BANDA pixeles con el tramo mas cargado de cada una (r.gZ) y una columna por vela
+// visible (o por pixel si hay mas velas que pixeles). Como en mapaliquidaciones.com, el color es relativo a lo que se
+// ve: el mas cargado de la vista es rojo y cada casilla toma el escalon de su fraccion; la intensidad minima, igual
 function lqPintar(serie, ancho, alto, c0, c1) {
   const r = lq.res, n = r.n, cols = c1 - c0 + 1;
   const pTop = serie.coordinateToPrice(0), pBot = serie.coordinateToPrice(alto);
   const clave = [lq.imgClave, c0, c1, Math.round(ancho), Math.round(alto), pTop, pBot].join("|");
   if (lq.pintado && lq.pintado.clave === clave) return lq.pintado;
   const outW = Math.max(1, Math.min(cols, Math.ceil(ancho))), outH = Math.max(1, Math.ceil(alto));
-  const nb = Math.ceil(outH / LQ_BANDA), g = r.gZ, lut = lq.lut;
+  const nb = Math.ceil(outH / LQ_BANDA), g = r.gZ;
   const colDe = new Int32Array(outW);
   for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
   const val = new Float64Array(nb * outW);
+  let mx = 0;
   for (let f = 0; f < nb; f++) {
     const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
     if (!tr) continue;
     for (let k = 0; k < outW; k++) {
       const t = colDe[k];
-      // el tramo mas cargado de la fila (no la suma): al alejar el zoom una fila abarca mas tramos y no debe encenderse
+      // el tramo mas cargado de la fila (no la suma): al alejar el zoom una fila abarca mas tramos
       let v = 0;
       for (let b = tr[0]; b <= tr[1]; b++) if (g[b * n + t] > v) v = g[b * n + t];
       val[f * outW + k] = v;
+      if (v > mx) mx = v;
     }
   }
-  // escala fija del activo y el marco (r.topeV, del modelo): el zoom cambia la resolucion, nunca los colores
-  const tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope, piso = umbral * LQ_PISO;
+  lq.mxVista = mx;
+  if (mx !== lq.mxEscala) { lq.mxEscala = mx; lqEscala(); }
+  const umbral = (lq.min / 100) * mx;
   const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
-  for (let f = 0; f < nb; f++) {
+  if (mx > 0) for (let f = 0; f < nb; f++) {
     const y0 = f * LQ_BANDA, y1 = Math.min(outH, y0 + LQ_BANDA);
-    let on = false;
     for (let k = 0; k < outW; k++) {
       const v = val[f * outW + k];
-      on = on ? v > piso : v > umbral;
-      if (!on) continue;
-      const i = lqIdx(v, tope) * 4, al = v >= umbral ? 1 : 0.25 + (0.75 * (v - piso)) / (umbral - piso);
+      if (!(v > umbral)) continue;
+      const c = lqColor(v / mx);
       for (let y = y0; y < y1; y++) {
         const o = (y * outW + k) * 4;
-        px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3] * al;
+        px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255;
       }
     }
   }
@@ -446,7 +424,7 @@ class LqHeat {
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
     const r = lq.res, p = this.p;
-    if (!r || !p || !lq.lut || !r.gZ) return;
+    if (!r || !p || !lq.escalones || !r.gZ) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const ts = lq.chart.timeScale(), vr = ts.getVisibleLogicalRange();
       if (!vr) return;
@@ -464,7 +442,8 @@ class LqHeat {
   }
 }
 
-// perfil de lo pendiente ahora: la ultima columna del mapa, con su misma paleta
+// perfil de lo pendiente ahora: la ultima columna del mapa con su propia escala (su barra mayor es roja), como en
+// mapaliquidaciones.com; la intensidad minima, frente a esa barra
 class LqPerfil {
   constructor() { this.p = null; this.view = { zOrder: () => "top", renderer: () => ({ draw: (t) => this.draw(t) }) }; }
   attached(p) { this.p = p; }
@@ -473,18 +452,15 @@ class LqPerfil {
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
     const r = lq.res, p = this.p, d = lq.datos;
-    if (!r || !p || !d || !lq.lut) return;
+    if (!r || !p || !d || !lq.escalones) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const H = mediaSize.height, W = lqAnchoPerfil(mediaSize.width), right = mediaSize.width - 2;
-      // barras: la ultima columna del mapa (mismo valor por fila, el tramo mas cargado, y misma escala de color e
-      // intensidad minima), para que el color diga lo mismo que las franjas
-      const paso = LQ_BANDA, filas = [], t = r.n - 1, tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope;
+      const paso = LQ_BANDA, filas = [], t = r.n - 1;
       let mx = 0;
       for (let y = 0; y < H; y += paso) {
         const tr = lqTramosEntre(p.series, y, y + paso);
         let v = 0;
         if (tr) for (let b = tr[0]; b <= tr[1]; b++) v = Math.max(v, r.gZ[b * r.n + t]);
-        if (v <= umbral) v = 0;
         filas.push([y, v]); mx = Math.max(mx, v);
       }
       ctx.save();
@@ -492,11 +468,10 @@ class LqPerfil {
       ctx.fillRect(right - W, 0, W, H);
       ctx.globalAlpha = 1;
       for (const [y, v] of filas) {
-        if (v <= 0) continue;
-        const i = lqIdx(v, tope) * 4, l = lq.lut;
-        ctx.fillStyle = `rgba(${l[i]},${l[i + 1]},${l[i + 2]},${Math.max(0.35, l[i + 3] / 255)})`;
+        if (!(mx > 0) || v <= (lq.min / 100) * mx) continue;
+        ctx.fillStyle = `rgb(${lqColor(v / mx).join(",")})`;
         const wv = (v / mx) * W * 0.92;
-        ctx.fillRect(right - wv, y, wv, paso - 1);
+        ctx.fillRect(right - wv, y, wv, paso);
       }
       ctx.restore();
     });
@@ -566,11 +541,13 @@ function lqTip(prm) {
   if (t < 0 || t >= r.n) return fuera();
   const fila = Math.floor(prm.point.y / LQ_BANDA), tr = lqTramosEntre(lq.serie, fila * LQ_BANDA, (fila + 1) * LQ_BANDA);
   if (!tr) return fuera();
-  let mx = 0, bc = tr[0];
-  for (let b = tr[0]; b <= tr[1]; b++) if (r.gZ[b * r.n + t] > mx) { mx = r.gZ[b * r.n + t]; bc = b; }
-  if (!(mx > (lq.min / 100) * r.topeV * LQ_PISO)) return fuera();   // solo sobre lo que puede estar pintado
-  // la zona: +-LQ_ZONA alrededor del tramo mas cargado de la fila; su desglose suma lo mismo que el color
-  const lo = r.bordes[Math.max(0, bc - r.rZ)], hi = r.bordes[Math.min(r.B, bc + r.rZ + 1)], nv = r.niveles, porL = new Map();
+  let mx = 0;
+  for (let b = tr[0]; b <= tr[1]; b++) mx = Math.max(mx, r.gZ[b * r.n + t]);
+  if (!(mx > (lq.min / 100) * (lq.mxVista || 0))) return fuera();   // solo sobre lo que se ve pintado
+  // el desglose: los niveles de la banda alrededor del cursor (8 px a cada lado; cada nivel se reparte en varios
+  // tramos, asi que una fila de 2 px casi nunca contiene su precio central)
+  const ancho = lqTramosEntre(lq.serie, prm.point.y - 8, prm.point.y + 8) || tr;
+  const lo = r.bordes[ancho[0]], hi = r.bordes[ancho[1] + 1], nv = r.niveles, porL = new Map();
   let suma = 0, nace0 = Infinity, nace1 = -Infinity, cortos = 0;
   for (let k = 0; k < nv.N; k++) {
     if (nv.p[k] < lo || nv.p[k] >= hi || t < nv.i[k] || t >= nv.toque[k]) continue;
@@ -600,7 +577,9 @@ function lqLectura() {
   const d = lq.datos, r = lq.res, cfg = LQ_TF[d.tf], n = d.velas.length;
   const precio = d.velas[n - 1].c, pct = d.tf === "1D" ? 0.15 : d.tf === "4h" ? 0.1 : 0.05;
   // lo mismo que pinta el mapa ahora (con la intensidad minima): las lineas y los grupos siempre caen sobre una franja
-  const umbral = (lq.min / 100) * (r.topeV > 0 ? r.topeV : 1);
+  let mxUlt = 0;
+  for (let b = 0; b < r.B; b++) mxUlt = Math.max(mxUlt, r.gZ[b * r.n + r.n - 1]);
+  const umbral = (lq.min / 100) * mxUlt;
   const pr = LQ_MODELO.presion(r, precio, pct, umbral), g = LQ_MODELO.grupos(r, precio, 3, pct * 2, umbral);
   lqNivelesClave(g);
   let veredicto, cls = "";
@@ -631,11 +610,13 @@ function lqLectura() {
     <div class="lq-card"><span class="kl">Biggest clusters below (longs)</span>${g.abajo.map(fila).join("") || "<span class='ks'>None</span>"}</div>
     <div class="lq-card"><span class="kl">Model reliability</span><b>${nota}</b><span class="ks">${esc(porQue)}</span></div>`;
   $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Where leveraged positions would be liquidated: brighter means more money.`;
-  $("lqHow").textContent = "Each zone adds up the open leveraged positions that would be force-closed within 0.4% of that price, " +
-    "estimated from new open interest, the buy/sell split of volume and typical leverage (5x to 100x). Zones above the price are " +
-    "shorts, below are longs. A zone stays until price reaches it, and shrinks if open interest falls (those positions were " +
-    `closed); levels that price hit within ${LQ_VIDA_MIN} candles are left out. Min. intensity in Settings hides the weaker zones. ` +
-    "Price tends to travel toward big zones: the forced orders feed the move. Hover a zone to see its size, distance and leverage mix. The right profile is " +
+  $("lqHow").textContent = "Each band is a price where open leveraged positions would be force-closed, estimated from new open " +
+    "interest, the buy/sell split of volume and typical leverage (5x to 100x), spread over the entry prices of each candle. " +
+    "Bands above the price are shorts, below are longs. A band grows while positions keep opening there and stays until price " +
+    `sweeps it (it shrinks if open interest falls); levels that price hit within ${LQ_VIDA_MIN} candles are left out. Colors are ` +
+    "relative to what is on screen, from blue (least) to red (the most loaded in view), so they change when you zoom or scroll; " +
+    "Min. intensity in Settings hides the weaker bands. Price tends to travel toward big bands: the forced orders feed the move. " +
+    "Hover a band to see its size, distance and leverage mix. The right profile is " +
     "what is still pending now; the bottom panel shows real liquidations (longs down, shorts up). " +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
       : "No open interest for this choice: estimated from volume.");
@@ -662,7 +643,7 @@ $("lqMin").addEventListener("input", (e) => {
   if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); }
   if (lq.datos && lq.res) lqLectura();   // lineas y grupos: solo lo que se ve
 });
-$("lqMin").addEventListener("change", () => store.set("lqMin5", lq.min));
+$("lqMin").addEventListener("change", () => store.set("lqMin6", lq.min));
 $("lqPreset").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const x = LQ_PRESET[b.dataset.v];

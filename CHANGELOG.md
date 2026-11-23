@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-23 — Crypto más limpio: tira de resumen arriba, mapa de liquidaciones por zonas y una fila de controles
+## 2026-11-23 — Crypto más limpio: tira de resumen arriba, mapa de liquidaciones como mapaliquidaciones.com y una fila de controles
 
 **Cambiado**
 - **Crypto, tira de resumen:** la columna de la izquierda pasa a una fila encima de las pestañas, en todas ellas:
@@ -12,10 +12,13 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   Overview. Las pestañas, sobre todo Liquidations, ocupan todo el ancho. En Liquidations la tira sigue al activo del
   mapa: BTC y ETH con su resumen (y elegirlos en la tira cambia también el mapa); otros, nombre, precio y cambio en
   24 h de sus velas.
-- **Crypto, mapa de liquidaciones por zonas:** cada fila suma lo que hay a ±0,4 % del precio, sin hueco entre filas,
-  así que los niveles cercanos forman una zona en vez de muchas rayas finas; los niveles que el precio toca en menos de
-  6 velas ya no se pintan, y la intensidad mínima por defecto pasa al 30 %. Perfil, líneas Longs y Shorts, tooltip y
-  lectura salen de esas mismas zonas.
+- **Crypto, mapa de liquidaciones, como mapaliquidaciones.com:** cada nivel se reparte entre los precios de
+  liquidación de las entradas posibles de su vela, crece mientras se abren posiciones a ese precio y se mantiene hasta
+  que el precio lo barre, así que las velas parecidas forman bandas que se van encendiendo. El color es relativo a lo
+  que se ve, por escalones (azul casi del fondo, azul, verde, amarillo y rojo para lo más cargado de la vista), y se
+  recalcula al hacer zoom; la intensidad mínima (10 % por defecto) también. Filas de 2 px, perfil con su propia escala
+  y vista inicial de un día en 5 min, una semana en 1 h y ocho meses en diario. Los niveles que el precio toca en menos
+  de 6 velas no se pintan.
 - **Crypto, mapa de liquidaciones, una fila de controles:** activo (lista con buscador en lugar de diez botones),
   marco, Settings (Swing y Scalp, apalancamientos, intensidad mínima y exchanges), Copy image y Full screen. Debajo del
   mapa, la leyenda de color y el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details.
@@ -29,12 +32,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Crypto, mapa de liquidaciones, tamaños inflados y marcos que no cuadraban:** cada nivel se escalaba al nacer con la
   memoria del modelo, que en los marcos cortos se vacía en un día, y luego se pintaba a ese tamaño. En ETH de 15
   minutos el mapa sumaba $69B vivos con $7,7B de open interest (la zona de 2.300, $8,75B; en 1 hora, $2,77B), así que
-  15m salía lleno de zonas y 1h casi vacío. Ahora en cada vela lo pintado se reparte el open interest de ese momento,
-  según lo que el modelo da por abierto (las posiciones de hace semanas pesan menos; antes, en 1 hora, niveles de hace
-  dos meses a más de un 10 % del precio se quedaban el 87 % y lo de cerca no se veía), y 15m, 1h y 4h están en la
-  misma escala. Un nivel sigue dibujado hasta que el precio lo toca, pero se apaga con la edad. Para que las zonas
-  que rondan la intensidad mínima no salgan a trozos, una zona encendida solo se apaga al bajar a la mitad del umbral
-  y entre medias se va desvaneciendo.
+  15m salía lleno de zonas y 1h casi vacío. Ahora cada nivel lleva su OI nuevo y lo vivo en la última vela suma el
+  open interest de ese momento en cualquier marco.
 
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 

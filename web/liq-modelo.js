@@ -193,23 +193,28 @@ const LQ_MODELO = (() => {
     // final, si
     const vidaMin = Math.max(0, o.vidaMin || 0);
     const corto = (i, toque) => toque < n && toque - i < vidaMin;
-    // con el OI total (o.nivel), cada vela del mapa reparte ese OI entre los niveles vivos (factor F[t], abajo), asi lo
-    // pintado suma lo que hay abierto en cualquier marco; el tamano al nacer escalado por la memoria (escala[i]) lo
-    // inflaba en los marcos cortos, donde la memoria se vacia en un dia (en ETH de 15 min, $69B pintados con $7,7B de OI)
+    // con el OI total (o.nivel), cada nivel se pinta con su OI nuevo (sin la escala de la memoria, que en los marcos
+    // cortos se vacia en un dia y lo inflaba: en ETH de 15 min, $69B pintados con $7,7B de OI) y todo por un factor G
+    // que hace que lo vivo en la ultima vela sume el OI de ese momento. Como en mapaliquidaciones.com, un nivel crece
+    // mientras se abren posiciones a ese precio y se mantiene hasta que el precio lo barre: no se apaga con la edad
     const porOI = !!(o.nivel && o.nivel.some((x) => x > 0));
+    // o.anchoMapa: cada nivel se reparte entre los precios de liquidacion de las entradas posibles de su vela (esa
+    // fraccion del rango a cada lado del precio medio): muchas velas parecidas forman bandas en vez de rayas sueltas
+    const am = Math.max(0, o.anchoMapa || 0);
+    const binLibre = (p) => Math.floor((Math.log(p) - lLo) / paso);
     const rejilla = (niveles) => {
       const g = new Float32Array(B * n);
       for (const [i, toque, pr, , a] of niveles) {
         if (corto(i, toque)) continue;
-        const b = binDe(pr), aE = porOI ? a : a * (escala[i] || 1), base = oiEf && oiEf[i] > 0 ? oiEf[i] : 0;
-        if (b < 0) continue;
+        const x = pr / tip[i], v = velas[i];
+        let b0 = binLibre(am ? x * (tip[i] - (tip[i] - v.l) * am) : pr), b1 = binLibre(am ? x * (tip[i] + (v.h - tip[i]) * am) : pr);
+        if (b1 < 0 || b0 >= B) continue;
+        b0 = Math.max(0, b0); b1 = Math.min(B - 1, Math.max(b0, b1));
+        const q = (porOI ? a : a * (escala[i] || 1)) / (b1 - b0 + 1), base = oiEf && oiEf[i] > 0 ? oiEf[i] : 0;
         let f = 1;
         for (let t = i; t < toque; t++) {
           if (base && oiEf[t] > 0 && oiEf[t] < base * f) f = oiEf[t] / base;
-          // con OI, el reparte pesa ademas lo que la memoria da por abierto (M[t] / M[i]): una posicion de hace
-          // semanas casi seguro que ya se cerro. Sin eso, en 1 h el 87 % del OI de ETH se lo quedaban niveles de hace
-          // dos meses a mas de un 10 % del precio y lo de cerca no se veia
-          g[b * n + t] += porOI ? aE * f * (M[t] / M[i]) : aE * f;
+          for (let b = b0; b <= b1; b++) g[b * n + t] += q * f;
         }
       }
       return g;
@@ -234,20 +239,13 @@ const LQ_MODELO = (() => {
     // o.escalaDesde): no depende del zoom ni de los apalancamientos que se ven
     const todos = vis_.length === lista_.length;
     const gTodo = rejilla(lista_), gV = todos ? gTodo : rejilla(vis_);
-    // F[t]: OI total de la vela entre lo vivo de todos los apalancamientos (sin OI en esa vela, la mediana); ocultar
-    // apalancamientos no lo cambia. El tope por OI cerrado sigue: reparte menos a los niveles de una epoca de OI alto
-    let F = null;
+    let G = null;
     if (porOI) {
-      F = new Float64Array(n);
-      for (let t = 0; t < n; t++) {
-        let s = 0;
-        for (let b = 0; b < B; b++) s += gTodo[b * n + t];
-        F[t] = o.nivel[t] > 0 && s > 0 ? o.nivel[t] / s : NaN;
-      }
-      const conF = Array.from(F).filter((x) => isFinite(x)).sort((a, b) => a - b);
-      const medF = conF.length ? conF[Math.floor(conF.length / 2)] : 1;
-      for (let t = 0; t < n; t++) if (!isFinite(F[t])) F[t] = medF;
-      for (const g of todos ? [gTodo] : [gTodo, gV]) for (let b = 0; b < B; b++) for (let t = 0; t < n; t++) g[b * n + t] *= F[t];
+      let s = 0, ult = n - 1;
+      while (ult > 0 && !(o.nivel[ult] > 0)) ult--;
+      for (let b = 0; b < B; b++) s += gTodo[b * n + ult];
+      G = s > 0 && o.nivel[ult] > 0 ? o.nivel[ult] / s : 1;
+      for (const g of todos ? [gTodo] : [gTodo, gV]) for (let x = 0; x < g.length; x++) g[x] *= G;
     }
     const zTodo = zonas(gTodo), gZ = todos ? zTodo : zonas(gV);
     const muestra = [];
@@ -257,13 +255,13 @@ const LQ_MODELO = (() => {
     }
     muestra.sort((x, y) => x - y);
     const topeV = muestra.length ? muestra[Math.min(muestra.length - 1, Math.floor(muestra.length * 0.999))] : 1;
-    return { n, B, bordes, gL, gS, gV, gZ, rZ, vidaMin, F, M, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
+    return { n, B, bordes, gL, gS, gV, gZ, rZ, vidaMin, G, topeV, predL, predS, finL: Float64Array.from(SL, (x) => x * eF), finS: Float64Array.from(SS, (x) => x * eF),
       niveles: { N, i: nivI, fin: nivFin, p: nivP, lado: nivLado, a: nivA, a0: nivA0, toque: nivToque, L: nivL }, oiEf,
       desdeOI, k, calibrado: sOI > 0, escalado: conE.length > 0 };
   }
 
-  // tamano en el mapa del nivel k en la vela t (el de la rejilla gV): su parte del OI de esa vela (F, por lo que la
-  // memoria da por abierto) o, sin OI, al nacer; en los dos casos, por el tope del OI que sigue abierto
+  // tamano en el mapa del nivel k en la vela t (el de la rejilla gV, sumando sus tramos): su OI nuevo por G o, sin OI
+  // total, al nacer con la escala; en los dos casos, por el tope del OI que sigue abierto
   function enMapa(res, k, t) {
     const nv = res.niveles, i = nv.i[k];
     if (t < i || t >= nv.toque[k]) return 0;
@@ -271,7 +269,7 @@ const LQ_MODELO = (() => {
     const o = res.oiEf, base = o && o[i] > 0 ? o[i] : 0;
     let f = 1;
     if (base) for (let s = i; s <= t; s++) if (o[s] > 0 && o[s] < base * f) f = o[s] / base;
-    return (res.F ? nv.a0[k] * res.F[t] * (res.M[t] / res.M[i]) : nv.a[k]) * f;
+    return (res.G ? nv.a0[k] * res.G : nv.a[k]) * f;
   }
 
   // lo que el mapa pinta ahora: la ultima columna de gZ (zonas) por tramo (niveles vivos de los apalancamientos que se ven),

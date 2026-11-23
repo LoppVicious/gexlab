@@ -170,28 +170,26 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
      Con la opción `ancho`, cada nivel se reparte en la parte central del rango de su vela (no se usa en la web).
 - **Niveles sueltos** (`niveles` del modelo): inicio, fin (vela en que el precio lo toca o en que le queda menos de
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
-- **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos, topados por el OI que sigue
-  abierto (mínimo del OI total desde que nació frente al de entonces). Con el OI total (`nivel`), cada vela reparte
-  ese OI entre lo vivo de todos los apalancamientos, pesado por la memoria (`M[t] / M[i]`: lo de hace semanas pesa
-  menos; `F[t]`, sin OI la mediana), así que lo pintado suma lo que hay abierto en cualquier marco y los niveles
-  viejos lejos del precio no se quedan con todo; antes cada nivel se escalaba al nacer con la memoria, que en 15 min se vacía en un día,
-  y ETH de 15 min sumaba $69B con $7,7B de OI. Sin OI total, tamaño al nacer con esa escala. `enMapa` da lo mismo
-  por nivel, para el tooltip. Un nivel solo desaparece cuando el precio lo toca, y los que el precio toca antes de `vidaMin` velas
-  (`LQ_VIDA_MIN`, 6) no entran: eran fragmentos de pocas velas. La memoria (`finL`, `finS`) ya no se enseña.
-- **Zonas** (`gZ`): cada tramo suma los de `gV` a menos de `zona` (`LQ_ZONA`, ±0,4 %, `rZ` tramos; sumas por
-  prefijos por vela), como la zona de ±0,45 % de Coinfuty: los niveles cercanos forman una zona continua. Es lo que se
-  pinta y se lee: mapa, perfil, tooltip (rango de la zona y su desglose) y `ahora` (la última columna sin lo que no
-  pasa la intensidad mínima), del que salen la presión, los grupos y sus líneas. Escala fija `topeV`: percentil 99,9
-  de las casillas de `gZ` con algo desde `escalaDesde` (la ventana que se ve al abrir) y con todos los
-  apalancamientos (`ver` solo filtra lo que se dibuja).
-- **Dibujo** (`lqPintar`): filas de 4 px (`LQ_BANDA`) con la zona más cargada de las que caen en cada una (no la
-  suma: el zoom no enciende las filas), sin hueco entre filas, una columna por vela visible. Color frente a `topeV`, fijo
-  para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: una rampa del fondo a azul,
-  verde azulado, verde y amarillo con colores del tema; índice `lqIdx` = (v / topeV)^0,45, que en ETH diario deja
-  amarillo el 1 % más cargado); solo lo que pasa la intensidad mínima, con histéresis (`LQ_PISO`: una zona encendida
-  se apaga al bajar a la mitad del umbral y entre medias se desvanece; sin ella salían a trozos) (30 % por defecto, `lqMin5`: con
-  datos de Binance quedan de 8 a 15 zonas vivas por activo y marco). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
-  última columna del mapa, con su escala; el grupo mayor a cada lado como línea con etiqueta en el eje (Longs, Shorts).
+- **Rejilla de dibujo** (`gV`), como mapaliquidaciones.com: cada nivel se reparte entre los precios de liquidación de
+  las entradas posibles de su vela (`anchoMapa`, la fracción del rango a cada lado del precio medio: 0,6 hasta 1 h, 0,3
+  en 4 h y 0,15 en diario), con su OI nuevo, topado por el OI que sigue abierto (mínimo del OI total desde que nació
+  frente al de entonces). Un nivel crece mientras se abren posiciones a ese precio y se mantiene hasta que el precio lo
+  barre: no se apaga con la edad. Con el OI total (`nivel`), todo va por un factor `G` que hace que lo vivo en la última
+  vela sume el OI de ese momento (sin ningún ajuste ya daba el 92 % en ETH de 1 h). Antes cada nivel se escalaba con la
+  memoria, que en 15 min se vacía en un día, y ETH de 15 min sumaba $69B con $7,7B de OI; luego se probó repartir el
+  OI de cada vela con la memoria, que apagaba las bandas con la edad y las dejaba a trozos. Sin OI total, tamaño al
+  nacer con la escala de la memoria. `enMapa` da lo mismo por nivel (sin `anchoMapa`, exacto), para el tooltip. Los
+  niveles que el precio toca antes de `vidaMin` velas (`LQ_VIDA_MIN`, 6) no entran. La memoria (`finL`, `finS`) ya no
+  se enseña. El modelo admite aún `zona` (suma de tramos a ±zona, `gZ`), que la web ya no usa: `gZ` es `gV`.
+- **Dibujo** (`lqPintar`), como mapaliquidaciones.com: filas de 2 px (`LQ_BANDA`) con el tramo más cargado de los que
+  caen en cada una, una columna por vela visible, y color relativo a la vista: el más cargado de lo que se ve es rojo
+  y cada casilla toma el escalón de su fracción (`lqPaleta`, colores del tema: azul casi del fondo, azul, verde, ámbar
+  y rojo, desde 0, 30, 50, 72 y 92 %). Al hacer zoom o desplazarse se recalcula. La intensidad mínima (10 % por
+  defecto, `lqMin6`) también es relativa a la vista. La vista inicial: un día en 5 min, tres en 15 min, una semana en
+  1 h, un mes en 4 h y ocho meses en diario. Leyenda: los cinco escalones y desde cuántos dólares es rojo en la vista.
+  Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la última columna
+  con su propia escala (su barra mayor es roja); el grupo mayor a cada lado como línea con etiqueta en el eje (Longs,
+  Shorts), con la intensidad mínima frente al más cargado de la última vela.
 - **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario
   5x a 25x, y Scalp, 15 min 25x a 100x, apalancamientos, intensidad mínima y exchanges; se cierra al pulsar fuera o con
   Esc), Copy image y Full screen. Debajo del mapa, la leyenda de color en dólares (de la intensidad mínima al tope) y

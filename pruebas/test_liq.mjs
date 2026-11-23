@@ -213,26 +213,27 @@ test("vidaMin: un nivel que el precio toca enseguida no se pinta; uno vivo al fi
   assert.equal(M.enMapa(corta, k, 1), 0);
 });
 
-test("con el OI total, lo que pinta el mapa en cada vela suma ese OI (mismo tamano en todos los marcos)", () => {
-  const velas = Array.from({ length: 80 }, (_, i) => vela(i, 100 + 6 * Math.sin(i / 7), { bv: 35 + (i % 6) * 5 }));
-  const oi = velas.map((_, i) => 1000 + i * 25 - (i % 11 === 0 ? 120 : 0));
-  const nivel = oi.map((x) => x * 4);
-  for (const vida of [5, 200]) {   // la memoria (vida) ya no cambia el tamano de lo que se pinta
-    const r = M.calcular(velas, oi, { vida, nivel });
-    for (const t of [30, 60, 79]) {
-      let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t];
-      assert.ok(Math.abs(s / nivel[t] - 1) < 1e-3, `vida ${vida}, vela ${t}: ${s} frente a ${nivel[t]}`);
-    }
+test("con OI, un nivel crece y se mantiene mientras vive, y lo vivo en la ultima vela suma el OI", () => {
+  const velas = Array.from({ length: 60 }, (_, i) => vela(i, 100));
+  const oi = velas.map((_, i) => (i >= 1 && i < 20 ? 1000 + i * 50 : i >= 20 ? 1950 : 0));
+  const nivel = oi.map((x) => x * 3);
+  for (const vida of [3, 1e9]) {   // la memoria no cambia lo que se pinta
+    const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida, mm: 0, nivel });
+    const col = (t) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t]; return s; };
+    assert.ok(col(10) > col(5) && col(19) > col(10));      // crece mientras se abren posiciones
+    assert.ok(Math.abs(col(40) / col(25) - 1) < 1e-6);    // y se mantiene: no se apaga con la edad
+    assert.ok(Math.abs(col(59) / nivel[59] - 1) < 1e-6);  // en la ultima vela, el OI de ese momento
   }
 });
 
-test("con OI, los niveles viejos pesan menos en el reparto (memoria): lo reciente cerca del precio destaca", () => {
-  // 40 velas a 200 (abren cortos lejos, por encima) y 40 a 100 (abren lo reciente); el precio nunca toca los viejos
-  const velas = Array.from({ length: 80 }, (_, i) => vela(i, i < 40 ? 200 : 100));
-  const oi = velas.map((_, i) => 1000 + i * 20);
-  const nivel = oi.map((x) => x * 2);
-  const corta = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 5, nivel });
-  const larga = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, nivel });
-  const viejo = (r) => { const t = r.n - 1; let s = 0; for (let b = 0; b < r.B; b++) if (r.bordes[b] > 150) s += r.gV[b * r.n + t]; return s / nivel[t]; };
-  assert.ok(viejo(corta) < 0.05 && viejo(larga) > 0.3, `${viejo(corta)} ${viejo(larga)}`);
+test("anchoMapa reparte cada nivel entre varios tramos sin cambiar lo que suma", () => {
+  const velas = Array.from({ length: 40 }, (_, i) => ({ t: i, o: 100, h: 103, l: 97, c: 100, v: 100, bv: 50 }));
+  const oi = velas.map((_, i) => i * 10);
+  const nivel = oi.map((x) => x * 2 + 1);
+  const fino = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, nivel, bins: 600 });
+  const ancho = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, nivel, bins: 600, anchoMapa: 0.6 });
+  const llenos = (r) => { let c = 0; for (let b = 0; b < r.B; b++) if (r.gV[b * r.n + 39] > 0) c++; return c; };
+  const suma = (r) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + 39]; return s; };
+  assert.ok(llenos(ancho) > 4 * llenos(fino));
+  assert.ok(Math.abs(suma(ancho) / suma(fino) - 1) < 1e-6);
 });

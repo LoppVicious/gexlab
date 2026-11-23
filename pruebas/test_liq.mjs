@@ -237,3 +237,13 @@ test("anchoMapa reparte cada nivel entre varios tramos sin cambiar lo que suma",
   assert.ok(llenos(ancho) > 4 * llenos(fino));
   assert.ok(Math.abs(suma(ancho) / suma(fino) - 1) < 1e-6);
 });
+
+test("lado vela: una vela que sube abre largos y una que baja, cortos", () => {
+  const velas = [vela(0, 100), { t: 1, o: 98, h: 102, l: 98, c: 102, v: 100, bv: 50 }, { t: 2, o: 102, h: 102, l: 98, c: 98, v: 100, bv: 50 }];
+  for (let i = 3; i < 10; i++) velas.push(vela(i, 100));
+  const oi = velas.map((_, i) => (i === 0 ? 0 : i === 1 ? 1000 : 2000));
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, lado: "vela" });
+  const nv = r.niveles, de = (i, lado) => { let s = 0; for (let k = 0; k < nv.N; k++) if (nv.i[k] === i && nv.lado[k] === lado) s += nv.a0[k]; return s; };
+  assert.ok(Math.abs(de(1, 0) - 1000) < 1e-6 && de(1, 1) === 0);   // la que sube: todo largos
+  assert.ok(Math.abs(de(2, 1) - 1000) < 1e-6 && de(2, 0) === 0);   // la que baja: todo cortos
+});

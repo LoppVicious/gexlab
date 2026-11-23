@@ -36,6 +36,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   minutos el mapa sumaba $69B vivos con $7,7B de open interest (la zona de 2.300, $8,75B; en 1 hora, $2,77B), así que
   15m salía lleno de zonas y 1h casi vacío. Ahora cada nivel lleva su OI nuevo y lo vivo en la última vela suma el
   open interest de ese momento en cualquier marco.
+- **Crypto, mapa de liquidaciones, demasiados cortos por encima:** cada posición nueva se repartía entre largos y
+  cortos según el volumen comprador, que en ETH diario siempre está entre 0,48 y 0,52, así que salía casi a medias y
+  cada subida dejaba tantos cortos arriba como largos abajo (más liquidez por encima que por debajo, al revés que
+  mapaliquidaciones.com). Ahora manda la dirección de la vela: si sube con el open interest subiendo, son sobre todo
+  largos. En ETH diario, a menos de un 30 % del precio, quedan unos $2.500M de largos debajo frente a $90M de cortos
+  encima.
 
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 

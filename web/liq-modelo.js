@@ -83,7 +83,12 @@ const LQ_MODELO = (() => {
     const altas = Array.from({ length: n }, () => []), bajas = Array.from({ length: n }, () => []), lista_ = [];
     for (let i = 0; i < n; i++) {
       if (!(nuevo[i] > 0)) continue;
-      const v = velas[i], fc = v.v > 0 ? Math.min(1, Math.max(0, v.bv / v.v)) : 0.5;
+      // parte de largos: por defecto, el volumen agresor comprador (bv / v); con o.lado = "vela", la direccion de la vela
+      // (cuerpo frente al rango: una vela que sube con el OI subiendo abre sobre todo largos). El volumen comprador casi
+      // siempre esta entre 0,48 y 0,52, asi que repartia cada posicion a medias y llenaba de cortos lo que habia por
+      // encima en cada subida (en ETH diario, mas liquidez arriba que abajo; mapaliquidaciones.com, al reves)
+      const v = velas[i], cuerpo = v.h > v.l ? (v.c - v.o) / (v.h - v.l) : 0;
+      const fc = o.lado === "vela" ? Math.min(1, Math.max(0, 0.5 + 0.5 * cuerpo)) : v.v > 0 ? Math.min(1, Math.max(0, v.bv / v.v)) : 0.5;
       const largos = [], cortos = [];
       for (const x of levs) {
         const w = x.w / pw;

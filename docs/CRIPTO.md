@@ -160,7 +160,9 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
 - **Modelo** (`web/liq-modelo.js`, pruebas en `pruebas/test_liq.mjs`):
   1. Posiciones nuevas de cada vela: subida del OI sumando el cambio de cada perpetuo (no el nivel, para que un
      exchange que empieza tarde no cree un salto). Antes del primer OI, volumen × factor calibrado con el tramo con OI.
-  2. Largos = parte compradora del volumen agresor (bv / v); cortos, el resto.
+  2. Largos = parte compradora del volumen agresor (bv / v); cortos, el resto. La web usa `lado: "vela"`: la
+     dirección de la vela (0,5 + 0,5 × cuerpo / rango), porque el volumen comprador casi siempre está entre 0,48 y
+     0,52 y repartía cada posición a medias.
   3. Apalancamientos 5x, 10x, 25x, 50x y 100x con pesos 10/30/30/20/10 %; liquidación de un largo
      precio × (1 − 1/L + 0,5 %), de un corto precio × (1 + 1/L − 0,5 %); precio de entrada (máx + mín + cierre) / 3.
   4. Un nivel vive hasta que el precio lo toca; entonces cuenta como liquidación prevista de esa vela.

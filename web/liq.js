@@ -113,6 +113,7 @@ function lqControles() {
 
 function lqSet(cambio) {
   Object.assign(lq, cambio);
+  if (cambio.sym && typeof cxTiraLiq === "function") cxTiraLiq();   // la tira de Crypto sigue al activo
   store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin5", lq.min);
   store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff3", [...lq.levOff].join(","));
   lqControles();
@@ -256,6 +257,7 @@ function lqMontar(e, k) {
   }
   const exs = Object.keys(a.ex).filter((x) => !lq.exOff.has(x));
   lq.datos = { velas, oi: oiCum, nivel, conOI, exs, sym: a.sym, tf: lq.tf };
+  if (typeof cxTiraLiq === "function") cxTiraLiq();   // precio de la tira con las velas nuevas
   lqReales(e.liq);
   lq.clave = clave; lq.resClave = "";
   lqCalcular(true);

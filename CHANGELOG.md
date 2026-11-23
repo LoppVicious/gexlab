@@ -9,7 +9,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Crypto, tira de resumen:** la columna de la izquierda pasa a una fila encima de las pestañas, en todas ellas:
   BTC/ETH, precio, cambio en 24 h (7 y 30 días al pasar el ratón), estado y cuatro cifras (Net GEX, MVRV, DVOL, Fear &
   Greed). La lectura completa (puntos, cifras con contexto, señales activas y todas las cifras) es el primer panel de
-  Overview. Las pestañas, sobre todo Liquidations, ocupan todo el ancho.
+  Overview. Las pestañas, sobre todo Liquidations, ocupan todo el ancho. En Liquidations la tira sigue al activo del
+  mapa: BTC y ETH con su resumen (y elegirlos en la tira cambia también el mapa); otros, nombre, precio y cambio en
+  24 h de sus velas.
 - **Crypto, mapa de liquidaciones por zonas:** cada fila suma lo que hay a ±0,4 % del precio, sin hueco entre filas,
   así que los niveles cercanos forman una zona en vez de muchas rayas finas; los niveles que el precio toca en menos de
   6 velas ya no se pintan, y la intensidad mínima por defecto pasa al 30 %. Perfil, líneas Longs y Shorts, tooltip y
@@ -24,6 +26,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   mapa se rompía y el Worker además guardaba esa respuesta. Ahora no se guarda, sale «The data source sent an unexpected
   answer» con un botón Retry, y el mapa se vacía en vez de seguir enseñando el activo anterior (ETH marcado con el mapa
   de BNB).
+- **Crypto, mapa de liquidaciones, tamaños inflados y marcos que no cuadraban:** cada nivel se escalaba al nacer con la
+  memoria del modelo, que en los marcos cortos se vacía en un día, y luego se pintaba a ese tamaño. En ETH de 15
+  minutos el mapa sumaba $69B vivos con $7,7B de open interest (la zona de 2.300, $8,75B; en 1 hora, $2,77B), así que
+  15m salía lleno de zonas y 1h casi vacío. Ahora en cada vela lo pintado se reparte el open interest de ese momento,
+  y 15m, 1h y 4h están en la misma escala.
 
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 

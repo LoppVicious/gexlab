@@ -135,7 +135,6 @@ test("en el mapa un nivel no vale mas que el OI que sigue abierto desde que naci
   const col = (t) => { let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t]; return s; };
   assert.ok(Math.abs(col(8) / col(3) - 1) < 1e-6);      // el hueco de la vela 5 no lo recorta
   assert.ok(Math.abs(col(12) / col(8) - 0.25) < 1e-6);   // un cuarto del OI: un cuarto del tamano
-  assert.ok(Math.abs(col(25) / col(12) - 1) < 1e-6);     // aunque el OI vuelva, esas posiciones no reaparecen
 });
 
 test("enMapa da por nivel lo mismo que la rejilla del mapa (para el tooltip)", () => {
@@ -212,4 +211,17 @@ test("vidaMin: un nivel que el precio toca enseguida no se pinta; uno vivo al fi
   assert.ok(Math.abs(col(corta, 11) - col(base, 11)) < 1e-6);   // el corto sigue igual
   const k = [...corta.niveles.lado].findIndex((x) => x === 0);   // el largo
   assert.equal(M.enMapa(corta, k, 1), 0);
+});
+
+test("con el OI total, lo que pinta el mapa en cada vela suma ese OI (mismo tamano en todos los marcos)", () => {
+  const velas = Array.from({ length: 80 }, (_, i) => vela(i, 100 + 6 * Math.sin(i / 7), { bv: 35 + (i % 6) * 5 }));
+  const oi = velas.map((_, i) => 1000 + i * 25 - (i % 11 === 0 ? 120 : 0));
+  const nivel = oi.map((x) => x * 4);
+  for (const vida of [5, 200]) {   // la memoria (vida) ya no cambia el tamano de lo que se pinta
+    const r = M.calcular(velas, oi, { vida, nivel });
+    for (const t of [30, 60, 79]) {
+      let s = 0; for (let b = 0; b < r.B; b++) s += r.gV[b * r.n + t];
+      assert.ok(Math.abs(s / nivel[t] - 1) < 1e-3, `vida ${vida}, vela ${t}: ${s} frente a ${nivel[t]}`);
+    }
+  }
 });

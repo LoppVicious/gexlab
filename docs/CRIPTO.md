@@ -123,7 +123,8 @@ días por delante.
 - Arriba, una tira de resumen en todas las pestañas (`cxResumen`): BTC/ETH, precio, cambio en 24 h (7 y 30 días al
   pasar el ratón), estado y cuatro cifras (Net GEX, MVRV, DVOL, Fear & Greed). La lectura completa (ejes, puntos, seis
   cifras con contexto, señales activas y todas las cifras) es el primer panel de Overview; los paneles ocupan todo el
-  ancho.
+  ancho. En Liquidations la tira sigue al activo del mapa (`cxTiraLiq`, llamada desde `lqSet` y `lqMontar`):
+  BTC y ETH cambian `cx.sym`; otros, `cxTiraMapa` (nombre, precio y cambio en 24 h de las velas del mapa).
 - Pestañas: Overview (GEX, niveles, coste on-chain, volatilidad), Derivatives (GEX, estructura temporal, funding,
   basis, apalancamiento de OKX, vencimientos), On-chain (coste, mineros, SOPR, actividad de redes, stablecoins),
   Signals y Market. Se recuerda la última pestaña.
@@ -169,9 +170,12 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
      Con la opción `ancho`, cada nivel se reparte en la parte central del rango de su vela (no se usa en la web).
 - **Niveles sueltos** (`niveles` del modelo): inicio, fin (vela en que el precio lo toca o en que le queda menos de
   `VIVO_MIN`, una cuarta parte, por memoria y OI cerrado), precio, lado y tamaño al nacer con la escala del OI.
-- **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos a su tamaño al nacer, topado por el
-  OI que sigue abierto (mínimo del OI total desde que nació frente al de entonces; `enMapa` da lo mismo por nivel, para
-  el tooltip). Un nivel solo desaparece cuando el precio lo toca, y los que el precio toca antes de `vidaMin` velas
+- **Rejilla de dibujo** (`gV`): en cada tramo y vela, la suma de los niveles vivos, topados por el OI que sigue
+  abierto (mínimo del OI total desde que nació frente al de entonces). Con el OI total (`nivel`), cada vela reparte
+  ese OI entre lo vivo de todos los apalancamientos (`F[t]`, sin OI la mediana), así que lo pintado suma lo que hay
+  abierto en cualquier marco; antes cada nivel se escalaba al nacer con la memoria, que en 15 min se vacía en un día,
+  y ETH de 15 min sumaba $69B con $7,7B de OI. Sin OI total, tamaño al nacer con esa escala. `enMapa` da lo mismo
+  por nivel, para el tooltip. Un nivel solo desaparece cuando el precio lo toca, y los que el precio toca antes de `vidaMin` velas
   (`LQ_VIDA_MIN`, 6) no entran: eran fragmentos de pocas velas. La memoria (`finL`, `finS`) ya no se enseña.
 - **Zonas** (`gZ`): cada tramo suma los de `gV` a menos de `zona` (`LQ_ZONA`, ±0,4 %, `rZ` tramos; sumas por
   prefijos por vela), como la zona de ±0,45 % de Coinfuty: los niveles cercanos forman una zona continua. Es lo que se

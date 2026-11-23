@@ -77,6 +77,8 @@ const cxVisible = (el) => !el.closest("[hidden]") && el.offsetParent !== null;
 function renderCrypto() {
   const d = cx.data;
   if (!d) return;
+  // en Liquidations, la tira sigue al activo del mapa (web/liq.js): BTC y ETH con su resumen completo
+  if (cx.tab === "liquidations" && typeof lq !== "undefined" && d.activos[lq.sym] && cx.sym !== lq.sym) { cx.sym = lq.sym; store.set("cxSym", cx.sym); }
   if (!d.activos[cx.sym]) cx.sym = Object.keys(d.activos)[0];
   const a = d.activos[cx.sym], m = d.mercado || {};
   document.querySelectorAll("#cxSym button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cx.sym)));
@@ -85,7 +87,7 @@ function renderCrypto() {
   document.querySelectorAll("#cryptoView .cx-panel").forEach((p) => {
     p.hidden = !(p.dataset.tabs || "").split(" ").includes(cx.tab) || (p.classList.contains("cx-btc") && cx.sym !== "BTC");
   });
-  cxResumen(a, m, d);
+  if (!cxTiraMapa()) cxResumen(a, m, d);
 
   const vis = (id) => cxVisible($(id));
   if (vis("cxGex")) {
@@ -104,6 +106,34 @@ function renderCrypto() {
   cxStables(m);
   if (cx.modal) cxModalRender();
   if (cx.tab === "liquidations" && typeof lqShow === "function") lqShow();   // web/liq.js
+}
+
+/* ---------- tira con el activo del mapa de liquidaciones (fuera de BTC y ETH no hay resumen: precio y cambio de
+   las velas del mapa). Devuelve si la ha pintado */
+function cxTiraMapa() {
+  const d = cx.data;
+  if (!d || cx.tab !== "liquidations" || typeof lq === "undefined" || d.activos[lq.sym]) return false;
+  const a = lq.merc && lq.merc.activos.find((x) => x.sym === lq.sym), v = lq.datos && lq.datos.sym === lq.sym ? lq.datos.velas : null;
+  const u = v && v[v.length - 1], ref = u && [...v].reverse().find((x) => x.t <= u.t - 86400);
+  const chg = ref ? (u.c / ref.c - 1) * 100 : null;
+  document.querySelectorAll("#cxSym button").forEach((b) => b.setAttribute("aria-checked", "false"));
+  $("cxTitle").textContent = a ? a.nombre : lq.sym;
+  $("cxPrice").textContent = u ? lqPx(u.c) : "—";
+  $("cxPrice").title = "Last candle of the liquidation map";
+  $("cxSub").innerHTML = chg == null ? "" : `<span><b class="${chg > 0 ? "pos" : chg < 0 ? "neg" : ""}">${cxPct(chg, 2)}</b> 24h</span>`;
+  $("cxSub").title = "";
+  $("cxState").textContent = ""; $("cxState").className = "mstate cx-state";
+  $("cxStripKpis").innerHTML = `<span class="cx-sk">Readings and options data cover BTC and ETH only</span>`;
+  return true;
+}
+
+// al cambiar el activo del mapa o llegar sus datos (web/liq.js)
+function cxTiraLiq() {
+  const d = cx.data;
+  if (!d || cx.tab !== "liquidations" || cxTiraMapa()) return;
+  if (d.activos[lq.sym]) { cx.sym = lq.sym; store.set("cxSym", cx.sym); }
+  document.querySelectorAll("#cxSym button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === cx.sym)));
+  if (d.activos[cx.sym]) cxResumen(d.activos[cx.sym], d.mercado || {}, d);
 }
 
 /* ---------- tira de resumen (todas las pestanas) y lectura completa (Overview) */
@@ -632,7 +662,11 @@ function cxStables(m) {
 const cxSeg = (id, fn) => $(id).addEventListener("click", (e) => { const b = e.target.closest("button"); if (b && b.dataset.v != null) fn(b.dataset.v); });
 $("cxRead").addEventListener("click", (e) => { if (e.target.id === "cxMas") { cx.verTodo = !cx.verTodo; renderCrypto(); } });
 $("cxSigLink").addEventListener("click", () => { cx.tab = "signals"; cx.sigFilt = "on"; store.set("cxTab", "signals"); store.set("cxSigFilt", "on"); renderCrypto(); $("cxTabs").scrollIntoView({ block: "nearest" }); });
-cxSeg("cxSym", (v) => { cx.sym = v; store.set("cxSym", v); cx.sigOpen = null; renderCrypto(); });
+cxSeg("cxSym", (v) => {
+  cx.sym = v; store.set("cxSym", v); cx.sigOpen = null;
+  if (cx.tab === "liquidations" && typeof lqSet === "function" && lq.merc) lqSet({ sym: v });   // en Liquidations, tambien el mapa
+  renderCrypto();
+});
 cxSeg("cxFilt", (v) => { cx.filt = v; store.set("cxFilt", v); renderCrypto(); });
 cxSeg("cxTabs", (v) => { cx.tab = v; store.set("cxTab", v); renderCrypto(); });
 cxSeg("cxActMet", (v) => { cx.met = v; store.set("cxMet", v); cxActivity(); });

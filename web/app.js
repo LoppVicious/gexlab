@@ -24,9 +24,12 @@ const THEME_EXTRA = {
   // vt: Vol Trigger / Hedge Wall, naranja para no confundirlo con el Gamma Flip (ambar); bar: barras del Impacto;
   // area: opacidad del relleno del perfil
   dark: { purple: "#8b7cf0", month: "oklch(0.78 0.15 45)", xmonth: "oklch(0.74 0.12 300)", prevClose: "#5b9dff", vt: "#ff8a3d",
-    bar: "#9461ff", barOp: 0.55, area: 0.16, vol: ["#34d3b0", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"] },
+    bar: "#9461ff", barOp: 0.55, area: 0.16, vol: ["#34d3b0", "#9461ff", "#ff2f7c", "#f2b632", "#4fa3ff"],
+    // mapa de liquidaciones (web/liq.js): fondo, escalones de menos a mas cargado y velas
+    liq: { fondo: "#1e1733", escalones: ["#2a2246", "#1d3a5c", "#245b80", "#3e9a3a", "#d9bf1d", "#e33a2e"], sube: "#26b85a", baja: "#ef4444" } },
   light: { purple: "#6a3df0", month: "oklch(0.58 0.17 45)", xmonth: "oklch(0.48 0.16 300)", prevClose: "#1f63c2", vt: "#c2410c",
-    bar: "#7b879c", barOp: 0.7, area: 0.22, vol: ["#5145e5", "#6a3df0", "#e11d6a", "#c27c0e", "#0b9b6a"] },
+    bar: "#7b879c", barOp: 0.7, area: 0.22, vol: ["#5145e5", "#6a3df0", "#e11d6a", "#c27c0e", "#0b9b6a"],
+    liq: { fondo: "#f3f0fa", escalones: ["#e2dcf1", "#c3d3e8", "#6f9cc8", "#3f9d3c", "#d6a60a", "#e0362c"], sube: "#16a34a", baja: "#dc2626" } },
 };
 Object.keys(THEMES).forEach((k) => Object.assign(THEMES[k], THEME_EXTRA[k]));
 const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);

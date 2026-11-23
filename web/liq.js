@@ -318,13 +318,12 @@ function lqVista() {
 // ancho en pixeles del perfil de la derecha (lo usa tambien el margen de la vista)
 const lqAnchoPerfil = (ancho) => Math.round(Math.min(170, Math.max(60, ancho * 0.14)));
 
-// paleta por escalones, como mapaliquidaciones.com: azul (casi del color del fondo), cian, verde, amarillo y rojo, con
-// los colores del tema. La posicion es la fraccion del nivel mas cargado de la vista: el rojo solo para lo mas cargado
+// paleta por escalones, como mapaliquidaciones.com (colores del tema, C.liq): morado algo mas claro que el fondo para lo
+// flojo, azul marino, azul, verde, amarillo y rojo. La posicion es la fraccion del mas cargado de la vista
 function lqHex(c) { const n = parseInt(String(c).slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function lqPaleta() {
-  const fondo = lqHex(C.surface), azul = lqHex(C.prevClose);
-  const mez = (a, f) => a.map((x, i) => Math.round(x * f + fondo[i] * (1 - f)));
-  return [[0, mez(azul, 0.16)], [0.3, mez(azul, 0.5)], [0.5, lqHex(C.put)], [0.72, lqHex(C.amber)], [0.92, lqHex(C.call)]];
+  const e = C.liq.escalones;
+  return [0, 0.25, 0.4, 0.56, 0.75, 0.92].map((x, j) => [x, lqHex(e[j])]);
 }
 // color del escalon de una fraccion (0-1) del mas cargado
 const lqColor = (x) => { const e = lq.escalones; let j = 0; while (j < e.length - 1 && x >= e[j + 1][0]) j++; return e[j][1]; };
@@ -346,7 +345,8 @@ function lqImagen() {
 function lqEscala() {
   if (!lq.escalones) return;
   const e = lq.escalones, rgb = (c) => `rgb(${c.join(",")})`;
-  $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${e.map((x, j) => `${rgb(x[1])} ${j * 20}% ${(j + 1) * 20}%`).join(", ")})`;
+  const w = 100 / e.length;
+  $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${e.map((x, j) => `${rgb(x[1])} ${j * w}% ${(j + 1) * w}%`).join(", ")})`;
   const mx = lq.mxVista || 0;
   $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (red: ${lqUsd(mx * e[e.length - 1][0])}+)` : "Least to most loaded in view";
 }
@@ -435,8 +435,8 @@ class LqHeat {
   }
 }
 
-// perfil de lo pendiente ahora: la ultima columna del mapa con su propia escala (su barra mayor es roja), como en
-// mapaliquidaciones.com; la intensidad minima, frente a esa barra
+// perfil: resume toda la vista (como mapaliquidaciones.com): en cada fila, la suma de lo vivo en las velas que se ven,
+// con su propia escala (su barra mayor es roja); la intensidad minima, frente a esa barra
 class LqPerfil {
   constructor() { this.p = null; this.view = { zOrder: () => "top", renderer: () => ({ draw: (t) => this.draw(t) }) }; }
   attached(p) { this.p = p; }
@@ -446,24 +446,31 @@ class LqPerfil {
   draw(target) {
     const r = lq.res, p = this.p, d = lq.datos;
     if (!r || !p || !d || !lq.escalones) return;
+    const vr = lq.chart.timeScale().getVisibleLogicalRange();
+    if (!vr) return;
+    const c0 = Math.max(0, Math.floor(vr.from)), c1 = Math.min(r.n - 1, Math.ceil(vr.to));
+    if (c1 < c0) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const H = mediaSize.height, W = lqAnchoPerfil(mediaSize.width), right = mediaSize.width - 2;
-      const paso = LQ_BANDA, filas = [], t = r.n - 1;
+      const paso = LQ_BANDA, filas = [], g = r.gZ, n = r.n;
       let mx = 0;
       for (let y = 0; y < H; y += paso) {
         const tr = lqTramosEntre(p.series, y, y + paso);
         let v = 0;
-        if (tr) for (let b = tr[0]; b <= tr[1]; b++) v = Math.max(v, r.gZ[b * r.n + t]);
+        if (tr) for (let t = c0; t <= c1; t++) {
+          let m = 0;
+          for (let b = tr[0]; b <= tr[1]; b++) if (g[b * n + t] > m) m = g[b * n + t];
+          v += m;
+        }
         filas.push([y, v]); mx = Math.max(mx, v);
       }
       ctx.save();
-      ctx.fillStyle = C.surface; ctx.globalAlpha = 0.6;
-      ctx.fillRect(right - W, 0, W, H);
-      ctx.globalAlpha = 1;
+      ctx.fillStyle = C.liq.fondo;
+      ctx.fillRect(right - W, 0, W + 2, H);
       for (const [y, v] of filas) {
         if (!(mx > 0) || v <= (lq.min / 100) * mx) continue;
         ctx.fillStyle = `rgb(${lqColor(v / mx).join(",")})`;
-        const wv = (v / mx) * W * 0.92;
+        const wv = (v / mx) * W * 0.95;
         ctx.fillRect(right - wv, y, wv, paso);
       }
       ctx.restore();
@@ -513,14 +520,14 @@ function lqTema() {
   if (!lq.chart) return;
   const font = getComputedStyle(document.body).fontFamily;
   lq.chart.applyOptions({
-    layout: { background: { type: "solid", color: C.surface }, textColor: C.muted, fontFamily: font, fontSize: 12,
+    layout: { background: { type: "solid", color: C.liq.fondo }, textColor: C.muted, fontFamily: font, fontSize: 12,
       panes: { separatorColor: C.axis, separatorHoverColor: C.grid } },
-    grid: { vertLines: { color: "rgba(0,0,0,0)" }, horzLines: { color: C.grid } },
+    grid: { vertLines: { color: "rgba(0,0,0,0)" }, horzLines: { color: "rgba(0,0,0,0)" } },
     rightPriceScale: { borderColor: C.axis }, timeScale: { borderColor: C.axis },
     crosshair: { vertLine: { color: C.faint, labelBackgroundColor: C.surface }, horzLine: { color: C.faint, labelBackgroundColor: C.surface } },
   });
-  lq.serie.applyOptions({ upColor: C.candle, downColor: C.surface, borderUpColor: C.candle, borderDownColor: C.candle,
-    wickUpColor: C.candle, wickDownColor: C.candle, priceLineColor: C.spotline });
+  lq.serie.applyOptions({ upColor: C.liq.sube, downColor: C.liq.baja, borderUpColor: C.liq.sube, borderDownColor: C.liq.baja,
+    wickUpColor: C.liq.sube, wickDownColor: C.liq.baja, priceLineColor: C.amber });
   if (lq.res) { lq.imgClave = ""; lqImagen(); lqSeries(false); lqLectura(); lq.heat.redraw(); }
 }
 

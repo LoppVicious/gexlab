@@ -189,8 +189,10 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   y rojo, desde 0, 30, 50, 72 y 92 %). Al hacer zoom o desplazarse se recalcula. La intensidad mínima (10 % por
   defecto, `lqMin6`) también es relativa a la vista. La vista inicial: un día en 5 min, tres en 15 min, una semana en
   1 h, un mes en 4 h y ocho meses en diario. Leyenda: los cinco escalones y desde cuántos dólares es rojo en la vista.
-  Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la última columna
-  con su propia escala (su barra mayor es roja); el grupo mayor a cada lado como línea con etiqueta en el eje (Longs,
+  Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Colores del tema en `C.liq` (`app.js`, `THEME_EXTRA`): fondo morado,
+  escalones (morado flojo, azul marino, azul, verde, amarillo y rojo desde 0, 25, 40, 56, 75 y 92 %) y velas verdes y
+  rojas. Perfil: resume toda la vista (en cada fila, la suma de lo vivo en las velas que se ven), con su propia escala
+  (su barra mayor es roja); el grupo mayor a cada lado como línea con etiqueta en el eje (Longs,
   Shorts), con la intensidad mínima frente al más cargado de la última vela. El ajuste automático del eje de precios incluye esos
   dos grupos (`lq.extremos`, `autoscaleInfoProvider` de la serie de velas).
 - **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario

@@ -16,7 +16,9 @@ const LQ_TF = {
   "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 540, nombre: "4 hours" },
   "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 400, nombre: "daily" },
 };
-const LQ_BANDA = 4;   // alto en pixeles de cada franja del mapa y del perfil (3 de color y 1 de separacion)
+const LQ_BANDA = 4;   // alto en pixeles de cada fila del mapa y del perfil, sin hueco: las filas seguidas forman zonas
+const LQ_ZONA = 0.004;   // cada fila suma lo que hay a +-0,4 % del precio
+const LQ_VIDA_MIN = 6;   // velas: un nivel que el precio toca antes no se pinta
 // curva del color: con el reparto real (en ETH diario la mediana de las casillas es un 2 % del tope y el percentil 99 un
 // 72 %), 0,45 deja amarillo el 1 % mas cargado, verde el 5 % y verde azulado el 10 %; lo demas, azul que se apaga
 const LQ_CURVA = 0.45;
@@ -31,7 +33,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin4", 5), vida: "1", extra: 0,
+  min: +store.get("lqMin5", 20), vida: "1", extra: 0,
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
 };
@@ -100,7 +102,7 @@ function lqControles() {
 
 function lqSet(cambio) {
   Object.assign(lq, cambio);
-  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin4", lq.min);
+  store.set("lqSym", lq.sym); store.set("lqTf", lq.tf); store.set("lqMin5", lq.min);
   store.set("lqExOff", [...lq.exOff].join(",")); store.set("lqLevOff3", [...lq.levOff].join(","));
   lqControles();
   lqCargar();
@@ -262,6 +264,7 @@ function lqCalcular(nuevos = false) {
   const clave = [lq.clave, ver.join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
     lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel,
+      zona: LQ_ZONA, vidaMin: LQ_VIDA_MIN,
       escalaDesde: d.velas.length - cfg.ver });   // colores frente a lo que se ve al abrir, no a toda la historia
     lq.resClave = clave; lq.imgClave = "";
   }
@@ -362,9 +365,9 @@ function lqTramosEntre(serie, yArriba, yAbajo) {
   return [Math.max(0, Math.min(lo, hi)), Math.min(B - 1, Math.max(lo, hi))];
 }
 
-// mapa de la vista: filas de LQ_BANDA pixeles con el tramo de precio mas cargado de cada una (niveles vivos a su
-// tamano al nacer, r.gV) y una columna por vela visible (o por pixel si hay mas velas que pixeles), con 1 px de
-// separacion entre filas. Color frente a la escala fija del activo (r.topeV): azul tenue lo flojo, verde, amarillo y rojo
+// mapa de la vista: filas de LQ_BANDA pixeles con la zona mas cargada de cada una (r.gZ: lo vivo a +-LQ_ZONA, cada
+// nivel a su tamano al nacer) y una columna por vela visible (o por pixel si hay mas velas que pixeles), sin hueco
+// entre filas: las seguidas forman una zona. Color frente a la escala fija del activo (r.topeV): azul tenue lo flojo, verde, amarillo y rojo
 // los grupos; lo que no pasa la intensidad minima no se pinta
 function lqPintar(serie, ancho, alto, c0, c1) {
   const r = lq.res, n = r.n, cols = c1 - c0 + 1;
@@ -372,7 +375,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   const clave = [lq.imgClave, c0, c1, Math.round(ancho), Math.round(alto), pTop, pBot].join("|");
   if (lq.pintado && lq.pintado.clave === clave) return lq.pintado;
   const outW = Math.max(1, Math.min(cols, Math.ceil(ancho))), outH = Math.max(1, Math.ceil(alto));
-  const nb = Math.ceil(outH / LQ_BANDA), g = r.gV, lut = lq.lut;
+  const nb = Math.ceil(outH / LQ_BANDA), g = r.gZ, lut = lq.lut;
   const colDe = new Int32Array(outW);
   for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
   const val = new Float64Array(nb * outW);
@@ -393,7 +396,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
   for (let f = 0; f < nb; f++) {
-    const y0 = f * LQ_BANDA, y1 = Math.min(outH, y0 + LQ_BANDA - 1);   // la ultima fila de cada franja, vacia
+    const y0 = f * LQ_BANDA, y1 = Math.min(outH, y0 + LQ_BANDA);
     for (let k = 0; k < outW; k++) {
       const v = val[f * outW + k];
       if (!(v > umbral)) continue;
@@ -417,7 +420,7 @@ class LqHeat {
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
     const r = lq.res, p = this.p;
-    if (!r || !p || !lq.lut || !r.gV) return;
+    if (!r || !p || !lq.lut || !r.gZ) return;
     target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
       const ts = lq.chart.timeScale(), vr = ts.getVisibleLogicalRange();
       if (!vr) return;
@@ -454,7 +457,7 @@ class LqPerfil {
       for (let y = 0; y < H; y += paso) {
         const tr = lqTramosEntre(p.series, y, y + paso);
         let v = 0;
-        if (tr) for (let b = tr[0]; b <= tr[1]; b++) v = Math.max(v, r.gV[b * r.n + t]);
+        if (tr) for (let b = tr[0]; b <= tr[1]; b++) v = Math.max(v, r.gZ[b * r.n + t]);
         if (v <= umbral) v = 0;
         filas.push([y, v]); mx = Math.max(mx, v);
       }
@@ -537,10 +540,11 @@ function lqTip(prm) {
   if (t < 0 || t >= r.n) return fuera();
   const fila = Math.floor(prm.point.y / LQ_BANDA), tr = lqTramosEntre(lq.serie, fila * LQ_BANDA, (fila + 1) * LQ_BANDA);
   if (!tr) return fuera();
-  let mx = 0;
-  for (let b = tr[0]; b <= tr[1]; b++) mx = Math.max(mx, r.gV[b * r.n + t]);
+  let mx = 0, bc = tr[0];
+  for (let b = tr[0]; b <= tr[1]; b++) if (r.gZ[b * r.n + t] > mx) { mx = r.gZ[b * r.n + t]; bc = b; }
   if (!(mx > (lq.min / 100) * r.topeV)) return fuera();   // solo sobre lo que se ve pintado
-  const lo = r.bordes[tr[0]], hi = r.bordes[tr[1] + 1], nv = r.niveles, porL = new Map();
+  // la zona: +-LQ_ZONA alrededor del tramo mas cargado de la fila; su desglose suma lo mismo que el color
+  const lo = r.bordes[Math.max(0, bc - r.rZ)], hi = r.bordes[Math.min(r.B, bc + r.rZ + 1)], nv = r.niveles, porL = new Map();
   let suma = 0, nace0 = Infinity, nace1 = -Infinity, cortos = 0;
   for (let k = 0; k < nv.N; k++) {
     if (nv.p[k] < lo || nv.p[k] >= hi || t < nv.i[k] || t >= nv.toque[k]) continue;
@@ -632,7 +636,7 @@ $("lqMin").addEventListener("input", (e) => {
   if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); }
   if (lq.datos && lq.res) lqLectura();   // lineas y grupos: solo lo que se ve
 });
-$("lqMin").addEventListener("change", () => store.set("lqMin4", lq.min));
+$("lqMin").addEventListener("change", () => store.set("lqMin5", lq.min));
 $("lqPreset").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const x = LQ_PRESET[b.dataset.v];

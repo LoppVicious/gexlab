@@ -19,6 +19,10 @@ const LQ_TF = {
 const LQ_BANDA = 4;   // alto en pixeles de cada fila del mapa y del perfil, sin hueco: las filas seguidas forman zonas
 const LQ_ZONA = 0.004;   // cada fila suma lo que hay a +-0,4 % del precio
 const LQ_VIDA_MIN = 6;   // velas: un nivel que el precio toca antes no se pinta
+// intensidad minima con histeresis: una zona se enciende al pasar el umbral y solo se apaga al bajar de esta fraccion
+// de el; entre los dos se va desvaneciendo. Sin eso, las zonas que rondan el umbral (su parte del OI cambia un poco en
+// cada vela) salian a trozos
+const LQ_PISO = 0.5;
 // curva del color: con el reparto real (en ETH diario la mediana de las casillas es un 2 % del tope y el percentil 99 un
 // 72 %), 0,45 deja amarillo el 1 % mas cargado, verde el 5 % y verde azulado el 10 %; lo demas, azul que se apaga
 const LQ_CURVA = 0.45;
@@ -411,19 +415,21 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     }
   }
   // escala fija del activo y el marco (r.topeV, del modelo): el zoom cambia la resolucion, nunca los colores
-  const tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope;
+  const tope = r.topeV > 0 ? r.topeV : 1, umbral = (lq.min / 100) * tope, piso = umbral * LQ_PISO;
   const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
   for (let f = 0; f < nb; f++) {
     const y0 = f * LQ_BANDA, y1 = Math.min(outH, y0 + LQ_BANDA);
+    let on = false;
     for (let k = 0; k < outW; k++) {
       const v = val[f * outW + k];
-      if (!(v > umbral)) continue;
-      const i = lqIdx(v, tope) * 4;
+      on = on ? v > piso : v > umbral;
+      if (!on) continue;
+      const i = lqIdx(v, tope) * 4, al = v >= umbral ? 1 : 0.25 + (0.75 * (v - piso)) / (umbral - piso);
       for (let y = y0; y < y1; y++) {
         const o = (y * outW + k) * 4;
-        px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3];
+        px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2]; px[o + 3] = lut[i + 3] * al;
       }
     }
   }
@@ -562,7 +568,7 @@ function lqTip(prm) {
   if (!tr) return fuera();
   let mx = 0, bc = tr[0];
   for (let b = tr[0]; b <= tr[1]; b++) if (r.gZ[b * r.n + t] > mx) { mx = r.gZ[b * r.n + t]; bc = b; }
-  if (!(mx > (lq.min / 100) * r.topeV)) return fuera();   // solo sobre lo que se ve pintado
+  if (!(mx > (lq.min / 100) * r.topeV * LQ_PISO)) return fuera();   // solo sobre lo que puede estar pintado
   // la zona: +-LQ_ZONA alrededor del tramo mas cargado de la fila; su desglose suma lo mismo que el color
   const lo = r.bordes[Math.max(0, bc - r.rZ)], hi = r.bordes[Math.min(r.B, bc + r.rZ + 1)], nv = r.niveles, porL = new Map();
   let suma = 0, nace0 = Infinity, nace1 = -Infinity, cortos = 0;

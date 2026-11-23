@@ -32,7 +32,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   15m salía lleno de zonas y 1h casi vacío. Ahora en cada vela lo pintado se reparte el open interest de ese momento,
   según lo que el modelo da por abierto (las posiciones de hace semanas pesan menos; antes, en 1 hora, niveles de hace
   dos meses a más de un 10 % del precio se quedaban el 87 % y lo de cerca no se veía), y 15m, 1h y 4h están en la
-  misma escala. Un nivel sigue dibujado hasta que el precio lo toca, pero se apaga con la edad.
+  misma escala. Un nivel sigue dibujado hasta que el precio lo toca, pero se apaga con la edad. Para que las zonas
+  que rondan la intensidad mínima no salgan a trozos, una zona encendida solo se apaga al bajar a la mitad del umbral
+  y entre medias se va desvaneciendo.
 
 ## 2026-11-22 — Mapa de liquidaciones: más claro y fácil (tooltip, leyenda en dólares, Swing y Scalp), Expand y pantalla completa, carga más fluida, filtro de apalancamientos; historial diario con BRK.B y BF.B; página Sentiment (put/call de 1 a 100 por ticker)
 

@@ -188,7 +188,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   suma: el zoom no enciende las filas), sin hueco entre filas, una columna por vela visible. Color frente a `topeV`, fijo
   para el activo y el marco (el zoom no cambia los colores) (`lqPaleta`: una rampa del fondo a azul,
   verde azulado, verde y amarillo con colores del tema; índice `lqIdx` = (v / topeV)^0,45, que en ETH diario deja
-  amarillo el 1 % más cargado); solo lo que pasa la intensidad mínima (30 % por defecto, `lqMin5`: con
+  amarillo el 1 % más cargado); solo lo que pasa la intensidad mínima, con histéresis (`LQ_PISO`: una zona encendida
+  se apaga al bajar a la mitad del umbral y entre medias se desvanece; sin ella salían a trozos) (30 % por defecto, `lqMin5`: con
   datos de Binance quedan de 8 a 15 zonas vivas por activo y marco). Por defecto, todos los apalancamientos (`lqLevOff3`); ocultar uno solo quita sus franjas. Perfil: la
   última columna del mapa, con su escala; el grupo mayor a cada lado como línea con etiqueta en el eje (Longs, Shorts).
 - **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario

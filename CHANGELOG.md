@@ -20,7 +20,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   y vista inicial de un día en 5 min, una semana en 1 h y ocho meses en diario. Los niveles que el precio toca en menos
   de 6 velas no se pintan. Mismo aspecto: fondo morado, velas verdes y rojas, lo flojo en un morado algo más claro y
   un perfil a la derecha que resume toda la vista (suma de cada nivel en las velas que se ven). El eje de precios llega hasta el grupo mayor de cada lado (en BTC diario, los largos de
-  54.679 quedaban fuera del gráfico).
+  54.679 quedaban fuera del gráfico). Las líneas Longs y Shorts van en color neutro: el rojo y el verde quedan solo para
+  lo cargadas que están las bandas.
 - **Crypto, mapa de liquidaciones, una fila de controles:** activo (lista con buscador en lugar de diez botones),
   marco, Settings (Swing y Scalp, apalancamientos, intensidad mínima y exchanges), Copy image y Full screen. Debajo del
   mapa, la leyenda de color y el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details.

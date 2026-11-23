@@ -485,8 +485,9 @@ function lqNivelesClave(g) {
   const linea = (x, col, titulo) => lq.lineas.push(lq.serie.createPriceLine({ price: x.p, color: col, lineWidth: 1, lineStyle: 2,
     axisLabelVisible: true, title: `${titulo} ${lqUsd(x.a)}` }));
   const arriba = g.arriba.slice().sort((p, q) => q.a - p.a)[0], abajo = g.abajo.slice().sort((p, q) => q.a - p.a)[0];
-  if (arriba) linea(arriba, C.put, "Shorts");
-  if (abajo) linea(abajo, C.call, "Longs");
+  // color neutro: el rojo y el verde quedan solo para la carga de las bandas (antes chocaban con el lado)
+  if (arriba) linea(arriba, C.text, "Shorts");
+  if (abajo) linea(abajo, C.text, "Longs");
   // el eje de precios llega hasta esos dos grupos (como en mapaliquidaciones.com): si no, el mayor de cada lado
   // quedaba fuera del grafico cuando estaba lejos de las velas (BTC diario: los largos de 54.679, a un 11 %)
   const antes = lq.extremos;

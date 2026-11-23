@@ -193,7 +193,7 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   escalones (morado flojo, azul marino, azul, verde, amarillo y rojo desde 0, 25, 40, 56, 75 y 92 %) y velas verdes y
   rojas. Perfil: resume toda la vista (en cada fila, la suma de lo vivo en las velas que se ven), con su propia escala
   (su barra mayor es roja); el grupo mayor a cada lado como línea con etiqueta en el eje (Longs,
-  Shorts), con la intensidad mínima frente al más cargado de la última vela. El ajuste automático del eje de precios incluye esos
+  Shorts) en color neutro (`C.text`: el rojo y el verde son solo de la carga de las bandas), con la intensidad mínima frente al más cargado de la última vela. El ajuste automático del eje de precios incluye esos
   dos grupos (`lq.extremos`, `autoscaleInfoProvider` de la serie de velas).
 - **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario
   5x a 25x, y Scalp, 15 min 25x a 100x, apalancamientos, intensidad mínima y exchanges; se cierra al pulsar fuera o con

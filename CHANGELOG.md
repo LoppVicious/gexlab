@@ -23,7 +23,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Crypto, mapa de liquidaciones, una fila de controles:** activo (lista con buscador en lugar de diez botones),
   marco, Settings (Swing y Scalp, apalancamientos, intensidad mínima y exchanges), Copy image y Full screen. Debajo del
   mapa, la leyenda de color y el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details.
-  Fuera Older (cada marco ya pide toda la historia que da la fuente) y Expand (lo cubre Full screen).
+  Fuera Older (cada marco ya pide toda la historia que da la fuente), Expand (lo cubre Full screen) y el panel de
+  liquidaciones reales bajo las velas (siguen en la leyenda al pasar el ratón y en la fiabilidad del modelo).
 
 **Corregido**
 - **Crypto, mapa de liquidaciones, «oi is not iterable»:** si la fuente devolvía algo que no era la lista esperada, el

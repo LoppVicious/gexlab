@@ -30,7 +30,7 @@ const lq = {
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
   min: +store.get("lqMin6", 10), vida: "1",
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
-  chart: null, serie: null, hist: null, heat: null, prof: null, ctrl: null, error: "",
+  chart: null, serie: null, heat: null, prof: null, ctrl: null, error: "",
 };
 
 function lqLib() {
@@ -80,7 +80,7 @@ function lqMensaje(t, reintentar = false) {
 function lqVaciar() {
   Object.assign(lq, { datos: null, res: null, clave: "", resClave: "" });
   if (!lq.chart) return;
-  lq.serie.setData([]); lq.hist.setData([]);
+  lq.serie.setData([]);
   for (const l of lq.lineas || []) lq.serie.removePriceLine(l);
   lq.lineas = []; lq.extremos = null;
   $("lqIman").textContent = ""; $("lqRead").innerHTML = "";
@@ -294,12 +294,6 @@ function lqSeries(nuevos) {
   const d = lq.datos, p = d.velas[d.velas.length - 1].c, dec = lqDec(p);
   lq.serie.applyOptions({ priceFormat: { type: "price", precision: dec, minMove: 1 / 10 ** dec } });
   lq.serie.setData(d.velas.map((v) => ({ time: v.t, open: v.o, high: v.h, low: v.l, close: v.c })));
-  lq.hist.setData(d.velas.map((v, i) => {
-    const l = d.realL[i], s = d.realS[i];
-    if (l == null && s == null) return { time: v.t };
-    // la barra mayor manda: largos hacia abajo (rojo), cortos hacia arriba (verde)
-    return (s || 0) >= (l || 0) ? { time: v.t, value: s || 0, color: C.put } : { time: v.t, value: -(l || 0), color: C.call };
-  }));
   lq.chart.applyOptions({ timeScale: { timeVisible: d.tf !== "1D", secondsVisible: false } });
   if (nuevos) lqVista();
 }
@@ -318,7 +312,6 @@ function lqVista() {
     // si se habia arrastrado o ampliado el eje de precios, la libreria apaga el ajuste automatico y el eje se quedaba
     // en los precios del activo anterior: con datos nuevos vuelve a ajustarse
     lq.serie.priceScale().applyOptions({ autoScale: true });
-    lq.hist.priceScale().applyOptions({ autoScale: true });
   });
 }
 
@@ -513,9 +506,6 @@ function lqChart() {
     } });
   lq.heat = new LqHeat(); lq.serie.attachPrimitive(lq.heat);
   lq.prof = new LqPerfil(); lq.serie.attachPrimitive(lq.prof);
-  lq.hist = lq.chart.addSeries(L.HistogramSeries, { priceLineVisible: false, lastValueVisible: false,
-    priceFormat: { type: "custom", formatter: (v) => lqUsd(Math.abs(v)) } }, 1);
-  try { lq.chart.panes()[1].setHeight(110); } catch { /* version sin paneles redimensionables */ }
   lq.chart.subscribeCrosshairMove((prm) => { lqLeyenda(prm); lqTip(prm); });
 }
 
@@ -630,7 +620,7 @@ function lqLectura() {
     "relative to what is on screen, from blue (least) to red (the most loaded in view), so they change when you zoom or scroll; " +
     "Min. intensity in Settings hides the weaker bands. Price tends to travel toward big bands: the forced orders feed the move. " +
     "Hover a band to see its size, distance and leverage mix. The right profile is " +
-    "what is still pending now; the bottom panel shows real liquidations (longs down, shorts up). " +
+    "what is still pending now. Real liquidations of each candle show in the legend at the top when you hover it. " +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
       : "No open interest for this choice: estimated from volume.");
 }
@@ -670,7 +660,7 @@ $("lqSym").addEventListener("focus", (e) => e.target.select());   // escribir en
 $("lqRetry").addEventListener("click", () => { lqMensaje(""); lqCargar(); });
 $("lqChart").addEventListener("mouseleave", () => { $("lqTip").hidden = true; });
 
-// imagen del mapa como en pantalla (velas, franjas, perfil, lineas y panel de liquidaciones reales) con una cabecera:
+// imagen del mapa como en pantalla (velas, franjas, perfil y lineas) con una cabecera:
 // activo, marco, fecha de la ultima vela, precio y la linea de liquidez mas cercana
 function lqPngBlob() {
   // la captura sale a la densidad de la pantalla: la cabecera, igual

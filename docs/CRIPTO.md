@@ -193,7 +193,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   dos grupos (`lq.extremos`, `autoscaleInfoProvider` de la serie de velas).
 - **Controles:** una fila: activo (caja con lista y buscador), marco, Settings (popover con los atajos Swing, diario
   5x a 25x, y Scalp, 15 min 25x a 100x, apalancamientos, intensidad mínima y exchanges; se cierra al pulsar fuera o con
-  Esc), Copy image y Full screen. Debajo del mapa, la leyenda de color en dólares (de la intensidad mínima al tope) y
+  Esc), Copy image y Full screen. Sin panel inferior: las liquidaciones reales de cada vela salen en la leyenda al pasar el
+  ratón y cuentan para la fiabilidad del modelo. Debajo del mapa, la leyenda de color en dólares (de la intensidad mínima al tope) y
   el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details. Tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de
   apalancamientos y fechas en que se abrieron). La vista inicial deja sitio al perfil según el ancho. Copy image
   (`lqPngBlob`: `takeScreenshot` de la librería con cabecera; si el portapapeles falla, descarga el PNG).

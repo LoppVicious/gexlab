@@ -107,7 +107,9 @@ function lqControles() {
     const x = LQ_PRESET[b.dataset.v];
     b.setAttribute("aria-checked", String(x.tf === lq.tf && [...x.levOff].sort().join(",") === off));
   });
-  $("lqLev").innerHTML = LQ_MODELO.APAL.map((x) => `<button role="checkbox" data-v="${x.L}" aria-checked="${!lq.levOff.has(String(x.L))}" title="Weight ${Math.round(x.w * 100)}%">${x.L}x</button>`).join("");
+  // en Heatmap no hay apalancamientos por debajo de 10x (LQ_DENSO): su boton queda apagado
+  $("lqLev").innerHTML = LQ_MODELO.APAL.map((x) => { const no = lqHeat() && !LQ_DENSO.some((d) => lqGrupo(d.L) === x.L);
+    return `<button role="checkbox" data-v="${x.L}" aria-checked="${!no && !lq.levOff.has(String(x.L))}"${no ? " disabled" : ""} title="${no ? "Not used in the Heatmap design" : `Weight ${Math.round(x.w * 100)}%`}">${x.L}x</button>`; }).join("");
   // el deslizador: en Classic, intensidad minima (fraccion del mas cargado); en Heatmap, zonas que se ven (percentil)
   const h = lqHeat(), sl = $("lqMin");
   Object.assign(sl, h ? { min: 10, max: 100, step: 5 } : { min: 0, max: 80, step: 5 });
@@ -280,13 +282,15 @@ function lqReales(liq) {
 }
 
 /* ---------- modelo y dibujo */
-// Heatmap: en vez de 5 apalancamientos, muchos (de 3x a 125x, repartidos en log): cada posicion deja una banda gruesa
+// Heatmap: en vez de 5 apalancamientos, muchos (de 10x a 125x, repartidos en log): cada posicion deja una banda gruesa
 // hecha de rayas finas con su parte mas cargada en el centro, no cinco rayas sueltas. Cada uno hereda el peso del
-// apalancamiento de APAL mas cercano (en log), a partes iguales entre los que le tocan, y se oculta con su boton
+// apalancamiento de APAL mas cercano (en log), a partes iguales entre los que le tocan, y se oculta con su boton. Sin
+// 3x a 9x: llenaban de largos todo lo de debajo del precio (ETH 4h, 1.450-1.650 en noviembre), donde chartbeyond no
+// pinta nada; con 10x+ sus bandas (1.760 de agosto a noviembre, 2.340 en septiembre) salen en el mismo sitio
 const lqGrupo = (L) => LQ_MODELO.APAL.reduce((a, x) => (Math.abs(Math.log(x.L / L)) < Math.abs(Math.log(a.L / L)) ? x : a)).L;
 const LQ_DENSO = (() => {
   const Ls = [];
-  for (let k = 0; k < 28; k++) { const L = Math.round(3 * Math.pow(125 / 3, k / 27)); if (!Ls.includes(L)) Ls.push(L); }
+  for (let k = 0; k < 20; k++) { const L = Math.round(10 * Math.pow(125 / 10, k / 19)); if (!Ls.includes(L)) Ls.push(L); }
   const cuantos = new Map();
   for (const L of Ls) cuantos.set(lqGrupo(L), (cuantos.get(lqGrupo(L)) || 0) + 1);
   return Ls.map((L) => ({ L, w: LQ_MODELO.APAL.find((x) => x.L === lqGrupo(L)).w / cuantos.get(lqGrupo(L)) }));
@@ -364,7 +368,7 @@ function lqTabla() {
 }
 // Heatmap: curva de la fraccion antes de la paleta (por encima de 1, casi todo queda morado y solo lo muy cargado se
 // enciende, como en la referencia)
-const LQ_CURVA = 1.15;
+const LQ_CURVA = 1.35;
 // color de una fraccion (0-1) del mas cargado: su escalon o, en Heatmap, su punto de la paleta continua (con LQ_CURVA)
 const lqColor = (x) => {
   if (lqHeat()) return lq.tabla[Math.min(255, Math.max(0, Math.round(Math.pow(x, LQ_CURVA) * 255)))];
@@ -434,7 +438,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     }
   }
   // Heatmap: bandas difuminadas en vertical, se ve el `zonas` % mas cargado de lo pintado y el amarillo empieza en el
-  // percentil 99,5 (no en el maximo: si no, una sola banda se lleva el amarillo y el resto queda azul)
+  // percentil 99,8 (casi el maximo: un pico suelto no apaga todo lo demas)
   let umbral = (lq.min / 100) * mx, fA = -1, fB = -1;
   if (lqHeat() && mx > 0) {
     for (let f = 0; f < nb && fA < 0; f++) for (let k = 0; k < outW; k++) if (val[f * outW + k] > 0) { fA = f; break; }
@@ -447,7 +451,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     m.sort((a, b) => a - b);
     // lo difuminado casi nulo no cuenta como zona
     const util = m.length ? m.slice(m.findIndex((v) => v > m[m.length - 1] * 0.004)) : m;
-    mx = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * 0.995))] : 0;
+    mx = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * 0.998))] : 0;
     umbral = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * (1 - lq.zonas / 100)))] * (lq.zonas >= 100 ? 0 : 1) : 0;
     if (lq.zonas >= 100) umbral = util.length ? util[0] * 0.999 : 0;
     const extra = Math.ceil(sig * 2);

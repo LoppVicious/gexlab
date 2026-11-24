@@ -31,6 +31,15 @@ const THEME_EXTRA = {
     bar: "#7b879c", barOp: 0.7, area: 0.22, vol: ["#5145e5", "#6a3df0", "#e11d6a", "#c27c0e", "#0b9b6a"],
     liq: { fondo: "#f3f0fa", escalones: ["#e2dcf1", "#c3d3e8", "#6f9cc8", "#3f9d3c", "#d6a60a", "#e0362c"], sube: "#16a34a", baja: "#dc2626" } },
 };
+// diseno Heatmap del mapa de liquidaciones (web/liq.js): oscuro en los dos temas, como un mapa de calor de terminal.
+// fondo fuera de los datos, base morada bajo el calor, paleta continua de morado a amarillo (posicion: fraccion del
+// mas cargado de la vista), velas, ejes y RSI con sus zonas de sobrecompra y sobreventa
+const LIQ_HEAT = { fondo: "#000000", base: "#1a0e30",
+  paleta: [[0, "#261447"], [0.12, "#3a1e78"], [0.28, "#33389c"], [0.45, "#2563b4"], [0.6, "#1d93b8"], [0.72, "#22b39a"],
+    [0.84, "#5cc85a"], [0.93, "#b9dc2f"], [1, "#f6e71f"]],
+  sube: "#47a8f0", baja: "#f0a12a", texto: "#b9b6c8", eje: "#26232f", cruz: "#6e6a80", precio: "#e8e8ee", etiqueta: "#1b1a22",
+  rsi: "#a374f0", sobre: "rgba(240, 161, 42, 0.13)", bajo: "rgba(71, 168, 240, 0.12)", nivel: "rgba(185, 182, 200, 0.35)" };
+THEME_EXTRA.dark.liqH = LIQ_HEAT; THEME_EXTRA.light.liqH = LIQ_HEAT;
 Object.keys(THEMES).forEach((k) => Object.assign(THEMES[k], THEME_EXTRA[k]));
 const C = Object.assign({}, THEMES[document.documentElement.dataset.theme === "light" ? "light" : "dark"]);
 // letra de los graficos (en pantalla tema.css aplica la del tema; esta vale para las imagenes exportadas)

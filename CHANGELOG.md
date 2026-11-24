@@ -3,7 +3,15 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-24 — Mapa de liquidaciones: largos y cortos repartidos a medias entre vela y volumen
+## 2026-11-24 — Mapa de liquidaciones: diseño Heatmap a elegir y largos y cortos repartidos a medias
+
+**Añadido**
+- **Crypto, mapa de liquidaciones, diseño Heatmap:** selector Classic / Heatmap junto a los marcos (se recuerda; por
+  defecto Heatmap) para comparar los dos con el mismo cálculo. Heatmap imita un mapa de calor de terminal: gráfico
+  oscuro también en tema claro, base morada, color continuo de morado a azul, verde y amarillo (lo más cargado de la
+  vista), las bandas que siguen vivas continúan hasta el borde derecho por el espacio del futuro (casi un tercio del
+  ancho), velas azules y naranjas, máximo y mínimo de la vista marcados con su precio, sin perfil ni líneas Shorts y
+  Longs, y RSI 14 debajo con las zonas de 70 y 30 sombreadas. Classic queda como estaba.
 
 **Cambiado**
 - **Crypto, mapa de liquidaciones, reparto entre largos y cortos:** cada posición nueva se reparte mitad según la

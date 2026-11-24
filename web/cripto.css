@@ -180,6 +180,8 @@ body.cx-noscroll { overflow: hidden; }
 .lq-iman { margin: 10px 2px 0; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .lq-iman b { color: var(--text); font-weight: 700; }
 .lq-wrap { position: relative; }
+/* diseno Heatmap: el grafico es oscuro en los dos temas; leyenda, aviso de carga y tooltip con los tokens oscuros */
+.lq-wrap.lq-heat { --surface: #121214; --panel: #121214; --line: #2e2e34; --text: #fafafa; --muted: #a1a1aa; --faint: #71717a; }
 .lq-chart { height: min(68vh, 680px); min-height: 420px; }
 .lq-leg { position: absolute; left: 8px; top: 6px; right: 170px; z-index: 3; font-size: 12px; color: var(--muted); pointer-events: none;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

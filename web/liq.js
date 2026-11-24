@@ -28,10 +28,13 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin6", 10), vida: "1",
+  min: +store.get("lqMin6", 10), vida: "1", dis: store.get("lqDis", "heat") === "clasico" ? "clasico" : "heat",
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
-  chart: null, serie: null, heat: null, prof: null, ctrl: null, error: "",
+  chart: null, serie: null, heat: null, prof: null, ctrl: null, error: "", rsi: null,
 };
+// diseno: "clasico" (escalones de color y perfil a la derecha) o "heat" (paleta continua, bandas que siguen hacia el
+// futuro, sin perfil, maximo y minimo de la vista marcados y RSI debajo; colores en C.liqH)
+const lqHeat = () => lq.dis === "heat";
 
 function lqLib() {
   if (window.LightweightCharts) return Promise.resolve();
@@ -93,6 +96,7 @@ function lqControles() {
   $("lqList").innerHTML = ms.map((a) => `<option value="${esc(a.sym)}">${esc(a.nombre)}</option>`).join("");
   $("lqSym").value = lq.sym;
   document.querySelectorAll("#lqTf button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === lq.tf)));
+  document.querySelectorAll("#lqDis button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.v === lq.dis)));
   const a = lqActivo(), ex = lq.merc.exchanges || {};
   const exs = Object.keys(ex).filter((e) => a && a.ex[e]), activos = exs.filter((e) => !lq.exOff.has(e)).length;
   $("lqEx").innerHTML = exs.map((e) => `<button role="checkbox" data-v="${e}" aria-checked="${!lq.exOff.has(e)}">${esc(ex[e])}</button>`).join("");
@@ -295,6 +299,7 @@ function lqSeries(nuevos) {
   lq.serie.applyOptions({ priceFormat: { type: "price", precision: dec, minMove: 1 / 10 ** dec } });
   lq.serie.setData(d.velas.map((v) => ({ time: v.t, open: v.o, high: v.h, low: v.l, close: v.c })));
   lq.chart.applyOptions({ timeScale: { timeVisible: d.tf !== "1D", secondsVisible: false } });
+  lqRsiSerie();
   if (nuevos) lqVista();
 }
 
@@ -304,7 +309,8 @@ function lqVista() {
   requestAnimationFrame(() => {
     const d = lq.datos;
     if (!d) return;
-    const n = d.velas.length, ancho = lq.chart.timeScale().width() || 800, W = lqAnchoPerfil(ancho) + 20;
+    // Heatmap: casi un tercio del ancho para las bandas que siguen hacia el futuro
+    const n = d.velas.length, ancho = lq.chart.timeScale().width() || 800, W = lqHeat() ? Math.round(ancho * 0.3) : lqAnchoPerfil(ancho) + 20;
     // en pantallas estrechas, menos velas (la libreria no las junta a menos de medio pixel); margen en velas que deja
     // el ancho del perfil (mas un respiro) despues de la ultima vela
     const ver = Math.min(n, LQ_TF[d.tf].ver, Math.floor((ancho - W) / 0.6)), margen = Math.ceil((ver * W) / Math.max(1, ancho - W));
@@ -325,17 +331,35 @@ function lqPaleta() {
   const e = C.liq.escalones;
   return [0, 0.25, 0.4, 0.56, 0.75, 0.92].map((x, j) => [x, lqHex(e[j])]);
 }
-// color del escalon de una fraccion (0-1) del mas cargado
-const lqColor = (x) => { const e = lq.escalones; let j = 0; while (j < e.length - 1 && x >= e[j + 1][0]) j++; return e[j][1]; };
+// Heatmap: tabla de 256 colores interpolados entre las paradas de C.liqH.paleta
+function lqTabla() {
+  const st = C.liqH.paleta.map(([x, c]) => [x, lqHex(c)]), t = [];
+  for (let i = 0; i < 256; i++) {
+    const x = i / 255;
+    let j = 0;
+    while (j < st.length - 2 && x > st[j + 1][0]) j++;
+    const [x0, a] = st[j], [x1, b] = st[j + 1], f = Math.min(1, Math.max(0, (x - x0) / (x1 - x0 || 1)));
+    t.push(a.map((v, k) => Math.round(v + (b[k] - v) * f)));
+  }
+  return t;
+}
+// Heatmap: curva de la fraccion antes de la paleta (por encima de 1, casi todo queda morado y solo lo muy cargado se
+// enciende, como en la referencia)
+const LQ_CURVA = 1.15;
+// color de una fraccion (0-1) del mas cargado: su escalon o, en Heatmap, su punto de la paleta continua (con LQ_CURVA)
+const lqColor = (x) => {
+  if (lqHeat()) return lq.tabla[Math.min(255, Math.max(0, Math.round(Math.pow(x, LQ_CURVA) * 255)))];
+  const e = lq.escalones; let j = 0; while (j < e.length - 1 && x >= e[j + 1][0]) j++; return e[j][1];
+};
 
 // paleta y rejilla de precios: se rehacen al cambiar el calculo, la intensidad minima o el tema. El dibujo (y la
 // escala de color, frente a lo que se ve) se hace en lqPintar, con la vista de cada momento
 function lqImagen() {
   if (!lq.res) return;
-  const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme].join("|");
+  const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme, lq.dis].join("|");
   if (clave === lq.imgClave) return;
   const B = r.B;
-  lq.escalones = lqPaleta();
+  lq.escalones = lqPaleta(); lq.tabla = lqTabla();
   lq.lLo = Math.log(r.bordes[0]); lq.paso = (Math.log(r.bordes[B]) - lq.lLo) / B;
   lq.imgClave = clave; lq.pintado = null; lq.mxEscala = null;
   lqEscala();
@@ -344,10 +368,14 @@ function lqImagen() {
 // leyenda: los cinco escalones y, en dolares, desde donde empieza el rojo en la vista
 function lqEscala() {
   if (!lq.escalones) return;
-  const e = lq.escalones, rgb = (c) => `rgb(${c.join(",")})`;
+  const e = lq.escalones, rgb = (c) => `rgb(${c.join(",")})`, mx = lq.mxVista || 0;
+  if (lqHeat()) {
+    $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${C.liqH.paleta.map(([x, c]) => `${c} ${Math.round(Math.pow(x, 1 / LQ_CURVA) * 100)}%`).join(", ")})`;
+    $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (yellow: ${lqUsd(mx)})` : "Least to most loaded in view";
+    return;
+  }
   const w = 100 / e.length;
   $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${e.map((x, j) => `${rgb(x[1])} ${j * w}% ${(j + 1) * w}%`).join(", ")})`;
-  const mx = lq.mxVista || 0;
   $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (red: ${lqUsd(mx * e[e.length - 1][0])}+)` : "Least to most loaded in view";
 }
 
@@ -429,7 +457,12 @@ class LqHeat {
       const img = lqPintar(p.series, Math.min(ancho, mediaSize.width), mediaSize.height, c0, c1);
       ctx.save();
       ctx.imageSmoothingEnabled = false;
+      // Heatmap: base morada desde la primera vela con datos; fuera, el fondo del grafico
+      if (lqHeat()) { ctx.fillStyle = C.liqH.base; ctx.fillRect(Math.max(0, left), 0, mediaSize.width, mediaSize.height); }
       ctx.drawImage(img.cv, left, 0, ancho, mediaSize.height);
+      // Heatmap: lo pendiente en la ultima vela sigue hasta el borde derecho (las bandas que el precio no ha barrido)
+      const x0 = left + ancho;
+      if (lqHeat() && c1 === r.n - 1 && x0 < mediaSize.width) ctx.drawImage(img.cv, img.cv.width - 1, 0, 1, img.cv.height, x0, 0, mediaSize.width - x0, mediaSize.height);
       ctx.restore();
     });
   }
@@ -445,7 +478,7 @@ class LqPerfil {
   redraw() { if (this.p) this.p.requestUpdate(); }
   draw(target) {
     const r = lq.res, p = this.p, d = lq.datos;
-    if (!r || !p || !d || !lq.escalones) return;
+    if (!r || !p || !d || !lq.escalones || lqHeat()) return;
     const vr = lq.chart.timeScale().getVisibleLogicalRange();
     if (!vr) return;
     const c0 = Math.max(0, Math.floor(vr.from)), c1 = Math.min(r.n - 1, Math.ceil(vr.to));
@@ -485,9 +518,10 @@ function lqNivelesClave(g) {
   const linea = (x, col, titulo) => lq.lineas.push(lq.serie.createPriceLine({ price: x.p, color: col, lineWidth: 1, lineStyle: 2,
     axisLabelVisible: true, title: `${titulo} ${lqUsd(x.a)}` }));
   const arriba = g.arriba.slice().sort((p, q) => q.a - p.a)[0], abajo = g.abajo.slice().sort((p, q) => q.a - p.a)[0];
-  // color neutro: el rojo y el verde quedan solo para la carga de las bandas (antes chocaban con el lado)
-  if (arriba) linea(arriba, C.text, "Shorts");
-  if (abajo) linea(abajo, C.text, "Longs");
+  // color neutro: el rojo y el verde quedan solo para la carga de las bandas (antes chocaban con el lado). En Heatmap no
+  // hay lineas: los grupos se leen en la paleta y en la lectura de debajo
+  if (arriba && !lqHeat()) linea(arriba, C.text, "Shorts");
+  if (abajo && !lqHeat()) linea(abajo, C.text, "Longs");
   // el eje de precios llega hasta esos dos grupos (como en mapaliquidaciones.com): si no, el mayor de cada lado
   // quedaba fuera del grafico cuando estaba lejos de las velas (BTC diario: los largos de 54.679, a un 11 %)
   const antes = lq.extremos;
@@ -514,22 +548,122 @@ function lqChart() {
     } });
   lq.heat = new LqHeat(); lq.serie.attachPrimitive(lq.heat);
   lq.prof = new LqPerfil(); lq.serie.attachPrimitive(lq.prof);
+  lq.marcas = new LqMarcas(); lq.serie.attachPrimitive(lq.marcas);
   lq.chart.subscribeCrosshairMove((prm) => { lqLeyenda(prm); lqTip(prm); });
 }
 
 function lqTema() {
   if (!lq.chart) return;
-  const font = getComputedStyle(document.body).fontFamily;
+  const font = getComputedStyle(document.body).fontFamily, h = lqHeat(), H = C.liqH;
+  $("lqChart").parentElement.classList.toggle("lq-heat", h);
+  const eje = h ? H.eje : C.axis, cruz = h ? H.cruz : C.faint, etq = h ? H.etiqueta : C.surface;
   lq.chart.applyOptions({
-    layout: { background: { type: "solid", color: C.liq.fondo }, textColor: C.muted, fontFamily: font, fontSize: 12,
-      panes: { separatorColor: C.axis, separatorHoverColor: C.grid } },
+    layout: { background: { type: "solid", color: h ? H.fondo : C.liq.fondo }, textColor: h ? H.texto : C.muted, fontFamily: font, fontSize: 12,
+      panes: { separatorColor: eje, separatorHoverColor: h ? H.cruz : C.grid } },
     grid: { vertLines: { color: "rgba(0,0,0,0)" }, horzLines: { color: "rgba(0,0,0,0)" } },
-    rightPriceScale: { borderColor: C.axis }, timeScale: { borderColor: C.axis },
-    crosshair: { vertLine: { color: C.faint, labelBackgroundColor: C.surface }, horzLine: { color: C.faint, labelBackgroundColor: C.surface } },
+    rightPriceScale: { borderColor: eje }, timeScale: { borderColor: eje },
+    crosshair: { vertLine: { color: cruz, labelBackgroundColor: etq }, horzLine: { color: cruz, labelBackgroundColor: etq } },
   });
-  lq.serie.applyOptions({ upColor: C.liq.sube, downColor: C.liq.baja, borderUpColor: C.liq.sube, borderDownColor: C.liq.baja,
-    wickUpColor: C.liq.sube, wickDownColor: C.liq.baja, priceLineColor: C.amber });
+  const up = h ? H.sube : C.liq.sube, dn = h ? H.baja : C.liq.baja;
+  lq.serie.applyOptions({ upColor: up, downColor: dn, borderUpColor: up, borderDownColor: dn,
+    wickUpColor: up, wickDownColor: dn, priceLineColor: h ? H.precio : C.amber });
+  lqRsiSerie();
   if (lq.res) { lq.imgClave = ""; lqImagen(); lqSeries(false); lqLectura(); lq.heat.redraw(); }
+}
+
+/* ---------- Heatmap: RSI debajo y maximo y minimo de la vista */
+// RSI de Wilder sobre los cierres
+function lqRsiCalc(velas, p = 14) {
+  const out = [];
+  let ganan = 0, pierden = 0;
+  for (let i = 1; i < velas.length; i++) {
+    const x = velas[i].c - velas[i - 1].c, g = Math.max(0, x), l = Math.max(0, -x);
+    if (i <= p) { ganan += g / p; pierden += l / p; if (i < p) continue; }
+    else { ganan = (ganan * (p - 1) + g) / p; pierden = (pierden * (p - 1) + l) / p; }
+    out.push({ time: velas[i].t, value: pierden > 0 ? 100 - 100 / (1 + ganan / pierden) : 100 });
+  }
+  return out;
+}
+
+// panel del RSI: solo en Heatmap (al volver a Classic se quita la serie y la libreria quita su panel)
+function lqRsiSerie() {
+  if (!lq.chart) return;
+  const L = window.LightweightCharts;
+  if (!lqHeat()) {
+    if (lq.rsi) { lq.chart.removeSeries(lq.rsi); lq.rsi = null; }
+    return;
+  }
+  if (!lq.rsi) {
+    lq.rsi = lq.chart.addSeries(L.LineSeries, { lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
+      priceFormat: { type: "price", precision: 2, minMove: 0.01 }, crosshairMarkerVisible: false,
+      autoscaleInfoProvider: () => ({ priceRange: { minValue: 10, maxValue: 90 } }) }, 1);
+    lq.rsi.attachPrimitive(new LqRsiZonas());
+    const pane = lq.chart.panes()[1];
+    if (pane) pane.setHeight(Math.round($("lqChart").clientHeight * 0.16));
+  }
+  lq.rsi.applyOptions({ color: C.liqH.rsi });
+  lq.rsi.setData(lq.datos ? lqRsiCalc(lq.datos.velas) : []);
+}
+
+// zonas del RSI: por encima de 70 y por debajo de 30 sombreadas, con sus lineas, y el nombre arriba a la izquierda
+class LqRsiZonas {
+  constructor() { this.p = null; this.view = { zOrder: () => "bottom", renderer: () => ({ draw: (t) => this.draw(t) }) }; }
+  attached(p) { this.p = p; }
+  detached() { this.p = null; }
+  paneViews() { return [this.view]; }
+  draw(target) {
+    const p = this.p;
+    if (!p) return;
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      const H = C.liqH, y70 = p.series.priceToCoordinate(70), y30 = p.series.priceToCoordinate(30);
+      if (y70 == null || y30 == null) return;
+      const W = mediaSize.width;
+      ctx.save();
+      ctx.fillStyle = H.sobre; ctx.fillRect(0, 0, W, y70);
+      ctx.fillStyle = H.bajo; ctx.fillRect(0, y30, W, mediaSize.height - y30);
+      ctx.strokeStyle = H.nivel; ctx.setLineDash([3, 3]); ctx.lineWidth = 1;
+      for (const y of [y70, y30]) { ctx.beginPath(); ctx.moveTo(0, Math.round(y) + 0.5); ctx.lineTo(W, Math.round(y) + 0.5); ctx.stroke(); }
+      ctx.setLineDash([]);
+      ctx.fillStyle = H.texto; ctx.font = `11px ${getComputedStyle(document.body).fontFamily}`; ctx.textBaseline = "top";
+      ctx.fillText("RSI 14", 8, 5);
+      ctx.restore();
+    });
+  }
+}
+
+// maximo y minimo de las velas que se ven, con su precio (como las marcas de un terminal)
+class LqMarcas {
+  constructor() { this.p = null; this.view = { zOrder: () => "top", renderer: () => ({ draw: (t) => this.draw(t) }) }; }
+  attached(p) { this.p = p; }
+  detached() { this.p = null; }
+  paneViews() { return [this.view]; }
+  draw(target) {
+    const d = lq.datos, p = this.p;
+    if (!d || !p || !lqHeat()) return;
+    const ts = lq.chart.timeScale(), vr = ts.getVisibleLogicalRange();
+    if (!vr) return;
+    const n = d.velas.length, c0 = Math.max(0, Math.ceil(vr.from)), c1 = Math.min(n - 1, Math.floor(vr.to));
+    if (c1 <= c0) return;
+    let iH = c0, iL = c0;
+    for (let i = c0; i <= c1; i++) { if (d.velas[i].h > d.velas[iH].h) iH = i; if (d.velas[i].l < d.velas[iL].l) iL = i; }
+    target.useMediaCoordinateSpace(({ context: ctx, mediaSize }) => {
+      const H = C.liqH, dec = lqDec(d.velas[n - 1].c);
+      ctx.save();
+      ctx.font = `600 11px ${getComputedStyle(document.body).fontFamily}`;
+      for (const [i, precio, arriba] of [[iH, d.velas[iH].h, true], [iL, d.velas[iL].l, false]]) {
+        const x = ts.logicalToCoordinate(i), y = p.series.priceToCoordinate(precio);
+        if (x == null || y == null) continue;
+        const txt = fmtNum(precio, dec), w = ctx.measureText(txt).width + 10, yy = arriba ? y - 9 : y + 9;
+        // a la izquierda si no cabe a la derecha
+        const der = x + 8 + w < mediaSize.width, bx = der ? x + 8 : x - 8 - w;
+        ctx.strokeStyle = H.texto; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x, Math.round(y) + 0.5); ctx.lineTo(x, Math.round(yy) + 0.5); ctx.lineTo(der ? bx : bx + w, Math.round(yy) + 0.5); ctx.stroke();
+        ctx.fillStyle = H.etiqueta; ctx.fillRect(bx, yy - 8, w, 16);
+        ctx.fillStyle = H.precio; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 5, yy + 0.5);
+      }
+      ctx.restore();
+    });
+  }
 }
 
 function lqLeyenda(prm) {
@@ -548,7 +682,8 @@ function lqTip(prm) {
   const el = $("lqTip"), r = lq.res, d = lq.datos;
   const fuera = () => { el.hidden = true; };
   if (!r || !d || !prm || !prm.point || prm.logical == null || prm.paneIndex) return fuera();
-  const t = Math.round(prm.logical);
+  // en Heatmap, a la derecha de la ultima vela se lee lo pendiente (lo que pinta la extension de las bandas)
+  const t = lqHeat() ? Math.min(r.n - 1, Math.round(prm.logical)) : Math.round(prm.logical);
   if (t < 0 || t >= r.n) return fuera();
   const fila = Math.floor(prm.point.y / LQ_BANDA), tr = lqTramosEntre(lq.serie, fila * LQ_BANDA, (fila + 1) * LQ_BANDA);
   if (!tr) return fuera();
@@ -627,8 +762,9 @@ function lqLectura() {
     `sweeps it (it shrinks if open interest falls); levels that price hit within ${LQ_VIDA_MIN} candles are left out. Colors are ` +
     "relative to what is on screen, from blue (least) to red (the most loaded in view), so they change when you zoom or scroll; " +
     "Min. intensity in Settings hides the weaker bands. Price tends to travel toward big bands: the forced orders feed the move. " +
-    "Hover a band to see its size, distance and leverage mix. The right profile is " +
-    "what is still pending now. Real liquidations of each candle show in the legend at the top when you hover it. " +
+    "Hover a band to see its size, distance and leverage mix. " +
+    (lqHeat() ? "Bands that run past the last candle are still pending now (Heatmap design: continuous colors, RSI 14 below). "
+      : "The right profile is what is still pending now. ") + "Real liquidations of each candle show in the legend at the top when you hover it. " +
     (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
       : "No open interest for this choice: estimated from volume.");
 }
@@ -639,6 +775,14 @@ $("lqSym").addEventListener("change", (e) => {
   if (lq.merc && lq.merc.activos.some((a) => a.sym === v)) { lqSet({ sym: v }); } else e.target.value = lq.sym;
 });
 $("lqTf").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) { lqSet({ tf: b.dataset.v }); } });
+// cambio de diseno: mismo calculo, otro dibujo
+$("lqDis").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || b.dataset.v === lq.dis) return;
+  lq.dis = b.dataset.v; store.set("lqDis", lq.dis);
+  lqControles(); lqTema();
+  if (lq.datos) { lqVista(); lq.prof.redraw(); }
+});
 $("lqEx").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const s = new Set(lq.exOff); if (s.has(b.dataset.v)) s.delete(b.dataset.v); else s.add(b.dataset.v);

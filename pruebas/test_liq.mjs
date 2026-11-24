@@ -246,4 +246,8 @@ test("lado vela: una vela que sube abre largos y una que baja, cortos", () => {
   const nv = r.niveles, de = (i, lado) => { let s = 0; for (let k = 0; k < nv.N; k++) if (nv.i[k] === i && nv.lado[k] === lado) s += nv.a0[k]; return s; };
   assert.ok(Math.abs(de(1, 0) - 1000) < 1e-6 && de(1, 1) === 0);   // la que sube: todo largos
   assert.ok(Math.abs(de(2, 1) - 1000) < 1e-6 && de(2, 0) === 0);   // la que baja: todo cortos
+  // a medias con el volumen comprador (bv / v = 0,5): 3/4 y 1/4
+  const m = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, lado: 0.5 }).niveles;
+  const de2 = (i, lado) => { let s = 0; for (let k = 0; k < m.N; k++) if (m.i[k] === i && m.lado[k] === lado) s += m.a0[k]; return s; };
+  assert.ok(Math.abs(de2(1, 0) - 750) < 1e-6 && Math.abs(de2(1, 1) - 250) < 1e-6);
 });

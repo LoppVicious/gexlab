@@ -3,6 +3,15 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-24 — Mapa de liquidaciones: largos y cortos repartidos a medias entre vela y volumen
+
+**Cambiado**
+- **Crypto, mapa de liquidaciones, reparto entre largos y cortos:** cada posición nueva se reparte mitad según la
+  dirección de la vela y mitad según el volumen comprador. Solo con la vela, un rebote como el de BTC del 21 y 22 de
+  noviembre ponía casi todo en largos y dejaba vacío lo de arriba (mapaliquidaciones.com marca allí, en 65.000-66.000,
+  lo más cargado). Ahora el perfil de BTC en 1 h tiene su máximo en 66.200 y el de ETH en diario sigue debajo del
+  precio (1.665-1.678), como en esa web.
+
 ## 2026-11-23 — Crypto más limpio: tira de resumen arriba, mapa de liquidaciones como mapaliquidaciones.com y una fila de controles
 
 **Cambiado**

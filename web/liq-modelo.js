@@ -88,7 +88,12 @@ const LQ_MODELO = (() => {
       // siempre esta entre 0,48 y 0,52, asi que repartia cada posicion a medias y llenaba de cortos lo que habia por
       // encima en cada subida (en ETH diario, mas liquidez arriba que abajo; mapaliquidaciones.com, al reves)
       const v = velas[i], cuerpo = v.h > v.l ? (v.c - v.o) / (v.h - v.l) : 0;
-      const fc = o.lado === "vela" ? Math.min(1, Math.max(0, 0.5 + 0.5 * cuerpo)) : v.v > 0 ? Math.min(1, Math.max(0, v.bv / v.v)) : 0.5;
+      // o.lado numerico (0 a 1): peso de la direccion de la vela frente al volumen comprador. Solo la vela ponia
+      // casi todo lo abierto en un rebote en largos (BTC 1h, 21-22 nov: nada por encima); solo el volumen, al reves
+      // en ETH diario. A medias (la web) cuadra los dos con mapaliquidaciones.com
+      const wv = o.lado === "vela" ? 1 : typeof o.lado === "number" ? Math.min(1, Math.max(0, o.lado)) : 0;
+      const fV = Math.min(1, Math.max(0, 0.5 + 0.5 * cuerpo)), fB = v.v > 0 ? Math.min(1, Math.max(0, v.bv / v.v)) : 0.5;
+      const fc = wv * fV + (1 - wv) * fB;
       const largos = [], cortos = [];
       for (const x of levs) {
         const w = x.w / pw;

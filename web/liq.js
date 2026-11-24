@@ -279,7 +279,7 @@ function lqCalcular(nuevos = false) {
   const clave = [lq.clave, ver.join(","), lq.vida].join("|");
   if (clave !== lq.resClave) {
     lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel,
-      anchoMapa: cfg.am, vidaMin: LQ_VIDA_MIN, lado: "vela",
+      anchoMapa: cfg.am, vidaMin: LQ_VIDA_MIN, lado: 0.5,
       escalaDesde: d.velas.length - cfg.ver });   // colores frente a lo que se ve al abrir, no a toda la historia
     lq.resClave = clave; lq.imgClave = "";
   }

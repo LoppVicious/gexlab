@@ -12,6 +12,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   vista), las bandas que siguen vivas continúan hasta el borde derecho por el espacio del futuro (casi un tercio del
   ancho), velas azules y naranjas, máximo y mínimo de la vista marcados con su precio, sin perfil ni líneas Shorts y
   Longs, y RSI 14 debajo con las zonas de 70 y 30 sombreadas. Classic queda como estaba.
+  Para parecerse a chartbeyond: cada posición se reparte entre 27 apalancamientos de 3x a 125x (no 5), así las bandas
+  salen gruesas, hechas de rayas finas y con escalones donde el precio las barre; el deslizador pasa a ser **Zones
+  shown** (70 % por defecto: se pinta ese porcentaje de las zonas más cargadas de la vista, como su ajuste), el amarillo
+  empieza en el percentil 99,5 de la vista (varias bandas pueden llegar a amarillo), un difuminado vertical leve y el
+  fondo morado solo donde hay liquidez. Los botones de apalancamiento agrupan los finos en el de 5x a 100x más cercano.
 
 **Cambiado**
 - **Crypto, mapa de liquidaciones, reparto entre largos y cortos:** cada posición nueva se reparte mitad según la

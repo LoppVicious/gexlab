@@ -9,13 +9,14 @@
 const LQ_LIB = "https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js";
 // marcos: intervalo de Coinalyze, segundos por vela, historia que se pide, vida media de una posicion (velas), cuantas
 // velas se ven al abrir (como mapaliquidaciones.com: un dia en 5 min, una semana en 1 h, meses en diario) y que
-// fraccion del rango de cada vela reparte sus niveles (am: en diario, menos, que una vela abarca mucho)
+// fraccion del rango de cada vela reparte sus niveles (am: en diario, menos, que una vela abarca mucho). suave: en el
+// diseno Heatmap, desviacion (fraccion del precio) de un difuminado vertical leve: suaviza las rayas sin borrarlas
 const LQ_TF = {
-  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, am: 0.6, nombre: "5 minutes" },
-  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, am: 0.6, nombre: "15 minutes" },
-  "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 168, am: 0.6, nombre: "1 hour" },
-  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 180, am: 0.3, nombre: "4 hours" },
-  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 240, am: 0.15, nombre: "daily" },
+  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, am: 0.6, nombre: "5 minutes", suave: 0.0005 },
+  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, am: 0.6, nombre: "15 minutes", suave: 0.0008 },
+  "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 168, am: 0.6, nombre: "1 hour", suave: 0.0015 },
+  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 180, am: 0.3, nombre: "4 hours", suave: 0.003 },
+  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 240, am: 0.15, nombre: "daily", suave: 0.006 },
 };
 const LQ_BANDA = 2;   // alto en pixeles de cada fila del mapa y del perfil
 const LQ_VIDA_MIN = 6;   // velas: un nivel que el precio toca antes no se pinta
@@ -28,7 +29,7 @@ const lq = {
   merc: null, sym: store.get("lqSym", "BTC"), tf: store.get("lqTf", "1D"),
   exOff: new Set(String(store.get("lqExOff", "")).split(",").filter(Boolean)),
   levOff: new Set(String(store.get("lqLevOff3", "")).split(",").filter(Boolean)),
-  min: +store.get("lqMin6", 10), vida: "1", dis: store.get("lqDis", "heat") === "clasico" ? "clasico" : "heat",
+  min: +store.get("lqMin6", 10), zonas: +store.get("lqZonas", 70), vida: "1", dis: store.get("lqDis", "heat") === "clasico" ? "clasico" : "heat",
   datos: null, clave: "", at: 0, res: null, resClave: "", img: null, imgClave: "",
   chart: null, serie: null, heat: null, prof: null, ctrl: null, error: "", rsi: null,
 };
@@ -107,7 +108,12 @@ function lqControles() {
     b.setAttribute("aria-checked", String(x.tf === lq.tf && [...x.levOff].sort().join(",") === off));
   });
   $("lqLev").innerHTML = LQ_MODELO.APAL.map((x) => `<button role="checkbox" data-v="${x.L}" aria-checked="${!lq.levOff.has(String(x.L))}" title="Weight ${Math.round(x.w * 100)}%">${x.L}x</button>`).join("");
-  $("lqMin").value = lq.min; $("lqMinV").textContent = lq.min + "%";
+  // el deslizador: en Classic, intensidad minima (fraccion del mas cargado); en Heatmap, zonas que se ven (percentil)
+  const h = lqHeat(), sl = $("lqMin");
+  Object.assign(sl, h ? { min: 10, max: 100, step: 5 } : { min: 0, max: 80, step: 5 });
+  sl.value = h ? lq.zonas : lq.min; $("lqMinV").textContent = (h ? lq.zonas : lq.min) + "%";
+  $("lqMinLab").textContent = h ? "Zones shown" : "Min. intensity";
+  sl.parentElement.title = h ? "Share of the loaded zones in view that are painted: lower hides the weakest" : "Hide the weakest zones";
 }
 
 function lqSet(cambio) {
@@ -274,15 +280,28 @@ function lqReales(liq) {
 }
 
 /* ---------- modelo y dibujo */
+// Heatmap: en vez de 5 apalancamientos, muchos (de 3x a 125x, repartidos en log): cada posicion deja una banda gruesa
+// hecha de rayas finas con su parte mas cargada en el centro, no cinco rayas sueltas. Cada uno hereda el peso del
+// apalancamiento de APAL mas cercano (en log), a partes iguales entre los que le tocan, y se oculta con su boton
+const lqGrupo = (L) => LQ_MODELO.APAL.reduce((a, x) => (Math.abs(Math.log(x.L / L)) < Math.abs(Math.log(a.L / L)) ? x : a)).L;
+const LQ_DENSO = (() => {
+  const Ls = [];
+  for (let k = 0; k < 28; k++) { const L = Math.round(3 * Math.pow(125 / 3, k / 27)); if (!Ls.includes(L)) Ls.push(L); }
+  const cuantos = new Map();
+  for (const L of Ls) cuantos.set(lqGrupo(L), (cuantos.get(lqGrupo(L)) || 0) + 1);
+  return Ls.map((L) => ({ L, w: LQ_MODELO.APAL.find((x) => x.L === lqGrupo(L)).w / cuantos.get(lqGrupo(L)) }));
+})();
+
 function lqCalcular(nuevos = false) {
   const d = lq.datos;
   if (!d) return;
-  const cfg = LQ_TF[d.tf];
+  const cfg = LQ_TF[d.tf], h = lqHeat();
   // ocultar un apalancamiento solo quita sus franjas: el reparto y los colores siguen calculados con todos
-  const ver = LQ_MODELO.APAL.map((x) => x.L).filter((L) => !lq.levOff.has(String(L)));
-  const clave = [lq.clave, ver.join(","), lq.vida].join("|");
+  const ver = (h ? LQ_DENSO : LQ_MODELO.APAL).map((x) => x.L).filter((L) => !lq.levOff.has(String(lqGrupo(L))));
+  const clave = [lq.clave, ver.join(","), lq.vida, lq.dis].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, vida: cfg.vida * +lq.vida, bins: 600, nivel: d.nivel,
+    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, levs: h ? LQ_DENSO : undefined, vida: cfg.vida * +lq.vida,
+      bins: h ? 1000 : 600, nivel: d.nivel,
       anchoMapa: cfg.am, vidaMin: LQ_VIDA_MIN, lado: 0.5,
       escalaDesde: d.velas.length - cfg.ver });   // colores frente a lo que se ve al abrir, no a toda la historia
     lq.resClave = clave; lq.imgClave = "";
@@ -356,7 +375,7 @@ const lqColor = (x) => {
 // escala de color, frente a lo que se ve) se hace en lqPintar, con la vista de cada momento
 function lqImagen() {
   if (!lq.res) return;
-  const r = lq.res, clave = [lq.resClave, lq.min, document.documentElement.dataset.theme, lq.dis].join("|");
+  const r = lq.res, clave = [lq.resClave, lq.min, lq.zonas, document.documentElement.dataset.theme, lq.dis].join("|");
   if (clave === lq.imgClave) return;
   const B = r.B;
   lq.escalones = lqPaleta(); lq.tabla = lqTabla();
@@ -371,7 +390,7 @@ function lqEscala() {
   const e = lq.escalones, rgb = (c) => `rgb(${c.join(",")})`, mx = lq.mxVista || 0;
   if (lqHeat()) {
     $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${C.liqH.paleta.map(([x, c]) => `${c} ${Math.round(Math.pow(x, 1 / LQ_CURVA) * 100)}%`).join(", ")})`;
-    $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (yellow: ${lqUsd(mx)})` : "Least to most loaded in view";
+    $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (yellow: ${lqUsd(mx)}+)` : "Least to most loaded in view";
     return;
   }
   const w = 100 / e.length;
@@ -414,9 +433,28 @@ function lqPintar(serie, ancho, alto, c0, c1) {
       if (v > mx) mx = v;
     }
   }
-  lq.mxVista = mx;
+  // Heatmap: bandas difuminadas en vertical, se ve el `zonas` % mas cargado de lo pintado y el amarillo empieza en el
+  // percentil 99,5 (no en el maximo: si no, una sola banda se lleva el amarillo y el resto queda azul)
+  let umbral = (lq.min / 100) * mx, fA = -1, fB = -1;
+  if (lqHeat() && mx > 0) {
+    for (let f = 0; f < nb && fA < 0; f++) for (let k = 0; k < outW; k++) if (val[f * outW + k] > 0) { fA = f; break; }
+    for (let f = nb - 1; f >= 0 && fB < 0; f--) for (let k = 0; k < outW; k++) if (val[f * outW + k] > 0) { fB = f; break; }
+    const lA = Math.log(pTop), lB = Math.log(pBot);
+    const sig = (LQ_TF[lq.datos.tf].suave * nb) / Math.max(1e-9, Math.abs(lA - lB));   // filas por desviacion
+    lqDifuminar(val, nb, outW, sig);
+    const m = [], paso = Math.max(1, Math.floor((nb * outW) / 40000));
+    for (let x = 0; x < val.length; x += paso) if (val[x] > 0) m.push(val[x]);
+    m.sort((a, b) => a - b);
+    // lo difuminado casi nulo no cuenta como zona
+    const util = m.length ? m.slice(m.findIndex((v) => v > m[m.length - 1] * 0.004)) : m;
+    mx = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * 0.995))] : 0;
+    umbral = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * (1 - lq.zonas / 100)))] * (lq.zonas >= 100 ? 0 : 1) : 0;
+    if (lq.zonas >= 100) umbral = util.length ? util[0] * 0.999 : 0;
+    const extra = Math.ceil(sig * 2);
+    fA = fA < 0 ? -1 : Math.max(0, fA - extra); fB = fB < 0 ? -1 : Math.min(nb - 1, fB + extra);
+  }
+  lq.mxVista = mx; lq.umbralVista = umbral;
   if (mx !== lq.mxEscala) { lq.mxEscala = mx; lqEscala(); }
-  const umbral = (lq.min / 100) * mx;
   const cv = lq.pintado ? lq.pintado.cv : document.createElement("canvas");
   cv.width = outW; cv.height = outH;
   const ctx = cv.getContext("2d"), im = ctx.createImageData(outW, outH), px = im.data;
@@ -425,7 +463,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     for (let k = 0; k < outW; k++) {
       const v = val[f * outW + k];
       if (!(v > umbral)) continue;
-      const c = lqColor(v / mx);
+      const c = lqColor(Math.min(1, v / mx));
       for (let y = y0; y < y1; y++) {
         const o = (y * outW + k) * 4;
         px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255;
@@ -433,8 +471,26 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     }
   }
   ctx.putImageData(im, 0, 0);
-  lq.pintado = { clave, cv };
+  lq.pintado = { clave, cv, yA: fA < 0 ? 0 : fA * LQ_BANDA, yB: fB < 0 ? outH : (fB + 1) * LQ_BANDA };
   return lq.pintado;
+}
+
+// difuminado vertical de cada columna (tres pasadas de media movil, casi gaussiano) con `sig` filas de desviacion
+function lqDifuminar(val, nb, outW, sig) {
+  const r = Math.round(sig * 0.9);
+  if (r < 1) return;
+  const col = new Float64Array(nb), ac = new Float64Array(nb + 1);
+  for (let k = 0; k < outW; k++) {
+    for (let f = 0; f < nb; f++) col[f] = val[f * outW + k];
+    for (let pasada = 0; pasada < 3; pasada++) {
+      for (let f = 0; f < nb; f++) ac[f + 1] = ac[f] + col[f];
+      for (let f = 0; f < nb; f++) {
+        const a = Math.max(0, f - r), b = Math.min(nb, f + r + 1);
+        col[f] = (ac[b] - ac[a]) / (2 * r + 1);
+      }
+    }
+    for (let f = 0; f < nb; f++) val[f * outW + k] = col[f];
+  }
 }
 
 class LqHeat {
@@ -458,7 +514,8 @@ class LqHeat {
       ctx.save();
       ctx.imageSmoothingEnabled = false;
       // Heatmap: base morada desde la primera vela con datos; fuera, el fondo del grafico
-      if (lqHeat()) { ctx.fillStyle = C.liqH.base; ctx.fillRect(Math.max(0, left), 0, mediaSize.width, mediaSize.height); }
+      // y en vertical solo donde hay liquidez (fuera, el fondo negro)
+      if (lqHeat()) { ctx.fillStyle = C.liqH.base; ctx.fillRect(Math.max(0, left), img.yA, mediaSize.width, img.yB - img.yA); }
       ctx.drawImage(img.cv, left, 0, ancho, mediaSize.height);
       // Heatmap: lo pendiente en la ultima vela sigue hasta el borde derecho (las bandas que el precio no ha barrido)
       const x0 = left + ancho;
@@ -689,7 +746,11 @@ function lqTip(prm) {
   if (!tr) return fuera();
   let mx = 0;
   for (let b = tr[0]; b <= tr[1]; b++) mx = Math.max(mx, r.gZ[b * r.n + t]);
-  if (!(mx > (lq.min / 100) * (lq.mxVista || 0))) return fuera();   // solo sobre lo que se ve pintado
+  if (lqHeat()) {   // las bandas estan difuminadas: se mira la banda de alrededor del cursor
+    const tz = lqTramosEntre(lq.serie, prm.point.y - 8, prm.point.y + 8) || tr;
+    for (let b = tz[0]; b <= tz[1]; b++) mx = Math.max(mx, r.gZ[b * r.n + t]);
+    if (!(mx > 0)) return fuera();
+  } else if (!(mx > (lq.min / 100) * (lq.mxVista || 0))) return fuera();   // solo sobre lo que se ve pintado
   // el desglose: los niveles de la banda alrededor del cursor (8 px a cada lado; cada nivel se reparte en varios
   // tramos, asi que una fila de 2 px casi nunca contiene su precio central)
   const ancho = lqTramosEntre(lq.serie, prm.point.y - 8, prm.point.y + 8) || tr;
@@ -699,7 +760,8 @@ function lqTip(prm) {
     if (nv.p[k] < lo || nv.p[k] >= hi || t < nv.i[k] || t >= nv.toque[k]) continue;
     const a = LQ_MODELO.enMapa(r, k, t);
     if (!(a > 0)) continue;
-    suma += a; porL.set(nv.L[k], (porL.get(nv.L[k]) || 0) + a);
+    const gL = lqGrupo(nv.L[k]);   // en Heatmap, cada apalancamiento fino cuenta en el de APAL mas cercano
+    suma += a; porL.set(gL, (porL.get(gL) || 0) + a);
     if (nv.lado[k]) cortos += a;
     nace0 = Math.min(nace0, nv.i[k]); nace1 = Math.max(nace1, nv.i[k]);
   }
@@ -725,7 +787,7 @@ function lqLectura() {
   // lo mismo que pinta el mapa ahora (con la intensidad minima): las lineas y los grupos siempre caen sobre una franja
   let mxUlt = 0;
   for (let b = 0; b < r.B; b++) mxUlt = Math.max(mxUlt, r.gZ[b * r.n + r.n - 1]);
-  const umbral = (lq.min / 100) * mxUlt;
+  const umbral = lqHeat() ? 0 : (lq.min / 100) * mxUlt;
   const pr = LQ_MODELO.presion(r, precio, pct, umbral), g = LQ_MODELO.grupos(r, precio, 3, pct * 2, umbral);
   lqNivelesClave(g);
   let veredicto, cls = "";
@@ -781,7 +843,7 @@ $("lqDis").addEventListener("click", (e) => {
   if (!b || b.dataset.v === lq.dis) return;
   lq.dis = b.dataset.v; store.set("lqDis", lq.dis);
   lqControles(); lqTema();
-  if (lq.datos) { lqVista(); lq.prof.redraw(); }
+  if (lq.datos) { lqCalcular(); lqVista(); lq.prof.redraw(); }
 });
 $("lqEx").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
@@ -794,11 +856,13 @@ $("lqLev").addEventListener("click", (e) => {
   Object.assign(lq, { levOff: s }); store.set("lqLevOff3", [...s].join(",")); lqControles(); lqCalcular();
 });
 $("lqMin").addEventListener("input", (e) => {
-  lq.min = +e.target.value; $("lqMinV").textContent = lq.min + "%"; lqImagen();
+  const v = +e.target.value;
+  if (lqHeat()) lq.zonas = v; else lq.min = v;
+  $("lqMinV").textContent = v + "%"; lqImagen();
   if (lq.heat) { lq.heat.redraw(); lq.prof.redraw(); }
   if (lq.datos && lq.res) lqLectura();   // lineas y grupos: solo lo que se ve
 });
-$("lqMin").addEventListener("change", () => store.set("lqMin6", lq.min));
+$("lqMin").addEventListener("change", () => { store.set("lqMin6", lq.min); store.set("lqZonas", lq.zonas); });
 $("lqPreset").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
   const x = LQ_PRESET[b.dataset.v];

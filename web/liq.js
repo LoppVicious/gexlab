@@ -9,16 +9,17 @@
 const LQ_LIB = "https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js";
 // marcos: intervalo de Coinalyze, segundos por vela, historia que se pide, vida media de una posicion (velas), cuantas
 // velas se ven al abrir (como mapaliquidaciones.com: un dia en 5 min, una semana en 1 h, meses en diario) y que
-// fraccion del rango de cada vela reparte sus niveles (am: en diario, menos, que una vela abarca mucho). suave: en el
-// diseno Heatmap, desviacion (fraccion del precio) de un difuminado vertical leve: suaviza las rayas sin borrarlas
+// fraccion del rango de cada vela reparte sus niveles (am: en diario, menos, que una vela abarca mucho).
+// En el diseno Heatmap se usa la cuarta parte (LQ_AM_HEAT): rayas nitidas que se agrupan en bandas, como chartbeyond
 const LQ_TF = {
-  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, am: 0.6, nombre: "5 minutes", suave: 0.0005 },
-  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, am: 0.6, nombre: "15 minutes", suave: 0.0008 },
-  "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 168, am: 0.6, nombre: "1 hour", suave: 0.0015 },
-  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 180, am: 0.3, nombre: "4 hours", suave: 0.003 },
-  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 240, am: 0.15, nombre: "daily", suave: 0.006 },
+  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, am: 0.6, nombre: "5 minutes" },
+  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, am: 0.6, nombre: "15 minutes" },
+  "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 168, am: 0.6, nombre: "1 hour" },
+  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 180, am: 0.3, nombre: "4 hours" },
+  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 240, am: 0.15, nombre: "daily" },
 };
 const LQ_BANDA = 2;   // alto en pixeles de cada fila del mapa y del perfil
+const LQ_AM_HEAT = 0.25;   // Heatmap: fraccion del reparto por vela (am) de Classic
 const LQ_VIDA_MIN = 6;   // velas: un nivel que el precio toca antes no se pinta
 // atajos: marco y apalancamientos de cada forma de operar
 const LQ_PRESET = {
@@ -305,8 +306,8 @@ function lqCalcular(nuevos = false) {
   const clave = [lq.clave, ver.join(","), lq.vida, lq.dis].join("|");
   if (clave !== lq.resClave) {
     lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, levs: h ? LQ_DENSO : undefined, vida: cfg.vida * +lq.vida,
-      bins: h ? 1000 : 600, nivel: d.nivel,
-      anchoMapa: cfg.am, vidaMin: LQ_VIDA_MIN, lado: 0.5,
+      bins: h ? 2000 : 600, nivel: d.nivel,   // Heatmap: rejilla mas fina, para que cada nivel sea una raya
+      anchoMapa: h ? cfg.am * LQ_AM_HEAT : cfg.am, vidaMin: LQ_VIDA_MIN, lado: 0.5,
       escalaDesde: d.velas.length - cfg.ver });   // colores frente a lo que se ve al abrir, no a toda la historia
     lq.resClave = clave; lq.imgClave = "";
   }
@@ -437,25 +438,20 @@ function lqPintar(serie, ancho, alto, c0, c1) {
       if (v > mx) mx = v;
     }
   }
-  // Heatmap: bandas difuminadas en vertical, se ve el `zonas` % mas cargado de lo pintado y el amarillo empieza en el
-  // percentil 99,8 (casi el maximo: un pico suelto no apaga todo lo demas)
+  // Heatmap: se ve el `zonas` % mas cargado de lo pintado y el amarillo empieza en el percentil 99,8 (casi el maximo:
+  // un pico suelto no apaga todo lo demas). Sin difuminar: cada nivel es una raya nitida, como en chartbeyond (con
+  // difuminado las bandas se emborronaban en degradados de bordes ondulados)
   let umbral = (lq.min / 100) * mx, fA = -1, fB = -1;
   if (lqHeat() && mx > 0) {
     for (let f = 0; f < nb && fA < 0; f++) for (let k = 0; k < outW; k++) if (val[f * outW + k] > 0) { fA = f; break; }
     for (let f = nb - 1; f >= 0 && fB < 0; f--) for (let k = 0; k < outW; k++) if (val[f * outW + k] > 0) { fB = f; break; }
-    const lA = Math.log(pTop), lB = Math.log(pBot);
-    const sig = (LQ_TF[lq.datos.tf].suave * nb) / Math.max(1e-9, Math.abs(lA - lB));   // filas por desviacion
-    lqDifuminar(val, nb, outW, sig);
     const m = [], paso = Math.max(1, Math.floor((nb * outW) / 40000));
     for (let x = 0; x < val.length; x += paso) if (val[x] > 0) m.push(val[x]);
     m.sort((a, b) => a - b);
-    // lo difuminado casi nulo no cuenta como zona
+    // los restos casi nulos no cuentan como zona
     const util = m.length ? m.slice(m.findIndex((v) => v > m[m.length - 1] * 0.004)) : m;
     mx = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * 0.998))] : 0;
-    umbral = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * (1 - lq.zonas / 100)))] * (lq.zonas >= 100 ? 0 : 1) : 0;
-    if (lq.zonas >= 100) umbral = util.length ? util[0] * 0.999 : 0;
-    const extra = Math.ceil(sig * 2);
-    fA = fA < 0 ? -1 : Math.max(0, fA - extra); fB = fB < 0 ? -1 : Math.min(nb - 1, fB + extra);
+    umbral = !util.length ? 0 : lq.zonas >= 100 ? util[0] * 0.999 : util[Math.min(util.length - 1, Math.floor(util.length * (1 - lq.zonas / 100)))];
   }
   lq.mxVista = mx; lq.umbralVista = umbral;
   if (mx !== lq.mxEscala) { lq.mxEscala = mx; lqEscala(); }
@@ -479,23 +475,6 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   return lq.pintado;
 }
 
-// difuminado vertical de cada columna (tres pasadas de media movil, casi gaussiano) con `sig` filas de desviacion
-function lqDifuminar(val, nb, outW, sig) {
-  const r = Math.round(sig * 0.9);
-  if (r < 1) return;
-  const col = new Float64Array(nb), ac = new Float64Array(nb + 1);
-  for (let k = 0; k < outW; k++) {
-    for (let f = 0; f < nb; f++) col[f] = val[f * outW + k];
-    for (let pasada = 0; pasada < 3; pasada++) {
-      for (let f = 0; f < nb; f++) ac[f + 1] = ac[f] + col[f];
-      for (let f = 0; f < nb; f++) {
-        const a = Math.max(0, f - r), b = Math.min(nb, f + r + 1);
-        col[f] = (ac[b] - ac[a]) / (2 * r + 1);
-      }
-    }
-    for (let f = 0; f < nb; f++) val[f * outW + k] = col[f];
-  }
-}
 
 class LqHeat {
   constructor() { this.p = null; this.view = { zOrder: () => "bottom", renderer: () => ({ draw: (t) => this.draw(t) }) }; }

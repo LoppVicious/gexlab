@@ -18,7 +18,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   datos reales sus bandas salen en el mismo sitio (1.760 de agosto a noviembre, 2.340 en septiembre, cortos en 2.600 y
   2.800). El deslizador pasa a ser **Zones shown** (70 % por defecto: se pinta ese porcentaje de las zonas más cargadas
   de la vista, como su ajuste), el amarillo empieza en el percentil 99,8 de la vista con una curva que deja lo flojo en
-  morado, un difuminado vertical leve y el fondo morado solo donde hay liquidez. Los botones de apalancamiento agrupan
+  morado y el fondo morado solo donde hay liquidez. Sin difuminado y con el reparto de cada nivel por el rango de su
+  vela a una cuarta parte del de Classic, sobre una rejilla de precios el doble de fina: cada nivel es una raya nítida
+  y las bandas son bloques de bordes rectos que terminan donde el precio las barre (antes se veían emborronadas, en
+  degradados de bordes ondulados). Los botones de apalancamiento agrupan
   los finos en el de 10x a 100x más cercano; el de 5x queda apagado en Heatmap.
 
 **Cambiado**

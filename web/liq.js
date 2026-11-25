@@ -21,10 +21,8 @@ const LQ_TF = {
 const LQ_BANDA = 2;   // alto en pixeles de cada fila del mapa y del perfil
 const LQ_AM_HEAT = 0.25;   // Heatmap: fraccion del reparto por vela (am) de Classic
 // Heatmap, como chartbeyond: solo las ultimas velas abren posiciones (su mapa de 4h empieza unos 140 dias atras; con
-// toda la historia, los largos de enero a junio llenaban de azul lo de debajo del precio) y el color de cada fila es la
-// suma de su zona de precio (+-fraccion por marco): bloques gruesos de un color, no una raya amarilla entre azules
+// toda la historia, los largos de enero a junio llenaban de azul lo de debajo del precio)
 const LQ_VELAS_HEAT = 830;
-const LQ_ZONA_HEAT = { "5m": 0.001, "15m": 0.0015, "1h": 0.002, "4h": 0.004, "1D": 0.008 };
 const LQ_VIDA_MIN = 6;   // velas: un nivel que el precio toca antes no se pinta
 // atajos: marco y apalancamientos de cada forma de operar
 const LQ_PRESET = {
@@ -372,9 +370,8 @@ function lqTabla() {
   }
   return t;
 }
-// Heatmap: curva de la fraccion antes de la paleta. Con el color por zonas, algo por debajo de 1 sube los tonos medios
-// (los bloques de segundo orden salen verde azulado, como en chartbeyond)
-const LQ_CURVA = 0.85;
+// Heatmap: curva de la fraccion antes de la paleta (algo por encima de 1: lo normal queda morado y azul)
+const LQ_CURVA = 1.1;
 // color de una fraccion (0-1) del mas cargado: su escalon o, en Heatmap, su punto de la paleta continua (con LQ_CURVA)
 const lqColor = (x) => {
   if (lqHeat()) return lq.tabla[Math.min(255, Math.max(0, Math.round(Math.pow(x, LQ_CURVA) * 255)))];
@@ -400,8 +397,7 @@ function lqEscala() {
   const e = lq.escalones, rgb = (c) => `rgb(${c.join(",")})`, mx = lq.mxVista || 0;
   if (lqHeat()) {
     $("lqEscalaBarra").style.background = `linear-gradient(90deg, ${C.liqH.paleta.map(([x, c]) => `${c} ${Math.round(Math.pow(x, 1 / LQ_CURVA) * 100)}%`).join(", ")})`;
-    const z = fmtNum(LQ_ZONA_HEAT[lq.tf] * 100, 1);
-    $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (yellow: ${lqUsd(mx)} within ±${z}%)` : "Least to most loaded in view";
+    $("lqEscalaTxt").textContent = mx > 0 ? `Least to most loaded in view (yellow: ${lqUsd(mx)}+)` : "Least to most loaded in view";
     return;
   }
   const w = 100 / e.length;
@@ -432,8 +428,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   for (let k = 0; k < outW; k++) colDe[k] = Math.min(n - 1, c0 + Math.floor(((k + 0.5) * cols) / outW));
   const val = new Float64Array(nb * outW);
   let mx = 0;
-  if (lqHeat()) mx = lqPintarZonas(serie, val, nb, outW, colDe);
-  else for (let f = 0; f < nb; f++) {
+  for (let f = 0; f < nb; f++) {
     const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
     if (!tr) continue;
     for (let k = 0; k < outW; k++) {
@@ -445,8 +440,9 @@ function lqPintar(serie, ancho, alto, c0, c1) {
       if (v > mx) mx = v;
     }
   }
-  // Heatmap: se ve el `zonas` % mas cargado de lo pintado y el amarillo es la zona mas cargada de la vista. Sin
-  // difuminar (con difuminado las bandas se emborronaban en degradados de bordes ondulados)
+  // Heatmap: se ve el `zonas` % mas cargado de lo pintado y el amarillo empieza en el percentil 99,5 de la vista: un
+  // bloque cargado llega entero a amarillo, no solo su raya mayor. Cada tramo con su color, sin difuminar ni sumar
+  // zonas de precio (las dos cosas emborronaban las bandas en nubes)
   let umbral = (lq.min / 100) * mx, fA = -1, fB = -1;
   if (lqHeat() && mx > 0) {
     for (let f = 0; f < nb && fA < 0; f++) for (let k = 0; k < outW; k++) if (val[f * outW + k] > 0) { fA = f; break; }
@@ -456,6 +452,7 @@ function lqPintar(serie, ancho, alto, c0, c1) {
     m.sort((a, b) => a - b);
     // los restos casi nulos no cuentan como zona
     const util = m.length ? m.slice(m.findIndex((v) => v > m[m.length - 1] * 0.004)) : m;
+    mx = util.length ? util[Math.min(util.length - 1, Math.floor(util.length * 0.995))] : 0;
     umbral = !util.length ? 0 : lq.zonas >= 100 ? util[0] * 0.999 : util[Math.min(util.length - 1, Math.floor(util.length * (1 - lq.zonas / 100)))];
   }
   lq.mxVista = mx; lq.umbralVista = umbral;
@@ -480,40 +477,6 @@ function lqPintar(serie, ancho, alto, c0, c1) {
   return lq.pintado;
 }
 
-
-// Heatmap: en cada fila, la suma de los tramos a +-LQ_ZONA_HEAT del precio (la mayor de las sumas centradas en sus
-// tramos). Solo en el dibujo: la lectura, las lineas y el tooltip siguen con los tramos sin sumar. Devuelve el maximo
-function lqPintarZonas(serie, val, nb, outW, colDe) {
-  const r = lq.res, n = r.n, g = r.gZ, B = r.B;
-  const rZ = Math.max(0, Math.round(Math.log(1 + LQ_ZONA_HEAT[lq.datos.tf]) / lq.paso));
-  const trs = [];
-  let bMin = B, bMax = -1;
-  for (let f = 0; f < nb; f++) {
-    const tr = lqTramosEntre(serie, f * LQ_BANDA, (f + 1) * LQ_BANDA);
-    trs.push(tr);
-    if (tr) { bMin = Math.min(bMin, tr[0]); bMax = Math.max(bMax, tr[1]); }
-  }
-  if (bMax < 0) return 0;
-  const a0 = Math.max(0, bMin - rZ), a1 = Math.min(B - 1, bMax + rZ), ac = new Float64Array(a1 - a0 + 2);
-  let mx = 0, tPrev = -1;
-  for (let k = 0; k < outW; k++) {
-    const t = colDe[k];
-    if (t !== tPrev) { for (let b = a0; b <= a1; b++) ac[b - a0 + 1] = ac[b - a0] + g[b * n + t]; tPrev = t; }
-    for (let f = 0; f < nb; f++) {
-      const tr = trs[f];
-      if (!tr) continue;
-      let v = 0;
-      for (let b = tr[0]; b <= tr[1]; b++) {
-        const s = ac[Math.min(a1, b + rZ) - a0 + 1] - ac[Math.max(a0, b - rZ) - a0];
-        if (s > v) v = s;
-      }
-      // restos de redondeo de las restas: cero
-      val[f * outW + k] = v > ac[a1 - a0 + 1] * 1e-9 ? v : 0;
-      if (val[f * outW + k] > mx) mx = val[f * outW + k];
-    }
-  }
-  return mx;
-}
 
 class LqHeat {
   constructor() { this.p = null; this.view = { zOrder: () => "bottom", renderer: () => ({ draw: (t) => this.draw(t) }) }; }

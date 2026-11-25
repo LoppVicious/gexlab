@@ -202,15 +202,22 @@ def cadena(symbol: str) -> dict:
         })
     td = q.get("trade_date") or 0
     ts = datetime.fromtimestamp(td / 1000, tz=timezone.utc) if td else datetime.now(timezone.utc)
-    if q.get("type") == "index" and not td:  # sin hora de cotizacion el last llega desfasado (NDX)
-        spot = _cierre_hoy(api) or spot
-    prev = float(q.get("prevclose") or 0)  # RUT no lo trae: sin cambio diario, mejor que un 0 %
+    prev = float(q.get("prevclose") or 0)
+    paridad = False
+    if q.get("type") == "index" and not td:
+        # sin hora de cotizacion (NDX, RUT) el last llega parado: tras el cierre, el oficial de la vela diaria; si no,
+        # gex_engine.parse_chain lo saca de las propias opciones (paridad put-call). RUT tampoco trae prevclose.
+        cierre = _cierre_hoy(api)
+        spot, paridad = (cierre, False) if cierre else (spot, True)
+        prev = prev or _cierre_previo_csv(sym)
     data = {
         "symbol": sym, "current_price": spot, "close": spot, "prev_day_close": prev or spot,
         "price_change_percent": (spot / prev - 1) * 100 if prev else None, "iv30": None,
         "volume": q.get("volume"),  # acciones negociadas en la sesion (O/S de skew.py)
         "last_trade_time": ts.strftime("%Y-%m-%dT%H:%M:%S"), "options": options,
     }
+    if paridad:
+        data["spot_paridad"] = True
     return {"timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"), "source": "tradier", "data": data}
 
 
@@ -226,6 +233,17 @@ def _cierre_hoy(api: str) -> float | None:
     except Exception:  # noqa: BLE001
         return None
     return next((x["close"] for x in dias if x["date"] == hoy), None)
+
+
+def _cierre_previo_csv(sym: str) -> float:
+    """Cierre de la sesion anterior a la de las cotizaciones, del CSV diario de CBOE (RUT); 0 si no lo hay."""
+    import gex_engine as g
+    sesion = g.quote_time(g.now_ny()).strftime("%Y-%m-%d")
+    try:
+        ant = [r["close"] for r in g.daily_csv(sym) if r["date"] < sesion]
+    except Exception:  # noqa: BLE001
+        return 0.0
+    return float(ant[-1]) if ant else 0.0
 
 
 # ---------------------------------------------------------------- velas de 1 minuto (indices en tiempo real)
@@ -259,6 +277,9 @@ def velas(symbol: str, dias: int = 5) -> dict:
     from datetime import timedelta
     sym = symbol.upper()
     now = g.now_ny().replace(tzinfo=None, second=0, microsecond=0)
+    hit = _velas_cache.get((sym, dias))
+    if hit and hit[0] == now:  # el mismo minuto: el ETF ya se pidio para su indice (velas_indice)
+        return hit[1]
     ini = (now - timedelta(days=dias)).strftime("%Y-%m-%d") + " 09:30"
     d = _get(f"/markets/timesales?symbol={sym}&interval={VELA_MIN}min&start={ini.replace(' ', '%20')}"
              f"&end={now.strftime('%Y-%m-%d')}%2016:00&session_filter=open")
@@ -277,7 +298,47 @@ def velas(symbol: str, dias: int = 5) -> dict:
                     "price": {"open": o, "high": h, "low": l, "close": c}, "volume": b.get("volume")})
     if not out:
         raise TradierError(f"Tradier no tiene velas de {sym}")
-    return {"symbol": sym, "source": "tradier", "interval": f"{VELA_MIN}min", "data": out}
+    res = {"symbol": sym, "source": "tradier", "interval": f"{VELA_MIN}min", "data": out}
+    _velas_cache[(sym, dias)] = (now, res)
+    return res
+
+
+_velas_cache: dict = {}
+_cierres_indice: dict = {}
+
+
+def velas_indice(symbol: str, etf: str, spot: float, dias: int = 5) -> dict:
+    """Velas de 1 min de un indice que Tradier no da (NDX, RUT; las de CBOE dan 403 desde el 2026-11-20): las de su
+    ETF escaladas, como velas_pre. Cada sesion pasada, con el cociente de cierres indice / ETF de ese dia (indice:
+    vela diaria de Tradier o CSV de CBOE); la de hoy sin cierre del indice, con su precio actual (spot, de la paridad
+    put-call) entre el cierre de la ultima vela del ETF. Asi la ultima vela coincide con el precio del indice."""
+    import gex_engine as g
+    sym, etf = symbol.upper(), etf.upper()
+    base = velas(etf, dias)["data"]
+    ult = {}
+    for b in base:  # cierre de la ultima vela de cada dia
+        ult[str(b["datetime"])[:10]] = float(b["price"]["close"])
+    dia0 = min(ult)
+    if (sym, dia0) not in _cierres_indice:  # una vez al dia: cierres diarios del indice
+        try:
+            filas = historico(sym, dia0)["data"]
+        except Exception:  # noqa: BLE001  RUT: sin historico en Tradier
+            filas = [r for r in g.daily_csv(sym) if r["date"] >= dia0]
+        for k in [k for k in _cierres_indice if k[0] == sym]:
+            del _cierres_indice[k]
+        _cierres_indice[(sym, dia0)] = {r["date"]: float(r["close"]) for r in filas}
+    cierres = _cierres_indice[(sym, dia0)]
+    hoy = max(ult)
+    ratios = {d: cierres[d] / c for d, c in ult.items() if d in cierres and c > 0}
+    if hoy not in ratios or g.market_open(g.now_ny()):  # sesion en curso: el cierre diario aun no es el final
+        if spot > 0 and ult[hoy] > 0:
+            ratios[hoy] = spot / ult[hoy]
+    if not ratios:
+        raise TradierError(f"Sin cociente {sym}/{etf} para escalar las velas")
+    resto = ratios.get(hoy) or ratios[max(ratios)]
+    r = lambda v, k: round(float(v) * ratios.get(k, resto), 2)  # noqa: E731
+    out = [{**b, "price": {k: r(v, str(b["datetime"])[:10]) for k, v in b["price"].items()}} for b in base]
+    return {"symbol": sym, "source": "tradier", "interval": f"{VELA_MIN}min", "data": out, "escala_de": etf}
 
 
 def velas_pre(symbol: str, etf: str, indice: list[dict]) -> list[dict]:

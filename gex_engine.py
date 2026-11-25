@@ -1124,6 +1124,25 @@ def _iv_forward(sym: str, spot: float, K, C, E, bid, ask, iv_prov, delta_prov):
     return iv, F, delta
 
 
+def _spot_paridad(sym: str, spot: float, K, C, E, bid, ask) -> float | None:
+    """Precio del indice que descuentan sus opciones del vencimiento mas cercano con pares (paridad put-call, forward
+    descontado; los dividendos de unas horas o un dia no pesan). Para los indices cuyo ultimo precio no llega al dia
+    (NDX y RUT en Tradier). None si no hay pares o si se aleja mas de FORWARD_MAX_GAP del ultimo precio."""
+    if not K.size:
+        return None
+    q = quote_time(now_ny()).replace(second=0, microsecond=0)
+    t64 = np.datetime64(q)
+    for x in np.unique(E[E > t64])[:3]:
+        m = E == x
+        _, _, fwd = implied_forwards({"K": K[m], "call": C[m], "exp": E[m], "bid": bid[m], "ask": ask[m],
+                                      "spot": spot, "symbol": sym}, q)
+        f = fwd.get(str(x))
+        if f:
+            T = max(float((x - t64).astype("timedelta64[m]").astype(float)), 5.0) / YEAR_MIN
+            return f * math.exp(-risk_free() * T)
+    return None
+
+
 def parse_chain(raw: dict) -> dict:
     if "_min" in raw:  # paquete compacto (motor en la nube y navegador)
         return chain_from_min(raw["_min"])
@@ -1173,6 +1192,14 @@ def parse_chain(raw: dict) -> dict:
     spot = float(data.get("current_price") or data.get("close") or 0)
 
     K_, C_, E_ = strikes[keep], is_call[keep], expiry[keep]
+    chg = data.get("price_change_percent")
+    close = float(data.get("close") or spot)
+    prev = float(data.get("prev_day_close") or data.get("close") or spot)
+    if data.get("spot_paridad"):  # indice sin precio al dia en la fuente (NDX, RUT en Tradier)
+        s = _spot_paridad(sym, spot, K_, C_, E_, bid[keep], ask[keep])
+        if s:
+            spot = close = s
+            chg = (s / prev - 1) * 100 if prev and prev != float(data.get("current_price") or 0) else None
     iv_k, F_, delta_k = _iv_forward(sym, spot, K_, C_, E_, bid[keep], ask[keep], iv[keep], delta[keep])
 
     # IV de la opcion fuera de dinero (respecto al forward) en cada strike para las dos patas (paridad put-call):
@@ -1185,13 +1212,12 @@ def parse_chain(raw: dict) -> dict:
         ks = key[order]
         ref = dict(zip(ks[otm[order]], IV_[order][otm[order]]))
         IV_ = np.array([ref.get(k, v) for k, v in zip(key, IV_)])
-    chg = data.get("price_change_percent")
     return _reparar_cadena({
         "symbol": sym,
         "spot": spot,
-        "prev_close": float(data.get("prev_day_close") or data.get("close") or spot),
+        "prev_close": prev,
         "chg_pct": float(chg) if chg is not None else None,
-        "close": float(data.get("close") or spot),
+        "close": close,
         "timestamp": raw.get("timestamp") or data.get("last_trade_time"),
         "K": strikes[keep], "call": is_call[keep], "exp": expiry[keep],
         "oi": oi[keep], "iv": IV_, "iv_raw": iv_k, "bid": bid[keep], "ask": ask[keep], "delta": delta_k,

@@ -55,7 +55,8 @@ VAL_MODES = ["standard", "flow"]
 TIEMPO_REAL = ["SPX", "NDX", "RUT", "SPY", "QQQ", "IWM"]  # ciclo ligero cada minuto (motor.py rapido)
 TRAS_CIERRE_MIN = 15  # las opciones de los indices cotizan hasta las 16:15: el modo rapido sigue hasta entonces
 PASADA_SEG = 3        # segundos tras cada minuto en que empieza una pasada (la vela de 1 min ya esta cerrada)
-VELAS_TRADIER = {"SPX", "SPY", "QQQ", "IWM"}  # Tradier no da velas de NDX ni RUT: van con las de CBOE
+VELAS_TRADIER = {"SPX", "SPY", "QQQ", "IWM"}
+VELAS_ETF = {"NDX": "QQQ", "RUT": "IWM"}  # Tradier no da velas de NDX ni RUT (y CBOE da 403): las del ETF escaladas
 SIEMPRE = ["VIX"]   # se calculan cada ciclo aunque no esten en ninguna lista (paquete, historico, volatilidad)
 DEFAULT_VISTA = {"dte": "45", "range": "auto", "pos": "standard", "combo": "0", "sess": "auto", "model": "spotgamma"}
 
@@ -286,6 +287,13 @@ def paquete(sym: str) -> dict:
                 intr, velas = ft.velas(sym), "tradier"
         except Exception as e:  # noqa: BLE001
             err(f"{sym} velas de Tradier", e)
+    elif sym in VELAS_ETF:
+        try:
+            import fuente_tradier as ft
+            if ft.disponible() and not os.environ.get("GEX_FIXTURE_DIR"):
+                intr, velas = ft.velas_indice(sym, VELAS_ETF[sym], float(mn["spot"])), "tradier"
+        except Exception as e:  # noqa: BLE001
+            err(f"{sym} velas escaladas de {VELAS_ETF[sym]}", e)
     if not intr:
         intr = g.fetch_aux("intraday", sym, ttl=60)
     etf = g.PRE_PROXY.get(sym)

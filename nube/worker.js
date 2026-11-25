@@ -711,7 +711,7 @@ export default {
         const o = req.headers.get("Origin");
         if (o && o !== url.origin) return json(403, { error: "Origin not allowed" });
       }
-      if (p.startsWith("/api/report/")) return await report(req, env, url, { json, body, SEC_HEADERS });
+      if (p.startsWith("/api/report/") || p.startsWith("/api/flujos/")) return await report(req, env, url, { json, body, SEC_HEADERS });
       if (p.startsWith("/api/social/") && req.headers.get("Authorization")) {   // el skill /x-diario
         if (!(await tokenOk(req, env))) return json(404, { error: "not found" });
         return await social(req, env, url, { json, body, SEC_HEADERS });

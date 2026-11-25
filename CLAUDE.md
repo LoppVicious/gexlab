@@ -13,6 +13,7 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
   Takes: `node --test pruebas/test_takes.mjs pruebas/test_takes_api.mjs`.
   Report semanal: `python pruebas/test_report.py` y `node --test pruebas/test_report_api.mjs`; se genera con `/report-semanal` en Claude Code.
   Social (posts para X): `python pruebas/test_social.py` y `node --test pruebas/test_social_api.mjs`; textos con `/x-diario`.
+  Nota de flujos: `python pruebas/test_flujos.py`; borrador de Take con `/take-flujos`.
 - Historial local: `$env:GEX_ALMACEN="local:./data/x"; python historial500.py --forzar AAPL`
 - Deploy: push a `main` (`web/**`, `nube/**` o `gex_engine.py` lanza `desplegar.yml`). El usuario recarga con Ctrl+F5.
 - Pruebas reales en Actions: `gh api -X POST repos/LoppVicious/gexlab/actions/workflows/comparar.yml/dispatches -f ref=main -f 'inputs[script]=motores.py'`
@@ -24,12 +25,13 @@ con Pyodide para calcular en el navegador. Datos: Tradier (tiempo real, token so
 - `motor.py` — ciclo de Actions (cada 15 min) y modo `rapido` (6 índices, una pasada por minuto de 09:30 a 16:15 ET); publica en R2
 - `fuente_tradier.py` · `almacen.py` (R2 o disco) · `historial500.py` (historial diario a R2 `hist500/`)
 - `volatilidad.py`, `macro.py` (VIX, COT), `eventos.py` (calendario macro: ForexFactory y fuentes oficiales de EE. UU.), `reales.py` (dato real de EE. UU. con BLS y FRED)
-- `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes; `nube/report.js` — rutas del report semanal (token propio)
+- `nube/worker.js` — Worker: auth, D1, crons que lanzan el motor, `/api/*`, `/admin`; `nube/takes.js` — API de Founder Takes; `nube/report.js` — rutas del report semanal y de la nota de flujos (token propio)
 - `skew.py` — señales de put skew, diferencia call-put, volumen de opciones (O/S) y put/call para swings en acciones (índice `hist500/_skew.json.gz`, `pub/skew.json`)
 - `pcr.py` — sentimiento por put/call 1-100 por ticker frente a su historia (tramos de vencimiento, divergencias con el precio, mercado; índice `hist500/_pcr.json.gz`, `pub/pcr.json`), `web/sentiment.js|css` (página Sentiment); diseño en `docs/SENTIMIENTO.md`. Prueba: `python pruebas/test_pcr.py`
 - `social_diario.py` + `social_graficos.py` (paquete y PNG del día para X en R2 `social/`, tras el historial diario), `nube/social.js`, `web/social.js` (Research > Social, solo admin: conclusión del día y playbook del siguiente, a las 16:20 ET); skill `.claude/skills/x-diario/`
 - `cripto.py` (descarga y publica `pub/cripto.json` cada 15 min, `cripto.yml`) + `cripto_calc.py` (cálculo sin red: GEX de Deribit, on-chain, lectura), `web/cripto.js|css` (página Crypto); diseño en `docs/CRIPTO.md`. Prueba: `python pruebas/test_cripto.py`; mapa de liquidaciones `web/liq-modelo.js` + `web/liq.js` (Coinalyze por `/api/liq` del Worker; en el PC `liq_local.py`), prueba `node --test pruebas/test_liq.mjs`
 - `report_semanal.py` (paquete y PNG en R2 `report/`), `report_calc.py` (cálculos y umbrales), `report_graficos.py` (matplotlib); skill `.claude/skills/report-semanal/`
+- `flujos_diario.py` + `flujos_calc.py` + `flujos_graficos.py` (nota diaria de flujos: dealers, ETFs apalancados, vol-control, CTAs, strikes de puts y asimetría; R2 `flujos/` y serie `flujos/_serie.json.gz`, `flujos.yml` tras el historial diario); skill `.claude/skills/take-flujos/`; diseño en `docs/FLUJOS.md`
 - `web/` — `app.js` (app principal), `nube.js` (intercepta fetch), `motor-web.js` (Pyodide), `styles.css`/`sg.css` (estructura), `tema.css` (temas Bento oscuro y Daylight claro: misma letra y formas, distintos colores; los colores de gráfico de `THEMES` en `app.js` deben coincidir), `resumen.js` (Summary), `skewsig.js` (Skew signal), `calendario.js` (tarjeta de eventos y página Calendar), `takes.js`/`takes-md.js`/`takes.css` (Founder Takes), `trading.js`/`trading.css` (Trading Window del TRACE)
 - `server.py` — modo PC: misma web y API en local · `pruebas/` — scripts para `comparar.yml`
 - `docs/ARQUITECTURA.md` — flujo completo, claves de R2, los dos motores, pruebas. Leer antes de tocar motor o Worker.

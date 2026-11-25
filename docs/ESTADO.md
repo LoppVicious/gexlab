@@ -13,6 +13,9 @@
 - **Report semanal** (primera versión el 2026-11-13, `/report-semanal`): siguientes posibles: report diario sin LLM,
   tarea programada, percentiles de rebalanceo con el histórico de AUM de ProShares (lo publica por día), ajustar los
   umbrales de destacado tras los primeros reports.
+- **Nota diaria de flujos** (primera versión el 2026-11-25, `/take-flujos`, `docs/FLUJOS.md`): revisar umbrales
+  de destacado y el AUM supuesto de vol-control tras las primeras semanas; con ~60 sesiones en `flujos/_serie.json.gz`,
+  comparar el rebalanceo previsto de ETFs con el real y puntuar las tesis.
 - **Social diario para X** (primera versión el 2026-11-19, `/x-diario`, Research > Social; conclusión + playbook desde el 2026-11-20): ajustar los umbrales de
   destacado (`social_diario.py`) tras las primeras semanas; posibles: tarea programada en el PC que lance `/x-diario`,
   gráfico del TRACE del día (cómo respetó el precio los niveles), marcador de aciertos de los niveles.

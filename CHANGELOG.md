@@ -3,7 +3,18 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-25 — Social diario vuelve a generarse y NDX y RUT al día en tiempo real
+## 2026-11-25 — Nota diaria de flujos en Takes, Social diario de nuevo y NDX y RUT al día en tiempo real
+
+**Añadido**
+- **Research > Takes, nota diaria de flujos:** cada cierre se calcula qué harían los participantes mecánicos
+  (dealers de SPX, NDX y RUT y sus ETFs, ETFs apalancados, fondos de control de volatilidad y CTAs) si el mercado
+  cae o sube un 5 %. También los strikes del SPX con más puts cerca del precio y su vencimiento, y la asimetría entre
+  lo que se vendería y lo que se compraría. Con `/take-flujos` en Claude Code se escribe la nota con conclusiones y
+  escenarios en los dos sentidos, y queda como borrador para revisar y publicar. Lo de vol-control y CTAs son
+  estimaciones y la nota lo dice.
+- **Serie diaria de flujos:** cada día se guardan el AUM de los ETFs apalancados (los emisores solo publican el del
+  día), las cifras tal como se calcularon, la versión del modelo y la tesis de la nota. Sirve para percentiles
+  propios y para medir más adelante si las lecturas aciertan.
 
 **Corregido**
 - **Research > Social:** el paquete del cierre fallaba cada noche desde el 20 de noviembre ("Sin datos de ningun

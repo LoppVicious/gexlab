@@ -1,0 +1,46 @@
+name: Flujos diario
+# Nota diaria de flujos mecanicos (flujos_diario.py): paquete y graficos del cierre en R2 flujos/{fecha}/ y la serie
+# flujos/_serie.json.gz. Al acabar el historial diario (usa sus cadenas al cierre); el texto lo escribe Claude Code
+# con /take-flujos. A mano: forzar rehace la ultima sesion (SPX, NDX y RUT salen de la cadena de ahora: solo el
+# mismo dia, antes de la apertura siguiente).
+on:
+  workflow_run:
+    workflows: ["Historial diario"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Rehacer la ultima sesion guardada aunque ya este hecha"
+        type: boolean
+        default: false
+concurrency:
+  group: flujos
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  flujos:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-nube.txt
+      - run: pip install -q -r requirements-nube.txt matplotlib
+      - run: python pruebas/test_flujos.py
+      - name: Calcular y publicar
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          GEX_ALMACEN: r2
+          # Tradier: cadenas de SPX, NDX y RUT (no estan en hist500) y cierres de los subyacentes de los ETFs
+          # apalancados (QQQ, SPY, SOXX, IWM)
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
+        run: python flujos_diario.py $FORZAR

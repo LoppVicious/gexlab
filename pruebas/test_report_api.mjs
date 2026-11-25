@@ -103,3 +103,31 @@ test("un PNG falso o un grafico que no existe no crean nada", async () => {
   assert.equal(no.status, 404);
   assert.equal(env.DB.db.prepare("SELECT COUNT(*) AS n FROM takes").get().n, 0);
 });
+
+test("flujos: lee paquete y grafico de flujos/, crea el borrador y guarda la tesis", async () => {
+  const env = entorno();
+  const enc = (o) => new TextEncoder().encode(JSON.stringify(o));
+  env.R2.m.set(`flujos/${F}/paquete.json`, { bytes: enc({ fecha: F, flujos: true }), ct: "application/json" });
+  env.R2.m.set("flujos/ultimo.json", { bytes: enc({ fecha: F }), ct: "application/json" });
+  env.R2.m.set(`flujos/${F}/g/asimetria.png`, { bytes: PNG, ct: "image/png" });
+  assert.deepEqual((await llama(env, "GET", "/api/flujos/ultimo")).d, { fecha: F });
+  assert.equal((await llama(env, "GET", `/api/flujos/${F}`)).d.flujos, true);
+  assert.equal((await llama(env, "GET", `/api/flujos/${F}/g/asimetria.png`)).ct, "image/png");
+  // un grafico del report no vale en flujos
+  assert.equal((await llama(env, "POST", `/api/flujos/${F}/take`, { titulo: "x", cuerpo: "y", graficos: [{ nombre: "gamma_spy" }] })).status, 404);
+  const tesis = { sesgo: "bajista", niveles: [7250], escenario: "x" };
+  const r = await llama(env, "POST", `/api/flujos/${F}/take`, {
+    titulo: "Flows: test", cuerpo: "Body", etiquetas: ["Flows", "Auto"], tesis,
+    graficos: [{ nombre: "asimetria", titulo: "Asymmetry", nota: "" }],
+  });
+  assert.equal(r.status, 200, JSON.stringify(r.d));
+  assert.deepEqual(JSON.parse(new TextDecoder().decode(env.R2.m.get(`flujos/${F}/tesis.json`).bytes)), tesis);
+  // tesis mal formada o demasiado larga: 400 y nada creado
+  const n = env.DB.db.prepare("SELECT COUNT(*) AS n FROM takes").get().n;
+  assert.equal((await llama(env, "POST", `/api/flujos/${F}/take`, { titulo: "x", cuerpo: "y", tesis: "texto" })).status, 400);
+  assert.equal((await llama(env, "POST", `/api/flujos/${F}/take`, { titulo: "x", cuerpo: "y", tesis: { t: "a".repeat(5000) } })).status, 400);
+  assert.equal(env.DB.db.prepare("SELECT COUNT(*) AS n FROM takes").get().n, n);
+  // en el report la tesis no se guarda
+  await llama(env, "POST", `/api/report/${F}/take`, { titulo: "x", cuerpo: "y", tesis });
+  assert.ok(![...env.R2.m.keys()].some((k) => k.startsWith("report/") && k.endsWith("tesis.json")));
+});

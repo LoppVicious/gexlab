@@ -165,6 +165,19 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 - Pruebas: `python pruebas/test_report.py` (sin red; los gráficos solo si hay matplotlib) y
   `node --test pruebas/test_report_api.mjs`. Spec y plan en `docs/superpowers/`.
 
+**Nota diaria de flujos (borrador de Take):** `flujos.yml` (al acabar el historial diario) ejecuta
+`flujos_diario.py` (lectura, paquete y serie), `flujos_calc.py` (cálculos y supuestos) y `flujos_graficos.py`
+(PNG, misma paleta que el report). Cadenas al cierre de `hist500/` para SPY, QQQ e IWM (recalculadas con el reloj
+del motor en el cierre) y de Tradier en directo para SPX, NDX y RUT. Diseño completo en `docs/FLUJOS.md`.
+- R2: `flujos/{F}/paquete.json`, `flujos/{F}/g/{nombre}.png`, `flujos/ultimo.json`, `flujos/{F}/tesis.json` (la
+  escribe el Worker) y `flujos/_serie.json.gz` (una fila por sesión: AUM de ETFs apalancados, cifras, versión del
+  modelo y tesis). No se borran.
+- Worker: las mismas rutas que el report con `/api/flujos/` (`nube/report.js`, mismo token); `POST .../take`
+  acepta además `tesis` (objeto JSON, 4 KB como mucho).
+- `/take-flujos` en Claude Code (`.claude/skills/take-flujos/`) escribe el texto; una tarea programada del PC lo
+  lanza los días laborables.
+- Pruebas: `python pruebas/test_flujos.py` y `node --test pruebas/test_report_api.mjs`.
+
 **Social diario (posts para X, solo admin):** página Research > Social (`web/social.js|css`, modo `social` de
 `TOOLS`; el botón y el modo solo existen con `ME.admin` en la nube). Cada cierre, la conclusión del día y el playbook
 de la sesión siguiente. `social.yml` ejecuta `social_diario.py` en dos pasadas:

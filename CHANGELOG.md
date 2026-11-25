@@ -20,6 +20,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   día), las cifras tal como se calcularon, la versión del modelo y la tesis de la nota. Sirve para percentiles
   propios y para medir más adelante si las lecturas aciertan.
 
+**Cambiado**
+- **Gráficos de Takes (nota de flujos y report semanal) con la marca de GEX Lab:** logo y nombre en marca de agua
+  tenue en el centro y "Made with GEX Lab" con el logo debajo de cada gráfico. En las tablas, solo la firma, para no
+  tapar cifras.
+
 **Corregido**
 - **Research > Social:** el paquete del cierre fallaba cada noche desde el 20 de noviembre ("Sin datos de ningun
   indice") porque CBOE bloquea ahora las cadenas de opciones con Cloudflare. SPX, NDX y RUT se descargan de Tradier,

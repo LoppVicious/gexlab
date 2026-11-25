@@ -9,6 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
+from matplotlib.patches import Rectangle  # noqa: E402
 
 # THEMES.light de web/app.js
 C = {"surface": "#ffffff", "grid": "#eceef4", "axis": "#d3d7e3", "text": "#11142b", "muted": "#4c5170",
@@ -28,7 +29,50 @@ def _fig(alto=5.0):
     return fig, ax
 
 
+# logo de GEX Lab: las barras y la linea de web/favicon.svg (viewBox 32 x 32, y hacia abajo), con colores del tema
+LOGO_BARRAS = ((5, 16, 10, "neg"), (11.5, 16, 6.5, "neg"), (18, 9, 7, "pos"), (24.5, 5, 11, "pos"))
+MARCA, FIRMA = "GEX Lab", "Made with GEX Lab"
+
+
+def _logo(fig, x, y, lado_in, alpha=1.0):
+    """Logo en un eje propio cuadrado: (x, y) esquina inferior izquierda en fraccion de la figura, lado en pulgadas."""
+    w, h = fig.get_size_inches()
+    ax = fig.add_axes([x, y, lado_in / w, lado_in / h], zorder=5)   # encima: el fondo de los graficos es opaco
+    ax.set_axis_off()
+    ax.set_xlim(3, 31)
+    ax.set_ylim(28, 4)
+    for bx, by, bh, col in LOGO_BARRAS:
+        ax.add_patch(Rectangle((bx, by), 4.5, bh, facecolor=C[col], edgecolor="none", alpha=alpha))
+    ax.plot([3.5, 30.5], [16, 16], color=C["put"], linewidth=max(1.0, lado_in * 2.2), alpha=alpha,
+            solid_capstyle="round")
+
+
+def _marca(fig):
+    """Marca de agua tenue (logo y nombre) en el centro del grafico principal y firma con el logo bajo el grafico, a
+    la derecha. Se coloca con lo ya dibujado para no tapar ejes ni leyendas."""
+    r = fig.canvas.get_renderer()
+    w, h = fig.get_size_inches()
+    dpi = fig.dpi
+    bb = fig.get_tightbbox(r)   # en pulgadas
+    ax0 = fig.axes[0] if fig.axes else None
+    if ax0 is not None and ax0.axison:   # en las tablas (eje oculto) la marca taparia cifras: solo la firma
+        p = ax0.get_position()
+        cx, cy = (p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2
+        lado = min(1.6, max(0.6, p.height * h * 0.45))
+        t = fig.text(cx, cy, MARCA, color=C["text"], alpha=0.07, fontsize=lado * 30, fontweight="bold",
+                     ha="left", va="center", zorder=5)
+        ancho_t = t.get_window_extent(r).width / dpi
+        dx = (lado + 0.1 + ancho_t) / 2 / w                    # centra el conjunto logo + nombre
+        t.set_x(cx - dx + (lado + 0.1) / w)
+        _logo(fig, cx - dx, cy - lado / 2 / h, lado, alpha=0.08)
+    y_top = (bb.y0 - 0.08) / h
+    f = fig.text(bb.x1 / w, y_top, FIRMA, color=C["muted"], fontsize=10, fontweight="bold", ha="right", va="top")
+    ancho_f = f.get_window_extent(r).width / dpi
+    _logo(fig, (bb.x1 - ancho_f - 0.34) / w, y_top - 0.25 / h, 0.28)
+
+
 def _png(fig) -> bytes:
+    _marca(fig)
     b = io.BytesIO()
     fig.savefig(b, format="png", facecolor=fig.get_facecolor(), bbox_inches="tight")
     plt.close(fig)

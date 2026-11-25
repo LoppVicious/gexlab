@@ -9,6 +9,9 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Research > Social:** el paquete del cierre fallaba cada noche desde el 20 de noviembre ("Sin datos de ningun
   indice") porque CBOE bloquea ahora las cadenas de opciones con Cloudflare. SPX, NDX y RUT se descargan de Tradier,
   como en el resto de motores, con CBOE de respaldo.
+- **Cambio diario de NDX y RUT con Tradier:** Tradier da el cierre anterior de NDX desfasado (salía −1,98 % el día
+  que el Nasdaq cayó un 0,6 %) y el de RUT vacío (salía 0 %). En los índices se toma el último cierre diario de su
+  histórico y el cambio se calcula con él.
 
 ## 2026-11-24 — Mapa de liquidaciones: diseño Heatmap a elegir y largos y cortos repartidos a medias
 

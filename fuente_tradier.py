@@ -202,14 +202,36 @@ def cadena(symbol: str) -> dict:
         })
     td = q.get("trade_date") or 0
     ts = datetime.fromtimestamp(td / 1000, tz=timezone.utc) if td else datetime.now(timezone.utc)
-    prev = float(q.get("prevclose") or 0) or spot
+    previo = _cierre_previo(api, q, ts)
+    prev = previo or spot
     data = {
         "symbol": sym, "current_price": spot, "close": spot, "prev_day_close": prev,
-        "price_change_percent": q.get("change_percentage"), "iv30": None,
+        "price_change_percent": (spot / previo - 1) * 100 if previo else q.get("change_percentage"), "iv30": None,
         "volume": q.get("volume"),  # acciones negociadas en la sesion (O/S de skew.py)
         "last_trade_time": ts.strftime("%Y-%m-%dT%H:%M:%S"), "options": options,
     }
     return {"timestamp": ts.strftime("%Y-%m-%d %H:%M:%S"), "source": "tradier", "data": data}
+
+
+_previos: dict = {}
+
+
+def _cierre_previo(api: str, q: dict, ts: datetime) -> float:
+    """Cierre de la sesion anterior. En los indices el prevclose de la cotizacion no sirve (llega desfasado en NDX
+    y vacio en RUT): ultimo cierre diario anterior a la sesion de la cotizacion, una peticion por indice y sesion."""
+    if q.get("type") != "index":
+        return float(q.get("prevclose") or 0)
+    from gex_engine import _ny_offset  # sin tzdata (Windows)
+    sesion = (ts + _ny_offset(ts)).strftime("%Y-%m-%d")
+    if (api, sesion) not in _previos:
+        try:
+            desde = datetime.fromisoformat(sesion).date().toordinal() - 15
+            dias = historico(api, datetime.fromordinal(desde).strftime("%Y-%m-%d"))["data"]
+            ant = [x["close"] for x in dias if x["date"] < sesion]
+            _previos[(api, sesion)] = ant[-1] if ant else float(q.get("prevclose") or 0)
+        except Exception:  # noqa: BLE001  sin historico: el de la cotizacion
+            _previos[(api, sesion)] = float(q.get("prevclose") or 0)
+    return _previos[(api, sesion)]
 
 
 # ---------------------------------------------------------------- velas de 1 minuto (indices en tiempo real)

@@ -31,10 +31,10 @@ def _fig(alto=5.0):
 
 # logo de GEX Lab: las barras y la linea de web/favicon.svg (viewBox 32 x 32, y hacia abajo), con colores del tema
 LOGO_BARRAS = ((5, 16, 10, "neg"), (11.5, 16, 6.5, "neg"), (18, 9, 7, "pos"), (24.5, 5, 11, "pos"))
-MARCA, FIRMA = "GEX Lab", "Made with GEX Lab"
+MARCA = "GEX Lab"
 
 
-def _logo(fig, x, y, lado_in, alpha=1.0):
+def _logo(fig, x, y, lado_in, alpha):
     """Logo en un eje propio cuadrado: (x, y) esquina inferior izquierda en fraccion de la figura, lado en pulgadas."""
     w, h = fig.get_size_inches()
     ax = fig.add_axes([x, y, lado_in / w, lado_in / h], zorder=5)   # encima: el fondo de los graficos es opaco
@@ -48,27 +48,22 @@ def _logo(fig, x, y, lado_in, alpha=1.0):
 
 
 def _marca(fig):
-    """Marca de agua tenue (logo y nombre) en el centro del grafico principal y firma con el logo bajo el grafico, a
-    la derecha. Se coloca con lo ya dibujado para no tapar ejes ni leyendas."""
+    """Marca de agua tenue (logo y nombre) en el centro del grafico principal. En las tablas (eje oculto) no se pone:
+    taparia cifras."""
+    ax0 = fig.axes[0] if fig.axes else None
+    if ax0 is None or not ax0.axison:
+        return
     r = fig.canvas.get_renderer()
     w, h = fig.get_size_inches()
-    dpi = fig.dpi
-    bb = fig.get_tightbbox(r)   # en pulgadas
-    ax0 = fig.axes[0] if fig.axes else None
-    if ax0 is not None and ax0.axison:   # en las tablas (eje oculto) la marca taparia cifras: solo la firma
-        p = ax0.get_position()
-        cx, cy = (p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2
-        lado = min(1.6, max(0.6, p.height * h * 0.45))
-        t = fig.text(cx, cy, MARCA, color=C["text"], alpha=0.07, fontsize=lado * 30, fontweight="bold",
-                     ha="left", va="center", zorder=5)
-        ancho_t = t.get_window_extent(r).width / dpi
-        dx = (lado + 0.1 + ancho_t) / 2 / w                    # centra el conjunto logo + nombre
-        t.set_x(cx - dx + (lado + 0.1) / w)
-        _logo(fig, cx - dx, cy - lado / 2 / h, lado, alpha=0.08)
-    y_top = (bb.y0 - 0.08) / h
-    f = fig.text(bb.x1 / w, y_top, FIRMA, color=C["muted"], fontsize=10, fontweight="bold", ha="right", va="top")
-    ancho_f = f.get_window_extent(r).width / dpi
-    _logo(fig, (bb.x1 - ancho_f - 0.34) / w, y_top - 0.25 / h, 0.28)
+    p = ax0.get_position()
+    cx, cy = (p.x0 + p.x1) / 2, (p.y0 + p.y1) / 2
+    lado = min(1.6, max(0.6, p.height * h * 0.45))
+    t = fig.text(cx, cy, MARCA, color=C["text"], alpha=0.07, fontsize=lado * 30, fontweight="bold",
+                 ha="left", va="center", zorder=5)
+    ancho_t = t.get_window_extent(r).width / fig.dpi
+    dx = (lado + 0.1 + ancho_t) / 2 / w                        # centra el conjunto logo + nombre
+    t.set_x(cx - dx + (lado + 0.1) / w)
+    _logo(fig, cx - dx, cy - lado / 2 / h, lado, alpha=0.08)
 
 
 def _png(fig) -> bytes:

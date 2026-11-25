@@ -22,8 +22,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 
 **Cambiado**
 - **Gráficos de Takes (nota de flujos y report semanal) con la marca de GEX Lab:** logo y nombre en marca de agua
-  tenue en el centro y "Made with GEX Lab" con el logo debajo de cada gráfico. En las tablas, solo la firma, para no
-  tapar cifras.
+  tenue en el centro de cada gráfico. Las tablas van sin marca, para no tapar cifras.
 
 **Corregido**
 - **Research > Social:** el paquete del cierre fallaba cada noche desde el 20 de noviembre ("Sin datos de ningun

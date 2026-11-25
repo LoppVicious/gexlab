@@ -222,12 +222,13 @@ def cadena(symbol: str) -> dict:
 
 
 def _cierre_hoy(api: str) -> float | None:
-    """Cierre oficial de hoy de un indice (vela diaria de Tradier), solo con la sesion ya cerrada; si no, None."""
+    """Cierre oficial de la ultima sesion cerrada de un indice (vela diaria de Tradier) con el mercado cerrado (tras
+    el cierre, antes de abrir, festivos y fines de semana); con el mercado abierto, None."""
     import gex_engine as g
     now = g.now_ny()
-    if not g.is_trading_day(now) or now < g.close_time(now):
+    if g.market_open(now):
         return None
-    hoy = now.strftime("%Y-%m-%d")
+    hoy = g.quote_time(now).strftime("%Y-%m-%d")
     try:
         dias = historico(api, hoy)["data"]
     except Exception:  # noqa: BLE001

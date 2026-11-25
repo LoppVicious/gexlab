@@ -21,7 +21,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   indice") porque CBOE bloquea ahora las cadenas de opciones con Cloudflare. SPX, NDX y RUT se descargan de Tradier,
   como en el resto de motores, con CBOE de respaldo.
 - **Cierre y cambio diario de NDX y RUT con Tradier:** tras el cierre, Tradier da el último precio de NDX desfasado
-  (salía −2,2 % el día que el Nasdaq 100 cayó un 0,6 %): se toma el cierre oficial de su vela diaria.
+  (salía −2,2 % el día que el Nasdaq 100 cayó un 0,6 %): se toma el cierre oficial de su vela diaria, también antes
+  de abrir, en festivos y en fines de semana.
 - **NDX y RUT en tiempo real:** Tradier no da su precio al día y CBOE bloquea sus velas desde el 20 de noviembre, así
   que el precio, el cambio diario y el TRACE de los dos se quedaban parados. El precio sale ahora de sus propias
   opciones (paridad put-call del vencimiento más cercano), el cierre anterior de RUT del histórico de CBOE, y las

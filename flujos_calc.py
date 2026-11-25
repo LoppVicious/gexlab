@@ -201,8 +201,10 @@ def delta_put(S, K, iv, T, r=0.04):
 
 def strikes_puts(ch: dict, spot: float, t0, r=0.04) -> dict:
     """ch: cadena (gex_engine.chain_from_min) del indice al cierre; t0: datetime64 del cierre. Strikes con mas puts
-    cerca del precio, su vencimiento principal y lo que los dealers (cortos de esas puts) recomprarian (+) o
-    venderian (-) en futuros si el indice cerrara en ese strike, por el cambio de delta de todas las puts."""
+    cerca del precio, su vencimiento principal y lo que los dealers (cortos de las puts de ese strike) recomprarian (+)
+    o venderian (-) en futuros si el indice cerrara en el strike, por el cambio de delta de esas puts. Solo las del
+    strike: sumar todas las puts de la cadena como cortas de los dealers da billones (parte del OI son spreads y puts
+    vendidas por clientes)."""
     K, oi, iv, exp = ch["K"], ch["oi"], ch["iv"], ch["exp"]
     vivo = (~ch["call"]) & (oi > 0) & (exp > t0)
     T = (exp - t0).astype("timedelta64[m]").astype(float) / (365 * 24 * 60)
@@ -213,10 +215,6 @@ def strikes_puts(ch: dict, spot: float, t0, r=0.04) -> dict:
     tot = np.array([oi[banda & (K == k)].sum() for k in ks])
     top = ks[np.argsort(tot)[::-1][:STRIKES_TOP]]
     d0 = np.abs(delta_put(spot, K, iv, T, r))
-    cobertura = float((oi * 100 * d0).sum() * spot)   # futuros vendidos por los dealers contra todas las puts
-
-    def flujo_en(L):
-        return float((oi * 100 * (d0 - np.abs(delta_put(L, K, iv, T, r)))).sum() * L)
 
     filas = []
     for k in sorted(top):
@@ -226,18 +224,14 @@ def strikes_puts(ch: dict, spot: float, t0, r=0.04) -> dict:
             f = str(e.astype("datetime64[D]"))
             por_exp[f] = por_exp.get(f, 0.0) + float(o)
         principal = max(por_exp, key=por_exp.get)
+        cambio = d0[m] - np.abs(delta_put(k, K[m], iv[m], T[m], r))
         filas.append({"strike": _r(k, 2), "oi": _r(oi[m].sum()), "nocional": _r(oi[m].sum() * 100 * k),
                       "dist_pct": _r(100 * (k / spot - 1), 2), "vencimiento": principal,
                       "vencimiento_pct": _r(100 * por_exp[principal] / oi[m].sum(), 1),
-                      "flujo_si_cierra_aqui": _r(flujo_en(k))})
-    venc = {}
-    for e, h in zip(exp, oi * 100 * d0 * spot):
-        f = str(e.astype("datetime64[D]"))
-        venc[f] = venc.get(f, 0.0) + float(h)
-    venc = sorted(venc.items(), key=lambda x: -x[1])[:5]
-    return {"spot": _r(spot, 2), "strikes": filas, "cobertura_total": _r(cobertura),
-            "cobertura_por_vencimiento": [{"vencimiento": f, "cobertura": _r(v)} for f, v in venc],
-            "nota": "Supone dealers cortos de todas las puts (convencion standard); la cobertura se deshace al vencer"}
+                      "delta_hoy": _r(float((oi[m] * d0[m]).sum() / oi[m].sum()), 2),
+                      "flujo_si_cierra_aqui": _r(float((oi[m] * 100 * cambio).sum() * k))})
+    return {"spot": _r(spot, 2), "strikes": filas,
+            "nota": "Supone dealers cortos de las puts de cada strike (convencion standard); se deshace al vencer"}
 
 
 # ------------------------------------------------------------------ asimetria total

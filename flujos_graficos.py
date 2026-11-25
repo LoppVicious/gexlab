@@ -59,7 +59,7 @@ def strikes(F: str, s: dict) -> bytes:
                     (i, f["oi"] / 1000), ha="center", va="bottom", fontsize=9, color=C["text"],
                     xytext=(0, 3), textcoords="offset points")
     ax.set_ylabel("Put open interest (thousands)", color=C["muted"])
-    ax.set_xlabel(f"SPX strike (close {s['spot']:,.0f}); label: main expiry and dealer put-hedge flow if SPX closes there",
+    ax.set_xlabel(f"SPX strike (close {s['spot']:,.0f}); label: main expiry and dealer flow on that strike's puts if SPX closes there",
                   color=C["muted"])
     ax.margins(y=0.25)
     _titulo(ax, f"SPX put strikes near spot ({F})")

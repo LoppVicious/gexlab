@@ -38,9 +38,10 @@ cambiaría. Los datos los calcula Actions al cierre y el texto lo escribe Claude
   raíz del plazo), recortada a ±1; la posición es la media. Los giros son el nivel del SPX que da la vuelta a cada
   señal mañana (el cierre de hace w sesiones). No da dólares.
 - **strikes:** strikes del SPX con más interés abierto en puts entre -15 % y +5 % del precio, con su vencimiento
-  principal. Con la convención de que los dealers están cortos de todas las puts, calcula lo que recomprarían (+) o
-  venderían (-) en futuros si el SPX cerrara en cada strike, por el cambio de delta de todas las puts (Black-Scholes
-  con la IV de cada contrato). También la cobertura que se deshace en cada vencimiento.
+  principal. Con la convención de que los dealers están cortos de las puts de cada strike, calcula lo que
+  recomprarían (+) o venderían (-) en futuros si el SPX cerrara en ese strike, por el cambio de delta de esas puts
+  (Black-Scholes con la IV de cada contrato). Solo las del strike: tomar todas las puts de la cadena como cortas de
+  los dealers daba billones el primer día (parte del OI son spreads y puts vendidas por clientes).
 - **asimetria:** suma a -5 % y +5 % de dealers (estrés), ETFs apalancados y vol-control; cociente venta/compra.
 - **destacados:** percentiles ≤ 10 o ≥ 90, cociente ≥ 1,5 o ≤ 0,67 y strike con puts hasta un 3 % por encima del
   precio.

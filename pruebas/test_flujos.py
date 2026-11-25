@@ -98,7 +98,9 @@ def test_strikes_puts():
     assert k["oi"] == 60000 and k["vencimiento"] == "2026-12-31" and math.isclose(k["vencimiento_pct"], 83.3)
     assert k["flujo_si_cierra_aqui"] > 0                          # por encima del precio: los dealers recompran
     assert next(x for x in s["strikes"] if x["strike"] == 6800)["flujo_si_cierra_aqui"] < 0
-    assert s["cobertura_total"] > 0 and s["cobertura_por_vencimiento"][0]["vencimiento"] in ("2026-12-31", "2026-12-18")
+    # solo las puts del strike: 7250 por encima del precio, ITM (|delta| > 0,5) que pasan a ATM
+    assert 0.5 < k["delta_hoy"] < 0.8 and k["flujo_si_cierra_aqui"] < 60000 * 100 * 0.5 * 7250
+    assert next(x for x in s["strikes"] if x["strike"] == 7000)["flujo_si_cierra_aqui"] == 0
     d = fc.delta_put(7000.0, np.array([7000.0]), np.array([0.2]), np.array([0.5]))
     assert -0.5 < d[0] < -0.4
 

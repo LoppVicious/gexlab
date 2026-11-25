@@ -44,8 +44,9 @@ Bloques (cada uno con `estado`; lo `ausente` no se menciona):
   `vol_realizada`, `escenarios` (-5, -3, 3, 5 y `calma` = dos semanas de +-0,5 %). AUM supuesto: decirlo.
 - `cta`: `posicion` (-1 a 1), `senales` por ventana, `giros` (nivel del SPX que da la vuelta a cada senal manana),
   `escenarios`, `pct`. Sin dolares.
-- `strikes`: strikes del SPX con mas puts cerca del precio, vencimiento principal, `flujo_si_cierra_aqui` (lo que los
-  dealers recomprarian o venderian por las puts), `cobertura_por_vencimiento` (coberturas que se deshacen al vencer).
+- `strikes`: strikes del SPX con mas puts cerca del precio, vencimiento principal, `delta_hoy` y
+  `flujo_si_cierra_aqui` (lo que los dealers recomprarian o venderian por las puts de ese strike si el SPX cierra en
+  el).
 - `asimetria`: total y por fuente a -5 % y +5 %, `cociente` y `pct`.
 - `destacados`: lo extremo de hoy. `previa`: la fila de la sesion anterior (con su `tesis` si la hubo).
 

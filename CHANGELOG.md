@@ -21,7 +21,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   morado y el fondo morado solo donde hay liquidez. Sin difuminado y con el reparto de cada nivel por el rango de su
   vela a una cuarta parte del de Classic, sobre una rejilla de precios el doble de fina: cada nivel es una raya nítida
   y las bandas son bloques de bordes rectos que terminan donde el precio las barre (antes se veían emborronadas, en
-  degradados de bordes ondulados). Los botones de apalancamiento agrupan
+  degradados de bordes ondulados). El color de cada fila es la suma de su zona de precio (±0,4 % en 4h, ±0,2 % en 1h),
+  solo en el dibujo: bloques gruesos de un color como en chartbeyond, no una raya amarilla entre azules; la lectura y
+  sus cifras no cambian. Solo las últimas 830 velas abren posiciones (el mapa de 4h de chartbeyond empieza unos 140
+  días atrás): sin los largos de enero a junio, lo de debajo del precio queda oscuro como allí. Amarillo en la zona
+  más cargada de la vista y paleta con la parte floja más oscura. Los botones de apalancamiento agrupan
   los finos en el de 10x a 100x más cercano; el de 5x queda apagado en Heatmap.
 
 **Cambiado**

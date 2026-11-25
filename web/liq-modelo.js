@@ -19,6 +19,7 @@
    niveles), asi ocultar uno no cambia el tamano ni el color de los demas. Las liquidaciones previstas cuentan todos.
    Opciones `zona` y `vidaMin`: rejilla de zonas `gZ` (suma de los tramos a +-zona; lo que se pinta y se lee) y
    niveles que el precio toca antes de vidaMin velas fuera del dibujo.
+   Opcion `desde`: no se abren posiciones antes de esa vela.
    Lo dibuja web/liq.js; lo prueba pruebas/test_liq.mjs con node (module.exports). */
 
 const LQ_MODELO = (() => {
@@ -77,6 +78,9 @@ const LQ_MODELO = (() => {
       } else if (desdeOI < 0 || i < desdeOI) {
         nuevo[i] = velas[i].v * tip[i] * k;   // sin OI: volumen calibrado
       }
+      // o.desde (indice de vela): antes no se abren posiciones (el diseno Heatmap mira solo las ultimas velas, como
+      // chartbeyond); el OI de esas velas sigue contando para cerrar y escalar lo que hay
+      if (i < (o.desde || 0)) nuevo[i] = 0;
     }
 
     // niveles: altas por vela y bajas (vela en que el precio los toca)

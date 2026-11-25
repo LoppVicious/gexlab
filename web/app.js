@@ -35,8 +35,8 @@ const THEME_EXTRA = {
 // fondo fuera de los datos, base morada bajo el calor, paleta continua de morado a amarillo (posicion: fraccion del
 // mas cargado de la vista), velas, ejes y RSI con sus zonas de sobrecompra y sobreventa
 const LIQ_HEAT = { fondo: "#000000", base: "#1a0e30",
-  paleta: [[0, "#261447"], [0.12, "#3a1e78"], [0.28, "#33389c"], [0.45, "#2563b4"], [0.6, "#1d93b8"], [0.72, "#22b39a"],
-    [0.84, "#5cc85a"], [0.93, "#b9dc2f"], [1, "#f6e71f"]],
+  paleta: [[0, "#22133f"], [0.1, "#2c1858"], [0.25, "#2f2c86"], [0.42, "#2453a8"], [0.58, "#1d86b8"], [0.7, "#1fae9e"],
+    [0.82, "#4cc46a"], [0.92, "#b5dc30"], [1, "#f6e71f"]],
   sube: "#47a8f0", baja: "#f0a12a", texto: "#b9b6c8", eje: "#26232f", cruz: "#6e6a80", precio: "#e8e8ee", etiqueta: "#1b1a22",
   rsi: "#a374f0", sobre: "rgba(240, 161, 42, 0.13)", bajo: "rgba(71, 168, 240, 0.12)", nivel: "rgba(185, 182, 200, 0.35)" };
 THEME_EXTRA.dark.liqH = LIQ_HEAT; THEME_EXTRA.light.liqH = LIQ_HEAT;

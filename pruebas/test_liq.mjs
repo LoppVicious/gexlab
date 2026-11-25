@@ -251,3 +251,13 @@ test("lado vela: una vela que sube abre largos y una que baja, cortos", () => {
   const de2 = (i, lado) => { let s = 0; for (let k = 0; k < m.N; k++) if (m.i[k] === i && m.lado[k] === lado) s += m.a0[k]; return s; };
   assert.ok(Math.abs(de2(1, 0) - 750) < 1e-6 && Math.abs(de2(1, 1) - 250) < 1e-6);
 });
+
+test("con desde, las velas anteriores no abren posiciones", () => {
+  const velas = [];
+  for (let i = 0; i < 40; i++) velas.push(vela(i, 100));
+  const oi = velas.map((_, i) => 1000 + i * 10);   // el OI sube en todas las velas
+  const todo = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, mm: 0 });
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }], vida: 1e9, mm: 0, desde: 30 });
+  assert.ok(todo.niveles.N > r.niveles.N);
+  for (let k = 0; k < r.niveles.N; k++) assert.ok(r.niveles.i[k] >= 30, `nivel de la vela ${r.niveles.i[k]}`);
+});

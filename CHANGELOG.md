@@ -3,15 +3,18 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-25 — Social diario vuelve a generarse
+## 2026-11-25 — Social diario vuelve a generarse y NDX y RUT al día en tiempo real
 
 **Corregido**
 - **Research > Social:** el paquete del cierre fallaba cada noche desde el 20 de noviembre ("Sin datos de ningun
   indice") porque CBOE bloquea ahora las cadenas de opciones con Cloudflare. SPX, NDX y RUT se descargan de Tradier,
   como en el resto de motores, con CBOE de respaldo.
 - **Cierre y cambio diario de NDX y RUT con Tradier:** tras el cierre, Tradier da el último precio de NDX desfasado
-  (salía −2,2 % el día que el Nasdaq 100 cayó un 0,6 %): se toma el cierre oficial de su vela diaria. De RUT no da
-  cierre anterior: el cambio queda vacío en vez de un 0 % falso.
+  (salía −2,2 % el día que el Nasdaq 100 cayó un 0,6 %): se toma el cierre oficial de su vela diaria.
+- **NDX y RUT en tiempo real:** Tradier no da su precio al día y CBOE bloquea sus velas desde el 20 de noviembre, así
+  que el precio, el cambio diario y el TRACE de los dos se quedaban parados. El precio sale ahora de sus propias
+  opciones (paridad put-call del vencimiento más cercano), el cierre anterior de RUT del histórico de CBOE, y las
+  velas de 1 minuto son las de QQQ e IWM escaladas al índice.
 
 ## 2026-11-24 — Mapa de liquidaciones: diseño Heatmap a elegir y largos y cortos repartidos a medias
 

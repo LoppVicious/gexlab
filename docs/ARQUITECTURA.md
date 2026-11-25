@@ -11,8 +11,12 @@ Cloudflare Worker "dashboard" (nube/worker.js) + assets estáticos (web/)
   - cron */5: toca() lanza motor.yml modo ciclo cada 15 min (días laborables 07:45-17:15 ET, 18:00, 20:00, sáb 10:00);
     tocaRapido() lanza modo rapido cada 5 min de 07:05 a 16:15 ET (de 07:05 a 09:30, el tramo previo a la apertura).
   - **Tiempo real** (`motor.py rapido`, `TIEMPO_REAL` = SPX NDX RUT SPY QQQ IWM): cadena y velas de 1 min de Tradier
-    (`fuente_tradier.velas`, solo cerradas y hasta el cierre, formato de CBOE intraday; solo `VELAS_TRADIER`:
-    Tradier no da velas de NDX ni RUT), paquete y vistas; lee el estado pero no lo guarda
+    (`fuente_tradier.velas`, solo cerradas y hasta el cierre, formato de CBOE intraday; `VELAS_TRADIER`). Tradier no
+    da velas de NDX ni RUT, ni su precio al día (cotización sin `trade_date`): el spot sale de la paridad put-call del
+    vencimiento más cercano (`gex_engine._spot_paridad`, con `spot_paridad` en la cadena), tras el cierre el oficial
+    de la vela diaria (NDX), el cierre anterior de RUT del CSV de CBOE, y las velas son las de QQQ e IWM escaladas
+    (`fuente_tradier.velas_indice`, `VELAS_ETF`: cociente de cierres de cada día y, hoy, spot entre la última vela del
+    ETF). Paquete y vistas; lee el estado pero no lo guarda
     (historial de niveles y flujo, en el ciclo de 15 min, que vuelve a descargar esos 6: el cupo de Tradier alcanza).
     Escribe `pub/rapido.json`. Sale sin hacer nada fuera de 07:00-cierre + 15 min (festivos, cierre a las 13:00).
     Resto de tickers: velas de CBOE. La web (Auto) recarga cada minuto esos 6 y cada 5 el resto.

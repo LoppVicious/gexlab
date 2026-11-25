@@ -38,10 +38,12 @@ Bloques (cada uno con `estado`; lo `ausente` no se menciona):
 - `dealers.simbolos.{SPX,SPY,NDX,QQQ,RUT,IWM}` y `dealers.complejos` (indice + ETF): `net_per_pct` (gamma por 1 %,
   `pct` = percentil de 1 ano), `flujo` (compran + / venden - si el indice se mueve X % con la IV quieta), `estres`
   (con la IV +5 en las bajadas y -2 en las subidas, escalado por plazo), `zero_gamma`, walls, `vanna_flow`,
-  `charm_flow`. Vencimientos hasta 90 dias. Los dolares suponen que los dealers tienen todo el OI: son un techo;
-  apoyate en el cociente y en los niveles, y dilo si das cifras.
-- `letf`: rebalanceo de hoy al cierre (`total`, `por_subyacente`), `por_1pct` (cuanto suma cada 1 % mas),
-  `escenarios`, `pct` (percentil de 252 sesiones), `aum`.
+  `charm_flow`. Vencimientos hasta 90 dias. Los dolares van ya en la escala de los bancos (`escala`, `calibracion`:
+  factor calibrado con cifras publicadas de gamma de dealers del S&P 500); la cifra cruda del motor esta en
+  `net_motor`, `flujo_motor`, `estres_motor` y no se usa en la nota.
+- `letf`: rebalanceo de hoy al cierre por categoria (`categorias`: Tech, Semi, SPX, Mag7, DJI, RUT, Gold, Silver,
+  Bitcoin, Financials, cada una con `hoy`, `por_1pct` y `pct` con signo: bajo = mucha venta), `total`, `pct`,
+  `por_1pct` (cuanto suma cada 1 % mas), `escenarios`, `retornos_pct`, `aum`. El grafico `letf` es la tabla.
 - `vol_control`: `exposicion` (veces el capital), `pct` (10 anos), `cambio_1d`/`cambio_5d` en dolares,
   `vol_realizada`, `escenarios` (-5, -3, 3, 5 y `calma` = dos semanas de +-0,5 %). AUM supuesto: decirlo.
 - `cta`: `posicion` (-1 a 1), `senales` por ventana, `giros` (nivel del SPX que da la vuelta a cada senal manana),

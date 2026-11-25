@@ -28,16 +28,24 @@ cambiaría. Los datos los calcula Actions al cierre y el texto lo escribe Claude
 
   Antes (versión 1 del modelo) entraban todos los vencimientos y la IV se movía en paralelo: la gamma por 1 % del SPX
   salía un 30 % mayor que con el alcance de gexbot (mismas unidades, Γ · OI · S²) y el flujo a -1 % con estrés, más
-  del doble, por la delta de las opciones largas. Aun así, las cifras suponen que los dealers tienen todo el OI
-  (cortos de puts, largos de calls, sin neteo): son un techo, no un flujo esperado. La nota se apoya en el cociente.
+  del doble, por la delta de las opciones largas. Aun así, el motor supone que los dealers tienen todo el OI (cortos
+  de puts, largos de calls, sin neteo) y da una gamma unas 10 veces mayor que la que publican los bancos, que
+  netean con su libro. Desde la versión 3 los dólares se escalan (`escala_dealers`, `escalar`): factor = gamma
+  publicada / gamma del motor ese día (complejo S&P 500), mediana de los puntos de `CALIBRACION`, el mismo para los
+  tres complejos. Primer punto: -7.300 millones por 1 % el 2026-11-17 (Nomura). SPX no está en `hist500`, así que la
+  gamma del motor de ese día se estima con la de SPY recalculada x (SPX + SPY) / SPY del primer día que se calcula, y
+  se guarda en `flujos/_calibracion.json`. Con cada cifra publicada nueva se añade un punto. La serie guarda la gamma
+  sin escalar (`net`) y el factor (`escala`).
 
   Los complejos suman índice y ETF (SPX + SPY, NDX + QQQ, RUT + IWM), que son subyacentes distintos. Percentil de
   la gamma por 1 % (símbolos y complejos) y de la asimetría: de la serie, solo con filas de la versión actual del
   modelo (el índice de niveles de `hist500` usa todos los vencimientos y no es comparable).
-- **letf:** rebalanceo al cierre `AUM x L x (L-1) x r` de los ETFs de `report_calc.ETF_APAL`, con el AUM de
-  ProShares y Direxion del día. Incluye la sensibilidad por cada 1 % más y escenarios con el mismo movimiento en
-  todos los subyacentes. El percentil frente a 252 sesiones usa el AUM guardado de cada día cuando está y, si no,
-  el de hoy.
+- **letf:** rebalanceo al cierre `AUM x L x (L-1) x r` de 41 ETFs de ProShares y Direxion (`ETFS`), por categoría
+  como las tablas de los bancos: Tech (QQQ, XLK), Semi (SOXX), SPX, Mag7 (los 2x de Direxion sobre cada acción),
+  DJI, RUT, Gold (GLD, GDX), Silver, Bitcoin (IBIT) y Financials. AUM del día de la web del emisor. Sensibilidad por
+  cada 1 % más y escenarios con el mismo movimiento en todos los subyacentes. Percentil con signo (bajo = mucha
+  venta) frente a 252 sesiones, con el AUM guardado de cada día cuando está y, si no, el de hoy. Con el AUM del
+  2026-11-25 y un -3,3 % del Nasdaq, Tech sale unos -7.600 millones (Nomura dio -8.800 con ese movimiento y su universo).
 - **vol_control:** exposición = min(1,5; 10 % / la mayor de las vol realizadas a 21 y 63 sesiones del SPX). Cambio
   en dólares con un AUM supuesto de 200.000 millones (no es público). Escenarios para la próxima sesión (±3 %, ±5 %
   y dos semanas de ±0,5 %). Un día de 5 % en cualquier sentido les hace vender.

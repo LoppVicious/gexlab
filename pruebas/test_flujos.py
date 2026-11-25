@@ -48,15 +48,37 @@ def test_dealers_y_complejos():
 
 def test_letf():
     f = laborables(300)
-    c = {"QQQ": cierres(f, [0.001] * 298 + [-0.02]), "SPY": cierres(f, [0.0] * 299)}
-    r = fc.letf({"TQQQ": 1e9, "SQQQ": 1e9, "UPRO": 1e9, "XXX": 5e9}, c, f[-1])
-    # TQQQ: 1e9 x 3 x 2 x -0.02 = -0.12e9; SQQQ: 1e9 x -3 x -4 x -0.02 = -0.24e9; UPRO: 0
-    assert math.isclose(r["por_subyacente"]["QQQ"], -0.36e9) and r["por_subyacente"]["SPY"] == 0
-    assert math.isclose(r["por_1pct"], (6 + 12 + 6) * 1e7) and r["escenarios"]["-5"] == -5 * r["por_1pct"]
-    assert r["pct"] == 100.0 and "XXX" not in r["aum"]
+    c = {"QQQ": cierres(f, [0.001] * 298 + [-0.02]), "XLK": cierres(f, [0.001] * 298 + [-0.01]),
+         "SPY": cierres(f, [0.0] * 299)}
+    r = fc.letf({"TQQQ": 1e9, "SQQQ": 1e9, "TECL": 1e9, "UPRO": 1e9, "XXX": 5e9, "SOXL": 1e9}, c, f[-1])
+    # TQQQ: 1e9 x 3 x 2 x -0.02 = -0.12e9; SQQQ: 1e9 x -3 x -4 x -0.02 = -0.24e9; TECL: -0.06e9; UPRO: 0
+    cats = {x["categoria"]: x for x in r["categorias"]}
+    assert list(cats) == ["Tech", "SPX"] and math.isclose(cats["Tech"]["hoy"], -0.42e9) and cats["SPX"]["hoy"] == 0
+    assert cats["Tech"]["pct"] == 0.0 and cats["Tech"]["etfs"] == ["SQQQ", "TECL", "TQQQ"]   # con signo: la mayor venta
+    assert math.isclose(r["por_1pct"], (6 + 12 + 6 + 6) * 1e7) and r["escenarios"]["-5"] == -5 * r["por_1pct"]
+    assert "XXX" not in r["aum"] and "SOXL" in r["sin_aum"] and r["retornos_pct"]["QQQ"] == -2.0
     # con AUM guardado de un dia pasado, ese dia usa el suyo
-    r2 = fc.letf({"TQQQ": 1e9}, c, f[-1], {f[-2]: {"TQQQ": 1e12}})
-    assert r2["pct"] < 100
+    c2 = {"QQQ": cierres(f, [0.001] * 298 + [0.002])}
+    assert fc.letf({"TQQQ": 1e9}, c2, f[-1])["pct"] == 100.0
+    assert fc.letf({"TQQQ": 1e9}, c2, f[-1], {f[-2]: {"TQQQ": 1e12}})["pct"] < 100
+
+
+def test_escala_dealers():
+    orig = fc.CALIBRACION
+    fc.CALIBRACION = [{"fecha": "a", "complejo": "S&P 500", "gamma_1pct": -7e9},
+                      {"fecha": "b", "complejo": "S&P 500", "gamma_1pct": -9e9}]
+    try:
+        e = fc.escala_dealers({"a": -70e9, "b": -60e9, "c": -1e9})
+        assert math.isclose(e["factor"], 0.125) and len(e["puntos"]) == 2   # mediana de 0,1 y 0,15
+        assert fc.escala_dealers({"a": 5e9}) is None and fc.escala_dealers({}) is None   # signo distinto: no vale
+    finally:
+        fc.CALIBRACION = orig
+    por = {"SPX": fc.dealers(res_motor())}
+    b = fc.escalar({"simbolos": por, "complejos": fc.complejos(por)}, 0.1)
+    x = b["simbolos"]["SPX"]
+    assert x["net_motor"] == 2e9 and x["net_per_pct"] == 2e8 and x["estres"]["-5"] == -6e8 and x["estres_motor"]["-5"] == -6e9
+    assert b["complejos"]["S&P 500"]["flujo"]["5"] == 5e8 and b["escala"] == 0.1
+    assert fc.fila_serie({"bloques": {"dealers": {"estado": "ok", **b}}})["complejos"]["S&P 500"]["net"] == 2e9
 
 
 def test_vol_control_y_cta():
@@ -135,6 +157,9 @@ def test_armado():
         def __init__(self):
             self.d = {}
 
+        def put(self, k, v, ct=None, **kw):
+            self.d[k] = v
+
     f = laborables(1500)
     rng = np.random.default_rng(2)
     c = cierres(f, list(rng.normal(0.0003, 0.01, 1499)))
@@ -153,16 +178,21 @@ def test_armado():
     fd.almacen.get_json = lambda st, k, default=None: default
     fd.g.chain_from_min = lambda d: ch
     fd.g.risk_free = lambda: 0.04
+    cal = fc.CALIBRACION
+    fc.CALIBRACION = [{"fecha": "2026-11-17", "complejo": "S&P 500", "gamma_1pct": 0.4e9}]
     try:
         paq, gr = fd.armar(St(), F, {f[-2]: {"asim": {"cociente": 1.0}, "aum": {"TQQQ": 1e9}}},
                            aum=lambda e: 1e9, precios=lambda s: c, dibujar=False, directo=directo)
     finally:
         fd.calcular, fd._doc, fd.almacen.get_json, fd.g.chain_from_min, fd.g.risk_free = orig
+        fc.CALIBRACION = cal
     b = paq["bloques"]
     assert all(b[k]["estado"] == "ok" for k in ("dealers", "letf", "vol_control", "cta", "strikes", "asimetria")), b
     assert set(b["dealers"]["simbolos"]) == {"SPX", "SPY", "NDX", "QQQ", "IWM"} and paq["previa"]["fecha"] == f[-2]
     assert "SPY" not in vistos and {"SPX", "NDX", "RUT", "QQQ"} <= set(vistos)
     assert paq["siguiente_sesion"] > F and gr == {}
+    # calibracion sin la fila de ese dia: SPY de esa fecha x (SPX + SPY) / SPY de hoy = 2e9 x 2 = 4e9 -> factor 0,1
+    assert b["dealers"]["escala"] == 0.1 and b["dealers"]["simbolos"]["SPX"]["net_motor"] == 2e9
 
 
 def test_en_sesion():
@@ -184,12 +214,14 @@ def test_graficos():
     ch, t0 = cadena()
     f = laborables(1500)
     c = cierres(f, list(np.random.default_rng(3).normal(0.0003, 0.01, 1499)))
-    paq = {"fecha": "2026-11-24", "bloques": {
+    subs = {v[0] for v in fc.ETFS.values()}
+    et = fc.letf({e: 2e9 for e in fc.ETFS}, {s: c for s in subs}, f[-1])
+    paq = {"fecha": "2026-11-24", "bloques": {"letf": {"estado": "ok", **et},
         "asimetria": {"estado": "ok", **a}, "dealers": {"estado": "ok", "complejos": comp},
         "strikes": {"estado": "ok", **fc.strikes_puts(ch, 7000.0, t0)},
         "vol_control": {"estado": "ok", **fc.vol_control(c, f[-1])}, "cta": {"estado": "ok", **fc.cta(c, f[-1])}}}
     out = fg.todos(paq)
-    assert set(out) == {"asimetria", "dealers", "strikes_puts", "sistematicos"}
+    assert set(out) == {"asimetria", "dealers", "strikes_puts", "sistematicos", "letf"}
     assert all(v[:4] == b"\x89PNG" for v in out.values()) and paq["bloques"]["cta"]["graficos"] == ["sistematicos"]
     if os.environ.get("FLUJOS_PNG"):
         for k, v in out.items():

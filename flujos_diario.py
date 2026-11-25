@@ -25,6 +25,7 @@ import report_semanal as rs
 H = "hist500/"
 SALIDA = "flujos/"
 SERIE = SALIDA + "_serie.json.gz"
+CALIB = SALIDA + "_calibracion.json"
 SIMBOLOS = ["SPX", "SPY", "NDX", "QQQ", "RUT", "IWM"]
 INDICE = "SPX"            # vol-control, CTAs y strikes de puts
 POSICION, MODELO = "standard", "spotgamma"
@@ -73,6 +74,49 @@ def en_directo(sym: str, F: str) -> tuple[dict, dict]:
     return r, g.chain_to_min(g.parse_chain(g._cache[g.normalize(sym)][1]))
 
 
+def aum_etf(e: str) -> float | None:
+    """AUM del ETF apalancado de la web de su emisor (ProShares o Direxion, como el report semanal)."""
+    try:
+        if fc.ETFS[e][3] == "proshares":
+            return rs._aum_proshares(rs._get(rs.PROSHARES.format(s=e)))
+        return rs._aum_direxion(rs._get(rs.DIREXION.format(s=e)))
+    except Exception as ex:  # noqa: BLE001
+        log(f"AUM {e}: {type(ex).__name__}: {str(ex)[:120]}")
+        return None
+
+
+def motor_calibracion(st, serie: dict, resultados: dict) -> dict:
+    """{fecha: gamma por 1 % del motor del complejo S&P 500} en las fechas de fc.CALIBRACION. De la serie si la
+    fila es de la version actual; si no (SPX no esta en hist500), SPY de ese dia recalculado de hist500 por el
+    cociente (SPX + SPY) / SPY de hoy. Se guarda en flujos/_calibracion.json para no recalcular cada dia."""
+    cache = almacen.get_json(st, CALIB) or {}
+    out, cambio = {}, False
+    for c in fc.CALIBRACION:
+        f = c["fecha"]
+        fila = serie.get(f) or {}
+        if fila.get("modelo") == fc.VERSION and (x := (fila.get("complejos") or {}).get(c["complejo"])):
+            out[f] = x["net"]
+            continue
+        if (k := cache.get(f)) and k.get("modelo") == fc.VERSION:
+            out[f] = k["motor"]
+            continue
+        try:
+            d = _doc(st, "SPY", f)
+            if not d or not ("SPX" in resultados and "SPY" in resultados):
+                raise ValueError("sin SPY de esa fecha o sin SPX y SPY de hoy")
+            spy = calcular("SPY", d["chain"], f)["totals"]["net_per_pct"]
+            hoy_spx, hoy_spy = (resultados[s]["totals"]["net_per_pct"] for s in ("SPX", "SPY"))
+            out[f] = spy * (hoy_spx + hoy_spy) / hoy_spy
+            cache[f] = {"modelo": fc.VERSION, "motor": out[f], "spy": spy, "cociente_hoy": (hoy_spx + hoy_spy) / hoy_spy,
+                        "metodo": "SPY de esa fecha x (SPX + SPY) / SPY del dia en que se calculo"}
+            cambio = True
+        except Exception as e:  # noqa: BLE001
+            log(f"calibracion {f}: {type(e).__name__}: {str(e)[:200]}")
+    if cambio:
+        almacen.put_json(st, CALIB, cache)
+    return out
+
+
 def _bloque(nombre, fn) -> dict:
     try:
         return {"estado": "ok", **fn()}
@@ -96,7 +140,7 @@ def hist_net(filas: list) -> dict:
     return por
 
 
-def armar(st, F: str, serie: dict, aum=rs.aum_etf, precios=rs.cierres_cboe, dibujar=True, directo=en_directo) -> tuple:
+def armar(st, F: str, serie: dict, aum=aum_etf, precios=rs.cierres_cboe, dibujar=True, directo=en_directo) -> tuple:
     """(paquete, {nombre: PNG}) de la sesion F: cadena guardada en hist500 si esta; si no, la de ahora."""
     resultados, cadenas = {}, {}
     for sym in SIMBOLOS:
@@ -114,14 +158,19 @@ def armar(st, F: str, serie: dict, aum=rs.aum_etf, precios=rs.cierres_cboe, dibu
         if not resultados:
             raise ValueError("Sin cadenas de ningun indice")
         por = {s: fc.dealers(r) for s, r in resultados.items()}
-        return {"simbolos": por, "complejos": fc.complejos(por)}
+        b = {"simbolos": por, "complejos": fc.complejos(por)}
+        esc = fc.escala_dealers(motor_calibracion(st, serie, resultados))
+        if not esc:
+            raise ValueError("Sin calibracion de la escala de los dealers")
+        b["calibracion"] = esc
+        return fc.escalar(b, esc["factor"])
 
     cierres_idx = precios(INDICE)
     aum_hist = {f: x["aum"] for f, x in serie.items() if x.get("aum")}
 
     def letf():
-        a = {e: aum(e) for e in fc.ETF_APAL}
-        subs = sorted({s for s, _ in fc.ETF_APAL.values()})
+        a = {e: aum(e) for e in fc.ETFS}
+        subs = sorted({v[0] for v in fc.ETFS.values()})
         return fc.letf(a, {s: v for s in subs if (v := precios(s))}, F, aum_hist)
 
     def strikes():

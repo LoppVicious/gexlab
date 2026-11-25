@@ -10,9 +10,9 @@ import math
 
 import numpy as np
 
-from report_calc import ETF_APAL, percentil, rebalanceo, retornos
+from report_calc import percentil, rebalanceo, retornos
 
-VERSION = 2   # 2: dealers con vencimientos hasta 90 dias y cambio de IV escalado por plazo
+VERSION = 3   # 2: dealers con vencimientos hasta 90 dias y cambio de IV escalado por plazo; 3: ETFs por categoria
 P_BAJO, P_ALTO = 10, 90
 
 # fondos de control de volatilidad: objetivo de vol, apalancamiento maximo y ventanas de vol realizada (se usa la
@@ -30,7 +30,43 @@ ESCENARIOS = (-5, -3, -1, 1, 3, 5)
 COMPLEJOS = {"S&P 500": ("SPX", "SPY"), "Nasdaq 100": ("NDX", "QQQ"), "Russell 2000": ("RUT", "IWM")}
 STRIKES_TOP, STRIKES_BANDA = 6, (0.85, 1.05)
 
-MODELO = {"version": VERSION, "vc_objetivo": VC_OBJETIVO, "vc_tope": VC_TOPE, "vc_ventanas": list(VC_VENTANAS),
+# ETFs apalancados por categoria (las de las tablas de rebalanceo de los bancos): ETF -> (subyacente 1x con cierres
+# diarios, apalancamiento, categoria, emisor). Los de una accion (Mag7) son 2x de Direxion; Bitcoin, sobre IBIT.
+CATEGORIAS = ("Tech", "Semi", "SPX", "Mag7", "DJI", "RUT", "Gold", "Silver", "Bitcoin", "Financials")
+ETFS = {
+    "TQQQ": ("QQQ", 3, "Tech", "proshares"), "SQQQ": ("QQQ", -3, "Tech", "proshares"),
+    "QLD": ("QQQ", 2, "Tech", "proshares"), "QID": ("QQQ", -2, "Tech", "proshares"),
+    "TECL": ("XLK", 3, "Tech", "direxion"), "TECS": ("XLK", -3, "Tech", "direxion"),
+    "ROM": ("XLK", 2, "Tech", "proshares"),
+    "SOXL": ("SOXX", 3, "Semi", "direxion"), "SOXS": ("SOXX", -3, "Semi", "direxion"),
+    "USD": ("SOXX", 2, "Semi", "proshares"),
+    "UPRO": ("SPY", 3, "SPX", "proshares"), "SPXU": ("SPY", -3, "SPX", "proshares"),
+    "SPXL": ("SPY", 3, "SPX", "direxion"), "SPXS": ("SPY", -3, "SPX", "direxion"),
+    "SSO": ("SPY", 2, "SPX", "proshares"), "SDS": ("SPY", -2, "SPX", "proshares"),
+    "NVDU": ("NVDA", 2, "Mag7", "direxion"), "TSLL": ("TSLA", 2, "Mag7", "direxion"),
+    "AAPU": ("AAPL", 2, "Mag7", "direxion"), "AMZU": ("AMZN", 2, "Mag7", "direxion"),
+    "GGLL": ("GOOGL", 2, "Mag7", "direxion"), "METU": ("META", 2, "Mag7", "direxion"),
+    "MSFU": ("MSFT", 2, "Mag7", "direxion"),
+    "UDOW": ("DIA", 3, "DJI", "proshares"), "SDOW": ("DIA", -3, "DJI", "proshares"),
+    "DDM": ("DIA", 2, "DJI", "proshares"),
+    "TNA": ("IWM", 3, "RUT", "direxion"), "TZA": ("IWM", -3, "RUT", "direxion"),
+    "URTY": ("IWM", 3, "RUT", "proshares"), "UWM": ("IWM", 2, "RUT", "proshares"),
+    "UGL": ("GLD", 2, "Gold", "proshares"), "GLL": ("GLD", -2, "Gold", "proshares"),
+    "NUGT": ("GDX", 2, "Gold", "direxion"), "DUST": ("GDX", -2, "Gold", "direxion"),
+    "AGQ": ("SLV", 2, "Silver", "proshares"), "ZSL": ("SLV", -2, "Silver", "proshares"),
+    "BITU": ("IBIT", 2, "Bitcoin", "proshares"), "SBIT": ("IBIT", -2, "Bitcoin", "proshares"),
+    "FAS": ("XLF", 3, "Financials", "direxion"), "FAZ": ("XLF", -3, "Financials", "direxion"),
+    "UYG": ("XLF", 2, "Financials", "proshares"),
+}
+
+# escala de los dealers: el motor supone que los dealers tienen todo el OI (cortos de puts, largos de calls, sin
+# neteo) y da una gamma unas 10 veces mayor que la de los bancos, que netean con su propio libro. Se calibra con
+# cifras publicadas de la gamma de los dealers del S&P 500 ($ por 1 %): factor = publicada / la del motor ese dia
+# (complejo S&P 500). Se aplica el mismo factor a los tres complejos. Anadir puntos aqui cuando haya cifras nuevas.
+CALIBRACION = [{"fecha": "2026-11-17", "complejo": "S&P 500", "gamma_1pct": -7.3e9,
+                "fuente": "Nomura (McElligott), nota del 2026-11-17: exposicion de los dealers a la vol del S&P 500"}]
+
+MODELO = {"version": VERSION, "calibracion": CALIBRACION, "vc_objetivo": VC_OBJETIVO, "vc_tope": VC_TOPE, "vc_ventanas": list(VC_VENTANAS),
           "vc_aum": VC_AUM, "cta_ventanas": list(CTA_VENTANAS), "iv_estres": [IV_BAJA, IV_SUBE],
           "dealers_dte": DEALERS_DTE, "iv_estres_por_plazo": "x min(1, raiz(30 dias / T))",
           "dealers": "convencion standard del motor Perfil: clientes compran puts y venden calls"}
@@ -81,22 +117,22 @@ def complejos(por_sym: dict) -> dict:
 
 # ------------------------------------------------------------------ ETFs apalancados
 def letf(aum: dict, cierres: dict, fecha: str, aum_hist: dict | None = None) -> dict:
-    """aum: {ETF: $} de hoy; cierres: {ETF 1x: [(fecha, cierre)]}; aum_hist: {fecha: {ETF: $}} de la serie.
-    Rebalanceo de hoy, sensibilidad por 1 % y percentil frente a 252 sesiones (con el AUM guardado de cada dia si
-    lo hay; si no, el de hoy)."""
+    """aum: {ETF: $} de hoy; cierres: {subyacente: [(fecha, cierre)]}; aum_hist: {fecha: {ETF: $}} de la serie.
+    Rebalanceo al cierre AUM x L x (L-1) x r por categoria, sensibilidad por 1 % y percentil (con signo: bajo = mucha
+    venta) frente a 252 sesiones, con el AUM guardado de cada dia si lo hay; si no, el de hoy."""
     aum_hist = aum_hist or {}
     rets = {s: dict(retornos(c)) for s, c in cierres.items()}
-    usados = {e: a for e, a in aum.items() if a and e in ETF_APAL and ETF_APAL[e][0] in rets}
+    usados = {e: a for e, a in aum.items() if a and e in ETFS and ETFS[e][0] in rets}
     if not usados:
         raise ValueError("Sin AUM ni precios de los ETFs apalancados")
 
     def dia(f, aums):
         out = {}
         for e, a in aums.items():
-            sub, L = ETF_APAL.get(e, (None, None))
+            sub, L, cat, _ = ETFS[e]
             r = rets.get(sub, {}).get(f)
             if r is not None:
-                out[sub] = out.get(sub, 0.0) + rebalanceo(a, L, r)
+                out[cat] = out.get(cat, 0.0) + rebalanceo(a, L, r)
         return out
 
     hoy = dia(fecha, usados)
@@ -104,18 +140,53 @@ def letf(aum: dict, cierres: dict, fecha: str, aum_hist: dict | None = None) -> 
         raise ValueError(f"Sin retorno de los subyacentes el {fecha}")
     sens = {}
     for e, a in usados.items():
-        sub, L = ETF_APAL[e]
-        sens[sub] = sens.get(sub, 0.0) + rebalanceo(a, L, 0.01)
+        sub, L, cat, _ = ETFS[e]
+        sens[cat] = sens.get(cat, 0.0) + rebalanceo(a, L, 0.01)
     previas = sorted({f for d in rets.values() for f in d if f < fecha})[-252:]
-    hist = [abs(sum(dia(f, {**usados, **{e: a for e, a in (aum_hist.get(f) or {}).items() if a}}).values()))
+    hist = [dia(f, {**usados, **{e: a for e, a in (aum_hist.get(f) or {}).items() if a and e in ETFS}})
             for f in previas]
     total = sum(hoy.values())
-    return {"total": _r(total), "por_subyacente": {k: _r(v) for k, v in hoy.items()},
-            "retornos_pct": {s: _r(100 * rets[s][fecha], 2) for s in hoy},
-            "por_1pct": _r(sum(sens.values())), "por_1pct_subyacente": {k: _r(v) for k, v in sens.items()},
+    cats = [c for c in CATEGORIAS if c in hoy]
+    subs = sorted({ETFS[e][0] for e in usados if ETFS[e][0] in rets and fecha in rets[ETFS[e][0]]})
+    return {"total": _r(total), "pct": percentil(total, [sum(h.values()) for h in hist]),
+            "categorias": [{"categoria": c, "hoy": _r(hoy[c]), "por_1pct": _r(sens.get(c)),
+                            "pct": percentil(hoy[c], [h.get(c, 0.0) for h in hist]),
+                            "etfs": sorted(e for e in usados if ETFS[e][2] == c)} for c in cats],
+            "retornos_pct": {s: _r(100 * rets[s][fecha], 2) for s in subs},
+            "por_1pct": _r(sum(sens.values())),
             "escenarios": {str(p): _r(sum(sens.values()) * p) for p in ESCENARIOS},
-            "pct": percentil(abs(total), hist), "aum": {e: _r(a) for e, a in usados.items()},
-            "nota": "Escenarios con el mismo movimiento en todos los subyacentes; los semis suelen moverse mas"}
+            "aum": {e: _r(a) for e, a in usados.items()}, "sin_aum": sorted(set(ETFS) - set(usados)),
+            "nota": "Percentil con signo (bajo = mucha venta). Escenarios con el mismo movimiento en todos los "
+                    "subyacentes; semis y acciones sueltas suelen moverse mas"}
+
+
+# ------------------------------------------------------------------ escala de los dealers
+def escala_dealers(motor_en_fecha: dict) -> dict | None:
+    """motor_en_fecha: {fecha: gamma por 1 % del motor del complejo de CALIBRACION}. Factor = mediana de
+    publicada / motor en las fechas con dato; None si no hay ninguna."""
+    pares = [(c, motor_en_fecha.get(c["fecha"])) for c in CALIBRACION]
+    pares = [(c, m) for c, m in pares if m and m * c["gamma_1pct"] > 0]
+    if not pares:
+        return None
+    f = float(np.median([c["gamma_1pct"] / m for c, m in pares]))
+    return {"factor": round(f, 4), "puntos": [{"fecha": c["fecha"], "publicada": c["gamma_1pct"], "motor": _r(m)}
+                                             for c, m in pares]}
+
+
+def escalar(bloque: dict, factor: float) -> dict:
+    """Aplica el factor a gamma y flujos de simbolos y complejos; guarda la cifra del motor en *_motor."""
+    for grupo in ("simbolos", "complejos"):
+        for x in (bloque.get(grupo) or {}).values():
+            x["net_motor"] = x["net_per_pct"]
+            x["net_per_pct"] = _r(x["net_per_pct"] * factor)
+            for k in ("flujo", "estres"):
+                x[f"{k}_motor"] = x[k]
+                x[k] = {e: _r(v * factor) if v is not None else None for e, v in x[k].items()}
+            for k in ("vanna_flow", "charm_flow"):
+                if x.get(k) is not None:
+                    x[k] = _r(x[k] * factor)
+    bloque["escala"] = factor
+    return bloque
 
 
 # ------------------------------------------------------------------ control de volatilidad
@@ -261,9 +332,9 @@ def destacados(paq: dict, hist_net: dict, hist_asim: list) -> list:
     [net_per_pct]}; hist_asim: [cociente de dias anteriores]."""
     b, out = paq["bloques"], []
     for sym, x in (b["dealers"].get("simbolos") or {}).items():
-        x["pct"] = percentil(x["net_per_pct"], hist_net.get(sym) or [])
+        x["pct"] = percentil(x.get("net_motor", x["net_per_pct"]), hist_net.get(sym) or [])
     for n, c in (b["dealers"].get("complejos") or {}).items():
-        p = percentil(c["net_per_pct"], hist_net.get(n) or [])
+        p = percentil(c.get("net_motor", c["net_per_pct"]), hist_net.get(n) or [])
         c["pct"] = p
         if _extremo(p):
             out.append(f"Dealer gamma {n}: {c['net_per_pct'] / 1e9:+.1f}B per 1% (percentile {p})")
@@ -276,6 +347,9 @@ def destacados(paq: dict, hist_net: dict, hist_asim: list) -> list:
         x = b.get(k)
         if x and _extremo(x.get("pct")):
             out.append(f"{et}: percentile {x['pct']}")
+    for c in ((b.get("letf") or {}).get("categorias") or []):
+        if _extremo(c.get("pct")) and abs(c["hoy"] or 0) >= 0.5e9:
+            out.append(f"Leveraged ETFs {c['categoria']}: {c['hoy'] / 1e9:+.1f}B (percentile {c['pct']})")
     for s in (b.get("strikes") or {}).get("strikes") or []:
         if 0 < s["dist_pct"] <= 3:
             out.append(f"Put strike {s['strike']:,.0f} ({s['dist_pct']:+.1f}%, {s['vencimiento']}) above spot")
@@ -291,11 +365,13 @@ def fila_serie(paq: dict) -> dict:
     d, et, vc, ct, st, a = ok("dealers"), ok("letf"), ok("vol_control"), ok("cta"), ok("strikes"), ok("asimetria")
     return {
         "modelo": VERSION,
-        "dealers": {s: {"net": x["net_per_pct"], "f-5": x["estres"].get("-5"), "f5": x["estres"].get("5"),
+        "escala": (d or {}).get("escala"),
+        "dealers": {s: {"net": x.get("net_motor", x["net_per_pct"]), "f-5": x["estres"].get("-5"), "f5": x["estres"].get("5"),
                         "spot": x["spot"]} for s, x in (d or {}).get("simbolos", {}).items()},
-        "complejos": {n: {"net": c["net_per_pct"], "f-5": c["estres"].get("-5"), "f5": c["estres"].get("5")}
+        "complejos": {n: {"net": c.get("net_motor", c["net_per_pct"]), "f-5": c["estres"].get("-5"), "f5": c["estres"].get("5")}
                       for n, c in (d or {}).get("complejos", {}).items()},
         "aum": (et or {}).get("aum"), "letf": (et or {}).get("total"), "letf_1pct": (et or {}).get("por_1pct"),
+        "letf_cat": {c["categoria"]: c["hoy"] for c in (et or {}).get("categorias", [])},
         "vc": (vc or {}).get("exposicion"), "cta": (ct or {}).get("posicion"),
         "strikes": [[s["strike"], s["oi"], s["vencimiento"]] for s in (st or {}).get("strikes", [])],
         "asim": {"-5": a["-5"]["total"], "5": a["5"]["total"], "cociente": a["cociente"]} if a else None,

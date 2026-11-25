@@ -31,14 +31,15 @@ vol-control, CTAs) segun por donde vaya el mercado, y que conclusion saca de eso
 - Directo, con frases cortas y una conclusion clara en cada seccion. Explica la mecanica en una frase sencilla
   antes de dar la cifra ("To keep 3x exposure, these funds sell at the close when the index falls").
 - Cifras redondeadas en dolares (`$8.2B`), con su percentil y su ventana cuando lo hay.
-- Propio: nada que imite a un banco, a un analista concreto o su firma. No citar a terceros como si fueran fuente
-  de los datos; las cifras son de GEX Lab.
+- Formato y cifras comparables a las notas de flujos de los bancos (mismas magnitudes, tabla de ETFs por categoria,
+  asimetria a +-5 %), con voz propia: sin firma ni nombre de un banco o analista. Las cifras son de GEX Lab; de los
+  dealers se puede decir que estan escalados a estimaciones publicadas del mercado.
 - Sin recomendaciones de compra o venta: lectura de posicionamiento y flujos.
 - Sin exageraciones ni mayusculas para enfatizar; sin emojis. No uses el caracter `·` como separador.
 
 ## Datos
 - Solo cifras del paquete. Si un dato no esta, no se menciona.
-- Lo que es estimacion se dice: vol-control (AUM supuesto), CTAs (modelo generico, sin dolares), dealers (convencion
-  de posicionamiento del motor), escenarios de ETFs (mismo movimiento en todos los subyacentes).
+- Lo que es estimacion se dice: vol-control (AUM supuesto), CTAs (modelo generico, sin dolares), dealers (escalados
+  a cifras publicadas), escenarios de ETFs (mismo movimiento en todos los subyacentes).
 - Noticias solo con enlace a la fuente, en Markdown `[texto](url)`.
 - Markdown de Takes: encabezados, negrita, cursiva, listas y enlaces. No hay tablas: las tablas van en los graficos.

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
-from report_graficos import C, _fig, _leyenda, _png, _titulo
+from report_graficos import ANCHO, DPI, C, _fig, _leyenda, _png, _titulo
 
 
 def _b(x):
@@ -89,10 +89,43 @@ def sistematicos(F: str, vc: dict, ct: dict) -> bytes:
     return _png(fig)
 
 
+def letf(F: str, et: dict) -> bytes:
+    """Tabla de rebalanceo de los ETFs apalancados por categoria: hoy en miles de millones y percentil con signo."""
+    cats = et["categorias"]
+    fig, ax = plt.subplots(figsize=(ANCHO, 2.1), dpi=DPI)
+    fig.patch.set_facecolor(C["surface"])
+    ax.axis("off")
+    filas = [[f"{c['hoy'] / 1e9:+.1f}" for c in cats], [f"{c['pct']:.1f}%" if c["pct"] is not None else "n/a" for c in cats]]
+    t = ax.table(cellText=filas, rowLabels=["Today ($B)", "Percentile"], colLabels=[c["categoria"] for c in cats],
+                 cellLoc="center", rowLoc="center", loc="center")
+    t.auto_set_font_size(False)
+    t.set_fontsize(11)
+    t.scale(1, 1.8)
+    for (r, k), cel in t.get_celld().items():
+        cel.set_edgecolor(C["axis"])
+        cel.set_facecolor(C["surface"])
+        cel.get_text().set_color(C["text"])
+        if r == 0 or k == -1:
+            cel.get_text().set_fontweight("bold")
+            cel.set_facecolor(C["grid"])
+        elif k >= 0 and cats[k]["pct"] is not None and (cats[k]["pct"] <= 10 or cats[k]["pct"] >= 90):
+            cel.set_facecolor("#fff1c2")
+            cel.get_text().set_fontweight("bold")
+    tot = et["total"] / 1e9
+    pct = f", percentile {et['pct']:.1f}%" if et.get("pct") is not None else ""
+    ax.set_title(f"Leveraged ETF rebalance at the close ({F}): {tot:+.1f}B{pct}", loc="left", color=C["text"],
+                 fontsize=14, fontweight="bold")
+    fig.text(0.01, 0.02, f"Each extra 1% move adds {et['por_1pct'] / 1e9:.1f}B. Percentile vs 252 sessions, signed "
+             "(low = heavy selling). Estimate from issuer AUM.", color=C["muted"], fontsize=9)
+    return _png(fig)
+
+
 def todos(paq: dict, _res_spx=None) -> dict:
     F, b, out = paq["fecha"], paq["bloques"], {}
     ok = lambda k: b.get(k) if (b.get(k) or {}).get("estado") == "ok" else None   # noqa: E731
     trabajos = []
+    if ok("letf") and b["letf"].get("categorias"):
+        trabajos.append((["letf"], "letf", lambda: letf(F, b["letf"])))
     if ok("asimetria"):
         trabajos.append((["asimetria"], "asimetria", lambda: asimetria(F, b["asimetria"])))
     if ok("dealers") and b["dealers"]["complejos"]:

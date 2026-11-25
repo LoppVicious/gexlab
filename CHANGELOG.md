@@ -12,6 +12,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   lo que se vendería y lo que se compraría. Con `/take-flujos` en Claude Code se escribe la nota con conclusiones y
   escenarios en los dos sentidos, y queda como borrador para revisar y publicar. Lo de vol-control y CTAs son
   estimaciones y la nota lo dice.
+- **Nota de flujos en la escala de los bancos:** el rebalanceo de ETFs apalancados se calcula por categoría (Tech,
+  Semi, SPX, Mag7, DJI, RUT, Gold, Silver, Bitcoin, Financials) con 41 ETFs y su percentil, en una tabla. Las cifras
+  de los dealers se escalan a la gamma publicada por los bancos (el motor, que supone que los dealers tienen todo el
+  interés abierto, daba unas 10 veces más), así que la asimetría a ±5 % sale en magnitudes comparables.
 - **Serie diaria de flujos:** cada día se guardan el AUM de los ETFs apalancados (los emisores solo publican el del
   día), las cifras tal como se calcularon, la versión del modelo y la tesis de la nota. Sirve para percentiles
   propios y para medir más adelante si las lecturas aciertan.

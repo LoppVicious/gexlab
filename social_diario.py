@@ -282,7 +282,7 @@ def cotizaciones_cierre() -> dict:
     out = {}
     try:
         import fuente_tradier as ft
-        if ft.token():   # aunque GEX_FUENTE=cboe (las cadenas, de CBOE, para no gastar cupo de Tradier)
+        if ft.token():
             out = ft.cotizaciones(simbolos)
     except Exception as e:  # noqa: BLE001
         log(f"cotizaciones de Tradier: {type(e).__name__}: {str(e)[:120]}")

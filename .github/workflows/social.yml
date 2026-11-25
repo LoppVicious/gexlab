@@ -39,8 +39,8 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
           GEX_ALMACEN: r2
-          # Tradier solo para las cotizaciones de los mercados cruzados (una peticion); las cadenas, de CBOE
+          # Tradier para las cadenas de SPX, NDX y RUT (CBOE bloquea las cadenas con Cloudflare desde noviembre de 2026)
+          # y las cotizaciones de los mercados cruzados (una peticion)
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
-          GEX_FUENTE: cboe
           FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
         run: python social_diario.py $FORZAR

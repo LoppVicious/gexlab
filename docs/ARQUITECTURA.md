@@ -164,10 +164,10 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 **Social diario (posts para X, solo admin):** página Research > Social (`web/social.js|css`, modo `social` de
 `TOOLS`; el botón y el modo solo existen con `ME.admin` en la nube). Cada cierre, la conclusión del día y el playbook
 de la sesión siguiente. `social.yml` ejecuta `social_diario.py` en dos pasadas:
-- **Cierre** (16:20 ET, cron del Worker `tocaSocial`): SPX, NDX y RUT con la cadena de CBOE al cierre (motor Perfil,
+- **Cierre** (16:20 ET, cron del Worker `tocaSocial`): SPX, NDX y RUT con la cadena de Tradier al cierre (CBOE de respaldo) (motor Perfil,
   todos los vencimientos, posición estándar; no están en `hist500`), familia VIX de `fetch_quote` y su serie
   histórica (CSV de CBOE), mercados cruzados (`MERCADOS`, `SECTORES`, `AMPLITUD`: una petición a Tradier con
-  `fuente_tradier.cotizaciones`; el workflow pone `GEX_FUENTE=cboe` para que las cadenas no gasten cupo de Tradier; sin
+  `fuente_tradier.cotizaciones`; sin
   token, `fetch_quote` símbolo a símbolo; el 10 años, TNX, siempre del CSV de CBOE porque Tradier no lo tiene), bitcoin y ether al contado (CoinGecko, sin clave) y eventos de la sesión siguiente
   (`pub/eventos.json`). Movimiento implícito de hoy: el del paquete anterior o, el primer día, `m1_pct` de SPY, QQQ e
   IWM en `hist500/_niveles/`. R2 `social/{F}/paquete.json` y `social/ultimo.json`.

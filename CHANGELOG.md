@@ -3,6 +3,13 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-25 — Social diario vuelve a generarse
+
+**Corregido**
+- **Research > Social:** el paquete del cierre fallaba cada noche desde el 20 de noviembre ("Sin datos de ningun
+  indice") porque CBOE bloquea ahora las cadenas de opciones con Cloudflare. SPX, NDX y RUT se descargan de Tradier,
+  como en el resto de motores, con CBOE de respaldo.
+
 ## 2026-11-24 — Mapa de liquidaciones: diseño Heatmap a elegir y largos y cortos repartidos a medias
 
 **Añadido**

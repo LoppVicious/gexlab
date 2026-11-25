@@ -12,7 +12,7 @@ import numpy as np
 
 from report_calc import ETF_APAL, percentil, rebalanceo, retornos
 
-VERSION = 1
+VERSION = 2   # 2: dealers con vencimientos hasta 90 dias y cambio de IV escalado por plazo
 P_BAJO, P_ALTO = 10, 90
 
 # fondos de control de volatilidad: objetivo de vol, apalancamiento maximo y ventanas de vol realizada (se usa la
@@ -21,8 +21,10 @@ VC_OBJETIVO, VC_TOPE, VC_VENTANAS = 0.10, 1.5, (21, 63)
 VC_AUM = 200e9
 # CTAs: senal de tendencia por ventana = rentabilidad / (vol a 63 sesiones x raiz del plazo), recortada a +-1
 CTA_VENTANAS = (21, 63, 126, 252)
-# dealers: el motor desplaza la IV en paralelo; en el escenario de estres la IV sube 5 puntos en las bajadas y
-# cae 2 en las subidas (en la rejilla SCEN_IV de gex_engine)
+# dealers: vencimientos hasta 90 dias (como el "full" de gexbot; los largos casi no tienen gamma pero, con la IV
+# movida, su delta pesaba mucho). En el escenario de estres la IV sube 5 puntos en las bajadas y cae 2 en las subidas
+# (rejilla SCEN_IV de gex_engine), escalado por plazo: x min(1, raiz(30 dias / T)) (compute(iv_term=True))
+DEALERS_DTE = 90
 IV_BAJA, IV_SUBE = 5, -2
 ESCENARIOS = (-5, -3, -1, 1, 3, 5)
 COMPLEJOS = {"S&P 500": ("SPX", "SPY"), "Nasdaq 100": ("NDX", "QQQ"), "Russell 2000": ("RUT", "IWM")}
@@ -30,6 +32,7 @@ STRIKES_TOP, STRIKES_BANDA = 6, (0.85, 1.05)
 
 MODELO = {"version": VERSION, "vc_objetivo": VC_OBJETIVO, "vc_tope": VC_TOPE, "vc_ventanas": list(VC_VENTANAS),
           "vc_aum": VC_AUM, "cta_ventanas": list(CTA_VENTANAS), "iv_estres": [IV_BAJA, IV_SUBE],
+          "dealers_dte": DEALERS_DTE, "iv_estres_por_plazo": "x min(1, raiz(30 dias / T))",
           "dealers": "convencion standard del motor Perfil: clientes compran puts y venden calls"}
 
 

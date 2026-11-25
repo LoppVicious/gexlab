@@ -27,7 +27,7 @@ SALIDA = "flujos/"
 SERIE = SALIDA + "_serie.json.gz"
 SIMBOLOS = ["SPX", "SPY", "NDX", "QQQ", "RUT", "IWM"]
 INDICE = "SPX"            # vol-control, CTAs y strikes de puts
-POSICION, MODELO, FILTRO = "standard", "spotgamma", "all"
+POSICION, MODELO = "standard", "spotgamma"
 
 
 def log(msg: str) -> None:
@@ -53,7 +53,8 @@ def calcular(sym: str, cadena: dict, F: str) -> dict:
     with en_sesion(F):
         g._cache[sym] = (time.time(), {"_min": cadena})
         try:
-            return g.compute(sym, max_dte=None, window_pct=5.0, model=MODELO, positioning=POSICION)
+            return g.compute(sym, max_dte=fc.DEALERS_DTE, window_pct=5.0, model=MODELO, positioning=POSICION,
+                             iv_term=True)
         finally:
             g._cache.pop(sym, None)
 
@@ -65,7 +66,8 @@ def _doc(st, sym, F):
 def en_directo(sym: str, F: str) -> tuple[dict, dict]:
     """(resultado, cadena compacta) con la cadena de ahora (Tradier, CBOE de respaldo); solo si es de la sesion F."""
     g._cache.pop(sym, None)
-    r = g.compute(sym, max_dte=None, window_pct=5.0, model=MODELO, positioning=POSICION, force=True)
+    r = g.compute(sym, max_dte=fc.DEALERS_DTE, window_pct=5.0, model=MODELO, positioning=POSICION, force=True,
+                  iv_term=True)
     if g.session_date(r["timestamp"]) != F:
         raise ValueError(f"la cadena de ahora es de {g.session_date(r['timestamp'])}, no de {F}")
     return r, g.chain_to_min(g.parse_chain(g._cache[g.normalize(sym)][1]))
@@ -79,18 +81,18 @@ def _bloque(nombre, fn) -> dict:
         return {"estado": "ausente", "motivo": f"{type(e).__name__}: {str(e)[:200]}"}
 
 
-def hist_net(st, F: str, serie: dict) -> dict:
-    """Gamma neta por 1 % de las 252 sesiones anteriores: {simbolo: [...]} del indice de niveles (los que estan en
-    hist500) y {complejo: [...]} de la serie (misma composicion indice + ETF que hoy)."""
+def previas(F: str, serie: dict) -> list:
+    """Filas de la serie anteriores a F calculadas con la version actual del modelo (las 252 ultimas)."""
+    return [x for f, x in sorted(serie.items()) if f < F and x.get("modelo") == fc.VERSION][-252:]
+
+
+def hist_net(filas: list) -> dict:
+    """Gamma neta por 1 % de las sesiones anteriores, {simbolo o complejo: [...]}, de la serie: el indice de niveles
+    de hist500 usa otro filtro de vencimientos (todos) y no es comparable."""
     por = {}
-    for sym in SIMBOLOS:
-        idx = almacen.get_json(st, f"{H}_niveles/{sym}.json.gz") or {}
-        por[sym] = [s["net_per_pct"] for f, lv in sorted(idx.items())[-253:]
-                    if f < F and (s := rs._snap(lv)) and s.get("net_per_pct") is not None]
-    filas = [x for f, x in sorted(serie.items()) if f < F][-252:]
-    for nombre in fc.COMPLEJOS:
-        por[nombre] = [c["net"] for x in filas
-                       if (c := (x.get("complejos") or {}).get(nombre)) and c.get("net") is not None]
+    for clave, nombres in (("dealers", SIMBOLOS), ("complejos", fc.COMPLEJOS)):
+        for n in nombres:
+            por[n] = [c["net"] for x in filas if (c := (x.get(clave) or {}).get(n)) and c.get("net") is not None]
     return por
 
 
@@ -139,9 +141,9 @@ def armar(st, F: str, serie: dict, aum=rs.aum_etf, precios=rs.cierres_cboe, dibu
     paquete = {"version": 1, "modelo": fc.MODELO, "fecha": F,
                "siguiente_sesion": g.next_trading_day(datetime.strptime(F, "%Y-%m-%d")).strftime("%Y-%m-%d"),
                "generado": g.now_ny().strftime("%Y-%m-%d %H:%M ET"), "bloques": bloques}
-    previas = [x for f, x in sorted(serie.items()) if f < F]
-    paquete["destacados"] = fc.destacados(paquete, hist_net(st, F, serie),
-                                          [(x.get("asim") or {}).get("cociente") for x in previas[-252:]])
+    filas = previas(F, serie)
+    paquete["destacados"] = fc.destacados(paquete, hist_net(filas),
+                                          [(x.get("asim") or {}).get("cociente") for x in filas])
     fp = max((f for f in serie if f < F), default=None)
     paquete["previa"] = {"fecha": fp, **serie[fp]} if fp else None
     graficos = {}

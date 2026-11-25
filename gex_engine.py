@@ -2063,7 +2063,10 @@ def ticker_stats(ch: dict, symbol: str, spot: float, now: np.datetime64, xs: np.
 
 def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
             spot_override: float | None = None, force: bool = False, combine: bool = False,
-            positioning: str = "standard", level_window: float | None = None, model: str = "gexbot") -> dict:
+            positioning: str = "standard", level_window: float | None = None, model: str = "gexbot",
+            iv_term: bool = False) -> dict:
+    """iv_term: en los escenarios, el cambio de IV se escala por plazo (dv x min(1, raiz(30 dias / T))): la IV larga
+    se mueve menos que la corta. Lo usa la nota de flujos; la web muestra el cambio en paralelo."""
     model = model if model in MODELS else "gexbot"
     raw = fetch_chain(symbol, force=force)
     ch = parse_chain(raw)
@@ -2257,13 +2260,18 @@ def compute(symbol: str, max_dte: int | None = 45, window_pct: float = 5.0,
     # o venderian (-) los dealers para seguir cubiertos: -(delta en acciones del escenario - la de ahora) x precio
     base_vol = np.where(IVR > 0.01, IVR, IV) if (model == "spotgamma" and IVR is not None) else IV
     sh0 = float((pos * delta_w(SX, K, W, TT, C, q=QD) * 100.0 * sx_rel).sum())   # en el VIX, acciones del indice
-    scen = {"spot": list(SCEN_SPOT), "iv": list(SCEN_IV), "gex": [], "flow": []}
+    scen = {"spot": list(SCEN_SPOT), "iv": list(SCEN_IV), "gex": [], "flow": [], "iv_term": iv_term}
+    if iv_term:
+        t_nat = np.maximum((EXP - now).astype("timedelta64[m]").astype(float) / (365 * 24 * 60), 1 / (365 * 24))
+        esc_iv = np.minimum(1.0, np.sqrt((30 / 365) / t_nat))
+    else:
+        esc_iv = 1.0
     for ds in SCEN_SPOT:
         Sx = spot * (1 + ds / 100)
         S = Sx * sx_rel
         rg, rf = [], []
         for dv in SCEN_IV:
-            Wv = W * (np.maximum(base_vol + dv / 100, 0.02) / base_vol) ** 2
+            Wv = W * (np.maximum(base_vol + esc_iv * dv / 100, 0.02) / base_vol) ** 2
             rg.append(float(f"{float((pos * gamma_w(S, K, Wv, TT, q=QD) * 100.0 * S).sum()) * Sx * 0.01:.4g}"))
             sh = float((pos * delta_w(S, K, Wv, TT, C, q=QD) * 100.0 * sx_rel).sum())
             rf.append(float(f"{-(sh - sh0) * Sx:.4g}"))

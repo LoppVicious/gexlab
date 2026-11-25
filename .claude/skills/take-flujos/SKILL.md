@@ -37,7 +37,9 @@ curl -sf -H "$A" "$B/$F" -o "<scratchpad>/flujos.json"
 Bloques (cada uno con `estado`; lo `ausente` no se menciona):
 - `dealers.simbolos.{SPX,SPY,NDX,QQQ,RUT,IWM}` y `dealers.complejos` (indice + ETF): `net_per_pct` (gamma por 1 %,
   `pct` = percentil de 1 ano), `flujo` (compran + / venden - si el indice se mueve X % con la IV quieta), `estres`
-  (con la IV +5 en las bajadas y -2 en las subidas), `zero_gamma`, walls, `vanna_flow`, `charm_flow`.
+  (con la IV +5 en las bajadas y -2 en las subidas, escalado por plazo), `zero_gamma`, walls, `vanna_flow`,
+  `charm_flow`. Vencimientos hasta 90 dias. Los dolares suponen que los dealers tienen todo el OI: son un techo;
+  apoyate en el cociente y en los niveles, y dilo si das cifras.
 - `letf`: rebalanceo de hoy al cierre (`total`, `por_subyacente`), `por_1pct` (cuanto suma cada 1 % mas),
   `escenarios`, `pct` (percentil de 252 sesiones), `aum`.
 - `vol_control`: `exposicion` (veces el capital), `pct` (10 anos), `cambio_1d`/`cambio_5d` en dolares,

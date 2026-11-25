@@ -27,6 +27,10 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   que el precio, el cambio diario y el TRACE de los dos se quedaban parados. El precio sale ahora de sus propias
   opciones (paridad put-call del vencimiento más cercano), el cierre anterior de RUT del histórico de CBOE, y las
   velas de 1 minuto son las de QQQ e IWM escaladas al índice.
+- **Nota de flujos, cifras de los dealers:** se calculaban con todos los vencimientos (hasta 2027) y con la IV de
+  todos subiendo o bajando lo mismo, así que salían infladas (en el SPX, -76.000 millones a -1 % con la IV quieta y
+  -205.000 millones con estrés). Ahora entran los vencimientos hasta 90 días, como en gexbot, y el cambio de IV es
+  menor cuanto más largo es el plazo. Los percentiles se miden solo contra días calculados igual.
 
 ## 2026-11-24 — Mapa de liquidaciones: diseño Heatmap a elegir y largos y cortos repartidos a medias
 

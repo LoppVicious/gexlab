@@ -20,13 +20,20 @@ cambiaría. Los datos los calcula Actions al cierre y el texto lo escribe Claude
 
 ## Bloques (`flujos_calc.py`)
 - **dealers:** el flujo de cobertura por escenario lo da `gex_engine.compute` (`scenarios.flow`: lo que compran (+)
-  o venden (-) los dealers si el precio se mueve X % con la IV desplazada en paralelo). Se dan dos versiones:
+  o venden (-) los dealers si el precio se mueve X %), con vencimientos hasta 90 días (`DEALERS_DTE`, como el
+  "full" de gexbot). Se dan dos versiones:
   - `flujo`: IV quieta.
-  - `estres`: IV +5 puntos en las bajadas y -2 en las subidas.
+  - `estres`: IV +5 puntos en las bajadas y -2 en las subidas, escalado por plazo (`compute(iv_term=True)`:
+    `x min(1, raiz(30 días / T))`; la IV a un año se mueve un 28 % de lo que se mueve la de un mes).
+
+  Antes (versión 1 del modelo) entraban todos los vencimientos y la IV se movía en paralelo: la gamma por 1 % del SPX
+  salía un 30 % mayor que con el alcance de gexbot (mismas unidades, Γ · OI · S²) y el flujo a -1 % con estrés, más
+  del doble, por la delta de las opciones largas. Aun así, las cifras suponen que los dealers tienen todo el OI
+  (cortos de puts, largos de calls, sin neteo): son un techo, no un flujo esperado. La nota se apoya en el cociente.
 
   Los complejos suman índice y ETF (SPX + SPY, NDX + QQQ, RUT + IWM), que son subyacentes distintos. Percentil de
-  la gamma por 1 %: por símbolo, del índice de niveles de `hist500/_niveles` (solo ETFs); por complejo, de la serie
-  (misma composición).
+  la gamma por 1 % (símbolos y complejos) y de la asimetría: de la serie, solo con filas de la versión actual del
+  modelo (el índice de niveles de `hist500` usa todos los vencimientos y no es comparable).
 - **letf:** rebalanceo al cierre `AUM x L x (L-1) x r` de los ETFs de `report_calc.ETF_APAL`, con el AUM de
   ProShares y Direxion del día. Incluye la sensibilidad por cada 1 % más y escenarios con el mismo movimiento en
   todos los subyacentes. El percentil frente a 252 sesiones usa el AUM guardado de cada día cuando está y, si no,

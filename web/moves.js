@@ -76,7 +76,7 @@ function renderMoves() {
   const caseFact = (k) => {
     const x = t[k] || {};
     const sub = !x.n ? "no cases with a result yet"
-      : `${x.n} case${x.n === 1 ? "" : "s"} over the next ${d.horizon} sessions: moved ${emvX(x.ratio)} what options priced, ${x.hit == null ? "—" : fmtNum(x.hit * 100, 0) + "%"} beat the day's average stock${x.enough ? "" : `. Too few to judge (needs ${x.need})`}`;
+      : `${x.n} case${x.n === 1 ? "" : "s"}${x.sessions ? ` on ${x.sessions} session${x.sessions === 1 ? "" : "s"}` : ""}, over the next ${d.horizon} sessions: moved ${emvX(x.ratio)} what options priced, ${x.hit == null ? "—" : fmtNum(x.hit * 100, 0) + "%"} beat the day's average stock${x.enough ? "" : `. Too few to judge (needs ${x.need} cases on ${x.need} sessions)`}`;
     return fact(`${EMV_FLAGS[k][0]}, return vs other stocks`, x.excess == null ? "—" : `${x.excess > 0 ? "+" : x.excess < 0 ? "−" : ""}${fmtNum(Math.abs(x.excess), 2)} pts`, sub, x.n && !x.enough);
   };
   const ev = t.events || {};

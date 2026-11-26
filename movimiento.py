@@ -230,11 +230,13 @@ def _quinto_alto(x: np.ndarray) -> np.ndarray:
     return out
 
 
-def _casos(c: list[tuple[float, float]]) -> dict:
-    """Casos de una etiqueta: (realizado/implícito, rendimiento a H sesiones − media del día, en puntos %)."""
+def _casos(c: list[tuple[float, float, str]]) -> dict:
+    """Casos de una etiqueta: (realizado/implícito, rendimiento a H sesiones − media del día en puntos %, fecha).
+    Veredicto con MIN_FECHAS casos y MIN_FECHAS sesiones: los casos del mismo día no son independientes."""
     r = np.array([x[0] for x in c if np.isfinite(x[0])])
     e = np.array([x[1] for x in c if np.isfinite(x[1])])
-    return {"n": len(c), "need": MIN_FECHAS, "enough": len(c) >= MIN_FECHAS,
+    ses = len({x[2] for x in c})
+    return {"n": len(c), "sessions": ses, "need": MIN_FECHAS, "enough": len(c) >= MIN_FECHAS and ses >= MIN_FECHAS,
             "ratio": round(float(np.median(r)), 3) if r.size else None,
             "excess": round(float(e.mean()), 3) if e.size else None,
             "hit": round(float((e > 0).mean()), 3) if e.size else None}
@@ -310,7 +312,7 @@ def calcular(idx: dict, sk: dict, nombres: dict, vl: dict | None = None) -> dict
         media = float(np.nanmean(ret)) if np.isfinite(ret).sum() >= MIN_ACCIONES else np.nan
         opc = _quinto_alto(os_) & np.isfinite(rv) & (rv <= np.log(RVOL_BAJO))
         for k, m in (("confirmed", conf), ("options", opc)):
-            casos[k] += [(ratio[j], ret[j] - media) for j in np.where(m)[0]]
+            casos[k] += [(ratio[j], ret[j] - media, f) for j in np.where(m)[0]]
         xo.append(os_)
         xg.append(ga)
         xv.append(rv)

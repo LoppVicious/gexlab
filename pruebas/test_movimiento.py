@@ -152,6 +152,8 @@ def test_vela_y_etiquetas_de_volumen():
     assert t["rvol"]["n"] == 20 and t["confirmed"]["n"] == 0
     # options en la prueba: heavy (S24-S29) con RVol ≤ 1: las impares cada día, y también las pares desde el día 21
     assert t["options"]["n"] == 25 * 3 + 5 * 3 and t["options"]["ratio"] is not None
+    assert t["options"]["sessions"] == 25 and t["options"]["enough"]
+    assert m._casos([(1.0, 0.5, "2026-11-01")] * 30)["enough"] is False   # 30 casos de un solo día
     # sin velas: ni columna ni etiquetas
     sin = {f["sym"]: f for f in m.calcular(idx, sk, nombres)["rows"]}
     assert sin["S29"]["rvol"] is None and "confirmed" not in sin["S29"].get("flags", [])

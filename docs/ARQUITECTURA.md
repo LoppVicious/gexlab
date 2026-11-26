@@ -337,7 +337,9 @@ Los dos:
   moves): magnitud, no dirección, de las acciones del historial diario al cierre. Estudio de base:
   `pruebas/estudio_movimiento.py` en estudio.yml (2026-11-26, 487 acciones; resultados en el docstring del módulo).
   - Movimiento implícito de 1σ a 1 y 5 sesiones (`g.implied_moves`): el ranking principal.
-  - Evento (`evento`): varianza ATM a plazo por sesión de cada tramo entre vencimientos (vencimientos a menos de 0,9
+  - Evento (`evento`): varianza ATM a plazo de cada tramo entre vencimientos por tiempo efectivo (sesiones +
+    `FIN_DE_SEMANA`, 0,3, por día sin mercado; sin él, Acción de Gracias daba eventos falsos; calibración con
+    `pruebas/estudio_evento.py`) (vencimientos a menos de 0,9
     sesiones del anterior se saltan); si el primer tramo que acaba dentro de `EVENTO_SESIONES` (10) tiene `EVENTO_X`
     (2) veces la del siguiente, el exceso es el evento (resultados u otro) y su vencimiento, el "by" de la web.
   - Indicadores en prueba (quinto extremo del día): `heavy`, O/S alto (del índice de skew; si el volumen de la acción

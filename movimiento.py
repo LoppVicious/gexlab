@@ -27,6 +27,10 @@ PUB = "pub/movimiento.json"
 GAMMA = ("standard", "spotgamma", "45")   # motor Perfil, posición estándar, vencimientos hasta 45 días
 EVENTO_X = 2.0           # varianza a plazo de un tramo frente a la del siguiente para llamarlo evento
 EVENTO_SESIONES = 10     # solo eventos dentro de las próximas 10 sesiones
+# peso de un día sin mercado (fin de semana, festivo) frente a una sesión en la varianza que cotizan las opciones.
+# Sin él, el tramo del 2026-11-25 al 30 (Acción de Gracias y fin de semana: 1,5 sesiones en 5 días) daba "eventos"
+# en AAPL, GOOGL, AMZN y TSLA; con las cadenas de ese día (pruebas/estudio_evento.py) sale entre 0,25 y 0,35
+FIN_DE_SEMANA = 0.3
 H = 5                    # horizonte de la prueba en adelante (sesiones)
 ADV = 20                 # sesiones del volumen medio en $
 MIN_ACCIONES = 20        # acciones mínimas para puntuar una sesión
@@ -36,8 +40,9 @@ QUINTIL = 0.2            # indicadores: quintil extremo del día
 
 # ---------------------------------------------------------------- de la cadena
 def evento(ch: dict, spot: float, now: datetime) -> tuple[float, str, float] | None:
-    """Evento que cotiza la estructura temporal: varianza ATM a plazo por sesión de cada tramo entre vencimientos;
-    si la del primer tramo con salto es EVENTO_X veces la del tramo siguiente, el exceso es la varianza del evento.
+    """Evento que cotiza la estructura temporal: varianza ATM a plazo de cada tramo entre vencimientos por unidad de
+    tiempo efectivo (sesiones + FIN_DE_SEMANA por cada día sin mercado); si la del primer tramo con salto es EVENTO_X
+    veces la del tramo siguiente, el exceso es la varianza del evento.
     Devuelve (movimiento del evento en %, vencimiento que lo recoge, sesiones hasta él) o None."""
     q = g.quote_time(now)
     vivos = (ch["exp"] > np.datetime64(q.replace(second=0, microsecond=0))) & (ch["iv"] > 0.01)
@@ -55,16 +60,19 @@ def evento(ch: dict, spot: float, now: datetime) -> tuple[float, str, float] | N
         n = g.trading_minutes(q, exd) / g.SESSION_MIN
         if n < 0.5 or iv <= 0:
             continue
-        pts.append((n, iv * iv * (exd - q).total_seconds() / 60 / g.YEAR_MIN, str(ex.astype("datetime64[D]"))))
+        dias = (exd - q).total_seconds() / 86400
+        pts.append((n, iv * iv * dias * 1440 / g.YEAR_MIN, str(ex.astype("datetime64[D]")), dias))
         if n > EVENTO_SESIONES + 15:
             break
     pts.sort()
-    previo = (0.0, 0.0)
-    tramos = []  # (sesiones al final del tramo, duración, varianza a plazo por sesión, vencimiento)
-    for n, w, ex in pts:
-        if n - previo[0] >= 0.9:   # vencimientos del mismo día o casi: el tramo no mide nada
-            tramos.append((n, n - previo[0], (w - previo[1]) / (n - previo[0]), ex))
-            previo = (n, w)
+    previo = (0.0, 0.0, 0.0)
+    tramos = []  # (sesiones al final del tramo, tiempo efectivo, varianza a plazo por unidad, vencimiento)
+    for n, w, ex, dias in pts:
+        dn = n - previo[0]
+        if dn >= 0.9:   # vencimientos del mismo día o casi: el tramo no mide nada
+            dt = dn + FIN_DE_SEMANA * max(0.0, (dias - previo[2]) - dn)
+            tramos.append((n, dt, (w - previo[1]) / dt, ex))
+            previo = (n, w, dias)
     for (n, dn, f, ex), (_, _, f2, _) in zip(tramos, tramos[1:]):
         if n > EVENTO_SESIONES:
             break

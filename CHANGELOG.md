@@ -16,7 +16,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones de todas las
   acciones del historial diario, ordenadas de más a menos. La pestaña Events lista las que tienen un evento cotizado
   en las próximas dos semanas (casi siempre resultados), con su movimiento y el vencimiento que lo recoge, sin
-  necesidad de calendario. Flagged marca las que tienen mucho volumen de opciones frente al de acciones o dealers
+  necesidad de calendario (los fines de semana y festivos no cuentan como evento). Flagged marca las que tienen mucho volumen de opciones frente al de acciones o dealers
   cortos en gamma, que en el estudio se movieron más de lo que cotizaban sus opciones; son indicadores en prueba y la
   página enseña su prueba en adelante hasta tener sesiones suficientes. Al pulsar una acción se abre su TRACE.
 - **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se

@@ -14,15 +14,16 @@ NOW = datetime.fromisoformat(SES + "T16:00")
 S2 = 0.30 ** 2 / 252  # varianza por sesión de una volatilidad del 30 %
 
 
-def cadena(evento: float, vencs=("2026-11-24", "2026-12-01", "2026-12-08")):
-    """Cadena ATM con la IV que da varianza total S2 × sesiones + evento² en todos los vencimientos (evento antes
-    del primero)."""
+def cadena(evento: float, vencs=("2026-11-24", "2026-12-01", "2026-12-08"), fin_de_semana=m.FIN_DE_SEMANA):
+    """Cadena ATM con la IV que da varianza total S2 × tiempo efectivo + evento² en todos los vencimientos (evento
+    antes del primero); el tiempo efectivo pesa cada día sin mercado `fin_de_semana` veces una sesión."""
     q = g.quote_time(NOW)
     filas = []
     for v in vencs:
         exd = datetime.fromisoformat(v + "T16:00")
         n = g.trading_minutes(q, exd) / g.SESSION_MIN
-        w = S2 * n + evento ** 2
+        dias = (exd - q).total_seconds() / 86400
+        w = S2 * (n + fin_de_semana * max(0.0, dias - n)) + evento ** 2
         iv = np.sqrt(w * g.YEAR_MIN / ((exd - q).total_seconds() / 60))
         filas += [(k, c, v, iv) for k in (95, 100, 105) for c in (True, False)]
     return {"K": np.array([f[0] for f in filas], float), "call": np.array([f[1] for f in filas], bool),
@@ -40,6 +41,23 @@ def test_evento_detectado():
 
 def test_sin_evento():
     assert m.evento(cadena(0.0), 100.0, NOW) is None
+
+
+def test_festivo_y_fin_de_semana_no_son_evento():
+    # caso del 2026-11-25: primer tramo con Acción de Gracias y fin de semana (1,5 sesiones en 5 días). Con varianza
+    # en los días sin mercado, el detector no debe confundirlo con un evento
+    ahora = datetime.fromisoformat("2026-11-25T16:00")
+    global NOW
+    antes, NOW = NOW, ahora
+    try:
+        # días sin mercado con más peso que el del detector (como en las cadenas reales de ese día): sin evento
+        ch = cadena(0.0, ("2026-11-30", "2026-12-02", "2026-12-04", "2026-12-07"), fin_de_semana=0.5)
+        assert m.evento(ch, 100.0, ahora) is None
+        ch = cadena(0.06, ("2026-11-30", "2026-12-02", "2026-12-04", "2026-12-07"))
+        r = m.evento(ch, 100.0, ahora)
+        assert r is not None and abs(r[0] - 6.0) < 0.3 and r[1] == "2026-11-30", r
+    finally:
+        NOW = antes
 
 
 def test_evento_lejano_fuera():

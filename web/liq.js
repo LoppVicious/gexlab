@@ -7,17 +7,24 @@
    liquidaciones reales en un panel debajo. Nombres con prefijo lq: los globales se comparten entre scripts. */
 
 const LQ_LIB = "https://cdn.jsdelivr.net/npm/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js";
-// marcos: intervalo de Coinalyze, segundos por vela, historia que se pide, vida media de una posicion (velas), cuantas
-// velas se ven al abrir (como mapaliquidaciones.com: un dia en 5 min, una semana en 1 h, meses en diario) y que
-// fraccion del rango de cada vela reparte sus niveles (am: en diario, menos, que una vela abarca mucho).
-// En el diseno Heatmap se usa la cuarta parte (LQ_AM_HEAT): rayas nitidas que se agrupan en bandas, como chartbeyond
+// marcos: intervalo de Coinalyze, segundos por vela, historia que se pide y cuantas velas se ven al abrir (como
+// mapaliquidaciones.com: un dia en 5 min, una semana en 1 h, meses en diario).
+// El modelo se calcula siempre sobre velas de LQ_BASE (1 h) y se proyecta al marco que se ve (LQ_MODELO.proyectar):
+// los niveles son los mismos en todos los marcos. Antes cada marco calculaba con sus velas y su OI, y el cambio neto
+// de OI de una vela de 4 h borraba lo que se abria y cerraba dentro (BTC 26 nov: largos de 54.600 en 4 h, cortos de
+// 66.200 en 1 h). Solo la base lleva vida media (velas) y am (fraccion del rango de cada vela en que se reparten sus
+// niveles; en Heatmap, la cuarta parte, LQ_AM_HEAT: rayas nitidas que se agrupan en bandas, como chartbeyond)
 const LQ_TF = {
-  "5m": { iv: "5min", s: 300, dias: 7, vida: 144, ver: 288, am: 0.6, nombre: "5 minutes" },
-  "15m": { iv: "15min", s: 900, dias: 20, vida: 96, ver: 288, am: 0.6, nombre: "15 minutes" },
+  "5m": { iv: "5min", s: 300, dias: 7, ver: 288, nombre: "5 minutes" },
+  "15m": { iv: "15min", s: 900, dias: 20, ver: 288, nombre: "15 minutes" },
   "1h": { iv: "1hour", s: 3600, dias: 80, vida: 96, ver: 168, am: 0.6, nombre: "1 hour" },
-  "4h": { iv: "4hour", s: 14400, dias: 330, vida: 90, ver: 180, am: 0.3, nombre: "4 hours" },
-  "1D": { iv: "daily", s: 86400, desde: 1567296000, vida: 45, ver: 240, am: 0.15, nombre: "daily" },
+  "4h": { iv: "4hour", s: 14400, dias: 330, ver: 180, nombre: "4 hours" },
+  "1D": { iv: "daily", s: 86400, desde: 1567296000, ver: 240, nombre: "daily" },
 };
+const LQ_BASE = "1h";
+// lectura: presion a +-10 % del precio y grupos a +-20 %, iguales en todos los marcos (antes, 5 % en 1 h y 10 % en 4 h:
+// las lineas cambiaban al cambiar de marco)
+const LQ_RADIO = 0.1;
 const LQ_BANDA = 2;   // alto en pixeles de cada fila del mapa y del perfil
 const LQ_AM_HEAT = 0.25;   // Heatmap: fraccion del reparto por vela (am) de Classic
 // Heatmap, como chartbeyond: solo las ultimas velas abren posiciones (su mapa de 4h empieza unos 140 dias atras; con
@@ -182,60 +189,75 @@ async function lqPedir(kind, symbols, cfg, desde, hasta, signal, aviso = true) {
   }
 }
 
+// dos partes: las velas del marco que se ve (v, con sus liquidaciones reales) y la base de 1 h con su OI (b), de la que
+// sale el modelo. En 1 h son la misma. Cada una tiene su entrada en la cache: la base se comparte entre marcos
 function lqClave() {
-  const a = lqActivo(), cfg = LQ_TF[lq.tf];
+  const a = lqActivo();
   const syms = Object.keys(a.ex).filter((e) => !lq.exOff.has(e)).flatMap((e) => lqSimbolos(a, e));
-  const hasta = Math.ceil(Date.now() / 1000 / cfg.s) * cfg.s;
-  const desde = cfg.desde || hasta - cfg.dias * 86400;
-  return { a, cfg, syms, desde, hasta, clave: [a.sym, lq.tf, syms.join(","), desde].join("|") };
+  const parte = (tf) => {
+    const cfg = LQ_TF[tf], hasta = Math.ceil(Date.now() / 1000 / cfg.s) * cfg.s, desde = cfg.desde || hasta - cfg.dias * 86400;
+    return { tf, cfg, desde, hasta, clave: [a.sym, tf, syms.join(","), desde].join("|") };
+  };
+  const v = parte(lq.tf), b = parte(LQ_BASE);
+  return { a, syms, v, b, clave: v.clave + "#" + b.clave };
+}
+
+const lqFresco = (e, tf) => !!e && Date.now() - e.at < LQ_TTL[tf] * 1000;
+
+function lqGuardar(clave, e) {
+  LQ_CACHE.delete(clave); LQ_CACHE.set(clave, e);
+  while (LQ_CACHE.size > LQ_CACHE_MAX) LQ_CACHE.delete(LQ_CACHE.keys().next().value);
 }
 
 // pinta al momento lo que haya en cache y, si no esta al dia, lo pide (con una pausa corta: los clics seguidos no
 // gastan cupo)
 function lqCargar() {
   if (!lqActivo() || !lq.chart) return;
-  const k = lqClave(), hit = LQ_CACHE.get(k.clave);
+  const k = lqClave(), hv = LQ_CACHE.get(k.v.clave), hb = LQ_CACHE.get(k.b.clave), listo = !!(hv && hb && hb.oi);
   lqMensaje("");
-  if (hit && k.clave !== lq.clave) {
-    try { lqMontar(hit, k); } catch (e) { lqVaciar(); lqMensaje(e.message, true); }
+  if (listo && k.clave !== lq.clave) {
+    try { lqMontar(hv, hb, k); } catch (e) { lqVaciar(); lqMensaje(e.message, true); }
   } else if (k.clave === lq.clave && lq.datos) lqCalcular();
   clearTimeout(lq.tCarga);
   if (k.clave === lq.enCurso) return;   // ya en camino: no se repite
   if (lq.ctrl && lq.enCurso) { lq.ctrl.abort(); lq.enCurso = ""; }
-  if (hit && Date.now() - hit.at < LQ_TTL[lq.tf] * 1000) { lqEstado(""); return; }
-  lqEstado(hit ? "" : "Loading…");
-  lq.tCarga = setTimeout(() => lqTraer(k, hit), hit ? 0 : 200);
+  if (listo && lqFresco(hv, k.v.tf) && lqFresco(hb, LQ_BASE)) {
+    lqEstado("");
+    if (!hv.liq) lqLiq(k, hv);   // la base vino de otro marco sin las liquidaciones de 1 h
+    return;
+  }
+  lqEstado(listo ? "" : "Loading…");
+  lq.tCarga = setTimeout(() => lqTraer(k, hv, hb), listo ? 0 : 200);
 }
 
-async function lqTraer(k, hit) {
-  const { a, cfg, syms, desde, hasta, clave } = k;
+async function lqTraer(k, hv, hb) {
+  const { a, syms, v, b, clave } = k, misma = v.clave === b.clave, aviso = !(hv && hb && hb.oi);
+  const pideB = misma || !(lqFresco(hb, LQ_BASE) && hb.oi), pideV = !misma && !lqFresco(hv, v.tf);
   if (lq.ctrl) lq.ctrl.abort();
   lq.enCurso = clave;
   const ctrl = (lq.ctrl = new AbortController());
   try {
-    const [ohlcv, oi] = await Promise.all([
-      lqPedir("ohlcv", [a.velas], cfg, desde, hasta, ctrl.signal, !hit),
-      syms.length ? lqPedir("oi", syms, cfg, desde, hasta, ctrl.signal, !hit) : [],
+    const [ov, ob, oib] = await Promise.all([
+      pideV ? lqPedir("ohlcv", [a.velas], v.cfg, v.desde, v.hasta, ctrl.signal, aviso) : null,
+      pideB ? lqPedir("ohlcv", [a.velas], b.cfg, b.desde, b.hasta, ctrl.signal, aviso) : null,
+      pideB && syms.length ? lqPedir("oi", syms, b.cfg, b.desde, b.hasta, ctrl.signal, aviso) : [],
     ]);
-    const e = { at: Date.now(), ohlcv, oi, liq: hit && hit.liq && !hit.liq.error ? hit.liq : null };
-    LQ_CACHE.delete(clave); LQ_CACHE.set(clave, e);
-    while (LQ_CACHE.size > LQ_CACHE_MAX) LQ_CACHE.delete(LQ_CACHE.keys().next().value);
-    try { lqMontar(e, k); } catch (x) {
-      LQ_CACHE.delete(clave); lqVaciar(); lqMensaje(x.message, true); lqEstado("");
+    const liqDe = (h) => (h && h.liq && !h.liq.error ? h.liq : null);
+    let eb = hb, ev = hv;
+    if (pideB) { eb = { at: Date.now(), ohlcv: ob, oi: oib, liq: liqDe(hb) }; lqGuardar(b.clave, eb); }
+    if (misma) ev = eb;
+    else if (pideV) { ev = { at: Date.now(), ohlcv: ov, liq: liqDe(hv) }; lqGuardar(v.clave, ev); }
+    try { lqMontar(ev, eb, k); } catch (x) {
+      LQ_CACHE.delete(v.clave); LQ_CACHE.delete(b.clave); lqVaciar(); lqMensaje(x.message, true); lqEstado("");
       return;
     }
     lqEstado("");
     if (lq.enCurso === clave) lq.enCurso = "";
-    // liquidaciones reales despues del mapa: no lo retrasan, si la fuente esta al limite se esperan en silencio y no
-    // se cancelan al cambiar de activo (el cupo ya esta gastado; quedan en la cache para cuando se vuelva)
-    if (!syms.length) return;
-    try { e.liq = await lqPedir("liq", syms, cfg, desde, hasta, new AbortController().signal, false); }
-    catch (x) { if (!e.liq) e.liq = { error: x.message }; }
-    if (lq.clave === clave && LQ_CACHE.get(clave) === e) { lqReales(e.liq); lqSeries(false); lqLectura(); }
+    lqLiq(k, ev);
   } catch (x) {
     if (x.name === "AbortError") return;
-    const m = x.message === "Failed to fetch" ? "The server is not responding." : x.message;
-    if (hit) lqMensaje(`Could not refresh (${m}) Showing data from ${Math.round((Date.now() - hit.at) / 60000)} min ago.`);
+    const m = x.message === "Failed to fetch" ? "The server is not responding." : x.message, viejo = hv && hb && hb.oi ? Math.min(hv.at, hb.at) : 0;
+    if (viejo) lqMensaje(`Could not refresh (${m}) Showing data from ${Math.round((Date.now() - viejo) / 60000)} min ago.`);
     else { lqVaciar(); lqMensaje(m, true); }
     lqEstado("");
   } finally {
@@ -243,13 +265,28 @@ async function lqTraer(k, hit) {
   }
 }
 
-// de las respuestas (velas, OI y liquidaciones reales) a lq.datos, y dibujo
-function lqMontar(e, k) {
-  const { a, cfg, clave } = k, ohlcv = e.ohlcv, oi = e.oi;
-  const velas = ((ohlcv[0] || {}).history || []).filter((v) => v.h > 0 && v.l > 0).sort((p, q) => p.t - q.t);
-  if (velas.length < 20) throw new Error(`Not enough ${cfg.nombre} history for ${a.sym}`);
+// liquidaciones reales del marco que se ve, despues del mapa: no lo retrasan, si la fuente esta al limite se esperan en
+// silencio y no se cancelan al cambiar de activo (el cupo ya esta gastado; quedan en la cache para cuando se vuelva)
+async function lqLiq(k, e) {
+  if (!k.syms.length || e.liqEnCurso) return;
+  e.liqEnCurso = true;
+  try { e.liq = await lqPedir("liq", k.syms, k.v.cfg, k.v.desde, k.v.hasta, new AbortController().signal, false); }
+  catch (x) { if (!e.liq) e.liq = { error: x.message }; }
+  finally { e.liqEnCurso = false; }
+  if (lq.clave === k.clave && LQ_CACHE.get(k.v.clave) === e) { lqReales(e.liq); lqSeries(false); lqLectura(); }
+}
+
+// de las respuestas a lq.datos, y dibujo: velas del marco (ev, con las liquidaciones reales) y base de 1 h con su OI (eb)
+function lqMontar(ev, eb, k) {
+  const { a, clave } = k, oi = eb.oi;
+  const leer = (ohlcv, cfg) => {
+    const x = ((ohlcv[0] || {}).history || []).filter((v) => v.h > 0 && v.l > 0).sort((p, q) => p.t - q.t);
+    if (x.length < 20) throw new Error(`Not enough ${cfg.nombre} history for ${a.sym}`);
+    return x;
+  };
+  const velas = leer(ev.ohlcv, k.v.cfg), vb = ev === eb ? velas : leer(eb.ohlcv, k.b.cfg);
   // OI: se suma el cambio de cada simbolo (no el nivel), para que un exchange que empieza tarde no cree un salto
-  const ts = velas.map((v) => v.t), dOI = new Array(ts.length).fill(null), nivel = new Array(ts.length).fill(0);
+  const ts = vb.map((v) => v.t), dOI = new Array(ts.length).fill(null), nivel = new Array(ts.length).fill(0);
   const conOI = [];
   for (const s of oi) {
     const m = new Map((s.history || []).map((p) => [p.t, p.c]));
@@ -267,9 +304,9 @@ function lqMontar(e, k) {
     oiCum[i] = acc;
   }
   const exs = Object.keys(a.ex).filter((x) => !lq.exOff.has(x));
-  lq.datos = { velas, oi: oiCum, nivel, conOI, exs, sym: a.sym, tf: lq.tf };
+  lq.datos = { velas, base: { velas: vb, oi: oiCum, nivel }, conOI, exs, sym: a.sym, tf: lq.tf };
   if (typeof cxTiraLiq === "function") cxTiraLiq();   // precio de la tira con las velas nuevas
-  lqReales(e.liq);
+  lqReales(ev.liq);
   lq.clave = clave; lq.resClave = "";
   lqCalcular(true);
 }
@@ -303,15 +340,17 @@ const LQ_DENSO = (() => {
 function lqCalcular(nuevos = false) {
   const d = lq.datos;
   if (!d) return;
-  const cfg = LQ_TF[d.tf], h = lqHeat();
+  const cb = LQ_TF[LQ_BASE], h = lqHeat(), vb = d.base.velas, nb = vb.length;
   // ocultar un apalancamiento solo quita sus franjas: el reparto y los colores siguen calculados con todos
   const ver = (h ? LQ_DENSO : LQ_MODELO.APAL).map((x) => x.L).filter((L) => !lq.levOff.has(String(lqGrupo(L))));
   const clave = [lq.clave, ver.join(","), lq.vida, lq.dis].join("|");
   if (clave !== lq.resClave) {
-    lq.res = LQ_MODELO.calcular(d.velas, d.oi, { ver, levs: h ? LQ_DENSO : undefined, vida: cfg.vida * +lq.vida,
-      bins: h ? 2000 : 600, nivel: d.nivel,   // Heatmap: rejilla mas fina, para que cada nivel sea una raya
-      anchoMapa: h ? cfg.am * LQ_AM_HEAT : cfg.am, vidaMin: LQ_VIDA_MIN, lado: 0.5,
-      escalaDesde: d.velas.length - cfg.ver, desde: h ? d.velas.length - LQ_VELAS_HEAT : 0 });   // colores frente a lo que se ve al abrir, no a toda la historia
+    // siempre sobre la base de 1 h; despues, a las velas del marco que se ve
+    const base = LQ_MODELO.calcular(vb, d.base.oi, { ver, levs: h ? LQ_DENSO : undefined, vida: cb.vida * +lq.vida,
+      bins: h ? 2000 : 600, nivel: d.base.nivel,   // Heatmap: rejilla mas fina, para que cada nivel sea una raya
+      anchoMapa: h ? cb.am * LQ_AM_HEAT : cb.am, vidaMin: LQ_VIDA_MIN, lado: 0.5,
+      escalaDesde: nb - cb.ver, desde: h ? nb - LQ_VELAS_HEAT : 0 });   // colores frente a lo que se ve al abrir, no a toda la historia
+    lq.res = base && LQ_MODELO.proyectar(base, vb.map((v) => v.t), d.velas.map((v) => v.t), LQ_TF[d.tf].s, cb.s);
     lq.resClave = clave; lq.imgClave = "";
   }
   if (!lq.res) { lqMensaje("Choose at least one leverage."); return; }
@@ -500,7 +539,9 @@ class LqHeat {
       ctx.imageSmoothingEnabled = false;
       // Heatmap: base morada desde la primera vela con datos; fuera, el fondo del grafico
       // y en vertical solo donde hay liquidez (fuera, el fondo negro)
-      if (lqHeat()) { ctx.fillStyle = C.liqH.base; ctx.fillRect(Math.max(0, left), img.yA, mediaSize.width, img.yB - img.yA); }
+      // (la primera con columna de la base de 1 h: en diario, la historia anterior no tiene mapa)
+      const xi = left + Math.max(0, r.ini - c0) * w;
+      if (lqHeat() && r.ini >= 0) { ctx.fillStyle = C.liqH.base; ctx.fillRect(Math.max(0, xi), img.yA, mediaSize.width, img.yB - img.yA); }
       ctx.drawImage(img.cv, left, 0, ancho, mediaSize.height);
       // Heatmap: lo pendiente en la ultima vela sigue hasta el borde derecho (las bandas que el precio no ha barrido)
       const x0 = left + ancho;
@@ -715,7 +756,7 @@ function lqLeyenda(prm) {
   if (!v) { el.innerHTML = ""; return; }
   const fecha = new Date(v.t * 1000).toLocaleString("en-US", d.tf === "1D" ? { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" } : { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   const r = lq.res, real = d.realL[i] != null ? ` Real liquidations: longs <b class="neg">${lqUsd(d.realL[i])}</b>, shorts <b class="pos">${lqUsd(d.realS[i])}</b>.` : "";
-  const prev = r ? ` Model: longs ${lqUsd(r.predL[i])}, shorts ${lqUsd(r.predS[i])}.` : "";
+  const prev = r && r.col[i] >= 0 ? ` Model${r.fino ? " (this hour)" : ""}: longs ${lqUsd(r.predL[i])}, shorts ${lqUsd(r.predS[i])}.` : "";
   el.innerHTML = `<b>${esc(d.sym)}</b> ${fecha} UTC. O ${lqPx(v.o)} H ${lqPx(v.h)} L ${lqPx(v.l)} C ${lqPx(v.c)}.${real}${prev}`;
 }
 
@@ -739,11 +780,14 @@ function lqTip(prm) {
   // el desglose: los niveles de la banda alrededor del cursor (8 px a cada lado; cada nivel se reparte en varios
   // tramos, asi que una fila de 2 px casi nunca contiene su precio central)
   const ancho = lqTramosEntre(lq.serie, prm.point.y - 8, prm.point.y + 8) || tr;
-  const lo = r.bordes[ancho[0]], hi = r.bordes[ancho[1] + 1], nv = r.niveles, porL = new Map();
+  // los niveles viven en la base de 1 h: la vela base de esta columna
+  const rb = r.base, tb = r.col[t];
+  if (tb < 0) return fuera();
+  const lo = r.bordes[ancho[0]], hi = r.bordes[ancho[1] + 1], nv = rb.niveles, porL = new Map();
   let suma = 0, nace0 = Infinity, nace1 = -Infinity, cortos = 0;
   for (let k = 0; k < nv.N; k++) {
-    if (nv.p[k] < lo || nv.p[k] >= hi || t < nv.i[k] || t >= nv.toque[k]) continue;
-    const a = LQ_MODELO.enMapa(r, k, t);
+    if (nv.p[k] < lo || nv.p[k] >= hi || tb < nv.i[k] || tb >= nv.toque[k]) continue;
+    const a = LQ_MODELO.enMapa(rb, k, tb);
     if (!(a > 0)) continue;
     const gL = lqGrupo(nv.L[k]);   // en Heatmap, cada apalancamiento fino cuenta en el de APAL mas cercano
     suma += a; porL.set(gL, (porL.get(gL) || 0) + a);
@@ -754,7 +798,7 @@ function lqTip(prm) {
   const precio = d.velas[d.velas.length - 1].c, medio = Math.sqrt(lo * hi);   // distancia desde el precio actual
   const lado = cortos >= suma / 2 ? "Short liquidations: hit if price rises here" : "Long liquidations: hit if price falls here";
   const comp = [...porL].sort((p, q) => p[0] - q[0]).map(([L, a]) => `${L}x ${Math.round((a / suma) * 100)}%`).join(", ");
-  const dia = (i) => new Date(d.velas[i].t * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.tf === "1D" ? "numeric" : undefined, timeZone: "UTC" });
+  const dia = (i) => new Date(r.tBase[i] * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: d.tf === "1D" ? "numeric" : undefined, timeZone: "UTC" });
   el.innerHTML = `<b>${lqPx(lo)} to ${lqPx(hi)}</b> <span class="lq-d">${cxPct((medio / precio - 1) * 100)} from now</span>
     <div><b>${lqUsd(suma)}</b> would be liquidated</div><div class="ks">${lado}</div>
     <div class="ks">Leverage: ${comp}</div><div class="ks">Opened ${nace0 === nace1 ? dia(nace0) : `${dia(nace0)} to ${dia(nace1)}`}</div>`;
@@ -767,8 +811,9 @@ function lqTip(prm) {
 
 /* ---------- lectura debajo del grafico */
 function lqLectura() {
-  const d = lq.datos, r = lq.res, cfg = LQ_TF[d.tf], n = d.velas.length;
-  const precio = d.velas[n - 1].c, pct = d.tf === "1D" ? 0.15 : d.tf === "4h" ? 0.1 : 0.05;
+  const d = lq.datos, r = lq.res, rb = r.base, cfg = LQ_TF[d.tf], vb = d.base.velas;
+  // precio y radio de la base: la lectura y las lineas salen iguales en todos los marcos
+  const precio = vb[vb.length - 1].c, pct = LQ_RADIO;
   // lo mismo que pinta el mapa ahora (con la intensidad minima): las lineas y los grupos siempre caen sobre una franja
   let mxUlt = 0;
   for (let b = 0; b < r.B; b++) mxUlt = Math.max(mxUlt, r.gZ[b * r.n + r.n - 1]);
@@ -786,15 +831,28 @@ function lqLectura() {
   // imanes: el mas cercano de los grandes grupos por encima y por debajo
   const iman = (x, lado) => (x ? `<b>${lqPx(x.p)}</b> ${lado} (${cxPct((x.p / precio - 1) * 100)}, ${lqUsd(x.a)})` : `nothing big ${lado}`);
   $("lqIman").innerHTML = `<b class="${cls}">${veredicto}</b>. Nearest liquidity: ${iman(g.arriba[0], "above")}, ${iman(g.abajo[0], "below")}.`;
-  // acierto solo donde hay OI: antes, el mapa sale del volumen y no es el modelo que se juzga
-  const i0 = Math.max(0, r.desdeOI);
-  const aj = LQ_MODELO.ajuste(d.realL.map((x, i) => (x == null || i < i0 ? 0 : r.predL[i] + r.predS[i])),
-    d.realL.map((x, i) => (x == null || i < i0 ? null : x + d.realS[i])));
+  // acierto solo donde hay OI: antes, el mapa sale del volumen y no es el modelo que se juzga. En marcos menores que la
+  // base, las liquidaciones reales se suman por hora y se comparan con las previstas de esa hora
+  let pred = [], real = [];
+  if (r.fino) {
+    const porHora = new Map();
+    d.realL.forEach((x, i) => {
+      const c = r.col[i];
+      if (x == null || c < 0 || c < Math.max(0, rb.desdeOI)) return;
+      porHora.set(c, (porHora.get(c) || 0) + x + d.realS[i]);
+    });
+    for (const [c, x] of porHora) { pred.push(rb.predL[c] + rb.predS[c]); real.push(x); }
+  } else {
+    const i0 = Math.max(0, r.desdeOI);
+    pred = d.realL.map((x, i) => (x == null || i < i0 || r.col[i] < 0 ? 0 : r.predL[i] + r.predS[i]));
+    real = d.realL.map((x, i) => (x == null || i < i0 || r.col[i] < 0 ? null : x + d.realS[i]));
+  }
+  const aj = LQ_MODELO.ajuste(pred, real);
   const nota = d.liqPend ? "Loading" : d.liqError ? "Unavailable" : !aj ? "Not enough data" : aj.r >= 0.5 ? "Good" : aj.r >= 0.3 ? "Fair" : "Weak";
   const porQue = d.liqPend ? "Waiting for the real liquidations." : d.liqError ? `Real liquidations unavailable right now (${d.liqError}).`
     : !aj ? "Too few candles with real liquidations to judge." :
-    `How well the liquidations the model expected each candle match the real ones (correlation r = ${fmtNum(aj.r, 2)} over ${fmtNum(aj.n)} candles). Use the map for zones, not exact amounts.`;
-  const desde = r.desdeOI >= 0 ? new Date(d.velas[r.desdeOI].t * 1000).toISOString().slice(0, 10) : null;
+    `How well the liquidations the model expected each candle match the real ones (correlation r = ${fmtNum(aj.r, 2)} over ${fmtNum(aj.n)} ${r.fino ? "hours" : "candles"}). Use the map for zones, not exact amounts.`;
+  const desde = rb.desdeOI >= 0 ? new Date(r.tBase[rb.desdeOI] * 1000).toISOString().slice(0, 10) : null;
   const ex = (lq.merc.exchanges || {});
   $("lqRead").innerHTML = `
     <div class="lq-card"><span class="kl">Within ${Math.round(pct * 100)}% of the price</span><b class="lq-big ${cls}">${veredicto}</b>
@@ -803,16 +861,18 @@ function lqLectura() {
     <div class="lq-card"><span class="kl">Biggest clusters below (longs)</span>${g.abajo.map(fila).join("") || "<span class='ks'>None</span>"}</div>
     <div class="lq-card"><span class="kl">Model reliability</span><b>${nota}</b><span class="ks">${esc(porQue)}</span></div>`;
   $("lqCap").textContent = `${d.sym}, ${cfg.nombre} candles. Where leveraged positions would be liquidated: brighter means more money.`;
+  const inicio = r.ini > 0 ? ` Older ${cfg.nombre} candles have no map.` : "";
   $("lqHow").textContent = "Each band is a price where open leveraged positions would be force-closed, estimated from new open " +
-    "interest, the buy/sell split of volume and typical leverage (5x to 100x), spread over the entry prices of each candle. " +
+    "interest, the buy/sell split of volume and typical leverage (5x to 100x), spread over the entry prices of each hourly candle. " +
+    `The levels always come from 1-hour data, so they are the same on every timeframe; the candles only change how they are drawn.${inicio} ` +
     "Bands above the price are shorts, below are longs. A band grows while positions keep opening there and stays until price " +
-    `sweeps it (it shrinks if open interest falls); levels that price hit within ${LQ_VIDA_MIN} candles are left out. Colors are ` +
+    `sweeps it (it shrinks if open interest falls); levels that price hit within ${LQ_VIDA_MIN} hours are left out. Colors are ` +
     "relative to what is on screen, from blue (least) to red (the most loaded in view), so they change when you zoom or scroll; " +
     "Min. intensity in Settings hides the weaker bands. Price tends to travel toward big bands: the forced orders feed the move. " +
     "Hover a band to see its size, distance and leverage mix. " +
     (lqHeat() ? "Bands that run past the last candle are still pending now (Heatmap design: continuous colors, RSI 14 below). "
       : "The right profile is what is still pending now. ") + "Real liquidations of each candle show in the legend at the top when you hover it. " +
-    (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${r.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
+    (desde ? `Open interest of ${d.exs.map((e) => ex[e]).join(", ")} since ${desde}${rb.desdeOI > 0 ? "; before that, estimated from volume" : ""}.`
       : "No open interest for this choice: estimated from volume.");
 }
 

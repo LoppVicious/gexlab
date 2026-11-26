@@ -157,6 +157,15 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   marco y exchanges (24 entradas, frescas lo mismo que en el Worker) y pide las liquidaciones reales después del mapa.
   El Worker y `liq_local.py` solo guardan y sirven listas JSON (otra respuesta de Coinalyze es un 502); si una carga
   falla sin copia que enseñar, el mapa se vacía y sale el error con Retry (`lqVaciar`), en vez de quedarse el anterior.
+- **Base única de 1 h:** el modelo se calcula siempre con las velas y el OI de 1 h (80 días, `LQ_BASE`) y
+  `proyectar` lo lleva a las velas del marco que se ve: en 4 h y diario cada vela toma el estado de la última hora que
+  empieza dentro de ella y las liquidaciones previstas se suman; en 5 y 15 min, la hora que la contiene (la fiabilidad
+  compara por horas). Los niveles, el perfil pendiente, las líneas y la lectura son iguales en todos los marcos.
+  Antes cada marco calculaba con sus propias velas y el cambio neto de OI de una vela grande borraba lo abierto y
+  cerrado dentro (BTC 26 nov.: largos de 54.600 en 4 h y cortos de 66.200 en 1 h; mapaliquidaciones.com da lo mismo
+  en los dos). La base se guarda una vez en la cache y la comparten los marcos; cada marco pide solo sus velas y sus
+  liquidaciones reales. Las velas diarias de más de 80 días quedan sin mapa. Los valores por marco que siguen abajo
+  (vida media, `anchoMapa`, vista) son ahora los de la base de 1 h salvo la vista inicial.
 - **Modelo** (`web/liq-modelo.js`, pruebas en `pruebas/test_liq.mjs`):
   1. Posiciones nuevas de cada vela: subida del OI sumando el cambio de cada perpetuo (no el nivel, para que un
      exchange que empieza tarde no cree un salto). Antes del primer OI, volumen × factor calibrado con el tramo con OI.
@@ -203,8 +212,8 @@ para cualquier activo del top 250 de CoinGecko con perpetuos en Binance, Bybit, 
   el veredicto con la liquidez más cercana; las tarjetas y la explicación, en Details. Tooltip al pasar por una franja (rango de precio, dólares, distancia al precio actual, lado, mezcla de
   apalancamientos y fechas en que se abrieron). La vista inicial deja sitio al perfil según el ancho. Copy image
   (`lqPngBlob`: `takeScreenshot` de la librería con cabecera; si el portapapeles falla, descarga el PNG).
-- **Lectura:** bajo el mapa, el veredicto de presión (cortos por encima frente a largos por debajo a ±5 %, ±10 % en
-  4 h y ±15 % en diario) y «Nearest liquidity» (el más cercano de los grandes grupos a cada lado); en Details, los tres grupos más
+- **Lectura:** bajo el mapa, el veredicto de presión (cortos por encima frente a largos por debajo a ±10 % en todos
+  los marcos, `LQ_RADIO`; grupos a ±20 %) y «Nearest liquidity» (el más cercano de los grandes grupos a cada lado); en Details, los tres grupos más
   cargados a cada lado y la fiabilidad del modelo (Good, Fair o Weak según la correlación, en log, entre liquidaciones
   previstas y reales por vela; la r va en el texto).
 - **Modo PC** (`liq_local.py`): con `COINALYZE_API_KEY` en el entorno, igual que el Worker; sin ella, datos públicos

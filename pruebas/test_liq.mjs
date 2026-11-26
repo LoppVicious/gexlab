@@ -261,3 +261,28 @@ test("con desde, las velas anteriores no abren posiciones", () => {
   assert.ok(todo.niveles.N > r.niveles.N);
   for (let k = 0; k < r.niveles.N; k++) assert.ok(r.niveles.i[k] >= 30, `nivel de la vela ${r.niveles.i[k]}`);
 });
+
+test("proyectar: los niveles de la base de 1 h se dibujan igual en 4 h, 5 min y diario", () => {
+  const H = 3600, n = 48;
+  const velas = Array.from({ length: n }, (_, i) => vela(i * H, 100 + (i % 5)));
+  const oi = velas.map((_, i) => 1000 + i * 50);
+  const r = M.calcular(velas, oi, { levs: [{ L: 10, w: 1 }, { L: 25, w: 1 }], nivel: oi });
+  const tB = velas.map((v) => v.t), col = (rr, b, t) => rr.gZ[b * rr.n + t];
+  // 1 h: la misma rejilla
+  const p1 = M.proyectar(r, tB, tB, H, H);
+  assert.equal(p1.gZ, r.gZ); assert.equal(p1.fino, false); assert.equal(p1.base, r);
+  // 4 h: cada vela toma la ultima hora que empieza dentro; las previstas se suman
+  const t4 = Array.from({ length: n / 4 }, (_, j) => j * 4 * H), p4 = M.proyectar(r, tB, t4, 4 * H, H);
+  assert.equal(p4.n, n / 4); assert.deepEqual([...p4.col], t4.map((_, j) => j * 4 + 3));
+  for (let b = 0; b < r.B; b++) assert.equal(col(p4, b, p4.n - 1), col(r, b, n - 1));   // lo pendiente ahora, igual
+  const suma = (a) => a.reduce((x, y) => x + y, 0);
+  assert.ok(Math.abs(suma(p4.predL) - suma(r.predL)) < 1e-6 && Math.abs(suma(p4.predS) - suma(r.predS)) < 1e-6);
+  // 5 min: cada vela toma la hora que la contiene
+  const t5 = Array.from({ length: 24 }, (_, j) => 46 * H + j * 300), p5 = M.proyectar(r, tB, t5, 300, H);
+  assert.equal(p5.fino, true); assert.deepEqual([...p5.col], t5.map((_, j) => (j < 12 ? 46 : 47)));
+  for (let b = 0; b < r.B; b++) assert.equal(col(p5, b, 23), col(r, b, n - 1));
+  // diario con historia anterior a la base: columnas vacias y desdeOI en la primera con base
+  const D = 86400, tD = [-2 * D, -D, 0, D], pD = M.proyectar(r, tB, tD, D, H);
+  assert.deepEqual([...pD.col], [-1, -1, 23, 47]); assert.equal(pD.ini, 2); assert.equal(pD.desdeOI, 2);
+  for (let b = 0; b < r.B; b++) { assert.equal(col(pD, b, 0), 0); assert.equal(col(pD, b, 3), col(r, b, n - 1)); }
+});

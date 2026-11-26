@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-26 — Expected moves y Takes a todo el ancho y con gráficos en oscuro
+## 2026-11-26 — Expected moves, Takes a todo el ancho y con gráficos en oscuro, y mapa de liquidaciones igual en todas las temporalidades
 
 **Añadido**
 - **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones y a un mes (21 sesiones) de todas las
@@ -29,6 +29,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 
 **Corregido**
 - **Editor de Takes:** cambiar de tema con un borrador abierto ya no borra el título ni el texto sin guardar.
+- **Crypto > Liquidations, mismos niveles en todas las temporalidades:** las liquidaciones se calculan siempre con
+  velas de 1 hora y su open interest, y las velas de 5 min, 15 min, 1 h, 4 h o diario solo cambian cómo se dibujan.
+  Antes cada temporalidad hacía su propio cálculo y salían zonas distintas (BTC el 26 de noviembre: largos en 54.600
+  en 4 h y cortos en 66.200 en 1 h). La lectura de debajo, las líneas de Shorts y Longs y el imán usan el mismo radio
+  en todas (±10 % para la presión). En diario, las velas anteriores a los últimos 80 días ya no tienen mapa.
 
 ## 2026-11-25 — Nota diaria de flujos en Takes, Social diario de nuevo y NDX y RUT al día en tiempo real
 

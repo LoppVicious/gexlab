@@ -20,6 +20,8 @@
    Opciones `zona` y `vidaMin`: rejilla de zonas `gZ` (suma de los tramos a +-zona; lo que se pinta y se lee) y
    niveles que el precio toca antes de vidaMin velas fuera del dibujo.
    Opcion `desde`: no se abren posiciones antes de esa vela.
+   La web calcula siempre sobre velas de 1 h y `proyectar` lleva el resultado a las velas del marco que se ve: los
+   niveles no dependen de la temporalidad.
    Lo dibuja web/liq.js; lo prueba pruebas/test_liq.mjs con node (module.exports). */
 
 const LQ_MODELO = (() => {
@@ -344,7 +346,38 @@ const LQ_MODELO = (() => {
     return sxx > 0 && syy > 0 ? { r: sxy / Math.sqrt(sxx * syy), n } : null;
   }
 
-  return { APAL, MM, sumar, calcular, enMapa, ahora, presion, grupos, ajuste };
+  // del calculo sobre velas base (1 h) a las velas que se ven: los niveles son los mismos en todos los marcos y solo
+  // cambia la columna en que se dibujan. Cada vela vista toma el estado de la ultima vela base que empieza dentro de
+  // ella (4 h, diario: lo que queda al cerrar) o de la que la contiene (5 y 15 min); sin vela base, columna vacia.
+  // Liquidaciones previstas: en marcos mayores, la suma de sus velas base; en menores (fino), la de su hora.
+  // Devuelve lo que leen el dibujo y la lectura (n, B, bordes, gZ, predL, predS, desdeOI) mas base, col y tBase para
+  // el tooltip, que mira los niveles en la vela base
+  function proyectar(res, tBase, tVista, sVista, sBase) {
+    const n = res.n, m = tVista.length, B = res.B, col = new Int32Array(m).fill(-1);
+    for (let j = 0, i = -1; j < m; j++) {
+      while (i + 1 < n && tBase[i + 1] < tVista[j] + sVista) i++;
+      if (i >= 0 && tBase[i] + sBase > tVista[j]) col[j] = i;
+    }
+    const ini = col.findIndex((c) => c >= 0), fino = sVista < sBase;
+    let desdeOI = -1;
+    if (res.desdeOI >= 0) desdeOI = col.findIndex((c) => c >= res.desdeOI);
+    const extra = { base: res, col, tBase, fino, ini, desdeOI };
+    if (m === n && col.every((c, j) => c === j)) return { ...res, ...extra };
+    const gZ = new Float32Array(B * m), predL = new Float64Array(m), predS = new Float64Array(m);
+    for (let j = 0; j < m; j++) {
+      const c = col[j];
+      if (c < 0) continue;
+      for (let b = 0; b < B; b++) gZ[b * m + j] = res.gZ[b * n + c];
+      if (fino) { predL[j] = res.predL[c]; predS[j] = res.predS[c]; }
+    }
+    if (!fino) for (let i = 0, j = 0; i < n; i++) {
+      while (j + 1 < m && tVista[j + 1] <= tBase[i]) j++;
+      if (tBase[i] >= tVista[j] && tBase[i] < tVista[j] + sVista) { predL[j] += res.predL[i]; predS[j] += res.predS[i]; }
+    }
+    return { n: m, B, bordes: res.bordes, gZ, predL, predS, ...extra };
+  }
+
+  return { APAL, MM, sumar, calcular, enMapa, ahora, presion, grupos, ajuste, proyectar };
 })();
 
 if (typeof module !== "undefined") module.exports = LQ_MODELO;

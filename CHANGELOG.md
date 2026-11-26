@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-26 — Expected moves, Takes a todo el ancho y con gráficos en oscuro, y mapa de liquidaciones igual en todas las temporalidades
+## 2026-11-26 — Expected moves con volumen de la acción, Takes a todo el ancho y con gráficos en oscuro, y mapa de liquidaciones igual en todas las temporalidades
 
 **Añadido**
 - **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones y a un mes (21 sesiones) de todas las
@@ -12,6 +12,12 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   necesidad de calendario (ni los fines de semana y festivos ni los vencimientos diarios cuentan como evento). Flagged marca las que tienen mucho volumen de opciones frente al de acciones o dealers
   cortos en gamma, que en el estudio se movieron más de lo que cotizaban sus opciones; son indicadores en prueba y la
   página enseña su prueba en adelante hasta tener sesiones suficientes. Al pulsar una acción se abre su TRACE.
+- **Expected moves, volumen de la acción:** columna RVol (acciones negociadas frente a su media de las 20 sesiones
+  previas) y dos etiquetas nuevas. Volume confirmed: RVol de 1,5 o más, vela de rango amplio y cierre en el cuarto
+  alto del día, un movimiento con volumen de la acción detrás. Options-led: mucho volumen de opciones con la acción a
+  su volumen normal o por debajo, el tipo de rebote que suele quedarse contenido. Las dos están en prueba: la página
+  enseña cuánto se movieron esas acciones frente a lo que cotizaban sus opciones y su rendimiento a 5 sesiones
+  frente a las demás.
 - **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se
   moverá una acción. La volatilidad baja no anticipa movimientos grandes (11 años de velas diarias), así que la
   página no la usa.

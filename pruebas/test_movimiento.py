@@ -115,6 +115,48 @@ def test_calcular_prueba_e_indicadores():
     assert abs(filas["S1"]["os"] - 0.02) < 1e-9
 
 
+def _velas(fechas, n, hoy_vela):
+    """Velas con ADV sesiones previas iguales (volumen 1e6, rango 2) y, el último día, la de hoy_vela {SYM: (máximo,
+    mínimo, cierre, acciones)}; S{j} con j par tiene volumen doble todos los días de la prueba (RVol alto)."""
+    previas = [str(np.datetime64(fechas[0]) - np.timedelta64(m.ADV - k, "D")) for k in range(m.ADV)]
+    out = {}
+    for j in range(n):
+        s = f"S{j}"
+        filas = [(101.0, 99.0, 100.0, 1e6)] * m.ADV
+        filas += [(101.0, 99.0, 100.0, 2e6 if j % 2 == 0 else 1e6) for _ in fechas[:-1]]
+        filas.append(hoy_vela.get(s, (101.0, 99.0, 100.0, 1e6)))
+        fs = previas + fechas
+        out[s] = {"i": {f: k for k, f in enumerate(fs)}, "a": np.array(filas)}
+    return out
+
+
+def test_vela_y_etiquetas_de_volumen():
+    idx, sk, nombres = _datos()
+    fechas = sorted(idx)
+    # S29: volumen 2,5 veces la media, rango 4 (2 veces), cierre en el 90 % del rango: confirmada. S28: O/S en el
+    # quinto alto (heavy) con la acción a 0,8 veces su volumen: options. S27: volumen alto pero cierre en el mínimo
+    vl = _velas(fechas, 30, {"S29": (102.0, 98.0, 101.6, 2.5e6), "S28": (101.0, 99.0, 100.0, 8e5),
+                             "S27": (102.0, 98.0, 98.0, 3e6)})
+    x = m._vela(vl["S29"], fechas[-1])
+    assert abs(x["rvol"] - 2.5) < 1e-9 and abs(x["range"] - 2.0) < 1e-9 and abs(x["pos"] - 0.9) < 1e-9
+    assert m._vela(vl["S29"], "2020-01-01") is None
+    r = m.calcular(idx, sk, nombres, vl)
+    filas = {f["sym"]: f for f in r["rows"]}
+    assert "confirmed" in filas["S29"]["flags"] and "options" not in filas["S29"]["flags"]
+    assert "options" in filas["S28"]["flags"] and "confirmed" not in filas["S28"].get("flags", [])
+    assert "confirmed" not in filas["S27"].get("flags", [])
+    assert filas["S29"]["rvol"] == 2.5 and filas["S29"]["candle_date"] == fechas[-1]
+    t = r["test"]
+    # las pares van a 2 veces su volumen hasta que la media lo recoge (desde ahí todas a 1 y el día no puntúa);
+    # ninguna confirmada: rango normal y cierre a media vela
+    assert t["rvol"]["n"] == 20 and t["confirmed"]["n"] == 0
+    # options en la prueba: heavy (S24-S29) con RVol ≤ 1: las impares cada día, y también las pares desde el día 21
+    assert t["options"]["n"] == 25 * 3 + 5 * 3 and t["options"]["ratio"] is not None
+    # sin velas: ni columna ni etiquetas
+    sin = {f["sym"]: f for f in m.calcular(idx, sk, nombres)["rows"]}
+    assert sin["S29"]["rvol"] is None and "confirmed" not in sin["S29"].get("flags", [])
+
+
 def test_fuera_fondos_e_indices():
     idx, sk, nombres = _datos(dias=8, n=25)
     nombres["S1"] = "Spdr S&P 500 ETF Trust"

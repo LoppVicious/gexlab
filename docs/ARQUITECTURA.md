@@ -351,9 +351,16 @@ Los dos:
   - Indicadores en prueba (quinto extremo del día): `heavy`, O/S alto (del índice de skew; si el volumen de la acción
     de hoy aún no está, el del día anterior); `short`, gamma del motor Perfil (estándar, 45 días, `net_per_pct`)
     negativa frente al volumen medio en $ de 20 sesiones (acciones × cierre del índice de skew).
+  - Volumen de la acción (`velas`, `_vela`): velas diarias del histórico (`g.fetch_aux("historical")`, Tradier en
+    Actions; una petición por acción en `publicar`, sin índice propio). RVol = acciones / media de las `ADV` (20)
+    sesiones previas; rango y posición del cierre de la vela. Etiquetas `confirmed` (`RVOL_MIN` 1,5, `RANGO_MIN` 1,2,
+    `CIERRE_ALTO` 0,75) y `options` (`heavy` con RVol de como mucho `RVOL_BAJO`, 1). Sin velas (PC sin token), sin
+    columna ni etiquetas.
   - Prueba en adelante en `test`: IC de rangos entre cada indicador y realizado/implícito a `H` (5) sesiones, t de
     Newey-West, cociente medio en el quinto alto y el bajo; veredicto desde 20 sesiones. `events`: mediana del mayor
     |rendimiento| diario de las 5 sesiones siguientes frente al evento implícito. `ratio`: mediana de realizado / implícito.
+    `rvol`: el mismo IC con log(RVol). `confirmed` y `options` (`_casos`): número de casos, mediana de realizado /
+    implícito y rendimiento a 5 sesiones menos la media de las acciones del día (`excess`, `hit`).
   - Índice `hist500/_mov.json.gz` (`punto`): `{fecha: {SYM: [m1, m5, evento %, vencimiento, sesiones, gamma $ por 1 %,
     flip, cierre, m21]}}` (m21 solo desde el 2026-11-26; el índice se rehace con `--movimiento`). `historial500.py` lo actualiza tras pcr y skew (la primera vez lo reconstruye) y publica;
     `--movimiento` (input `movimiento` del workflow) solo lo reconstruye y publica; `--indice` también lo rehace.

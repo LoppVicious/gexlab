@@ -9,6 +9,15 @@ Magnitud, no dirección. Estudio de base: pruebas/estudio_movimiento.py (2026-11
   gamma de dealers negativa frente al volumen en $. Salen como indicadores en prueba, con su prueba en adelante;
 - la compresión de volatilidad (RV5/RV60 baja) no anticipa expansión: va al revés, y queda fuera.
 
+Volumen de la acción (2026-11-26, idea de Pau): un movimiento con el volumen de la acción muy por encima de su media,
+vela de rango amplio y cierre cerca del máximo tiene continuidad; con mucho volumen de opciones y poco de la acción
+suele quedarse en un rebote contenido. RVol = acciones del día / media de las ADV sesiones previas; rango = (máximo −
+mínimo) / su media de las ADV sesiones previas; posición del cierre = (cierre − mínimo) / (máximo − mínimo).
+Etiquetas "confirmed" (RVOL_MIN, RANGO_MIN y CIERRE_ALTO a la vez) y "options" (O/S en el quinto alto con RVol de como
+mucho RVOL_BAJO). En prueba: IC de RVol frente a realizado/implícito y, por etiqueta, cuánto se movieron frente a lo
+implícito y su rendimiento a H sesiones frente a la media de las demás acciones del día. Las velas diarias (máximo,
+mínimo, cierre y volumen) salen del histórico diario (`velas`: Tradier en Actions), no de un índice.
+
 Índice hist500/_mov.json.gz: {fecha: {SYM: [m1, m5, evento %, vencimiento del evento, sesiones hasta él,
 gamma $ por 1 %, flip, cierre, m21]}} (m21: un mes, 21 sesiones; las filas antiguas no lo tienen). Lo escribe historial500.py con cada sesión (`punto`) y lo reconstruye con las
 cadenas guardadas (`reconstruir`, `historial500.py --movimiento` o `--indice`). El volumen de opciones y de la
@@ -37,6 +46,10 @@ ADV = 20                 # sesiones del volumen medio en $
 MIN_ACCIONES = 20        # acciones mínimas para puntuar una sesión
 MIN_FECHAS = 20          # sesiones evaluadas para dar un veredicto
 QUINTIL = 0.2            # indicadores: quintil extremo del día
+RVOL_MIN = 1.5           # confirmed: volumen de la acción frente a su media de ADV sesiones previas
+RANGO_MIN = 1.2          # confirmed: rango del día frente a su media de ADV sesiones previas
+CIERRE_ALTO = 0.75       # confirmed: cierre en el cuarto alto del rango del día
+RVOL_BAJO = 1.0          # options: O/S en el quinto alto con la acción a su volumen normal o por debajo
 
 
 # ---------------------------------------------------------------- de la cadena
@@ -166,6 +179,67 @@ def _adv(sk: dict, fechas: list[str], i: int, sym: str) -> float | None:
     return float(np.mean(dv)) if len(dv) >= 5 else None
 
 
+def velas(syms: list[str], desde: str) -> dict:
+    """Velas diarias desde `desde` del histórico (Tradier en Actions; sin token, vacío):
+    {SYM: {"i": {fecha: fila}, "a": array de filas [máximo, mínimo, cierre, acciones]}}."""
+    out = {}
+    for s in syms:
+        try:
+            h = (g.fetch_aux("historical", s, ttl=3600) or {}).get("data") or []
+        except Exception:  # noqa: BLE001  (un ticker sin histórico no para el resto)
+            continue
+        fechas, filas = [], []
+        for r in h:
+            try:
+                hi, lo, c, v = (float(r.get(k) or 0) for k in ("high", "low", "close", "volume"))
+            except (TypeError, ValueError):
+                continue
+            if r.get("date", "") >= desde and c > 0 and hi >= lo > 0 and v > 0:
+                fechas.append(r["date"])
+                filas.append((hi, lo, c, v))
+        if filas:
+            out[s] = {"i": {f: j for j, f in enumerate(fechas)}, "a": np.array(filas)}
+    return out
+
+
+def _vela(v: dict | None, fecha: str) -> dict | None:
+    """RVol, rango relativo y posición del cierre de la vela de `fecha` frente a las ADV sesiones previas."""
+    j = v["i"].get(fecha) if v else None
+    if j is None or j < ADV:
+        return None
+    a = v["a"]
+    hi, lo, c, vol = a[j]
+    previas = a[j - ADV:j]
+    mv, mr = float(previas[:, 3].mean()), float((previas[:, 0] - previas[:, 1]).mean())
+    if mv <= 0 or mr <= 0:
+        return None
+    rango = hi - lo
+    return {"rvol": float(vol / mv), "range": float(rango / mr), "pos": float((c - lo) / rango) if rango > 0 else 0.5}
+
+
+def confirmada(x: dict | None) -> bool:
+    return bool(x) and x["rvol"] >= RVOL_MIN and x["range"] >= RANGO_MIN and x["pos"] >= CIERRE_ALTO
+
+
+def _quinto_alto(x: np.ndarray) -> np.ndarray:
+    """Máscara del quinto alto del día entre los valores finitos (toda falsa con menos de MIN_ACCIONES)."""
+    m = np.isfinite(x)
+    out = np.zeros(len(x), bool)
+    if m.sum() >= MIN_ACCIONES:
+        out[np.where(m)[0][_rangos(x[m]) / (m.sum() - 1) >= 1 - QUINTIL]] = True
+    return out
+
+
+def _casos(c: list[tuple[float, float]]) -> dict:
+    """Casos de una etiqueta: (realizado/implícito, rendimiento a H sesiones − media del día, en puntos %)."""
+    r = np.array([x[0] for x in c if np.isfinite(x[0])])
+    e = np.array([x[1] for x in c if np.isfinite(x[1])])
+    return {"n": len(c), "need": MIN_FECHAS, "enough": len(c) >= MIN_FECHAS,
+            "ratio": round(float(np.median(r)), 3) if r.size else None,
+            "excess": round(float(e.mean()), 3) if e.size else None,
+            "hit": round(float((e > 0).mean()), 3) if e.size else None}
+
+
 def _evaluar(x: list[np.ndarray], y: list[np.ndarray], signo: int) -> dict:
     """IC de rangos por sesión entre la señal (×signo: alto = se espera más movimiento) y realizado/implícito, t de
     Newey-West y media del cociente en el quintil alto y en el bajo."""
@@ -187,7 +261,9 @@ def _evaluar(x: list[np.ndarray], y: list[np.ndarray], signo: int) -> dict:
             "bottom": round(float(np.mean(bajo)), 3) if bajo else None}
 
 
-def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
+def calcular(idx: dict, sk: dict, nombres: dict, vl: dict | None = None) -> dict:
+    """vl: velas diarias de `velas` (sin ellas, sin RVol ni sus etiquetas)."""
+    vl = vl or {}
     fechas_m = sorted(idx)
     fechas_s = sorted(set(sk) | set(idx))
     pos = {f: i for i, f in enumerate(fechas_s)}
@@ -200,12 +276,14 @@ def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
         return v[2] if v and len(v) > 2 and v[2] else np.nan
 
     # prueba en adelante de los indicadores y de los eventos
-    xo, xg, yr, ev_ratio = [], [], [], []
+    xo, xg, xv, yr, ev_ratio = [], [], [], [], []
+    casos = {"confirmed": [], "options": []}
     for f in fechas_m:
         i = pos[f]
         if i + H >= len(fechas_s):
             continue
-        os_, ga, ratio = (np.full(len(acciones), np.nan) for _ in range(3))
+        os_, ga, ratio, rv, ret = (np.full(len(acciones), np.nan) for _ in range(5))
+        conf = np.zeros(len(acciones), bool)
         for s, v in idx[f].items():
             j = col.get(s)
             if j is None:
@@ -216,6 +294,7 @@ def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
             r = np.diff(np.log(c))
             if (np.abs(r) > np.log(1.5)).any():   # split o dato roto
                 continue
+            ret[j] = float(r.sum() * 100)
             if v[1]:
                 ratio[j] = float(np.sqrt((r ** 2).sum()) * 100 / v[1])
             if v[2] and v[4] is not None and v[4] <= H:
@@ -225,12 +304,23 @@ def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
             a = _adv(sk, fechas_s, i, s)
             if v[5] is not None and a:
                 ga[j] = v[5] / a
+            x = _vela(vl.get(s), f)
+            if x:
+                rv[j], conf[j] = np.log(x["rvol"]), confirmada(x)
+        media = float(np.nanmean(ret)) if np.isfinite(ret).sum() >= MIN_ACCIONES else np.nan
+        opc = _quinto_alto(os_) & np.isfinite(rv) & (rv <= np.log(RVOL_BAJO))
+        for k, m in (("confirmed", conf), ("options", opc)):
+            casos[k] += [(ratio[j], ret[j] - media) for j in np.where(m)[0]]
         xo.append(os_)
         xg.append(ga)
+        xv.append(rv)
         yr.append(ratio)
     prueba = {
         "heavy": _evaluar(xo, yr, 1),       # O/S alto: se espera más movimiento que el implícito
         "short": _evaluar(xg, yr, -1),      # gamma negativa frente al volumen: ídem
+        "rvol": _evaluar(xv, yr, 1),        # volumen de la acción alto frente a su media: ídem
+        "confirmed": _casos(casos["confirmed"]),
+        "options": _casos(casos["options"]),
         "events": {"n": len(ev_ratio), "median": round(float(np.median(ev_ratio)), 3) if ev_ratio else None},
         "ratio": round(float(np.nanmedian(np.concatenate(yr))), 3) if yr and np.isfinite(np.concatenate(yr)).any() else None,
     }
@@ -247,12 +337,19 @@ def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
         if o is None and i > 0:   # el volumen de la acción del día puede llegar una sesión tarde
             o, o_dia = _os((sk.get(fechas_s[i - 1]) or {}).get(s)), fechas_s[i - 1]
         a = _adv(sk, fechas_s, i, s)
+        x, x_dia = _vela(vl.get(s), hoy), hoy
+        if x is None and i > 0:   # la vela del día puede llegar una sesión tarde, como el volumen
+            x, x_dia = _vela(vl.get(s), fechas_s[i - 1]), fechas_s[i - 1]
         filas.append({"sym": s, "name": nombres.get(s), "spot": v[7], "m1": v[0], "m5": v[1],
                       "m21": v[8] if len(v) > 8 else None,
                       "ev": v[2], "ev_exp": v[3], "ev_n": v[4],
                       "gadv": None if v[5] is None or not a else round(v[5] / a, 5),
                       "below_flip": None if not v[6] else v[7] < v[6], "flip": v[6],
-                      "os": None if o is None else round(float(np.exp(o)), 4), "os_date": o_dia if o is not None else None})
+                      "os": None if o is None else round(float(np.exp(o)), 4), "os_date": o_dia if o is not None else None,
+                      "rvol": None if x is None else round(x["rvol"], 3),
+                      "range": None if x is None else round(x["range"], 3),
+                      "close_pos": None if x is None else round(x["pos"], 3),
+                      "candle_date": x_dia if x is not None else None, "_conf": confirmada(x)})
     for k, signo, flag in (("os", 1, "heavy"), ("gadv", -1, "short")):
         con = [f for f in filas if f[k] is not None]
         if len(con) < MIN_ACCIONES:
@@ -261,8 +358,15 @@ def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
         for f, p in zip(con, q):
             if p >= 1 - QUINTIL and (flag != "short" or f["gadv"] < 0):
                 f.setdefault("flags", []).append(flag)
+    for f in filas:
+        if f.pop("_conf"):
+            f.setdefault("flags", []).append("confirmed")
+        if "heavy" in f.get("flags", []) and f["rvol"] is not None and f["rvol"] <= RVOL_BAJO:
+            f["flags"].append("options")
     return {"date": hoy, "sessions": len(fechas_m), "first": fechas_m[0], "horizon": H,
-            "thresholds": {"event_x": EVENTO_X, "event_sessions": EVENTO_SESIONES, "quintile": QUINTIL},
+            "thresholds": {"event_x": EVENTO_X, "event_sessions": EVENTO_SESIONES, "quintile": QUINTIL,
+                           "rvol_min": RVOL_MIN, "range_min": RANGO_MIN, "close_high": CIERRE_ALTO,
+                           "rvol_low": RVOL_BAJO, "adv": ADV},
             "test": prueba, "rows": filas}
 
 
@@ -270,6 +374,9 @@ def publicar(st) -> dict | None:
     idx = almacen.get_json(st, INDICE) or {}
     if not idx:
         return None
-    res = calcular(idx, almacen.get_json(st, skew.INDICE) or {}, dict(g.load_symbols()))
+    nombres = dict(g.load_symbols())
+    syms = sorted({s for d in idx.values() for s in d if skew.es_accion(s, nombres)})
+    desde = str(np.datetime64(min(idx)) - np.timedelta64(2 * ADV, "D"))   # unas ADV sesiones antes del primer día
+    res = calcular(idx, almacen.get_json(st, skew.INDICE) or {}, nombres, velas(syms, desde))
     almacen.put_json(st, PUB, res)
     return res

@@ -635,7 +635,7 @@
     </div>
     <p class="regime" id="emvRead"></p>
     <div class="facts" id="emvFacts"></div>
-    <p class="mnote"><b>1-day and 5-day moves</b>: one standard deviation priced by each stock's at-the-money options at the close, interpolated between expirations. In our study they ranked the moves that followed well, and realized moves came in under them on average. <b>Event</b>: when the variance priced between two expirations jumps well above the next stretch, something is scheduled inside it (usually earnings); the excess is the event move. <b>Gamma</b>: dealer gamma per 1% move against the stock's daily dollar volume; negative means their hedging adds to moves. <b>O/S</b>: option contracts × 100 against shares traded. Size, not direction.</p>
+    <p class="mnote"><b>1-day and 5-day moves</b>: one standard deviation priced by each stock's at-the-money options at the close, interpolated between expirations. In our study they ranked the moves that followed well, and realized moves came in under them on average. <b>Event</b>: when the variance priced between two expirations jumps well above the next stretch, something is scheduled inside it (usually earnings); the excess is the event move. <b>Gamma</b>: dealer gamma per 1% move against the stock's daily dollar volume; negative means their hedging adds to moves. <b>O/S</b>: option contracts × 100 against shares traded. <b>RVol</b>: shares traded against their average of the previous 20 sessions. <b>Volume confirmed</b>: RVol of 1.5× or more, a range at least 1.2× its average and a close in the top quarter of the day's range, so the move has stock volume behind it. <b>Options-led</b>: heavy option trading with RVol at 1× or below, the kind of move that tends to stay a contained bounce. Size, not direction, except for these two, whose test also tracks the return against other stocks.</p>
   </aside>
   <section class="mcharts">
     <div class="mchart-head ssk-head">
@@ -652,7 +652,8 @@
         <th data-k="ev" class="l" title="Event move priced within the next 10 sessions, and the expiration that first includes it">Event</th>
         <th data-k="gadv" title="Dealer gamma per 1% move, in % of the average daily dollar volume (20 sessions)">Gamma / volume</th>
         <th data-k="os" title="Option contracts traded × 100 / shares traded">O/S</th>
-        <th data-k="flags" class="l" title="Flags in test: heavy options volume and short gamma">Flags</th>
+        <th data-k="rvol" title="Shares traded against their average of the previous 20 sessions">RVol</th>
+        <th data-k="flags" class="l" title="Flags in test: heavy options volume, short gamma, volume confirmed and options-led">Flags</th>
       </tr></thead>
       <tbody id="emvBody"></tbody>
     </table></div>

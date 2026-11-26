@@ -89,7 +89,7 @@ function renderMoves() {
     return dir * (x - y) || a.sym.localeCompare(b.sym);
   });
   $("emvBody").innerHTML = list.length ? list.map((r) => {
-    const g = r.gadv == null ? "—" : `<span class="${r.gadv < 0 ? "neg" : r.gadv > 0 ? "pos" : ""}">${r.gadv > 0 ? "+" : r.gadv < 0 ? "−" : ""}${fmtNum(Math.abs(r.gadv) * 100, 1)}%</span>`;
+    const g = r.gadv == null ? "—" : `<span class="${r.gadv < 0 ? "neg" : r.gadv > 0 ? "pos" : ""}">${r.gadv > 0 ? "+" : r.gadv < 0 ? "−" : ""}${fmtNum(Math.abs(r.gadv) * 100, 2)}%</span>`;
     const flip = r.below_flip == null ? "" : r.below_flip ? `Below the gamma flip (${fmtNum(r.flip, 2)}). ` : `Above the gamma flip (${fmtNum(r.flip, 2)}). `;
     return `<tr data-s="${esc(r.sym)}" title="${esc(r.name || r.sym)}: open its TRACE">
       <td class="l"><b>${esc(r.sym)}</b></td>

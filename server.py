@@ -299,6 +299,12 @@ class Handler(SimpleHTTPRequestHandler):
             if not d:
                 return self._json(503, {"error": "Sentiment: no data yet. The daily history computes it after each close."})
             return self._json(200, d)
+        if url.path == "/api/moves":  # lo calcula el historial diario (movimiento.py); aqui se lee del almacen
+            import almacen
+            d = almacen.get_json(almacen.abrir(), "pub/movimiento.json")
+            if not d:
+                return self._json(503, {"error": "Expected moves: no data yet. The daily history computes them after each close."})
+            return self._json(200, d)
         if url.path in ("/api/crypto", "/api/crypto_series", "/api/crypto_net"):  # cripto.py; del almacen
             import almacen
             import re

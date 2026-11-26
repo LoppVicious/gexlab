@@ -3,7 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-26 — Estudio para un screener de movimiento esperado y Takes a todo el ancho
+## 2026-11-26 — Expected moves y Takes a todo el ancho
 
 **Cambiado**
 - **Research > Takes a todo el ancho:** el listado pasa a una rejilla de tarjetas que llena la pantalla. En un take,
@@ -13,10 +13,15 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   otra pestaña; se cierra con clic, con la X o con Escape.
 
 **Añadido**
+- **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones de todas las
+  acciones del historial diario, ordenadas de más a menos. La pestaña Events lista las que tienen un evento cotizado
+  en las próximas dos semanas (casi siempre resultados), con su movimiento y el vencimiento que lo recoge, sin
+  necesidad de calendario. Flagged marca las que tienen mucho volumen de opciones frente al de acciones o dealers
+  cortos en gamma, que en el estudio se movieron más de lo que cotizaban sus opciones; son indicadores en prueba y la
+  página enseña su prueba en adelante hasta tener sesiones suficientes. Al pulsar una acción se abre su TRACE.
 - **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se
-  moverá una acción en las próximas sesiones (compresión, rango, choque y nivel de volatilidad con años de velas
-  diarias; movimiento implícito, eventos en la estructura temporal, gamma, flip y O/S con las cadenas del historial
-  diario). Es la base para decidir qué entra en el screener; todavía no cambia nada en la web.
+  moverá una acción. La volatilidad baja no anticipa movimientos grandes (11 años de velas diarias), así que la
+  página no la usa.
 
 ## 2026-11-25 — Nota diaria de flujos en Takes, Social diario de nuevo y NDX y RUT al día en tiempo real
 

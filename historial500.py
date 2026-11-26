@@ -7,8 +7,9 @@ config/historial500.json; si aun no existe, se usa TICKERS (la lista inicial).
   python historial500.py                 sesion de hoy (solo si ya ha cerrado y no esta hecha)
   python historial500.py --forzar        rehace la ultima sesion cerrada (con el mercado cerrado)
   python historial500.py --forzar AAPL   solo esos tickers (pruebas)
-  python historial500.py --indice        reconstruye hist500/_niveles/, _skew.json.gz y _pcr.json.gz con los dias ya guardados
+  python historial500.py --indice        reconstruye hist500/_niveles/, _skew, _pcr y _mov con los dias ya guardados
   python historial500.py --validacion    solo recalcula la Validacion de toda la lista (pub/validacion500/)
+  python historial500.py --movimiento    solo reconstruye hist500/_mov.json.gz y publica pub/movimiento.json
 
 Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
   hist500/{SYM}/{AAAA-MM-DD}.json.gz
@@ -24,6 +25,7 @@ Para cada ticker guarda en el almacen (R2 en la nube) un archivo por sesion:
             FLOW_DAYS sesiones (lo que necesita el modo flujo); se actualiza cada dia.
   hist500/_skew.json.gz y pub/skew.json: skew de puts y diferencia call-put a 30 dias de cada accion (skew.py).
   hist500/_pcr.json.gz, hist500/_pcr_exp.json.gz y pub/pcr.json: sentimiento por put/call (pcr.py).
+  hist500/_mov.json.gz y pub/movimiento.json: movimiento esperado de cada accion (movimiento.py).
   pub/validacion500/{filtro}_{posicion}.json: Validacion de toda la lista con el indice de niveles (publicar_validacion).
 Al terminar escribe hist500/_dias/{fecha}.json (resumen) y borra lo que tenga mas de RETENCION_ANOS.
 Nunca toca el estado del motor (estado/estado.tar.gz). Los registros de Actions son publicos: solo se
@@ -46,6 +48,7 @@ import numpy as np  # noqa: E402
 
 import almacen  # noqa: E402
 import gex_engine as g  # noqa: E402
+import movimiento  # noqa: E402
 import pcr  # noqa: E402
 import skew  # noqa: E402
 
@@ -166,7 +169,8 @@ def cadena_compacta(ch: dict) -> dict:
     return g.chain_to_min(sub)
 
 
-def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None, pcrs: dict | None = None) -> int:
+def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None, pcrs: dict | None = None,
+                   movs: dict | None = None) -> int:
     g._cache.pop(sym, None)
     raw = g.fetch_chain(sym, force=True)
     ch = g.parse_chain(raw)
@@ -219,6 +223,13 @@ def guardar_ticker(st, sym: str, sesion: str, puntos: dict | None = None, pcrs: 
         "levels": niveles, "chain": cadena_compacta(ch),
     }
     n = almacen.put_json(st, f"{PREFIX}{g.normalize(sym)}/{sesion}.json.gz", doc)
+    if movs is not None:  # movimiento esperado (movimiento.py): implicito, evento y gamma del cierre
+        try:
+            p = movimiento.punto(ch, float(ch["spot"]), sesion, niveles)
+            if p:
+                movs[sym] = p
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR movimiento {sym}: {type(e).__name__}: {str(e)[:120]}")
     if flujo:
         almacen.put_json(st, fkey, flujo)
     try:
@@ -379,6 +390,17 @@ def _normalizados(lista: list[str]) -> list[str]:
     return out
 
 
+def publicar_movimiento(st) -> None:
+    """pub/movimiento.json; despues de skew, cuyo indice trae volumenes y cierres."""
+    try:
+        r = movimiento.publicar(st)
+        if r:
+            log(f"movimiento: {len(r['rows'])} acciones el {r['date']}, {r['sessions']} sesiones, "
+                f"{sum(1 for x in r['rows'] if x['ev'])} con evento")
+    except Exception as e:  # noqa: BLE001
+        log(f"ERROR movimiento: {type(e).__name__}: {str(e)[:120]}")
+
+
 def main(args: list[str]) -> int:
     _aislar()
     forzar = "--forzar" in args
@@ -403,7 +425,17 @@ def main(args: list[str]) -> int:
             except Exception as e:  # noqa: BLE001
                 log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
             publicar_pcr(st)
+            try:
+                log(f"movimiento: indice con {movimiento.reconstruir(st, syms)} sesiones")
+            except Exception as e:  # noqa: BLE001
+                log(f"ERROR movimiento: {type(e).__name__}: {str(e)[:120]}")
+            publicar_movimiento(st)
             publicar_validacion(st, syms)
+        return 0
+    if "--movimiento" in args:  # solo reconstruye el indice de movimiento esperado y lo publica
+        st = almacen.abrir()
+        log(f"movimiento: indice con {movimiento.reconstruir(st, _normalizados(lista_tickers(st)[0]))} sesiones")
+        publicar_movimiento(st)
         return 0
     if "--validacion" in args:  # solo recalcula la Validacion de toda la lista con los indices guardados
         st = almacen.abrir()
@@ -436,6 +468,7 @@ def main(args: list[str]) -> int:
     ok, fallos, total = [], [], 0
     puntos: dict = {}
     pcrs: dict = {}
+    movs: dict = {}
     pendientes = list(syms)
     for ronda in range(2):  # segunda ronda: los que fallaron, tras una pausa
         if ronda:
@@ -447,7 +480,7 @@ def main(args: list[str]) -> int:
         for sym in pendientes:
             t = time.time()
             try:
-                n = guardar_ticker(st, sym, sesion, puntos, pcrs)
+                n = guardar_ticker(st, sym, sesion, puntos, pcrs, movs)
                 total += n
                 ok.append(sym)
                 log(f"{sym}: {n / 1024:.0f} KB en {time.time() - t:.1f} s")
@@ -480,6 +513,14 @@ def main(args: list[str]) -> int:
         except Exception as e:  # noqa: BLE001
             log(f"ERROR skew: {type(e).__name__}: {str(e)[:120]}")
     publicar_pcr(st)
+    if movs:
+        try:
+            if almacen.get_json(st, movimiento.INDICE) is None:  # primera vez: con todos los dias guardados
+                movimiento.reconstruir(st, syms)
+            log(f"movimiento: {len(movs)} tickers, indice con {movimiento.actualizar(st, sesion, movs)} sesiones")
+        except Exception as e:  # noqa: BLE001
+            log(f"ERROR movimiento: {type(e).__name__}: {str(e)[:120]}")
+        publicar_movimiento(st)
     publicar_validacion(st, syms)
     borrados = podar(st, sesion)
     almacen.put_json(st, marca, {

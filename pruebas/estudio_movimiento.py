@@ -29,6 +29,7 @@ import numpy as np  # noqa: E402
 
 import almacen  # noqa: E402
 import gex_engine as g  # noqa: E402
+import movimiento  # noqa: E402
 import skew  # noqa: E402
 
 DESDE = "2015-01-01"
@@ -36,9 +37,7 @@ HORIZONTES = (1, 5)
 SALTO = np.log(1.5)          # |rendimiento| mayor: split o dato roto
 BASE = 250                   # sesiones de la volatilidad de referencia
 MIN_ACCIONES = 20            # acciones mínimas para puntuar una sesión
-EVENTO_X = 2.0               # varianza a plazo de un tramo frente a la del siguiente para llamarlo evento
-EVENTO_SESIONES = 10         # solo eventos dentro de las próximas 10 sesiones
-GAMMA = ("standard", "spotgamma", "45")
+GAMMA = movimiento.GAMMA
 
 
 # ---------------------------------------------------------------- prueba
@@ -152,44 +151,6 @@ def objetivos(R: np.ndarray) -> dict[int, np.ndarray]:
 
 
 # ---------------------------------------------------------------- datos de opciones
-def evento(ch: dict, spot: float, now: datetime) -> tuple[float, float] | None:
-    """Evento que cotiza la estructura temporal: varianza ATM a plazo por sesión de cada tramo entre vencimientos;
-    si la del primer tramo con salto es EVENTO_X veces la del tramo siguiente, el exceso es la varianza del evento.
-    Devuelve (movimiento del evento en %, sesiones hasta el vencimiento que lo recoge) o None."""
-    q = g.quote_time(now)
-    vivos = (ch["exp"] > np.datetime64(q.replace(second=0, microsecond=0))) & (ch["iv"] > 0.01)
-    pts = []
-    for ex in np.unique(ch["exp"][vivos]):
-        sel = vivos & (ch["exp"] == ex)
-        ks = np.unique(ch["K"][sel])
-        lo, hi = ks[ks <= spot], ks[ks >= spot]
-        if not lo.size or not hi.size:
-            continue
-        k1, k2 = lo.max(), hi.min()
-        iv1, iv2 = (float(ch["iv"][sel & (ch["K"] == k)].mean()) for k in (k1, k2))
-        iv = iv1 if k2 == k1 else iv1 + (iv2 - iv1) * (spot - k1) / (k2 - k1)
-        exd = ex.astype("datetime64[m]").astype(datetime)
-        n = g.trading_minutes(q, exd) / g.SESSION_MIN
-        if n < 0.5 or iv <= 0:
-            continue
-        pts.append((n, iv * iv * (exd - q).total_seconds() / 60 / g.YEAR_MIN))
-        if n > EVENTO_SESIONES + 15:
-            break
-    pts.sort()
-    previo = (0.0, 0.0)
-    tramos = []  # (sesiones al final del tramo, duración, varianza a plazo por sesión)
-    for n, w in pts:
-        if n - previo[0] >= 0.9:
-            tramos.append((n, n - previo[0], (w - previo[1]) / (n - previo[0])))
-            previo = (n, w)
-    for (n, dn, f), (_, _, f2) in zip(tramos, tramos[1:]):
-        if n > EVENTO_SESIONES:
-            break
-        if f2 > 0 and f > EVENTO_X * f2:
-            return float(np.sqrt((f - f2) * dn) * 100), float(n)
-    return None
-
-
 def leer_dia(st, sym: str, clave: str) -> tuple[str, str, dict] | None:
     dia = re.search(r"/(\d{4}-\d{2}-\d{2})\.json\.gz$", clave).group(1)
     try:
@@ -200,11 +161,11 @@ def leer_dia(st, sym: str, clave: str) -> tuple[str, str, dict] | None:
         spot = float(d["spot"])
         now = datetime.fromisoformat(dia + "T16:00")
         mv = g.implied_moves(ch, spot, now) or {}
-        ev = evento(ch, spot, now)
+        ev = movimiento.evento(ch, spot, now)
         lv = (((d.get("levels") or {}).get(GAMMA[0]) or {}).get(GAMMA[1]) or {}).get(GAMMA[2]) or {}
         return sym, dia, {
             "m1": (mv.get("d1") or {}).get("pct"), "m5": (mv.get("d5") or {}).get("pct"),
-            "ev": ev[0] if ev else 0.0, "ev_n": ev[1] if ev else None,
+            "ev": ev[0] if ev else 0.0, "ev_n": ev[2] if ev else None,
             "gamma": lv.get("net_per_pct"), "flip": lv.get("flip"), "spot": spot,
         }
     except Exception:  # noqa: BLE001  (un día roto no para el resto)

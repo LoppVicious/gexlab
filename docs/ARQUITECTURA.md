@@ -120,6 +120,8 @@ paquete) no guarda estado: solo el ciclo lo escribe, en cola.
     `--indice` lo reconstruye (volumen de días pasados, del histórico diario de CBOE). De él sale `pub/skew.json`.
     La reconstrucción añade además `PREHIST` (45) sesiones previas al primer día guardado solo con el cierre de CBOE,
     para la volatilidad realizada de Vol premium; las demás señales las ignoran.
+  - `hist500/_mov.json.gz`: movimiento esperado de cada acción (`movimiento.py`; ver Movimiento esperado). De él
+    sale `pub/movimiento.json`.
   - `hist500/_pcr.json.gz`: `{fecha: {SYM: {t0|t1|t2|all: [vol call, vol put, OI call, OI put] o None}}}`, sumas
     × |delta| de contratos fuera de dinero (`pcr.sumas`); `hist500/_pcr_exp.json.gz`: P/C por vencimiento del último
     día (`pcr.por_vencimiento`). Los escribe `historial500.py` con cada sesión y `--indice` los reconstruye con las
@@ -331,6 +333,23 @@ Los dos:
   10 y 40 sesiones. Mercado: SPX, SPY, QQQ e IWM, amplitud de las acciones y `_STOCKS` (suma de todas las acciones).
   Orden en `historial500.py`: `pcr.actualizar` → skew → `publicar_skew` → `publicar_pcr` (lee la prueba de la señal
   `pcr` de `pub/skew.json`). Prueba: `python pruebas/test_pcr.py`.
+- **Movimiento esperado** (`movimiento.py`, `pub/movimiento.json`, `/api/moves`, `web/moves.js`, página Expected
+  moves): magnitud, no dirección, de las acciones del historial diario al cierre. Estudio de base:
+  `pruebas/estudio_movimiento.py` en estudio.yml (2026-11-26, 487 acciones; resultados en el docstring del módulo).
+  - Movimiento implícito de 1σ a 1 y 5 sesiones (`g.implied_moves`): el ranking principal.
+  - Evento (`evento`): varianza ATM a plazo por sesión de cada tramo entre vencimientos (vencimientos a menos de 0,9
+    sesiones del anterior se saltan); si el primer tramo que acaba dentro de `EVENTO_SESIONES` (10) tiene `EVENTO_X`
+    (2) veces la del siguiente, el exceso es el evento (resultados u otro) y su vencimiento, el "by" de la web.
+  - Indicadores en prueba (quinto extremo del día): `heavy`, O/S alto (del índice de skew; si el volumen de la acción
+    de hoy aún no está, el del día anterior); `short`, gamma del motor Perfil (estándar, 45 días, `net_per_pct`)
+    negativa frente al volumen medio en $ de 20 sesiones (acciones × cierre del índice de skew).
+  - Prueba en adelante en `test`: IC de rangos entre cada indicador y realizado/implícito a `H` (5) sesiones, t de
+    Newey-West, cociente medio en el quinto alto y el bajo; veredicto desde 20 sesiones. `events`: mediana del mayor
+    |rendimiento| diario de las 5 sesiones siguientes frente al evento implícito. `ratio`: mediana de realizado / implícito.
+  - Índice `hist500/_mov.json.gz` (`punto`): `{fecha: {SYM: [m1, m5, evento %, vencimiento, sesiones, gamma $ por 1 %,
+    flip, cierre]}}`. `historial500.py` lo actualiza tras pcr y skew (la primera vez lo reconstruye) y publica;
+    `--movimiento` (input `movimiento` del workflow) solo lo reconstruye y publica; `--indice` también lo rehace.
+    Prueba: `python pruebas/test_movimiento.py`.
 - **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de
   SqueezeMetrics (CSV público desde 2011), percentil frente a las 252 sesiones previas y quintil. Para cada quintil,
   con toda la historia, el cuantil 68,3 % de |rendimiento| / σ del VIX (`ratio`) y la fracción de cierres fuera del

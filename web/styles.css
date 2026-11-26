@@ -444,11 +444,11 @@ body.macro-mode .controls, body.macro-mode .stage, body.macro-mode .ticker,
 body.macro-mode .quick, body.macro-mode #autoToggle { display: none; }
 body.macro-mode .controls + * { margin-top: 0; }
 .macro { flex: 1; margin: 18px 28px 0; }
-#corrView, #skewSigView {
+#corrView, #skewSigView, #movesView {
   display: grid; grid-template-columns: 300px 1fr; border: 1px solid var(--line-soft); border-radius: 14px;
   background: var(--surface); overflow: hidden; height: max(640px, calc(100vh - 150px)); flex: none;
 }
-#vixView[hidden], #corrView[hidden], #skewSigView[hidden] { display: none; }
+#vixView[hidden], #corrView[hidden], #skewSigView[hidden], #movesView[hidden] { display: none; }
 .mside { padding: 22px 24px 18px; border-right: 1px solid var(--line-soft); overflow-y: auto; display: flex; flex-direction: column; }
 .mside > * { flex-shrink: 0; }
 .mhead .sym { font-size: 15px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
@@ -474,7 +474,7 @@ body.macro-mode .controls + * { margin-top: 0; }
 .ctl.inline { display: flex; flex-direction: row; align-items: center; gap: 10px; }
 @media (max-width: 900px) {
   .macro { margin: 12px 16px 0; }
-  #corrView, #skewSigView { grid-template-columns: 1fr; height: auto; }
+  #corrView, #skewSigView, #movesView { grid-template-columns: 1fr; height: auto; }
   .mside { border-right: 0; border-bottom: 1px solid var(--line-soft); }
   .mcharts { min-height: 620px; }
 }
@@ -628,6 +628,12 @@ body.macro-mode .foot { display: none; }
 /* el pie no crece: los pies de grafico de .mcharts tienen flex 1 y se quedaban la mitad del alto */
 #skewSigView .mcharts > .ssk-foot { flex: none; margin: 10px 4px 0; }
 .ssk-head { align-items: center; flex-wrap: wrap; }
+/* Expected moves (moves.js): misma tabla que Skew signal */
+#movesView .mcharts > .tablewrap.tablewrap { flex: 1; min-height: 0; overflow: auto; box-shadow: none; border-radius: 0; background: transparent; }
+#movesView .mcharts > .ssk-foot { flex: none; margin: 10px 4px 0; }
+.emv-flag { display: inline-block; margin: 1px 4px 1px 0; padding: 1px 7px; border-radius: 999px; font-size: 11.5px; color: var(--amber); background: color-mix(in srgb, var(--amber) 14%, transparent); white-space: nowrap; }
+#emvTable td .neg { color: var(--neg); } #emvTable td .pos { color: var(--pos); }
+#emvTable td:last-child { white-space: normal; width: 1%; } #emvTable td:last-child .emv-flag { display: block; width: max-content; }
 /* VIX curve: SPX tras curvas parecidas (renderVixRegime) */
 .vxreg { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft); }
 .vxreg .fl { color: var(--muted); font-size: 12.5px; cursor: help; }

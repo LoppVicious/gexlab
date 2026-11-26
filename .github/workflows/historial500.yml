@@ -18,6 +18,10 @@ on:
         description: "Solo recalcular la Validacion de toda la lista (pub/validacion500/)"
         type: boolean
         default: false
+      movimiento:
+        description: "Solo reconstruir el movimiento esperado (hist500/_mov.json.gz) y publicarlo"
+        type: boolean
+        default: false
   schedule:
     - cron: "30 3 * * 2-6"
 concurrency:
@@ -50,4 +54,5 @@ jobs:
           FORZAR: ${{ inputs.forzar && '--forzar' || '' }}
           INDICE: ${{ inputs.indice && '--indice' || '' }}
           VALIDACION: ${{ inputs.validacion && '--validacion' || '' }}
-        run: python historial500.py $FORZAR $INDICE $VALIDACION
+          MOVIMIENTO: ${{ inputs.movimiento && '--movimiento' || '' }}
+        run: python historial500.py $FORZAR $INDICE $VALIDACION $MOVIMIENTO

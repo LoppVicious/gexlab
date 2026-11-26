@@ -339,8 +339,9 @@ Los dos:
   - Movimiento implícito de 1σ a 1 y 5 sesiones (`g.implied_moves`): el ranking principal.
   - Evento (`evento`): varianza ATM a plazo de cada tramo entre vencimientos por tiempo efectivo (sesiones +
     `FIN_DE_SEMANA`, 0,3, por día sin mercado; sin él, Acción de Gracias daba eventos falsos; calibración con
-    `pruebas/estudio_evento.py`) (vencimientos a menos de 0,9
-    sesiones del anterior se saltan); si el primer tramo que acaba dentro de `EVENTO_SESIONES` (10) tiene `EVENTO_X`
+    `pruebas/estudio_evento.py`), solo con vencimientos semanales (`semanal`: viernes, o jueves con el viernes
+    festivo; los diarios de lunes y miércoles cotizan menos IV y la sierra daba eventos falsos) y saltando los que
+    acaban a menos de 0,9 sesiones del anterior; si el primer tramo que acaba dentro de `EVENTO_SESIONES` (10) tiene `EVENTO_X`
     (2) veces la del siguiente, el exceso es el evento (resultados u otro) y su vencimiento, el "by" de la web.
   - Indicadores en prueba (quinto extremo del día): `heavy`, O/S alto (del índice de skew; si el volumen de la acción
     de hoy aún no está, el del día anterior); `short`, gamma del motor Perfil (estándar, 45 días, `net_per_pct`)

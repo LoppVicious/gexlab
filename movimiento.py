@@ -14,7 +14,7 @@ gamma $ por 1 %, flip, cierre]}}. Lo escribe historial500.py con cada sesión (`
 cadenas guardadas (`reconstruir`, `historial500.py --movimiento` o `--indice`). El volumen de opciones y de la
 acción y los cierres salen del índice de skew (hist500/_skew.json.gz). Publica pub/movimiento.json."""
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 
@@ -39,10 +39,18 @@ QUINTIL = 0.2            # indicadores: quintil extremo del día
 
 
 # ---------------------------------------------------------------- de la cadena
+def semanal(d: datetime) -> bool:
+    """Vencimiento semanal estándar: viernes, o jueves con el viernes festivo."""
+    return d.weekday() == 4 or (d.weekday() == 3 and not g.is_trading_day(d + timedelta(days=1)))
+
+
 def evento(ch: dict, spot: float, now: datetime) -> tuple[float, str, float] | None:
-    """Evento que cotiza la estructura temporal: varianza ATM a plazo de cada tramo entre vencimientos por unidad de
-    tiempo efectivo (sesiones + FIN_DE_SEMANA por cada día sin mercado); si la del primer tramo con salto es EVENTO_X
-    veces la del tramo siguiente, el exceso es la varianza del evento.
+    """Evento que cotiza la estructura temporal: varianza ATM a plazo de cada tramo entre vencimientos semanales por
+    unidad de tiempo efectivo (sesiones + FIN_DE_SEMANA por cada día sin mercado); si la del primer tramo con salto
+    es EVENTO_X veces la del tramo siguiente, el exceso es la varianza del evento.
+    Solo vencimientos semanales (viernes, o jueves si el viernes es festivo): los diarios de lunes y miércoles de las
+    acciones grandes cotizan menos IV que el viernes y la sierra daba eventos falsos (MSFT, AMZN o TSLA "by Dec 4"
+    con las cadenas del 2026-11-25).
     Devuelve (movimiento del evento en %, vencimiento que lo recoge, sesiones hasta él) o None."""
     q = g.quote_time(now)
     vivos = (ch["exp"] > np.datetime64(q.replace(second=0, microsecond=0))) & (ch["iv"] > 0.01)
@@ -57,6 +65,8 @@ def evento(ch: dict, spot: float, now: datetime) -> tuple[float, str, float] | N
         iv1, iv2 = (float(ch["iv"][sel & (ch["K"] == k)].mean()) for k in (k1, k2))
         iv = iv1 if k2 == k1 else iv1 + (iv2 - iv1) * (spot - k1) / (k2 - k1)
         exd = ex.astype("datetime64[m]").astype(datetime)
+        if not semanal(exd):
+            continue
         n = g.trading_minutes(q, exd) / g.SESSION_MIN
         if n < 0.5 or iv <= 0:
             continue

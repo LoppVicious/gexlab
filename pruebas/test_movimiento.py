@@ -14,7 +14,8 @@ NOW = datetime.fromisoformat(SES + "T16:00")
 S2 = 0.30 ** 2 / 252  # varianza por sesión de una volatilidad del 30 %
 
 
-def cadena(evento: float, vencs=("2026-11-24", "2026-12-01", "2026-12-08"), fin_de_semana=m.FIN_DE_SEMANA):
+def cadena(evento: float, vencs=("2026-11-27", "2026-12-04", "2026-12-11"), fin_de_semana=m.FIN_DE_SEMANA,
+           diarios: float = 1.0):
     """Cadena ATM con la IV que da varianza total S2 × tiempo efectivo + evento² en todos los vencimientos (evento
     antes del primero); el tiempo efectivo pesa cada día sin mercado `fin_de_semana` veces una sesión."""
     q = g.quote_time(NOW)
@@ -24,7 +25,7 @@ def cadena(evento: float, vencs=("2026-11-24", "2026-12-01", "2026-12-08"), fin_
         n = g.trading_minutes(q, exd) / g.SESSION_MIN
         dias = (exd - q).total_seconds() / 86400
         w = S2 * (n + fin_de_semana * max(0.0, dias - n)) + evento ** 2
-        iv = np.sqrt(w * g.YEAR_MIN / ((exd - q).total_seconds() / 60))
+        iv = np.sqrt(w * g.YEAR_MIN / ((exd - q).total_seconds() / 60)) * (1.0 if exd.weekday() == 4 else diarios)
         filas += [(k, c, v, iv) for k in (95, 100, 105) for c in (True, False)]
     return {"K": np.array([f[0] for f in filas], float), "call": np.array([f[1] for f in filas], bool),
             "exp": np.array([f[2] + "T16:00" for f in filas], dtype="datetime64[m]"),
@@ -36,7 +37,7 @@ def test_evento_detectado():
     assert r is not None
     pct, exp, n = r
     assert abs(pct - 8.0) < 0.3, pct
-    assert exp == "2026-11-24" and 1.5 < n < 2.5
+    assert exp == "2026-11-27" and 3 < n < 4   # lunes a miércoles y el medio día del viernes
 
 
 def test_sin_evento():
@@ -44,25 +45,28 @@ def test_sin_evento():
 
 
 def test_festivo_y_fin_de_semana_no_son_evento():
-    # caso del 2026-11-25: primer tramo con Acción de Gracias y fin de semana (1,5 sesiones en 5 días). Con varianza
-    # en los días sin mercado, el detector no debe confundirlo con un evento
+    # caso del 2026-11-25: Acción de Gracias (el viernes 27 es medio día y su tramo dura 0,54 sesiones: se salta) y
+    # diarios de lunes y miércoles. Ni los días sin mercado ni la sierra de los diarios son un evento
     ahora = datetime.fromisoformat("2026-11-25T16:00")
     global NOW
     antes, NOW = NOW, ahora
     try:
         # días sin mercado con más peso que el del detector (como en las cadenas reales de ese día): sin evento
-        ch = cadena(0.0, ("2026-11-30", "2026-12-02", "2026-12-04", "2026-12-07"), fin_de_semana=0.5)
+        vencs = ("2026-11-27", "2026-11-30", "2026-12-02", "2026-12-04", "2026-12-07", "2026-12-11", "2026-12-18")
+        ch = cadena(0.0, vencs, fin_de_semana=0.5)
         assert m.evento(ch, 100.0, ahora) is None
-        ch = cadena(0.06, ("2026-11-30", "2026-12-02", "2026-12-04", "2026-12-07"))
-        r = m.evento(ch, 100.0, ahora)
-        assert r is not None and abs(r[0] - 6.0) < 0.3 and r[1] == "2026-11-30", r
+        # diarios de lunes y miércoles con un 8 % menos de IV que los viernes (MSFT ese día): sin el filtro de
+        # semanales salía un evento del 2,8 % "by Dec 4"
+        assert m.evento(cadena(0.0, vencs, diarios=0.92), 100.0, ahora) is None
+        r = m.evento(cadena(0.06, vencs, diarios=0.92), 100.0, ahora)
+        assert r is not None and abs(r[0] - 6.0) < 0.3 and r[1] == "2026-12-04", r
     finally:
         NOW = antes
 
 
 def test_evento_lejano_fuera():
     # el salto está en el tramo que acaba a más de EVENTO_SESIONES sesiones
-    r = m.evento(cadena(0.08, ("2026-12-18", "2026-12-24", "2027-01-08")), 100.0, NOW)
+    r = m.evento(cadena(0.08, ("2026-12-18", "2026-12-24", "2027-01-08", "2027-01-15")), 100.0, NOW)
     assert r is None
 
 

@@ -134,8 +134,8 @@ def test_vela_y_etiquetas_de_volumen():
     idx, sk, nombres = _datos()
     fechas = sorted(idx)
     # S29: volumen 2,5 veces la media, rango 4 (2 veces), cierre en el 90 % del rango: confirmada. S28: O/S en el
-    # quinto alto (heavy) con la acción a 0,8 veces su volumen: options. S27: volumen alto pero cierre en el mínimo
-    vl = _velas(fechas, 30, {"S29": (102.0, 98.0, 101.6, 2.5e6), "S28": (101.0, 99.0, 100.0, 8e5),
+    # quinto alto (heavy) con la acción a 0,6 veces su volumen: options. S27: volumen alto pero cierre en el mínimo
+    vl = _velas(fechas, 30, {"S29": (102.0, 98.0, 101.6, 2.5e6), "S28": (101.0, 99.0, 100.0, 6e5),
                              "S27": (102.0, 98.0, 98.0, 3e6)})
     x = m._vela(vl["S29"], fechas[-1])
     assert abs(x["rvol"] - 2.5) < 1e-9 and abs(x["range"] - 2.0) < 1e-9 and abs(x["pos"] - 0.9) < 1e-9
@@ -150,9 +150,10 @@ def test_vela_y_etiquetas_de_volumen():
     # las pares van a 2 veces su volumen hasta que la media lo recoge (desde ahí todas a 1 y el día no puntúa);
     # ninguna confirmada: rango normal y cierre a media vela
     assert t["rvol"]["n"] == 20 and t["confirmed"]["n"] == 0
-    # options en la prueba: heavy (S24-S29) con RVol ≤ 1: las impares cada día, y también las pares desde el día 21
-    assert t["options"]["n"] == 25 * 3 + 5 * 3 and t["options"]["ratio"] is not None
-    assert t["options"]["sessions"] == 25 and t["options"]["enough"]
+    # options en la prueba: ninguna, todas a RVol 1 o más (por encima de RVOL_BAJO)
+    assert t["options"]["n"] == 0 and t["options"]["ratio"] is None
+    c = m._casos([(1.0, 0.5, f) for f in fechas[:20]])
+    assert c["sessions"] == 20 and c["enough"] and c["excess"] == 0.5
     assert m._casos([(1.0, 0.5, "2026-11-01")] * 30)["enough"] is False   # 30 casos de un solo día
     # sin velas: ni columna ni etiquetas
     sin = {f["sym"]: f for f in m.calcular(idx, sk, nombres)["rows"]}

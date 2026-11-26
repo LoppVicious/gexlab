@@ -13,7 +13,7 @@ const EMV_FLAGS = {
   heavy: ["Heavy volume", "Option trading high against share volume (top fifth today)"],
   short: ["Short gamma", "Dealers short gamma, large against the stock's daily dollar volume (most negative fifth today): their hedging adds to moves"],
   confirmed: ["Volume confirmed", "Shares traded well above their 20-session average, a wide range and a close near the high: the move has stock volume behind it"],
-  options: ["Options-led", "Heavy option trading while share volume is at or below its 20-session average: moves like this tend to stay contained"],
+  options: ["Options-led", "Heavy option trading while share volume is at least 30% below its 20-session average: moves like this tend to stay contained"],
 };
 const emvPct = (v, dec = 1) => (v == null ? "—" : "±" + fmtNum(v, dec) + "%");
 const emvX = (v) => (v == null ? "—" : fmtNum(v, 2) + "×");

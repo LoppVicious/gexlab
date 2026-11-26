@@ -14,8 +14,8 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
   página enseña su prueba en adelante hasta tener sesiones suficientes. Al pulsar una acción se abre su TRACE.
 - **Expected moves, volumen de la acción:** columna RVol (acciones negociadas frente a su media de las 20 sesiones
   previas) y dos etiquetas nuevas. Volume confirmed: RVol de 1,5 o más, vela de rango amplio y cierre en el cuarto
-  alto del día, un movimiento con volumen de la acción detrás. Options-led: mucho volumen de opciones con la acción a
-  su volumen normal o por debajo, el tipo de rebote que suele quedarse contenido. Las dos están en prueba: la página
+  alto del día, un movimiento con volumen de la acción detrás. Options-led: mucho volumen de opciones con la acción al
+  menos un 30 % por debajo de su volumen medio, el tipo de rebote que suele quedarse contenido. Las dos están en prueba: la página
   enseña cuánto se movieron esas acciones frente a lo que cotizaban sus opciones y su rendimiento a 5 sesiones
   frente a las demás.
 - **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se

@@ -354,7 +354,7 @@ Los dos:
   - Volumen de la acción (`velas`, `_vela`): velas diarias del histórico (`g.fetch_aux("historical")`, Tradier en
     Actions; una petición por acción en `publicar`, sin índice propio). RVol = acciones / media de las `ADV` (20)
     sesiones previas; rango y posición del cierre de la vela. Etiquetas `confirmed` (`RVOL_MIN` 1,5, `RANGO_MIN` 1,2,
-    `CIERRE_ALTO` 0,75) y `options` (`heavy` con RVol de como mucho `RVOL_BAJO`, 1). Sin velas (PC sin token), sin
+    `CIERRE_ALTO` 0,75) y `options` (`heavy` con RVol de como mucho `RVOL_BAJO`, 0,7). Sin velas (PC sin token), sin
     columna ni etiquetas.
   - Prueba en adelante en `test`: IC de rangos entre cada indicador y realizado/implícito a `H` (5) sesiones, t de
     Newey-West, cociente medio en el quinto alto y el bajo; veredicto desde 20 sesiones. `events`: mediana del mayor

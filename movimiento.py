@@ -49,7 +49,7 @@ QUINTIL = 0.2            # indicadores: quintil extremo del día
 RVOL_MIN = 1.5           # confirmed: volumen de la acción frente a su media de ADV sesiones previas
 RANGO_MIN = 1.2          # confirmed: rango del día frente a su media de ADV sesiones previas
 CIERRE_ALTO = 0.75       # confirmed: cierre en el cuarto alto del rango del día
-RVOL_BAJO = 1.0          # options: O/S en el quinto alto con la acción a su volumen normal o por debajo
+RVOL_BAJO = 0.7          # options: O/S en el quinto alto con la acción al menos un 30 % por debajo de su volumen medio
 
 
 # ---------------------------------------------------------------- de la cadena

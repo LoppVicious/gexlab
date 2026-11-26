@@ -3,6 +3,14 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
+## 2026-11-26 — Estudio para un screener de movimiento esperado
+
+**Añadido**
+- **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se
+  moverá una acción en las próximas sesiones (compresión, rango, choque y nivel de volatilidad con años de velas
+  diarias; movimiento implícito, eventos en la estructura temporal, gamma, flip y O/S con las cadenas del historial
+  diario). Es la base para decidir qué entra en el screener; todavía no cambia nada en la web.
+
 ## 2026-11-25 — Nota diaria de flujos en Takes, Social diario de nuevo y NDX y RUT al día en tiempo real
 
 **Añadido**

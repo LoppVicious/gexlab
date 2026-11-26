@@ -1,7 +1,7 @@
 "use strict";
 /* ============================================================ Movimiento esperado (Signals, Expected moves)
    Datos: /api/moves (movimiento.py, lo publica historial500.py tras cada cierre). Magnitud, no direccion:
-     m1, m5: movimiento implicito de 1 sigma a 1 y 5 sesiones (%), el ranking principal
+     m1, m5, m21: movimiento implicito de 1 sigma a 1, 5 y 21 sesiones (un mes) (%); m5 es el ranking principal
      ev, ev_exp, ev_n: evento que cotiza la estructura temporal (salto de varianza a plazo; resultados u otro)
      gadv: gamma de dealers ($ por 1 %) / volumen medio en $ de 20 sesiones; os: contratos × 100 / acciones
      flags: "heavy" (O/S en el quinto alto) y "short" (gamma negativa en el quinto mas negativo), indicadores en
@@ -28,7 +28,7 @@ async function loadMoves() {
   emv.ctrl = new AbortController();
   $("refreshBtn").classList.add("spin");
   setStatus("busy", "Loading the expected moves…");
-  if (!emv.data) $("emvBody").innerHTML = `<tr><td class="l" colspan="8"><div class="empty">Loading…</div></td></tr>`;
+  if (!emv.data) $("emvBody").innerHTML = `<tr><td class="l" colspan="9"><div class="empty">Loading…</div></td></tr>`;
   try {
     const r = await fetch("/api/moves", { signal: emv.ctrl.signal });
     const d = await r.json();
@@ -39,7 +39,7 @@ async function loadMoves() {
     if (e.name === "AbortError") return;
     if (state.mode === "moves") {
       setStatus("err", emv.data ? "Could not refresh" : "No data");
-      if (!emv.data) $("emvBody").innerHTML = `<tr><td class="l" colspan="8"><div class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</div></td></tr>`;
+      if (!emv.data) $("emvBody").innerHTML = `<tr><td class="l" colspan="9"><div class="empty">${esc(e.message === "Failed to fetch" ? "The local server is not responding. Open GEX Lab again." : e.message)}</div></td></tr>`;
     }
   } finally { $("refreshBtn").classList.remove("spin"); }
 }
@@ -96,11 +96,12 @@ function renderMoves() {
       <td>${r.spot == null ? "—" : fmtNum(r.spot, 2)}</td>
       <td>${emvPct(r.m1)}</td>
       <td><span class="ssk-bar"><i style="width:${Math.min(100, (r.m5 || 0) / 20 * 100).toFixed(0)}%"></i></span>${emvPct(r.m5)}</td>
+      <td>${emvPct(r.m21)}</td>
       <td class="l">${r.ev ? `<b>${emvPct(r.ev)}</b> <span class="ssk-tilt">by ${ddmm(r.ev_exp)}</span>` : `<span class="ssk-tilt">—</span>`}</td>
       <td title="${esc(flip)}Dealer gamma per 1% move, in % of the average daily dollar volume (20 sessions)">${g}</td>
       <td title="${r.os_date && r.os_date !== d.date ? "Share volume of " + ddmm(r.os_date) : ""}">${r.os == null ? "—" : fmtNum(r.os, 2)}</td>
       <td class="l">${(r.flags || []).map((f) => `<span class="emv-flag" title="${esc(EMV_FLAGS[f][1])}">${EMV_FLAGS[f][0]}</span>`).join("")}</td></tr>`;
-  }).join("") : `<tr><td class="l" colspan="8"><div class="empty">${tab === "events" ? "No events priced within the next two weeks." : "No stocks flagged today."}</div></td></tr>`;
+  }).join("") : `<tr><td class="l" colspan="9"><div class="empty">${tab === "events" ? "No events priced within the next two weeks." : "No stocks flagged today."}</div></td></tr>`;
   document.querySelectorAll("#emvTable th[data-k]").forEach((th) => {
     th.classList.toggle("sorted", th.dataset.k === k);
     th.dataset.dir = th.dataset.k === k ? (dir > 0 ? "▲" : "▼") : "";

@@ -64,6 +64,15 @@ def test_festivo_y_fin_de_semana_no_son_evento():
         NOW = antes
 
 
+def test_movimiento_a_un_mes():
+    # 30 % de volatilidad: un mes (21 sesiones) es unos 30 % × raíz(21/252) = 8,7 %, por encima del de 5 sesiones
+    vencs = ("2026-11-27", "2026-12-04", "2026-12-11", "2026-12-18", "2026-12-24", "2027-01-08", "2027-01-15",
+             "2027-01-22", "2027-02-19")
+    p = m.punto(cadena(0.0, vencs), 100.0, SES, None)
+    assert p is not None and len(p) == 9
+    assert 7.5 < p[8] < 10.0 and p[8] > p[1], p
+
+
 def test_evento_lejano_fuera():
     # el salto está en el tramo que acaba a más de EVENTO_SESIONES sesiones
     r = m.evento(cadena(0.08, ("2026-12-18", "2026-12-24", "2027-01-08", "2027-01-15")), 100.0, NOW)
@@ -100,6 +109,7 @@ def test_calcular_prueba_e_indicadores():
     assert "heavy" in filas["S29"].get("flags", []) and "heavy" not in filas["S0"].get("flags", [])
     assert "short" in filas["S29"]["flags"]
     assert "short" not in filas["S0"].get("flags", [])   # gamma 0: no es negativa
+    assert filas["S0"]["m21"] is None   # filas del índice anteriores al movimiento a un mes
     assert filas["S0"]["ev"] == 5.0 and filas["S0"]["ev_exp"] == "2026-12-01"
     assert filas["S3"]["below_flip"] is True
     assert abs(filas["S1"]["os"] - 0.02) < 1e-9

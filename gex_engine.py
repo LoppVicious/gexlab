@@ -1568,8 +1568,8 @@ def dist_json(dist: dict) -> dict:
 INDEX_LIKE = INDEX_SYMBOLS | {"SPY", "QQQ", "IWM", "DIA"}  # productos de indice: Vol Trigger; acciones: Hedge Wall
 
 
-def implied_moves(ch: dict, spot: float, now: datetime) -> dict | None:
-    """Rango de 1 desviacion tipica (68,3%) para 1 y 5 sesiones, implicito en las opciones.
+def implied_moves(ch: dict, spot: float, now: datetime, sessions=MOVE_SESSIONS) -> dict | None:
+    """Rango de 1 desviacion tipica (68,3%) para 1 y 5 sesiones (o las de `sessions`), implicito en las opciones.
     Varianza ATM de cada vencimiento (IV de CBOE x tiempo natural), interpolada en minutos de mercado:
     w(H) para un horizonte de H minutos de negociacion. 1 sigma = S * sqrt(w(H))."""
     q = quote_time(now)
@@ -1591,14 +1591,14 @@ def implied_moves(ch: dict, spot: float, now: datetime) -> dict | None:
             continue  # vencimientos a punto de expirar: su IV es ruido
         w = iv * iv * max((exd - q).total_seconds() / 60, 5.0) / YEAR_MIN
         pts.append((mins, w))
-        if len(pts) >= 8 and mins > SESSION_MIN * 10:
+        if len(pts) >= 8 and mins > SESSION_MIN * max(10, max(sessions)):
             break
     if not pts:
         return None
     pts.sort()
     out = {}
     rest = trading_minutes(now, close_time(now)) if market_open(now) else 0.0
-    for n in MOVE_SESSIONS:
+    for n in sessions:
         # con el mercado abierto, la sesion de hoy cuenta solo por lo que le queda
         H = (rest + SESSION_MIN * (n - 1)) if rest > 0 else SESSION_MIN * n
         prev_m, prev_w = 0.0, 0.0
@@ -1613,6 +1613,8 @@ def implied_moves(ch: dict, spot: float, now: datetime) -> dict | None:
         sig = spot * math.sqrt(max(w, 0.0))
         out[f"d{n}"] = {"sessions": n, "sigma": sig, "pct": sig / spot * 100, "lo": spot - sig, "hi": spot + sig}
     # sesion a la que se refiere el movimiento de 1 dia: hoy con el mercado abierto o antes de abrir; si no, la siguiente
+    if "d1" not in out:
+        return out
     d = now if (is_trading_day(now) and now < close_time(now)) else next_trading_day(now)
     out["d1"]["session"] = d.strftime("%Y-%m-%d")
     out["d1"]["partial"] = rest > 0

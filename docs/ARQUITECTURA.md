@@ -340,7 +340,8 @@ Los dos:
 - **Movimiento esperado** (`movimiento.py`, `pub/movimiento.json`, `/api/moves`, `web/moves.js`, página Expected
   moves): magnitud, no dirección, de las acciones del historial diario al cierre. Estudio de base:
   `pruebas/estudio_movimiento.py` en estudio.yml (2026-11-26, 487 acciones; resultados en el docstring del módulo).
-  - Movimiento implícito de 1σ a 1 y 5 sesiones (`g.implied_moves`): el ranking principal.
+  - Movimiento implícito de 1σ a 1 y 5 sesiones (`g.implied_moves`): el ranking principal. También a un mes
+    (`MES` = 21 sesiones, `implied_moves(..., sessions=(1, 5, 21))`), solo informativo.
   - Evento (`evento`): varianza ATM a plazo de cada tramo entre vencimientos por tiempo efectivo (sesiones +
     `FIN_DE_SEMANA`, 0,3, por día sin mercado; sin él, Acción de Gracias daba eventos falsos; calibración con
     `pruebas/estudio_evento.py`), solo con vencimientos semanales (`semanal`: viernes, o jueves con el viernes
@@ -354,7 +355,7 @@ Los dos:
     Newey-West, cociente medio en el quinto alto y el bajo; veredicto desde 20 sesiones. `events`: mediana del mayor
     |rendimiento| diario de las 5 sesiones siguientes frente al evento implícito. `ratio`: mediana de realizado / implícito.
   - Índice `hist500/_mov.json.gz` (`punto`): `{fecha: {SYM: [m1, m5, evento %, vencimiento, sesiones, gamma $ por 1 %,
-    flip, cierre]}}`. `historial500.py` lo actualiza tras pcr y skew (la primera vez lo reconstruye) y publica;
+    flip, cierre, m21]}}` (m21 solo desde el 2026-11-26; el índice se rehace con `--movimiento`). `historial500.py` lo actualiza tras pcr y skew (la primera vez lo reconstruye) y publica;
     `--movimiento` (input `movimiento` del workflow) solo lo reconstruye y publica; `--indice` también lo rehace.
     Prueba: `python pruebas/test_movimiento.py`.
 - **Régimen de gamma del SPX** (`macro.gamma_regime`, `pub/regimen.json`, `/api/regimen`): GEX diario de

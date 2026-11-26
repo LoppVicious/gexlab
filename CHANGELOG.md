@@ -6,7 +6,7 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 ## 2026-11-26 — Expected moves y Takes a todo el ancho y con gráficos en oscuro
 
 **Añadido**
-- **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones de todas las
+- **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones y a un mes (21 sesiones) de todas las
   acciones del historial diario, ordenadas de más a menos. La pestaña Events lista las que tienen un evento cotizado
   en las próximas dos semanas (casi siempre resultados), con su movimiento y el vencimiento que lo recoge, sin
   necesidad de calendario (ni los fines de semana y festivos ni los vencimientos diarios cuentan como evento). Flagged marca las que tienen mucho volumen de opciones frente al de acciones o dealers

@@ -10,7 +10,7 @@ Magnitud, no dirección. Estudio de base: pruebas/estudio_movimiento.py (2026-11
 - la compresión de volatilidad (RV5/RV60 baja) no anticipa expansión: va al revés, y queda fuera.
 
 Índice hist500/_mov.json.gz: {fecha: {SYM: [m1, m5, evento %, vencimiento del evento, sesiones hasta él,
-gamma $ por 1 %, flip, cierre]}}. Lo escribe historial500.py con cada sesión (`punto`) y lo reconstruye con las
+gamma $ por 1 %, flip, cierre, m21]}} (m21: un mes, 21 sesiones; las filas antiguas no lo tienen). Lo escribe historial500.py con cada sesión (`punto`) y lo reconstruye con las
 cadenas guardadas (`reconstruir`, `historial500.py --movimiento` o `--indice`). El volumen de opciones y de la
 acción y los cierres salen del índice de skew (hist500/_skew.json.gz). Publica pub/movimiento.json."""
 import re
@@ -31,6 +31,7 @@ EVENTO_SESIONES = 10     # solo eventos dentro de las próximas 10 sesiones
 # Sin él, el tramo del 2026-11-25 al 30 (Acción de Gracias y fin de semana: 1,5 sesiones en 5 días) daba "eventos"
 # en AAPL, GOOGL, AMZN y TSLA; con las cadenas de ese día (pruebas/estudio_evento.py) sale entre 0,25 y 0,35
 FIN_DE_SEMANA = 0.3
+MES = 21                 # sesiones de un mes (252 / 12) para el movimiento a un mes
 H = 5                    # horizonte de la prueba en adelante (sesiones)
 ADV = 20                 # sesiones del volumen medio en $
 MIN_ACCIONES = 20        # acciones mínimas para puntuar una sesión
@@ -94,15 +95,15 @@ def evento(ch: dict, spot: float, now: datetime) -> tuple[float, str, float] | N
 def punto(ch: dict, spot: float, sesion: str, niveles: dict | None) -> list | None:
     """Fila del índice de una acción al cierre de `sesion`."""
     now = datetime.fromisoformat(sesion + "T16:00")
-    mv = g.implied_moves(ch, spot, now) or {}
-    m1, m5 = ((mv.get(k) or {}).get("pct") for k in ("d1", "d5"))
+    mv = g.implied_moves(ch, spot, now, (1, 5, MES)) or {}
+    m1, m5, m21 = ((mv.get(k) or {}).get("pct") for k in ("d1", "d5", f"d{MES}"))
     if not m1 and not m5:
         return None
     ev = evento(ch, spot, now)
     lv = (((niveles or {}).get(GAMMA[0]) or {}).get(GAMMA[1]) or {}).get(GAMMA[2]) or {}
     r = lambda x, n=4: None if x is None else round(float(x), n)  # noqa: E731
     return [r(m1), r(m5), r(ev[0]) if ev else None, ev[1] if ev else None, r(ev[2], 2) if ev else None,
-            r(lv.get("net_per_pct"), 0), r(lv.get("flip")), r(spot)]
+            r(lv.get("net_per_pct"), 0), r(lv.get("flip")), r(spot), r(m21)]
 
 
 # ---------------------------------------------------------------- índice en R2
@@ -247,6 +248,7 @@ def calcular(idx: dict, sk: dict, nombres: dict) -> dict:
             o, o_dia = _os((sk.get(fechas_s[i - 1]) or {}).get(s)), fechas_s[i - 1]
         a = _adv(sk, fechas_s, i, s)
         filas.append({"sym": s, "name": nombres.get(s), "spot": v[7], "m1": v[0], "m5": v[1],
+                      "m21": v[8] if len(v) > 8 else None,
                       "ev": v[2], "ev_exp": v[3], "ev_n": v[4],
                       "gadv": None if v[5] is None or not a else round(v[5] / a, 5),
                       "below_flip": None if not v[6] else v[7] < v[6], "flip": v[6],

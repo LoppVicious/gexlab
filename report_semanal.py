@@ -205,7 +205,7 @@ def _dibujar(bloques) -> dict:
         trabajos.append(("etf_apal", "etf_apal", lambda d=bloques["etf_apal"]["datos"]: rg.etf(d)))
     for bloque, nombre, fn in trabajos:
         try:
-            out[nombre] = fn()
+            rg.ambos(out, nombre, fn)   # claro y oscuro: g/{nombre}.png y g/{nombre}.oscuro.png
             bloques[bloque]["graficos"].append(nombre)
         except Exception as e:  # noqa: BLE001
             log(f"grafico {nombre}: {type(e).__name__}: {str(e)[:200]}")

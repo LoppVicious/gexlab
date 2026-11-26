@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import matplotlib.pyplot as plt
 
-from report_graficos import ANCHO, DPI, C, _fig, _leyenda, _png, _titulo
+from report_graficos import ANCHO, DPI, C, _fig, _leyenda, _png, _titulo, ambos
 
 
 def _b(x):
@@ -109,7 +109,7 @@ def letf(F: str, et: dict) -> bytes:
             cel.get_text().set_fontweight("bold")
             cel.set_facecolor(C["grid"])
         elif k >= 0 and cats[k]["pct"] is not None and (cats[k]["pct"] <= 10 or cats[k]["pct"] >= 90):
-            cel.set_facecolor("#fff1c2")
+            cel.set_facecolor(C["resalta"])
             cel.get_text().set_fontweight("bold")
     tot = et["total"] / 1e9
     pct = f", percentile {et['pct']:.1f}%" if et.get("pct") is not None else ""
@@ -136,11 +136,9 @@ def todos(paq: dict, _res_spx=None) -> dict:
         trabajos.append((["vol_control", "cta"], "sistematicos", lambda: sistematicos(F, b["vol_control"], b["cta"])))
     for bloques, nombre, fn in trabajos:
         try:
-            out[nombre] = fn()
+            ambos(out, nombre, fn)
             for k in bloques:
                 b[k].setdefault("graficos", []).append(nombre)
         except Exception as e:  # noqa: BLE001
             print(f"grafico {nombre}: {type(e).__name__}: {str(e)[:200]}", flush=True)
-        finally:
-            plt.close("all")
     return out

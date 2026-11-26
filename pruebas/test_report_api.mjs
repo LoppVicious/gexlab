@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { report } from "../nube/report.js";
+import { oscuroDe } from "../nube/takes.js";
 
 function d1() {
   const db = new DatabaseSync(":memory:");
@@ -24,6 +25,7 @@ function r2() {
     m,
     put: async (k, v, o) => { m.set(k, { bytes: v, ct: o.httpMetadata.contentType }); },
     get: async (k) => (m.has(k) ? { body: m.get(k).bytes, httpMetadata: { contentType: m.get(k).ct } } : null),
+    head: async (k) => (m.has(k) ? { size: m.get(k).bytes.length } : null),
     delete: async (ks) => { for (const k of [].concat(ks)) m.delete(k); },
   };
 }
@@ -92,6 +94,19 @@ test("crea un borrador de claude con los graficos copiados a takes/", async () =
   assert.equal(a[0].texto, "Spot vs levels");
   assert.match(a[0].r2, new RegExp(`^takes/${r.d.id}/[0-9a-f]{24}\\.png$`));
   assert.ok(env.R2.m.has(a[0].r2));
+  assert.ok(!env.R2.m.has(oscuroDe(a[0].r2)));   // sin g/gamma_spy.oscuro.png no hay version oscura
+});
+
+test("copia tambien la version oscura del grafico si existe y es un PNG", async () => {
+  const env = entorno();
+  env.R2.m.set(`report/${F}/g/gamma_spy.oscuro.png`, { bytes: PNG, ct: "image/png" });
+  env.R2.m.set(`report/${F}/g/vol_real_spx.png`, { bytes: PNG, ct: "image/png" });
+  env.R2.m.set(`report/${F}/g/vol_real_spx.oscuro.png`, { bytes: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]), ct: "image/png" });
+  const r = await llama(env, "POST", `/api/report/${F}/take`, { titulo: "x", cuerpo: "y", graficos: [{ nombre: "gamma_spy" }, { nombre: "vol_real_spx" }] });
+  assert.equal(r.status, 200, JSON.stringify(r.d));
+  const [g, v] = env.DB.db.prepare("SELECT r2 FROM takes_adjuntos WHERE take_id = ? ORDER BY orden").all(r.d.id).map((x) => x.r2);
+  assert.equal(env.R2.m.get(oscuroDe(g)).ct, "image/png");
+  assert.ok(!env.R2.m.has(oscuroDe(v)));   // la oscura falsa no se copia
 });
 
 test("un PNG falso o un grafico que no existe no crean nada", async () => {

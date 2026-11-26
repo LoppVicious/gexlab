@@ -1,9 +1,10 @@
 // GEX Lab - report semanal y nota diaria de flujos: sirve el paquete y los graficos que dejan report_semanal.py
 // (R2 report/{F}/) y flujos_diario.py (R2 flujos/{F}/) y crea el borrador del Take. Solo con
 // "Authorization: Bearer <REPORT_TOKEN>" (secreto del Worker); sin el secreto configurado o con otro token, 404. No
-// usa la sesion de usuario. Lo llaman los skills /report-semanal y /take-flujos de Claude Code. En flujos, el
+// usa la sesion de usuario. Lo llaman los skills /report-semanal y /take-flujos de Claude Code. Cada grafico se copia
+// con su version oscura (g/{nombre}.oscuro.png) si existe. En flujos, el
 // borrador guarda ademas la tesis de la nota en flujos/{F}/tesis.json (la anade a la serie flujos_diario.py).
-import { validarTake, escribirTake } from "./takes.js";
+import { validarTake, escribirTake, tipoArchivo } from "./takes.js";
 
 export const AUTOR_REPORT = "claude";   // la cuenta Claude, con permiso de borradores en Takes
 const FECHA = /^\d{4}-\d{2}-\d{2}$/;
@@ -56,7 +57,7 @@ async function crear(req, env, base, f, h) {
     if (tesis.length > TESIS_MAX) return h.json(400, { error: `Thesis too long (${TESIS_MAX} bytes max)` });
   }
   const graficos = Array.isArray(d.graficos) ? d.graficos : [];
-  const archivos = new Map(), adjuntos = [];
+  const archivos = new Map(), adjuntos = [], oscuros = [];
   for (const [i, x] of graficos.entries()) {
     const nombre = String((x && x.nombre) || "");
     if (!NOMBRE.test(nombre)) return h.json(400, { error: `Invalid chart name: ${nombre.slice(0, 40)}` });
@@ -65,8 +66,12 @@ async function crear(req, env, base, f, h) {
     const campo = `archivo${i}`;
     archivos.set(campo, { nombre: `${nombre}.png`, bytes: new Uint8Array(await new Response(obj.body).arrayBuffer()) });
     adjuntos.push({ tipo: "imagen", archivo: campo, titulo: String(x.titulo || ""), texto: String(x.nota || "") });
+    const os = await env.R2.get(`${base}/${f}/g/${nombre}.oscuro.png`);
+    const ob = os ? new Uint8Array(await new Response(os.body).arrayBuffer()) : null;
+    oscuros.push(ob && (tipoArchivo(ob) || {}).ext === "png" ? ob : null);   // sin version oscura valida, la web usa la clara
   }
   const t = validarTake({ titulo: d.titulo, cuerpo: d.cuerpo, etiquetas: d.etiquetas, adjuntos }, archivos, new Map());
+  t.adjuntos.forEach((a, i) => { if (oscuros[i]) a.nuevo.oscuro = oscuros[i]; });
   const id = await escribirTake(env, AUTOR_REPORT, t, null, new Map());
   if (tesis) await env.R2.put(`flujos/${f}/tesis.json`, tesis, { httpMetadata: { contentType: "application/json; charset=utf-8" } });
   return h.json(200, { id });

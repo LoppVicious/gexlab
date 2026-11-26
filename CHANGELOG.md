@@ -3,14 +3,7 @@
 Una entrada por día, la más reciente arriba: fecha, título y qué cambia para el usuario (**Añadido**, **Cambiado**,
 **Corregido**). Cada push de ese día amplía la entrada del día. Los detalles técnicos están en los commits.
 
-## 2026-11-26 — Expected moves y Takes a todo el ancho
-
-**Cambiado**
-- **Research > Takes a todo el ancho:** el listado pasa a una rejilla de tarjetas que llena la pantalla. En un take,
-  el texto va en una columna centrada de lectura cómoda y los gráficos y adjuntos debajo, en una rejilla a todo el
-  ancho (tres columnas en 1920 px, dos en 1366 px, una en el móvil).
-- **Imágenes de los Takes:** al hacer clic se amplían sobre la misma página hasta llenar la pantalla, en vez de abrir
-  otra pestaña; se cierra con clic, con la X o con Escape.
+## 2026-11-26 — Expected moves y Takes a todo el ancho y con gráficos en oscuro
 
 **Añadido**
 - **Signals > Expected moves:** cada cierre, el movimiento que cotizan las opciones a 1 y 5 sesiones de todas las
@@ -22,6 +15,20 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 - **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se
   moverá una acción. La volatilidad baja no anticipa movimientos grandes (11 años de velas diarias), así que la
   página no la usa.
+
+**Cambiado**
+- **Research > Takes a todo el ancho:** el listado pasa a una rejilla de tarjetas que llena la pantalla. En un take,
+  el texto va en una columna centrada de lectura cómoda y los gráficos y adjuntos debajo, en una rejilla a todo el
+  ancho (tres columnas en 1920 px, dos en 1366 px, una en el móvil).
+- **Imágenes de los Takes:** al hacer clic se amplían sobre la misma página hasta llenar la pantalla, en vez de abrir
+  otra pestaña; se cierra con clic, con la X o con Escape.
+- **Gráficos de los Takes en tema oscuro:** los del report semanal y de la nota de flujos se dibujan también con la
+  paleta oscura y la web enseña el que toca según el tema (en oscuro ya no salen como bloques blancos). Los Takes ya
+  publicados reciben la versión oscura con un relleno único. Las imágenes subidas a mano se ven igual en los dos
+  temas.
+
+**Corregido**
+- **Editor de Takes:** cambiar de tema con un borrador abierto ya no borra el título ni el texto sin guardar.
 
 ## 2026-11-25 — Nota diaria de flujos en Takes, Social diario de nuevo y NDX y RUT al día en tiempo real
 

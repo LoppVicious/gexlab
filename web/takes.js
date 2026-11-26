@@ -44,7 +44,7 @@ async function loadTakes(refresh = false) {
 function renderTakes() {
   $("tkNew").hidden = !tk.puede.escribir || !!tk.editor || !!tk.abierto;
   $("tkQ").hidden = !!tk.editor || !!tk.abierto;
-  if (tk.editor) { $("tkTags").innerHTML = ""; return tkPintaEditor(); }
+  if (tk.editor) { tkLeeCampos(); $("tkTags").innerHTML = ""; return tkPintaEditor(); }   // repintar (p. ej. al cambiar de tema) no pierde lo escrito
   if (tk.abierto) { $("tkTags").innerHTML = ""; return tkPintaDetalle(); }
   if (tk.lista) tkPintaLista();
 }
@@ -108,7 +108,9 @@ function tkAdjunto(a) {
     return `<div class="tk-adj"><span class="tk-kind">PDF</span><span class="tk-adj-t">${esc(a.titulo)}</span><a class="ghost tk-open" href="${esc(a.src)}" target="_blank" rel="noopener">Open PDF</a>${nota}</div>`;
   }
   if (a.tipo === "imagen") {
-    return `<figure class="tk-img"><button type="button" class="tk-zoom" data-zoom title="Zoom"><img src="${esc(a.src)}" alt="${esc(a.titulo || a.texto || "Image")}" loading="lazy"></button>${a.texto ? `<figcaption>${esc(a.texto)}</figcaption>` : ""}</figure>`;
+    // los graficos del report y de flujos traen version oscura; al cambiar de tema, applyTheme repinta la pagina
+    const src = a.src_oscuro && document.documentElement.dataset.theme !== "light" ? a.src_oscuro : a.src;
+    return `<figure class="tk-img"><button type="button" class="tk-zoom" data-zoom title="Zoom"><img src="${esc(src)}" alt="${esc(a.titulo || a.texto || "Image")}" loading="lazy"></button>${a.texto ? `<figcaption>${esc(a.texto)}</figcaption>` : ""}</figure>`;
   }
   return `<blockquote class="tk-quote"><p>${esc(a.texto).replace(/\n/g, "<br>")}</p>${a.fuente || a.url ? `<footer>${esc(a.fuente)}${a.url ? ` <a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}</footer>` : ""}</blockquote>`;
 }

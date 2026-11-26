@@ -146,7 +146,10 @@ lo importa `worker.js` y wrangler lo empaqueta), `web/takes.js` (página: listad
   (por orden) y `takes_autores` (usuarios que pueden escribir borradores; el admin los marca en `/admin`).
 - R2: `takes/<take_id>/<24 hex>.<ext>`, solo PDF, PNG, JPEG y WebP, comprobados por los primeros bytes y la extensión
   (SVG no); 20 MB por archivo, 8 por Take. Se sirven por `/api/takes/archivo/<take_id>/<archivo>` solo si el Take es
-  visible para quien lo pide.
+  visible para quien lo pide. Las imágenes copiadas de un gráfico del report o de flujos llevan al lado
+  `<24 hex>.oscuro.png` (versión para el tema oscuro): `GET /api/takes/:id` la anuncia como `src_oscuro`, se sirve con
+  el permiso de la original y se borra con ella. `pruebas/takes_oscuro.py` (`oscuros.yml`, manual) la añadió a los
+  gráficos y Takes anteriores al 2026-11-26.
 - Rutas: `GET /api/takes` (lista sin cuerpo, con extracto), `GET /api/takes/:id`, `POST /api/takes` y
   `PUT /api/takes/:id` (multipart: campo `datos` en JSON y `archivoN`; al editar, los adjuntos existentes se conservan
   por `id` y los quitados se borran de R2), `POST /api/takes/:id/estado` y `DELETE /api/takes/:id` (solo admin).
@@ -159,7 +162,8 @@ lo importa `worker.js` y wrangler lo empaqueta), `web/takes.js` (página: listad
 `report.yml`, que ejecuta `report_semanal.py` (lectura y paquete), `report_calc.py` (cálculos y umbrales de
 destacado) y `report_graficos.py` (PNG, paleta Daylight). Lee `hist500/` (niveles, cadenas al cierre, familia VIX),
 FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apalancados).
-- R2: `report/{F}/paquete.json`, `report/{F}/g/{nombre}.png` y `report/ultimo.json` (`{"fecha": F}`). No se borran.
+- R2: `report/{F}/paquete.json`, `report/{F}/g/{nombre}.png` (y `{nombre}.oscuro.png`, el mismo con la paleta
+  oscura; `nube/report.js` copia las dos al Take) y `report/ultimo.json` (`{"fecha": F}`). No se borran.
 - Worker (`nube/report.js`): `GET /api/report/ultimo`, `GET /api/report/{F}`, `GET /api/report/{F}/g/{nombre}.png`
   y `POST /api/report/{F}/take` (crea un borrador de la cuenta `claude` con los PNG elegidos, con
   `validarTake`/`escribirTake` de `nube/takes.js`). Solo con `Authorization: Bearer <REPORT_TOKEN>`; sin el secreto,
@@ -171,7 +175,7 @@ FRED (`SP500`, `NASDAQ100`) y las webs de ProShares y Direxion (AUM de ETFs apal
 `flujos_diario.py` (lectura, paquete y serie), `flujos_calc.py` (cálculos y supuestos) y `flujos_graficos.py`
 (PNG, misma paleta que el report). Cadenas al cierre de `hist500/` para SPY, QQQ e IWM (recalculadas con el reloj
 del motor en el cierre) y de Tradier en directo para SPX, NDX y RUT. Diseño completo en `docs/FLUJOS.md`.
-- R2: `flujos/{F}/paquete.json`, `flujos/{F}/g/{nombre}.png`, `flujos/ultimo.json`, `flujos/{F}/tesis.json` (la
+- R2: `flujos/{F}/paquete.json`, `flujos/{F}/g/{nombre}.png` (y `{nombre}.oscuro.png`), `flujos/ultimo.json`, `flujos/{F}/tesis.json` (la
   escribe el Worker) y `flujos/_serie.json.gz` (una fila por sesión: AUM de ETFs apalancados, cifras, versión del
   modelo y tesis). No se borran.
 - Worker: las mismas rutas que el report con `/api/flujos/` (`nube/report.js`, mismo token); `POST .../take`

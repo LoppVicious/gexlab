@@ -1,0 +1,23 @@
+name: Graficos oscuros
+# Relleno manual: version para el tema oscuro de los graficos de report/ y flujos/ ya publicados y de los Takes hechos
+# con ellos (pruebas/takes_oscuro.py). Escribe en R2. Se puede repetir sin rehacer nada.
+on:
+  workflow_dispatch:
+jobs:
+  oscuros:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -q -r requirements-nube.txt matplotlib
+      - name: Relleno
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET || 'gexlab' }}
+          GEX_ALMACEN: r2
+        run: python pruebas/takes_oscuro.py

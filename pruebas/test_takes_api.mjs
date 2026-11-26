@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { takes, escribirTake, validarTake } from "../nube/takes.js";
+import { takes, escribirTake, validarTake, oscuroDe } from "../nube/takes.js";
 
 function d1() {
   const db = new DatabaseSync(":memory:");
@@ -24,6 +24,7 @@ function r2() {
     m,
     put: async (k, v, o) => { m.set(k, { bytes: v, ct: o.httpMetadata.contentType }); },
     get: async (k) => (m.has(k) ? { body: m.get(k).bytes, httpMetadata: { contentType: m.get(k).ct } } : null),
+    head: async (k) => (m.has(k) ? { size: m.get(k).bytes.length } : null),
     delete: async (ks) => { for (const k of [].concat(ks)) m.delete(k); },
   };
 }
@@ -127,6 +128,28 @@ test("editar conserva adjuntos por id, borra de R2 los quitados y borrar el Take
   assert.equal(env.R2.m.size, 0);
   assert.equal((await llama(env, ADMIN, "GET", `/api/takes/${id}`)).status, 404);
   assert.equal((await llama(env, ADMIN, "DELETE", `/api/takes/${id}`)).status, 404);
+});
+
+test("version oscura de una imagen: se anuncia, se sirve con el permiso del original y se borra con el", async () => {
+  const env = entorno();
+  const c = await llama(env, ADMIN, "POST", "/api/takes", {
+    cuerpo: "x", adjuntos: [{ tipo: "imagen", archivo: "archivo0" }, { tipo: "imagen", archivo: "archivo1" }],
+  }, [["archivo0", "a.png", PNG], ["archivo1", "b.png", PNG]]);
+  const id = c.d.id;
+  const [a, b] = env.DB.db.prepare("SELECT r2 FROM takes_adjuntos WHERE take_id = ? ORDER BY orden").all(id).map((x) => x.r2);
+  env.R2.m.set(oscuroDe(a), { bytes: PNG, ct: "image/png" });   // como la deja nube/report.js
+  const det = (await llama(env, ADMIN, "GET", `/api/takes/${id}`)).d;
+  assert.match(det.adjuntos[0].src_oscuro, /^\/api\/takes\/archivo\/\d+\/[0-9a-f]{24}\.oscuro\.png$/);
+  assert.equal(det.adjuntos[1].src_oscuro, undefined);
+  assert.equal((await llama(env, ADMIN, "GET", det.adjuntos[0].src_oscuro)).status, 200);
+  assert.equal((await llama(env, LECTOR, "GET", det.adjuntos[0].src_oscuro)).status, 404);   // borrador
+  assert.equal((await llama(env, ADMIN, "GET", det.adjuntos[0].src.replace(".png", ".oscuro.jpg"))).status, 404);
+  // quitar el adjunto al editar borra tambien su version oscura
+  await llama(env, ADMIN, "PUT", `/api/takes/${id}`, { cuerpo: "x", adjuntos: [{ id: det.adjuntos[1].id }] });
+  assert.deepEqual([...env.R2.m.keys()], [b]);
+  env.R2.m.set(oscuroDe(b), { bytes: PNG, ct: "image/png" });
+  assert.equal((await llama(env, ADMIN, "DELETE", `/api/takes/${id}`)).status, 200);
+  assert.equal(env.R2.m.size, 0);
 });
 
 test("publicar fija la fecha una vez; despublicar la conserva", async () => {

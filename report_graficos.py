@@ -1,8 +1,10 @@
-"""Graficos PNG del report semanal (matplotlib, solo en Actions). Fondo propio y paleta del tema Daylight: los
-colores son los de THEMES.light en web/app.js (si cambian alli, cambiarlos aqui). Cada funcion devuelve bytes PNG."""
+"""Graficos PNG del report semanal (matplotlib, solo en Actions). Fondo propio y paleta de la web: THEMES.light y
+THEMES.dark de web/app.js (si cambian alli, cambiarlos aqui). Cada funcion devuelve bytes PNG con la paleta activa en C;
+ambos() dibuja cada grafico en claro y en oscuro (la web ensena el del tema elegido)."""
 from __future__ import annotations
 
 import io
+from contextlib import contextmanager
 
 import matplotlib
 
@@ -11,9 +13,45 @@ import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 from matplotlib.patches import Rectangle  # noqa: E402
 
-# THEMES.light de web/app.js
-C = {"surface": "#ffffff", "grid": "#eceef4", "axis": "#d3d7e3", "text": "#11142b", "muted": "#4c5170",
-     "neg": "#e11d6a", "pos": "#6a3df0", "put": "#0b9b6a", "call": "#e5484d", "amber": "#c27c0e", "accent": "#5145e5"}
+# THEMES.light y THEMES.dark de web/app.js; "resalta" es el fondo de las celdas destacadas de las tablas
+TEMAS = {
+    "claro": {"surface": "#ffffff", "grid": "#eceef4", "axis": "#d3d7e3", "text": "#11142b", "muted": "#4c5170",
+              "neg": "#e11d6a", "pos": "#6a3df0", "put": "#0b9b6a", "call": "#e5484d", "amber": "#c27c0e",
+              "accent": "#5145e5", "resalta": "#fff1c2"},
+    "oscuro": {"surface": "#121214", "grid": "#1f1f23", "axis": "#2e2e34", "text": "#fafafa", "muted": "#a1a1aa",
+               "neg": "#ff2f7c", "pos": "#9461ff", "put": "#22c58b", "call": "#ff5a5f", "amber": "#f2b632",
+               "accent": "#34d3b0", "resalta": "#3d3012"},
+}
+C = dict(TEMAS["claro"])   # paleta activa: las funciones la leen al dibujar
+
+
+@contextmanager
+def tema(nombre: str):
+    """Cambia la paleta activa mientras dura el bloque."""
+    antes = dict(C)
+    C.clear()
+    C.update(TEMAS[nombre])
+    try:
+        yield
+    finally:
+        C.clear()
+        C.update(antes)
+
+
+def ambos(out: dict, nombre: str, fn) -> None:
+    """out[nombre] = PNG en claro y out[nombre + ".oscuro"] = el mismo en oscuro (se publican como g/{clave}.png).
+    Si la version oscura falla no se pierde la clara: la web usa la clara en los dos temas."""
+    try:
+        out[nombre] = fn()
+    finally:
+        plt.close("all")
+    try:
+        with tema("oscuro"):
+            out[f"{nombre}.oscuro"] = fn()
+    except Exception as e:  # noqa: BLE001
+        print(f"grafico {nombre} (oscuro): {type(e).__name__}: {str(e)[:200]}", flush=True)
+    finally:
+        plt.close("all")
 ANCHO, DPI = 12, 100   # 1200 px de ancho
 
 

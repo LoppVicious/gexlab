@@ -221,7 +221,8 @@ def test_graficos():
         "strikes": {"estado": "ok", **fc.strikes_puts(ch, 7000.0, t0)},
         "vol_control": {"estado": "ok", **fc.vol_control(c, f[-1])}, "cta": {"estado": "ok", **fc.cta(c, f[-1])}}}
     out = fg.todos(paq)
-    assert set(out) == {"asimetria", "dealers", "strikes_puts", "sistematicos", "letf"}
+    base = {"asimetria", "dealers", "strikes_puts", "sistematicos", "letf"}
+    assert set(out) == base | {f"{k}.oscuro" for k in base}
     assert all(v[:4] == b"\x89PNG" for v in out.values()) and paq["bloques"]["cta"]["graficos"] == ["sistematicos"]
     if os.environ.get("FLUJOS_PNG"):
         for k, v in out.items():

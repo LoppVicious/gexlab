@@ -130,6 +130,10 @@ def test_graficos():
     et = rc.bloque_etf({"TQQQ": 2e10}, {"QQQ": cierres(f, rets)}, f[-5:])
     pngs = [rg.gamma("SPY", gm["datos"]["SPY"]), rg.vol_real("SPX", vr["datos"]["SPX"]),
             rg.vol_strike("SPY", vs["datos"]["SPY"]), rg.etf(et["datos"])]
+    out = {}
+    rg.ambos(out, "gamma_spy", lambda: rg.gamma("SPY", gm["datos"]["SPY"]))
+    assert set(out) == {"gamma_spy", "gamma_spy.oscuro"} and out["gamma_spy"] != out["gamma_spy.oscuro"]
+    assert rg.C == rg.TEMAS["claro"]   # la paleta vuelve a la clara al acabar
     assert all(p[:8] == b"\x89PNG\r\n\x1a\n" for p in pngs)
 
 def test_aum_parsers():

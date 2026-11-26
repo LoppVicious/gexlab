@@ -1,5 +1,6 @@
 // GEX Lab - Founder Takes en el Worker: entradas en D1 (takes, takes_adjuntos, takes_autores) y archivos en R2
-// (takes/<take_id>/<24 hex>.<ext>). Escribe el admin; los usuarios de takes_autores crean y editan sus borradores;
+// (takes/<take_id>/<24 hex>.<ext>; los graficos del report y de flujos llevan al lado su version para el tema oscuro,
+// <24 hex>.oscuro.png, que la web usa si existe). Escribe el admin; los usuarios de takes_autores crean y editan sus borradores;
 // el resto lee lo publicado. Las funciones puras se exportan para pruebas/test_takes.mjs.
 
 export const LIM = {
@@ -19,6 +20,9 @@ export function tipoArchivo(b) {
   if (b.length >= 12 && s(0, 4) === "RIFF" && s(8, 4) === "WEBP") return { tipo: "imagen", ext: "webp", mime: "image/webp" };
   return null;
 }
+
+// clave de R2 de la version oscura de una imagen: takes/1/abc.png -> takes/1/abc.oscuro.png
+export const oscuroDe = (r2) => r2.replace(/(\.[a-z0-9]+)$/, ".oscuro$1");
 
 export function urlSegura(s) {
   s = String(s || "").trim();
@@ -169,10 +173,14 @@ async function uno(env, me, id, h) {
   if (!t || !visible(t, me)) return h.json(404, { error: "Take not found" });
   const adj = (await env.DB.prepare("SELECT id, tipo, url, r2, titulo, texto, fuente FROM takes_adjuntos WHERE take_id = ? ORDER BY orden").bind(id).all()).results || [];
   const editable = me.admin || (t.autor === me.user && t.estado === "borrador" && await esAutor(env, me));
+  const oscuro = await Promise.all(adj.map((a) => (a.tipo === "imagen" && a.r2 ? env.R2.head(oscuroDe(a.r2)) : null)));
   return h.json(200, {
     id: t.id, titulo: t.titulo, cuerpo: t.cuerpo, etiquetas: JSON.parse(t.etiquetas || "[]"), estado: t.estado,
     autor: t.autor, creado: t.creado, editado: t.editado, publicado: t.publicado,
-    adjuntos: adj.map((a) => ({ id: a.id, tipo: a.tipo, url: a.url, titulo: a.titulo, texto: a.texto, fuente: a.fuente, src: a.r2 ? srcDe(a.r2) : null })),
+    adjuntos: adj.map((a, i) => ({
+      id: a.id, tipo: a.tipo, url: a.url, titulo: a.titulo, texto: a.texto, fuente: a.fuente, src: a.r2 ? srcDe(a.r2) : null,
+      ...(oscuro[i] ? { src_oscuro: srcDe(oscuroDe(a.r2)) } : {}),
+    })),
     puede: { editar: editable, publicar: !!me.admin },
   });
 }
@@ -221,9 +229,13 @@ export async function escribirTake(env, autor, t, id, previos) {
       a.r2 = `takes/${id}/${rand()}.${a.nuevo.ext}`;
       await env.R2.put(a.r2, a.nuevo.bytes, { httpMetadata: { contentType: a.nuevo.mime } });
       subidos.push(a.r2);
+      if (a.nuevo.oscuro) {   // version oscura (solo la pone nube/report.js, ya comprobada como PNG)
+        await env.R2.put(oscuroDe(a.r2), a.nuevo.oscuro, { httpMetadata: { contentType: "image/png" } });
+        subidos.push(oscuroDe(a.r2));
+      }
     }
     const sigue = new Set(t.adjuntos.filter((a) => a.id != null).map((a) => a.id));
-    const quitar = [...previos.values()].filter((a) => !sigue.has(a.id) && a.r2).map((a) => a.r2);
+    const quitar = [...previos.values()].filter((a) => !sigue.has(a.id) && a.r2).flatMap((a) => [a.r2, oscuroDe(a.r2)]);
     const ins = "INSERT INTO takes_adjuntos (take_id, orden, tipo, url, r2, titulo, texto, fuente) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     await env.DB.batch([
       env.DB.prepare("DELETE FROM takes_adjuntos WHERE take_id = ?").bind(id),
@@ -257,7 +269,8 @@ async function estado(req, env, me, id, h) {
 
 async function borrar(env, me, id, h) {
   if (!me.admin) return h.json(403, { error: "Administrator only" });
-  const claves = ((await env.DB.prepare("SELECT r2 FROM takes_adjuntos WHERE take_id = ? AND r2 IS NOT NULL").bind(id).all()).results || []).map((a) => a.r2);
+  const claves = ((await env.DB.prepare("SELECT r2 FROM takes_adjuntos WHERE take_id = ? AND r2 IS NOT NULL").bind(id).all()).results || [])
+    .flatMap((a) => [a.r2, oscuroDe(a.r2)]);
   const r = await env.DB.batch([
     env.DB.prepare("DELETE FROM takes_adjuntos WHERE take_id = ?").bind(id),
     env.DB.prepare("DELETE FROM takes WHERE id = ?").bind(id),
@@ -268,9 +281,10 @@ async function borrar(env, me, id, h) {
 }
 
 async function archivo(env, me, resto, h) {
-  if (!/^\d{1,9}\/[0-9a-f]{24}\.(pdf|png|jpg|webp)$/.test(resto)) return h.json(400, { error: "Invalid path" });
-  const clave = "takes/" + resto;
-  const t = await env.DB.prepare("SELECT t.estado, t.autor FROM takes_adjuntos a JOIN takes t ON t.id = a.take_id WHERE a.r2 = ?").bind(clave).first();
+  const mm = /^(\d{1,9}\/[0-9a-f]{24})(\.oscuro)?\.(pdf|png|jpg|webp)$/.exec(resto);
+  if (!mm) return h.json(400, { error: "Invalid path" });
+  const base = `takes/${mm[1]}.${mm[3]}`, clave = mm[2] ? oscuroDe(base) : base;   // permiso: el del adjunto original
+  const t = await env.DB.prepare("SELECT t.estado, t.autor FROM takes_adjuntos a JOIN takes t ON t.id = a.take_id WHERE a.r2 = ?").bind(base).first();
   if (!t || !visible(t, me)) return h.json(404, { error: "File not found" });
   const o = await env.R2.get(clave);
   if (!o) return h.json(404, { error: "File not found" });

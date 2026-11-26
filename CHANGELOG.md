@@ -6,11 +6,11 @@ Una entrada por día, la más reciente arriba: fecha, título y qué cambia para
 ## 2026-11-26 — Estudio para un screener de movimiento esperado y Takes a todo el ancho
 
 **Cambiado**
-- **Research > Takes a todo el ancho:** el listado pasa a una rejilla de tarjetas que llena la pantalla y, en un
-  take con adjuntos, el texto queda a la izquierda y los adjuntos en una columna a la derecha (en pantallas
-  estrechas, uno debajo del otro).
-- **Imágenes de los Takes:** al hacer clic se amplían sobre la misma página en vez de abrir otra pestaña; se cierra
-  con clic, con la X o con Escape.
+- **Research > Takes a todo el ancho:** el listado pasa a una rejilla de tarjetas que llena la pantalla. En un take,
+  el texto va en una columna centrada de lectura cómoda y los gráficos y adjuntos debajo, en una rejilla a todo el
+  ancho (tres columnas en 1920 px, dos en 1366 px, una en el móvil).
+- **Imágenes de los Takes:** al hacer clic se amplían sobre la misma página hasta llenar la pantalla, en vez de abrir
+  otra pestaña; se cierra con clic, con la X o con Escape.
 
 **Añadido**
 - **Estudio de movimiento esperado** (`pruebas/estudio_movimiento.py`, en Actions): mide qué anticipa cuánto se

@@ -122,13 +122,13 @@ function tkPintaDetalle() {
   ].join("");
   $("tkBody").innerHTML = `<article class="tk-detail">
     <div class="tk-detail-bar"><button class="ghost" data-tk="volver">‹ All takes</button><span class="tk-actions">${acciones}</span></div>
+    <div class="tk-read">
     <div class="tk-meta"><time>${esc(tkFecha(t.publicado || t.creado))}</time>${t.editado ? `<span>edited ${esc(tkFecha(t.editado))}</span>` : ""}${t.estado === "borrador" ? '<span class="tk-draft">Draft</span>' : ""}${t.autor !== tk.yo ? `<span>by ${esc(t.autor)}</span>` : ""}</div>
     ${t.titulo ? `<h1>${esc(t.titulo)}</h1>` : ""}
     ${t.etiquetas.length ? `<div class="tk-foot">${t.etiquetas.map((e) => `<span class="tk-tag">${esc(e)}</span>`).join("")}</div>` : ""}
-    <div class="tk-cols${t.cuerpo && t.adjuntos.length ? " dos" : ""}">
-      ${t.cuerpo ? `<div class="tk-md">${tkMarkdown(t.cuerpo)}</div>` : ""}
-      ${t.adjuntos.length ? `<div class="tk-adjs">${t.adjuntos.map(tkAdjunto).join("")}</div>` : ""}
+    ${t.cuerpo ? `<div class="tk-md">${tkMarkdown(t.cuerpo)}</div>` : ""}
     </div>
+    ${t.adjuntos.length ? `<div class="tk-adjs">${t.adjuntos.map(tkAdjunto).join("")}</div>` : ""}
   </article>`;
 }
 
@@ -273,12 +273,12 @@ function tkZoom(img) {
     d.id = "tkLb"; d.className = "tk-lb"; d.setAttribute("aria-label", "Image");
     d.innerHTML = `<button type="button" class="tk-lb-x" aria-label="Close">×</button><img alt=""><p></p>`;
     d.addEventListener("click", () => d.close());
-    d.addEventListener("close", () => { d.querySelector("img").removeAttribute("src"); });
     document.body.appendChild(d);
   }
   const fig = img.closest("figure"), cap = fig && fig.querySelector("figcaption");
   d.querySelector("img").src = img.currentSrc || img.src;
   d.querySelector("img").alt = img.alt;
+  if (img.naturalWidth) d.style.setProperty("--ar", img.naturalWidth / img.naturalHeight);
   d.querySelector("p").textContent = cap ? cap.textContent : "";
   d.showModal();
 }

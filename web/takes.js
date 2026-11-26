@@ -108,7 +108,7 @@ function tkAdjunto(a) {
     return `<div class="tk-adj"><span class="tk-kind">PDF</span><span class="tk-adj-t">${esc(a.titulo)}</span><a class="ghost tk-open" href="${esc(a.src)}" target="_blank" rel="noopener">Open PDF</a>${nota}</div>`;
   }
   if (a.tipo === "imagen") {
-    return `<figure class="tk-img"><a href="${esc(a.src)}" target="_blank" rel="noopener" title="Open full size"><img src="${esc(a.src)}" alt="${esc(a.titulo || a.texto || "Image")}" loading="lazy"></a>${a.texto ? `<figcaption>${esc(a.texto)}</figcaption>` : ""}</figure>`;
+    return `<figure class="tk-img"><button type="button" class="tk-zoom" data-zoom title="Zoom"><img src="${esc(a.src)}" alt="${esc(a.titulo || a.texto || "Image")}" loading="lazy"></button>${a.texto ? `<figcaption>${esc(a.texto)}</figcaption>` : ""}</figure>`;
   }
   return `<blockquote class="tk-quote"><p>${esc(a.texto).replace(/\n/g, "<br>")}</p>${a.fuente || a.url ? `<footer>${esc(a.fuente)}${a.url ? ` <a href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}</footer>` : ""}</blockquote>`;
 }
@@ -125,8 +125,10 @@ function tkPintaDetalle() {
     <div class="tk-meta"><time>${esc(tkFecha(t.publicado || t.creado))}</time>${t.editado ? `<span>edited ${esc(tkFecha(t.editado))}</span>` : ""}${t.estado === "borrador" ? '<span class="tk-draft">Draft</span>' : ""}${t.autor !== tk.yo ? `<span>by ${esc(t.autor)}</span>` : ""}</div>
     ${t.titulo ? `<h1>${esc(t.titulo)}</h1>` : ""}
     ${t.etiquetas.length ? `<div class="tk-foot">${t.etiquetas.map((e) => `<span class="tk-tag">${esc(e)}</span>`).join("")}</div>` : ""}
-    ${t.cuerpo ? `<div class="tk-md">${tkMarkdown(t.cuerpo)}</div>` : ""}
-    ${t.adjuntos.length ? `<div class="tk-adjs">${t.adjuntos.map(tkAdjunto).join("")}</div>` : ""}
+    <div class="tk-cols${t.cuerpo && t.adjuntos.length ? " dos" : ""}">
+      ${t.cuerpo ? `<div class="tk-md">${tkMarkdown(t.cuerpo)}</div>` : ""}
+      ${t.adjuntos.length ? `<div class="tk-adjs">${t.adjuntos.map(tkAdjunto).join("")}</div>` : ""}
+    </div>
   </article>`;
 }
 
@@ -263,6 +265,24 @@ async function tkGuarda() {
   }
 }
 
+/* Zoom de una imagen adjunta sin salir de la pagina. Un solo <dialog> reutilizado; se cierra con clic o Escape. */
+function tkZoom(img) {
+  let d = $("tkLb");
+  if (!d) {
+    d = document.createElement("dialog");
+    d.id = "tkLb"; d.className = "tk-lb"; d.setAttribute("aria-label", "Image");
+    d.innerHTML = `<button type="button" class="tk-lb-x" aria-label="Close">×</button><img alt=""><p></p>`;
+    d.addEventListener("click", () => d.close());
+    d.addEventListener("close", () => { d.querySelector("img").removeAttribute("src"); });
+    document.body.appendChild(d);
+  }
+  const fig = img.closest("figure"), cap = fig && fig.querySelector("figcaption");
+  d.querySelector("img").src = img.currentSrc || img.src;
+  d.querySelector("img").alt = img.alt;
+  d.querySelector("p").textContent = cap ? cap.textContent : "";
+  d.showModal();
+}
+
 /* ------------------------------------------------------------ eventos */
 $("tkQ").addEventListener("input", (e) => { tk.q = e.target.value; tkPintaLista(); });
 $("tkTags").addEventListener("click", (e) => {
@@ -275,6 +295,8 @@ $("tkNew").addEventListener("click", () => tkEditor(null));
 $("tkBody").addEventListener("click", (e) => {
   const card = !tk.editor && !tk.abierto && e.target.closest(".tk-card");
   if (card) return void tkAbre(+card.dataset.id);
+  const z = e.target.closest("[data-zoom]");
+  if (z) return void tkZoom(z.querySelector("img"));
   const b = e.target.closest("[data-tk]"); if (!b) return;
   const a = b.dataset.tk;
   if (a === "volver") { tk.abierto = null; renderTakes(); }

@@ -1,4 +1,4 @@
-/* GEX Lab - Founder Takes (takes.js). Pagina de lectura: columna de texto comoda, tarjetas sobrias.
+/* GEX Lab - Founder Takes (takes.js). Ocupa todo el ancho: tarjetas en rejilla y, en el detalle, texto y adjuntos lado a lado.
    Solo tokens del tema (sg.css y tema.css): igual en claro y en oscuro. Clases con prefijo tk-. */
 .tk-bar { display: flex; gap: 10px; align-items: center; }
 .tk-q { flex: 1; max-width: 420px; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--line);
@@ -10,14 +10,14 @@
 .tk-view .ghost.tk-danger, .tk-view .ghost.tk-danger:hover { color: var(--neg); }
 .tk-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
 .tk-tags:empty { display: none; }
-.tk-body .empty { color: var(--faint); padding: 40px; text-align: center; max-width: 820px; }
+.tk-body .empty { color: var(--faint); padding: 40px; text-align: center; }
 .tk-chip { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--btn); color: var(--muted);
   font: inherit; font-size: 12.5px; cursor: pointer; }
 .tk-chip span { color: var(--faint); font-variant-numeric: tabular-nums; }
 .tk-chip:hover { background: var(--btn-hover); }
 .tk-chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 
-.tk-list { display: grid; gap: 12px; max-width: 820px; margin-bottom: 32px; }
+.tk-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; margin-bottom: 32px; }
 .tk-card { padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
 .tk-card:hover { border-color: var(--line-strong); }
 .tk-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -32,7 +32,10 @@
 .tk-tag button:hover { color: var(--text); }
 .tk-kind { justify-self: start; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); color: var(--faint); font-size: 11.5px; }
 
-.tk-detail, .tk-editor { max-width: 760px; margin-bottom: 40px; }
+.tk-detail, .tk-editor { margin-bottom: 40px; }
+/* Con adjuntos y pantalla ancha: texto a la izquierda, adjuntos en columna a la derecha */
+.tk-cols.dos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 40%); gap: 28px; align-items: start; }
+.tk-cols.dos .tk-adjs { margin-top: 16px; }
 .tk-detail-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
 .tk-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .tk-detail h1 { margin: 8px 0 6px; font-size: 26px; line-height: 1.25; font-weight: 600; color: var(--text); }
@@ -57,7 +60,20 @@ a.tk-adj:hover { border-color: var(--line-strong); }
 .tk-adj-n { grid-column: 2 / -1; color: var(--muted); font-size: 14px; }
 .tk-open { text-decoration: none; }
 .tk-img { margin: 0; }
+.tk-zoom { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 12px; }
+.tk-zoom:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tk-img img { display: block; max-width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--line); }
+/* Zoom de imagen en la misma pagina (dialog nativo: Escape y foco los gestiona el navegador) */
+.tk-lb { max-width: none; max-height: none; width: 100vw; height: 100vh; margin: 0; padding: 24px; box-sizing: border-box; border: 0;
+  background: transparent; cursor: zoom-out; }
+.tk-lb[open] { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.tk-lb::backdrop { background: rgba(5, 8, 13, .78); backdrop-filter: blur(3px); }   /* velo oscuro en ambos temas, como #pwDlg */
+.tk-lb img { max-width: 100%; max-height: calc(100vh - 90px); object-fit: contain; border-radius: 12px; background: var(--surface); }
+.tk-lb p { margin: 0; padding: 4px 12px; border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 13px; }
+.tk-lb p:empty { display: none; }
+.tk-lb-x { position: absolute; top: 14px; right: 18px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surface); color: var(--text); font: inherit; font-size: 20px; line-height: 1; cursor: pointer; }
+.tk-lb-x:hover { background: var(--btn-hover); }
 .tk-img figcaption { margin-top: 6px; color: var(--faint); font-size: 13px; }
 
 .tk-editor input, .tk-editor textarea { width: 100%; box-sizing: border-box; padding: 8px 12px; border-radius: 10px;
@@ -81,7 +97,13 @@ a.tk-adj:hover { border-color: var(--line-strong); }
 .tk-msg { min-height: 1.4em; margin: 10px 0 0; color: var(--neg); font-size: 13.5px; }
 .tk-msg:not(.on) { visibility: hidden; }
 
+@media (max-width: 1100px) {
+  .tk-cols.dos { display: block; }
+  .tk-cols.dos .tk-adjs { margin-top: 20px; }
+}
 @media (max-width: 640px) {
+  .tk-list { grid-template-columns: 1fr; }
+  .tk-lb { padding: 8px; }
   .tk-q { max-width: none; }
   .tk-card { padding: 14px; }
   .tk-detail h1 { font-size: 22px; }
